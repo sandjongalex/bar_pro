@@ -99,8 +99,17 @@ def validate_config(config: dict) -> None:
                 raise ValueError()
         except (ValueError, TypeError, AttributeError):
             raise ConfigError("JWT keys must be a matching ES256 P-256 pair.") from None
-        if not config.get("RATELIMIT_STORAGE_URI") or config["RATELIMIT_STORAGE_URI"].startswith("memory://"):
-            raise ConfigError("Production requires a durable RATELIMIT_STORAGE_URI.")
+        if not config.get("RATELIMIT_STORAGE_URI"):
+    raise ConfigError("RATELIMIT_STORAGE_URI is required.")
+
+if (
+    config["RATELIMIT_STORAGE_URI"].startswith("memory://")
+    and os.getenv("ALLOW_IN_MEMORY_RATELIMIT") != "1"
+):
+    raise ConfigError(
+        "Production requires a durable RATELIMIT_STORAGE_URI. "
+        "Set ALLOW_IN_MEMORY_RATELIMIT=1 only for constrained single-worker deployments."
+    )
 
 
 def load_environment(config):
