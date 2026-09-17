@@ -1,0 +1,8 @@
+:root { --bs-primary: #0f5c4d; }
+.sidebar { width: 260px; min-height: 100vh; }
+.sidebar .nav-link.active,.sidebar .nav-link:hover { background:#176b5b; border-radius:.375rem; }
+.skip-link { position:absolute; left:-9999px; z-index:1050; padding:.5rem; background:#fff; color:#000; }
+.skip-link:focus { left:.5rem; top:.5rem; }
+a:focus-visible,button:focus-visible,input:focus-visible { outline:3px solid #f6b73c; outline-offset:2px; }
+@media (max-width: 991px) { .card { border-radius:.75rem; } }
+.btn-touch { min-height: 52px; min-width: 52px; font-size:1.05rem; }

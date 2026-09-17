@@ -1,0 +1,10 @@
+{% extends 'layout.html' %}{% block content %}
+<h1 class="h3">Inventaire {{ inventory.reference }}</h1><p>État : {{ inventory.status }} · {{ inventory.reason }}</p>
+<p><a href="{{ url_for('inventories.listing',bar_id=bar_id) }}">Tous les inventaires</a> · <a href="{{ url_for('inventories.printable',bar_id=bar_id,inventory_id=inventory.id) }}">Imprimer</a></p>
+<form method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="counts">
+<div class="table-responsive"><table class="table"><thead><tr><th>Produit</th><th>Théorique</th><th>Compté</th><th>Écart</th></tr></thead><tbody>
+{% for line in inventory.lines %}<tr><td>{{ line.product_name }} ({{ line.unit }})</td><td>{{ line.expected_quantity }}</td><td>{% if inventory.status == 'DRAFT' %}<input aria-label="Quantité comptée : {{ line.product_name }}" class="form-control" name="quantity_{{ line.product_id }}" type="number" min="0" step="0.000001" value="{{ line.counted_quantity if line.counted_quantity is not none else '' }}">{% else %}{{ line.counted_quantity if line.counted_quantity is not none else '—' }}{% endif %}</td><td>{{ line.difference_quantity if line.difference_quantity is not none else '—' }}</td></tr>{% endfor %}
+</tbody></table></div>{% if inventory.status == 'DRAFT' %}<button class="btn btn-primary">Enregistrer le comptage</button>{% endif %}</form>
+{% if inventory.status == 'DRAFT' %}<p class="mt-3">Enregistrez le comptage avant de valider. La validation ajuste le stock et fige cet inventaire. Si le stock a changé depuis la création, annulez ce brouillon et créez un nouvel inventaire.</p>
+<form method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-success" name="action" value="post">Valider et ajuster le stock</button> <button class="btn btn-outline-danger" name="action" value="cancel">Annuler le brouillon</button></form>{% endif %}
+{% endblock %}

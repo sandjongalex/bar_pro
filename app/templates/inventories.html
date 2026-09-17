@@ -1,0 +1,5 @@
+{% extends 'layout.html' %}{% block content %}
+<h1 class="h3">Inventaires</h1><a class="btn btn-primary mb-3" href="{{ url_for('inventories.new',bar_id=bar_id) }}">Nouvel inventaire</a>
+<div class="table-responsive"><table class="table"><thead><tr><th>Référence</th><th>État</th><th>Compté le</th><th></th></tr></thead><tbody>{% for row in rows.items %}<tr><td><a href="{{ url_for('inventories.detail',bar_id=bar_id,inventory_id=row.id) }}">{{ row.reference }}</a></td><td>{{ row.status }}</td><td>{{ row.counted_at }}</td><td><a href="{{ url_for('inventories.printable',bar_id=bar_id,inventory_id=row.id) }}">Imprimer</a></td></tr>{% else %}<tr><td colspan="4">Aucun inventaire.</td></tr>{% endfor %}</tbody></table></div>
+<nav aria-label="Pages des inventaires">{% if rows.has_prev %}<a href="{{ url_for('inventories.listing',bar_id=bar_id,page=rows.prev_num) }}">Précédente</a>{% endif %} Page {{ rows.page }} {% if rows.has_next %}<a href="{{ url_for('inventories.listing',bar_id=bar_id,page=rows.next_num) }}">Suivante</a>{% endif %}</nav>
+{% endblock %}

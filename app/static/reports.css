@@ -1,0 +1,10 @@
+@media print {
+  nav, aside, .no-print, button { display: none !important; }
+  @page { size: A4; margin: 12mm; }
+  body { color: #000; background: #fff; font-size: 11pt; }
+  .report { width: 100%; }
+}
+.report { max-width: 1000px; margin: 1rem auto; }
+.report table { width: 100%; border-collapse: collapse; margin: .75rem 0 1.25rem; }
+.report th, .report td { border: 1px solid #999; padding: .35rem; text-align: left; }
+.report th { background: #eee; }

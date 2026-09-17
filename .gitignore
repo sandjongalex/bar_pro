@@ -1,0 +1,14 @@
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.sqlite
+*.sqlite3
+.venv/
+__pycache__/
+.pytest_cache/
+.coverage
+htmlcov/
+instance/
+verification/

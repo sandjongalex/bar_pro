@@ -1,0 +1,6 @@
+<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>Rapport {{ bar_id }}</title><link rel="stylesheet" href="{{ url_for('static', filename='reports.css') }}"></head>
+<body><main class="report"><button class="no-print" onclick="window.print()">Imprimer</button><h1>Rapport opérationnel</h1><p>Établissement : {{ bar_id }}<br>Période : {{ report.period.start or 'Toutes' }} → {{ report.period.end or 'Toutes' }}<br>Généré le : {{ generated_at }}</p>
+<h2>Ventes</h2><table><tr><th>Indicateur</th><th>Valeur</th></tr>{% for k,v in report.sales.items() if k != 'margin_note' %}<tr><td>{{ k }}</td><td>{{ v }}</td></tr>{% endfor %}</table>
+<h2>Paiements et créances</h2><table><tr><th>Indicateur</th><th>Valeur</th></tr>{% for k,v in report.payments.items() if k != 'by_method' %}<tr><td>{{ k }}</td><td>{{ v }}</td></tr>{% endfor %}<tr><td>total_due</td><td>{{ report.receivables.total_due }}</td></tr></table>
+<h2>Stocks faibles et pertes</h2><table><tr><th>Produit</th><th>Quantité</th><th>Seuil</th><th>Différence</th></tr>{% for x in report.stock.low %}<tr><td>{{ x.product }}</td><td>{{ x.quantity }}</td><td>{{ x.threshold }}</td><td>{{ x.difference }}</td></tr>{% endfor %}</table><p>Pertes : {{ report.stock.losses }}</p>
+</main></body></html>

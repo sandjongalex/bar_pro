@@ -1,0 +1,17 @@
+{% extends 'layout.html' %}
+{% block content %}
+<h1 class="h3">Nouvelle commande</h1>
+{% if created_order %}<div class="alert alert-success" role="status">Commande {{ created_order.reference }} confirmée. Total : {{ created_order.total_amount }} {{ created_order.currency }}.</div>{% endif %}
+<form method="post">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+<label class="form-label" for="reference">Référence unique</label>
+<input class="form-control mb-3" id="reference" name="reference" required maxlength="64">
+<div class="row g-2">
+{% for product in products %}<div class="col-6 col-md-4"><div class="card p-3">
+<label for="quantity_{{ product.id }}">{{ product.name }} · {{ product.sale_price }}</label>
+<input class="form-control" type="number" id="quantity_{{ product.id }}" name="quantity_{{ product.id }}" value="0" min="0" step="0.000001" inputmode="decimal">
+</div></div>{% else %}<p>Aucun produit actif.</p>{% endfor %}
+</div>
+{% if products %}<button class="btn btn-primary btn-touch mt-3" type="submit">Confirmer la commande</button>{% endif %}
+</form>
+{% endblock %}

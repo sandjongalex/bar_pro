@@ -1,0 +1,10 @@
+{% extends 'layout.html' %}{% block content %}
+<h1 class="h3">Nouvel inventaire</h1>
+<form method="post">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+<label for="reference">Référence unique</label><input class="form-control mb-3" id="reference" name="reference" maxlength="64" required>
+<label for="reason">Motif</label><textarea class="form-control mb-3" id="reason" name="reason" maxlength="500" required>Inventaire physique</textarea>
+<fieldset><legend class="h5">Produits à compter</legend>
+{% for product in products %}<div class="form-check"><input class="form-check-input" type="checkbox" id="product_{{ product.id }}" name="product_ids" value="{{ product.id }}"><label class="form-check-label" for="product_{{ product.id }}">{{ product.name }} ({{ product.base_unit }})</label></div>{% else %}<p>Aucun produit disponible.</p>{% endfor %}
+</fieldset>{% if products %}<button class="btn btn-primary mt-3">Créer le brouillon</button>{% endif %}
+</form>{% endblock %}
