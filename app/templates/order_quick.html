@@ -1,26 +1,33 @@
 {% extends 'layout.html' %}
-{% block title %}Point de vente · {{ bar.name }} · Bar Manager Pro{% endblock %}
-{% block header %}Point de vente · {{ bar.name }}{% endblock %}
+{% block title %}Commandes · {{ bar.name }} · Bar Manager Pro{% endblock %}
+{% block header %}Commandes · {{ bar.name }}{% endblock %}
 {% block content %}
 <section class="pos-hero">
   <div>
     <a class="bar-back" href="{{ url_for('bars.web_detail', bar_id=bar.id) }}">← Retour à {{ bar.name }}</a>
-    <p class="eyebrow mt-3 mb-2">Commandes & ventes</p>
-    <h1>Point de vente</h1>
-    <p>Sélectionnez rapidement les produits, vérifiez le panier puis confirmez la commande. Le stock est déduit automatiquement à la confirmation.</p>
+    <p class="eyebrow mt-3 mb-2">{% if is_server %}Espace serveuse{% else %}Commandes{% endif %}</p>
+    <h1>{% if is_server %}Nouvelle commande{% else %}Point de vente{% endif %}</h1>
+    <p>Sélectionnez la table, les produits et les quantités puis envoyez la commande à la caisse. Le stock ne sera déduit que lorsque la caissière confirmera « Livrée ».</p>
   </div>
-  {% if can_pay %}<a class="btn btn-outline-primary" href="{{ url_for('checkout_web.checkout', bar_id=bar.id) }}">Encaissement rapide →</a>{% endif %}
+  {% if can_pay %}<a class="btn btn-outline-primary" href="{{ url_for('checkout_web.checkout', bar_id=bar.id) }}">Caisse commandes →</a>{% endif %}
 </section>
 
 {% with messages = get_flashed_messages(with_categories=true) %}
   {% for category, message in messages %}<div class="alert alert-{{ category }} mt-3" role="alert">{{ message }}</div>{% endfor %}
 {% endwith %}
 
+{% if is_server and stats.paid %}
+<div class="alert alert-success mt-3" role="status">
+  <strong>{{ stats.paid }} commande{{ 's' if stats.paid != 1 else '' }} payée{{ 's' if stats.paid != 1 else '' }}.</strong>
+  Les paiements validés par la caisse apparaissent en vert dans « Mes commandes ».
+</div>
+{% endif %}
+
 <section class="pos-stats mt-4">
   <article><span>Produits actifs</span><strong>{{ stats.products }}</strong><small>Dans le catalogue</small></article>
   <article><span>Disponibles</span><strong>{{ stats.available }}</strong><small>Avec stock positif</small></article>
-  <article><span>À servir</span><strong>{{ stats.confirmed }}</strong><small>Commandes confirmées</small></article>
-  <article><span>Servies récentes</span><strong>{{ stats.served }}</strong><small>Parmi les 20 dernières</small></article>
+  <article><span>En attente</span><strong>{{ stats.waiting }}</strong><small>Envoyées à la caisse</small></article>
+  <article><span>Payées</span><strong>{{ stats.paid }}</strong><small>Paiement validé</small></article>
 </section>
 
 <form method="post" id="posForm" class="pos-layout mt-4">
@@ -40,17 +47,7 @@
       {% for product in products %}
         {% set stock = balances.get(product.id, 0) %}
         {% set category = categories_by_id.get(product.category_id) %}
-        <button
-          class="pos-product {% if stock <= 0 %}out-of-stock{% endif %}"
-          type="button"
-          data-product-id="{{ product.id }}"
-          data-name="{{ product.name }}"
-          data-price="{{ product.sale_price }}"
-          data-stock="{{ stock }}"
-          data-unit="{{ product.base_unit }}"
-          data-category="{{ product.category_id }}"
-          {% if stock <= 0 %}disabled{% endif %}
-        >
+        <button class="pos-product {% if stock <= 0 %}out-of-stock{% endif %}" type="button" data-product-id="{{ product.id }}" data-name="{{ product.name }}" data-price="{{ product.sale_price }}" data-stock="{{ stock }}" data-unit="{{ product.base_unit }}" data-category="{{ product.category_id }}" {% if stock <= 0 %}disabled{% endif %}>
           <div class="pos-product-top">
             <span class="pos-product-avatar">{{ product.name[0]|upper }}</span>
             <span class="pos-stock {% if stock <= 0 %}danger{% elif stock <= product.stock_alert_threshold %}warning{% endif %}">{% if stock <= 0 %}Rupture{% else %}Stock {{ stock }}{% endif %}</span>
@@ -70,49 +67,59 @@
     <div class="pos-cart-empty" id="cartEmpty"><div>🧾</div><strong>Le panier est vide</strong><small>Touchez un produit pour l'ajouter.</small></div>
     <div class="pos-cart-lines" id="cartLines"></div>
     <div class="pos-order-meta">
-      {% if tables %}<div><label class="form-label" for="table_id">Table</label><select class="form-select" name="table_id" id="table_id"><option value="">Sans table</option>{% for table in tables %}<option value="{{ table.id }}">{{ table.label }}{% if table.capacity %} · {{ table.capacity }} places{% endif %}</option>{% endfor %}</select></div>{% endif %}
-      <div><label class="form-label" for="notes">Note</label><textarea class="form-control" name="notes" id="notes" rows="2" maxlength="500" placeholder="Ex. sans glaçons, table VIP..."></textarea></div>
+      {% if tables %}<div><label class="form-label" for="table_id">Table</label><select class="form-select" name="table_id" id="table_id"><option value="">Sans table / libellé dans la note</option>{% for table in tables %}<option value="{{ table.id }}">{{ table.label }}{% if table.capacity %} · {{ table.capacity }} places{% endif %}</option>{% endfor %}</select></div>{% endif %}
+      <div><label class="form-label" for="notes">Note ou libellé</label><textarea class="form-control" name="notes" id="notes" rows="2" maxlength="500" placeholder="Ex. Terrasse gauche, table VIP, sans glaçons..."></textarea></div>
       <details class="pos-reference"><summary>Référence personnalisée</summary><input class="form-control mt-2" name="reference" maxlength="64" placeholder="Automatique si vide"></details>
     </div>
     <div class="pos-total-box"><div><span>Articles</span><strong id="cartCount">0</strong></div><div class="pos-grand-total"><span>Total</span><strong><span id="cartTotal">0</span> {{ bar.currency }}</strong></div></div>
-    <button class="btn btn-primary btn-lg w-100 pos-confirm" id="confirmOrder" type="submit" disabled>Confirmer la commande</button>
-    <p class="pos-stock-note">La confirmation réserve immédiatement les quantités en les retirant du stock.</p>
+    <button class="btn btn-primary btn-lg w-100 pos-confirm" id="confirmOrder" type="submit" disabled>Envoyer à la caisse</button>
+    <p class="pos-stock-note">Statut après envoi : « En attente / À livrer ». Aucun stock n'est encore déduit.</p>
   </aside>
 </form>
 
 <section class="panel-card mt-4">
-  <div class="panel-header pos-recent-head"><div><p class="eyebrow mb-1">Suivi du service</p><h2>Commandes récentes</h2></div>{% if can_pay %}<a class="btn btn-sm btn-light border" href="{{ url_for('checkout_web.checkout', bar_id=bar.id) }}">Aller aux encaissements</a>{% endif %}</div>
+  <div class="panel-header pos-recent-head"><div><p class="eyebrow mb-1">{% if is_server %}Suivi personnel{% else %}Suivi{% endif %}</p><h2>{% if is_server %}Mes commandes{% else %}Commandes récentes{% endif %}</h2></div>{% if can_pay %}<a class="btn btn-sm btn-light border" href="{{ url_for('checkout_web.checkout', bar_id=bar.id) }}">Caisse commandes</a>{% endif %}</div>
   {% if recent_orders %}
-  <div class="table-responsive"><table class="table pos-order-table align-middle mb-0"><thead><tr><th>Commande</th><th>Produits</th><th>Total</th><th>Paiement</th><th>État</th><th class="text-end">Actions</th></tr></thead><tbody>
+  <div class="table-responsive"><table class="table pos-order-table align-middle mb-0"><thead><tr><th>Commande</th><th>Table / note</th><th>Produits</th><th>Total</th><th>Paiement</th><th>État</th><th class="text-end">Action</th></tr></thead><tbody>
   {% for order in recent_orders %}
     {% set lines = lines_by_order.get(order.id, []) %}
     <tr>
-      <td><strong>{{ order.reference }}</strong><small class="d-block text-secondary">{{ order.posted_at or order.created_at }}</small></td>
+      <td><strong>{{ order.reference }}</strong><small class="d-block text-secondary">{{ order.created_at }}</small></td>
+      <td><strong>{{ order.table_label_snapshot or '—' }}</strong>{% if order.notes %}<small class="d-block text-secondary">{{ order.notes }}</small>{% endif %}</td>
       <td><strong>{{ lines|length }} ligne{{ 's' if lines|length != 1 else '' }}</strong>{% if lines %}<small class="d-block text-secondary">{{ lines[0].product_name_snapshot }}{% if lines|length > 1 %} + {{ lines|length - 1 }}{% endif %}</small>{% endif %}</td>
       <td><strong>{{ "{:,.0f}".format(order.total_amount) }} {{ order.currency }}</strong></td>
-      <td><span class="pos-payment pos-payment-{{ order.payment_status|lower }}">{{ {'UNPAID':'Non payée','PARTIAL':'Partielle','PAID':'Payée'}.get(order.payment_status, order.payment_status) }}</span></td>
-      <td><span class="pos-order-status pos-order-status-{{ order.status|lower }}">{{ status_labels.get(order.status, order.status) }}</span></td>
+      <td>{% if order.payment_status == 'PAID' %}<span class="pos-payment pos-payment-paid">✓ Paiement validé</span>{% elif order.payment_status == 'PARTIAL' %}<span class="pos-payment pos-payment-partial">Partiel</span>{% else %}<span class="pos-payment pos-payment-unpaid">Non payé</span>{% endif %}</td>
+      <td>{% if order.payment_status == 'PAID' %}<span class="pos-order-status pos-order-status-served">Payée</span>{% else %}<span class="pos-order-status pos-order-status-{{ order.status|lower }}">{{ status_labels.get(order.status, order.status) }}</span>{% endif %}</td>
       <td class="text-end">
-        {% if order.status == 'CONFIRMED' and can_edit %}
-          <div class="d-flex gap-2 justify-content-end flex-wrap">
-            <form method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="serve"><input type="hidden" name="order_id" value="{{ order.id }}"><button class="btn btn-sm btn-primary" type="submit">Servie</button></form>
-            {% if can_pay and order.payment_status in ['UNPAID','PARTIAL'] %}<a class="btn btn-sm btn-outline-primary" href="{{ url_for('checkout_web.checkout', bar_id=bar.id, order_id=order.id) }}">Encaisser</a>{% endif %}
-            {% if order.payment_status == 'UNPAID' %}<button class="btn btn-sm btn-light border" type="button" data-bs-toggle="modal" data-bs-target="#cancelOrder{{ order.id }}">Annuler</button>{% endif %}
-          </div>
-        {% elif order.status == 'SERVED' and can_pay and order.payment_status in ['UNPAID','PARTIAL'] %}<a class="btn btn-sm btn-outline-primary" href="{{ url_for('checkout_web.checkout', bar_id=bar.id, order_id=order.id) }}">Encaisser</a>{% else %}<span class="text-secondary small">—</span>{% endif %}
+        {% if order.status in ['DRAFT','CONFIRMED'] and can_edit and order.payment_status != 'PAID' %}
+        <div class="d-flex justify-content-end gap-2 flex-wrap">
+          <button class="btn btn-sm btn-light border" type="button" data-bs-toggle="modal" data-bs-target="#noteOrder{{ order.id }}">＋ Note</button>
+          {% if order.status == 'DRAFT' %}<button class="btn btn-sm btn-outline-danger" type="button" data-bs-toggle="modal" data-bs-target="#cancelOrder{{ order.id }}">Annuler</button>{% endif %}
+          {% if can_pay and order.status == 'CONFIRMED' %}<a class="btn btn-sm btn-outline-primary" href="{{ url_for('checkout_web.checkout', bar_id=bar.id, order_id=order.id) }}">Encaisser</a>{% endif %}
+        </div>
+        {% else %}<span class="text-secondary small">—</span>{% endif %}
       </td>
     </tr>
   {% endfor %}
   </tbody></table></div>
-  {% else %}<div class="empty-state"><div class="empty-icon">C</div><h3>Aucune commande récente</h3><p>La prochaine commande confirmée apparaîtra ici.</p></div>{% endif %}
+  {% else %}<div class="empty-state"><div class="empty-icon">C</div><h3>Aucune commande</h3><p>Les commandes envoyées apparaîtront ici avec leur état de paiement.</p></div>{% endif %}
 </section>
 
-{% for order in recent_orders if order.status == 'CONFIRMED' and order.payment_status == 'UNPAID' and can_edit %}
+{% for order in recent_orders if order.status in ['DRAFT','CONFIRMED'] and order.payment_status != 'PAID' and can_edit %}
+<div class="modal fade" id="noteOrder{{ order.id }}" tabindex="-1" aria-hidden="true"><div class="modal-dialog modal-dialog-centered"><div class="modal-content pos-modal"><form method="post">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="note"><input type="hidden" name="order_id" value="{{ order.id }}">
+  <div class="modal-header"><div><p class="eyebrow mb-1">Note complémentaire</p><h2 class="modal-title h5">{{ order.reference }}</h2></div><button class="btn-close" type="button" data-bs-dismiss="modal"></button></div>
+  <div class="modal-body"><label class="form-label">Message à la caisse</label><textarea class="form-control" name="note" rows="3" maxlength="220" required placeholder="Ex. ajouter glaçons / client déplacé en terrasse"></textarea></div>
+  <div class="modal-footer"><button class="btn btn-light border" type="button" data-bs-dismiss="modal">Fermer</button><button class="btn btn-primary" type="submit">Envoyer la note</button></div>
+</form></div></div></div>
+{% endfor %}
+
+{% for order in recent_orders if order.status == 'DRAFT' and order.payment_status == 'UNPAID' and can_edit %}
 <div class="modal fade" id="cancelOrder{{ order.id }}" tabindex="-1" aria-hidden="true"><div class="modal-dialog modal-dialog-centered"><div class="modal-content pos-modal"><form method="post">
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="cancel"><input type="hidden" name="order_id" value="{{ order.id }}">
   <div class="modal-header"><div><p class="eyebrow mb-1">Annulation</p><h2 class="modal-title h5">{{ order.reference }}</h2></div><button class="btn-close" type="button" data-bs-dismiss="modal"></button></div>
-  <div class="modal-body"><p class="text-secondary">L'annulation restaure les quantités de cette commande dans le stock.</p><label class="form-label">Motif obligatoire</label><textarea class="form-control" name="reason" rows="3" maxlength="500" required placeholder="Ex. erreur de saisie"></textarea></div>
-  <div class="modal-footer"><button class="btn btn-light border" type="button" data-bs-dismiss="modal">Retour</button><button class="btn btn-danger" type="submit">Annuler la commande</button></div>
+  <div class="modal-body"><p class="text-secondary">La commande n'a pas encore été livrée et aucun stock n'a été déduit.</p><label class="form-label">Motif obligatoire</label><textarea class="form-control" name="reason" rows="3" maxlength="500" required></textarea></div>
+  <div class="modal-footer"><button class="btn btn-light border" type="button" data-bs-dismiss="modal">Retour</button><button class="btn btn-danger" type="submit">Annuler</button></div>
 </form></div></div></div>
 {% endfor %}
 
@@ -140,7 +147,7 @@
       count += item.quantity;
       const row = document.createElement('div');
       row.className = 'pos-cart-line';
-      row.innerHTML = `<input type="hidden" name="product_id" value="${item.id}"><div class="pos-cart-copy"><strong>${escapeHtml(item.name)}</strong><small>${formatMoney(item.price)} ${escapeHtml(currency)} · stock ${item.stock}</small></div><div class="pos-qty-control"><button type="button" class="qty-minus" aria-label="Retirer une unité">−</button><input name="quantity" type="number" min="0.001" max="${item.stock}" step="0.001" value="${item.quantity}"><button type="button" class="qty-plus" aria-label="Ajouter une unité">+</button></div><strong class="pos-line-total">${formatMoney(item.price * item.quantity)}</strong>`;
+      row.innerHTML = `<input type="hidden" name="product_id" value="${item.id}"><div class="pos-cart-copy"><strong>${escapeHtml(item.name)}</strong><small>${formatMoney(item.price)} ${escapeHtml(currency)} · stock ${item.stock}</small></div><div class="pos-qty-control"><button type="button" class="qty-minus">−</button><input name="quantity" type="number" min="0.001" max="${item.stock}" step="0.001" value="${item.quantity}"><button type="button" class="qty-plus">+</button></div><strong class="pos-line-total">${formatMoney(item.price * item.quantity)}</strong>`;
       row.querySelector('.qty-minus').addEventListener('click', () => changeQty(item.id, item.quantity - 1));
       row.querySelector('.qty-plus').addEventListener('click', () => changeQty(item.id, item.quantity + 1));
       row.querySelector('input[name="quantity"]').addEventListener('change', e => changeQty(item.id, Number(e.target.value)));
@@ -151,35 +158,9 @@
     countNode.textContent = count.toLocaleString('fr-FR');
     confirmButton.disabled = cart.size === 0;
   }
-
-  function changeQty(id, quantity) {
-    const item = cart.get(id);
-    if (!item) return;
-    quantity = Number(quantity);
-    if (!Number.isFinite(quantity) || quantity <= 0) cart.delete(id);
-    else item.quantity = Math.min(quantity, item.stock);
-    renderCart();
-  }
-
-  function addProduct(button) {
-    const id = button.dataset.productId;
-    const stock = Number(button.dataset.stock);
-    if (stock <= 0) return;
-    const existing = cart.get(id);
-    if (existing) existing.quantity = Math.min(existing.quantity + 1, stock);
-    else cart.set(id, {id, name: button.dataset.name, price: Number(button.dataset.price), stock, quantity: 1});
-    renderCart();
-  }
-
-  function filterProducts() {
-    const term = (search.value || '').trim().toLocaleLowerCase('fr');
-    document.querySelectorAll('.pos-product').forEach(card => {
-      const categoryOk = activeCategory === 'all' || card.dataset.category === activeCategory;
-      const searchOk = !term || card.dataset.name.toLocaleLowerCase('fr').includes(term);
-      card.hidden = !(categoryOk && searchOk);
-    });
-  }
-
+  function changeQty(id, quantity) { const item = cart.get(id); if (!item) return; quantity = Number(quantity); if (!Number.isFinite(quantity) || quantity <= 0) cart.delete(id); else item.quantity = Math.min(quantity, item.stock); renderCart(); }
+  function addProduct(button) { const id = button.dataset.productId; const stock = Number(button.dataset.stock); if (stock <= 0) return; const existing = cart.get(id); if (existing) existing.quantity = Math.min(existing.quantity + 1, stock); else cart.set(id, {id, name: button.dataset.name, price: Number(button.dataset.price), stock, quantity: 1}); renderCart(); }
+  function filterProducts() { const term = (search.value || '').trim().toLocaleLowerCase('fr'); document.querySelectorAll('.pos-product').forEach(card => { const categoryOk = activeCategory === 'all' || card.dataset.category === activeCategory; const searchOk = !term || card.dataset.name.toLocaleLowerCase('fr').includes(term); card.hidden = !(categoryOk && searchOk); }); }
   grid?.querySelectorAll('.pos-product').forEach(button => button.addEventListener('click', () => addProduct(button)));
   document.getElementById('clearCart')?.addEventListener('click', () => { cart.clear(); renderCart(); });
   search?.addEventListener('input', filterProducts);
