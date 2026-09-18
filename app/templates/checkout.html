@@ -10,6 +10,7 @@
     <p>Confirmez d'abord la livraison. Le stock est alors déduit et la commande devient disponible pour l'encaissement.</p>
   </div>
   <div class="d-flex gap-2 flex-wrap">
+    {% if can_credit %}<a class="btn btn-outline-primary" href="{{ url_for('customers_web.manage', bar_id=bar.id) }}">Clients & crédits</a>{% endif %}
     <a class="btn btn-outline-primary" href="{{ url_for('finance_web.desk', bar_id=bar.id) }}">Gestion de la caisse</a>
   </div>
 </section>
@@ -104,7 +105,9 @@
         <label class="form-label">Mode de paiement</label>
         <div class="checkout-methods">
           {% for code, label in payment_labels.items() %}
-          <label class="checkout-method {% if loop.first %}active{% endif %}"><input type="radio" name="method" value="{{ code }}" {% if loop.first %}checked{% endif %}><span>{{ {'CASH':'₣','MOBILE_MONEY':'M','MIXED':'±','CARD':'C','BANK_TRANSFER':'V'}.get(code,'•') }}</span><strong>{{ label }}</strong></label>
+            {% if code != 'CREDIT' or (can_credit and bar.credit_sales_enabled) %}
+            <label class="checkout-method {% if loop.first %}active{% endif %}"><input type="radio" name="method" value="{{ code }}" {% if loop.first %}checked{% endif %}><span>{{ {'CASH':'₣','MOBILE_MONEY':'M','MIXED':'±','CREDIT':'Cr','CARD':'C','BANK_TRANSFER':'V'}.get(code,'•') }}</span><strong>{{ label }}</strong></label>
+            {% endif %}
           {% endfor %}
         </div>
 
@@ -116,6 +119,15 @@
           <div class="col-md-6"><label class="form-label" for="mixed_cash">Part espèces</label><div class="input-group"><input class="form-control" id="mixed_cash" name="mixed_cash" type="number" min="0" step="1" value="0"><span class="input-group-text">{{ bar.currency }}</span></div></div>
           <div class="col-md-6"><label class="form-label" for="mixed_mobile">Part Mobile Money</label><div class="input-group"><input class="form-control" id="mixed_mobile" name="mixed_mobile" type="number" min="0" step="1" value="{{ b.amount_due }}"><span class="input-group-text">{{ bar.currency }}</span></div></div>
           <div class="col-12"><div class="checkout-warning">Les deux parts doivent totaliser exactement <strong>{{ "{:,.0f}".format(b.amount_due) }} {{ bar.currency }}</strong>.</div></div>
+        </div>
+
+        <div id="creditGroup" class="mt-3" hidden>
+          <label class="form-label" for="customer_id">Client obligatoire</label>
+          <select class="form-select form-select-lg" name="customer_id" id="customer_id">
+            <option value="">Sélectionner le client...</option>
+            {% for customer in customers %}<option value="{{ customer.id }}" {% if selected_order.customer_id == customer.id %}selected{% endif %}>{{ customer.display_name }}{% if customer.phone %} · {{ customer.phone }}{% endif %}</option>{% endfor %}
+          </select>
+          {% if customers %}<div class="form-text">La commande sera soldée et {{ "{:,.0f}".format(b.amount_due) }} {{ bar.currency }} seront ajoutés à la dette du client.</div>{% else %}<div class="checkout-warning mt-2">Aucun client actif. <a href="{{ url_for('customers_web.manage', bar_id=bar.id) }}">Créer un client</a>.</div>{% endif %}
         </div>
 
         <div class="row g-3 mt-1" id="cashPresentedGroup">
@@ -137,7 +149,7 @@
 
         <details class="checkout-reference mt-3"><summary>Référence personnalisée</summary><input class="form-control mt-2" name="reference" maxlength="64" placeholder="Automatique si vide"></details>
         <button class="btn btn-primary btn-lg w-100 mt-4" id="checkoutSubmit" type="submit" {% if is_cashier and not open_sessions %}disabled{% endif %}>Encaisser {{ "{:,.0f}".format(b.amount_due) }} {{ selected_order.currency }}</button>
-        <p class="checkout-help">Espèces et Mobile Money peuvent être combinés avec « Paiement mixte ».</p>
+        <p class="checkout-help">Espèces et Mobile Money peuvent être combinés. Le crédit transfère le solde sur le compte du client sans créer de faux encaissement.</p>
       </form>
       {% endif %}
     {% else %}
@@ -147,12 +159,12 @@
 </div>
 
 <section class="panel-card mt-4">
-  <div class="panel-header"><div><p class="eyebrow mb-1">Traçabilité</p><h2>Derniers paiements</h2></div><a class="btn btn-sm btn-light border" href="{{ url_for('finance_web.desk', bar_id=bar.id) }}">Historique complet</a></div>
+  <div class="panel-header"><div><p class="eyebrow mb-1">Traçabilité</p><h2>Derniers paiements réels</h2></div><a class="btn btn-sm btn-light border" href="{{ url_for('finance_web.desk', bar_id=bar.id) }}">Historique complet</a></div>
   {% if recent_payments %}
   <div class="table-responsive"><table class="table checkout-history align-middle mb-0"><thead><tr><th>Référence</th><th>Commande</th><th>Mode</th><th>Montant</th><th>Monnaie rendue</th><th>Date</th></tr></thead><tbody>
     {% for payment in recent_payments %}<tr><td><strong>{{ payment.reference }}</strong></td><td>{{ order_by_id.get(payment.order_id).reference if order_by_id.get(payment.order_id) else payment.order_id }}</td><td>{{ payment_labels.get(payment.method, payment.method) }}</td><td><strong>{{ "{:,.0f}".format(payment.amount_applied) }} {{ payment.currency }}</strong></td><td>{{ "{:,.0f}".format(payment.change_given) }} {{ payment.currency }}</td><td>{{ payment.received_at }}</td></tr>{% endfor %}
   </tbody></table></div>
-  {% else %}<div class="p-4 text-secondary">Aucun paiement enregistré pour le moment.</div>{% endif %}
+  {% else %}<div class="p-4 text-secondary">Aucun paiement réel enregistré pour le moment.</div>{% endif %}
 </section>
 
 <script>
@@ -163,6 +175,8 @@
   const presented = document.getElementById('amount_presented');
   const singleAmountGroup = document.getElementById('singleAmountGroup');
   const mixedGroup = document.getElementById('mixedGroup');
+  const creditGroup = document.getElementById('creditGroup');
+  const customerSelect = document.getElementById('customer_id');
   const mixedCash = document.getElementById('mixed_cash');
   const mixedMobile = document.getElementById('mixed_mobile');
   const due = Number(document.getElementById('orderDue').value || 0);
@@ -180,30 +194,34 @@
   function method() { return form.querySelector('input[name="method"]:checked')?.value || 'CASH'; }
   function activeAmount() { return method() === 'MIXED' ? Number(mixedCash.value || 0) : Number(applied.value || 0); }
   function updateChange() {
+    const m = method();
     const cashApplied = activeAmount();
     const p = Number(presented.value || 0);
     changeValue.textContent = formatter.format(Math.max(0, p - cashApplied));
-    const totalLabel = method() === 'MIXED' ? due : Number(applied.value || 0);
-    submit.textContent = `Encaisser ${formatter.format(totalLabel)} {{ bar.currency }}`;
+    if (m === 'CREDIT') submit.textContent = `Mettre ${formatter.format(due)} {{ bar.currency }} à crédit`;
+    else submit.textContent = `Encaisser ${formatter.format(m === 'MIXED' ? due : Number(applied.value || 0))} {{ bar.currency }}`;
   }
   function updateMethod() {
     const m = method();
     const isCash = m === 'CASH';
     const isMobile = m === 'MOBILE_MONEY';
     const isMixed = m === 'MIXED';
-    singleAmountGroup.hidden = isMixed;
+    const isCredit = m === 'CREDIT';
+    singleAmountGroup.hidden = isMixed || isCredit;
     mixedGroup.hidden = !isMixed;
+    creditGroup.hidden = !isCredit;
     presentedGroup.hidden = !(isCash || isMixed);
     cashGroup.hidden = !(isCash || isMixed);
     changeBox.hidden = !(isCash || isMixed);
     providerGroup.hidden = !(isMobile || isMixed);
-    applied.required = !isMixed;
+    applied.required = !(isMixed || isCredit);
     mixedCash.required = isMixed;
     mixedMobile.required = isMixed;
     presented.required = isCash || isMixed;
     cashSelect.required = isCash || isMixed;
     providerCode.required = isMobile || isMixed;
     providerTxn.required = isMobile || isMixed;
+    if (customerSelect) customerSelect.required = isCredit;
     if (!(isCash || isMixed)) presented.value = applied.value;
     document.querySelectorAll('.checkout-method').forEach(label => label.classList.toggle('active', label.querySelector('input').checked));
     updateChange();
@@ -216,6 +234,7 @@
   form.addEventListener('submit', event => {
     const m = method();
     if ((m === 'CASH' || m === 'MIXED') && !cashSelect.value) { event.preventDefault(); cashSelect.focus(); return; }
+    if (m === 'CREDIT' && customerSelect && !customerSelect.value) { event.preventDefault(); customerSelect.focus(); return; }
     if (m === 'MIXED' && (Number(mixedCash.value || 0) <= 0 || Number(mixedMobile.value || 0) <= 0 || Number(mixedCash.value || 0) + Number(mixedMobile.value || 0) !== due)) { event.preventDefault(); mixedCash.focus(); return; }
     submit.disabled = true;
   });
