@@ -264,7 +264,7 @@ class OrderService:
             return order
 
         from app.finance_totals import order_balance
-        if order_balance(order)["net_paid"] != 0:
+        if order_balance(order)["net_settled"] != 0:
             raise ValueError("REFUND_REQUIRED")
         for line in db.session.scalars(select(OrderLine).where(OrderLine.order_id == order.id)):
             source = db.session.scalar(
