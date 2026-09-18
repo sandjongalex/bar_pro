@@ -70,6 +70,7 @@ def web_detail(bar_id):
         "orders_read":allowed("orders.read"),
         "orders_create":allowed("orders.create"),
         "payments_read":allowed("payments.read"),
+        "customers_read":allowed("customers.read"),
         "staff_read":allowed("staff.read"),
         "staff_manage":allowed("staff.manage"),
         "settings":allowed("bars.update_settings"),
