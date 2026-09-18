@@ -1,0 +1,271 @@
+{% extends 'layout.html' %}
+{% block title %}Fournisseurs & achats · {{ bar.name }} · Bar Manager Pro{% endblock %}
+{% block header %}Fournisseurs & achats · {{ bar.name }}{% endblock %}
+{% block content %}
+<section class="purchase-hero">
+  <div>
+    <a class="bar-back" href="{{ url_for('bars.web_detail', bar_id=bar.id) }}">← Retour à {{ bar.name }}</a>
+    <p class="eyebrow mt-3 mb-2">Approvisionnement</p>
+    <h1>Fournisseurs & achats</h1>
+    <p>Enregistrez les fournisseurs, préparez les achats et confirmez les réceptions pour mettre le stock à jour automatiquement.</p>
+  </div>
+  <div class="purchase-hero-actions">
+    {% if can_manage_suppliers %}<button class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#supplierModal">＋ Fournisseur</button>{% endif %}
+    {% if can_manage %}<button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#purchaseModal" {% if not active_suppliers or not products %}disabled{% endif %}>＋ Nouvel achat</button>{% endif %}
+  </div>
+</section>
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% for category, message in messages %}
+    <div class="alert alert-{{ category }} mt-3" role="alert">{{ message }}</div>
+  {% endfor %}
+{% endwith %}
+
+<section class="purchase-stats mt-4">
+  <article><span>Fournisseurs actifs</span><strong>{{ stats.suppliers }}</strong><small>Disponibles pour les achats</small></article>
+  <article><span>Achats en brouillon</span><strong>{{ stats.draft }}</strong><small>À vérifier ou réceptionner</small></article>
+  <article><span>Réceptions confirmées</span><strong>{{ stats.posted }}</strong><small>Achats entrés en stock</small></article>
+  <article><span>Dette fournisseurs</span><strong>{{ "{:,.0f}".format(stats.due) }} {{ bar.currency }}</strong><small>Solde des achats reçus</small></article>
+</section>
+
+{% if can_manage and (not active_suppliers or not products) %}
+<div class="purchase-onboarding mt-4">
+  <div class="purchase-onboarding-number">!</div>
+  <div>
+    <strong>Configuration requise avant un achat</strong>
+    <p>{% if not active_suppliers %}Créez au moins un fournisseur actif.{% endif %} {% if not products %}Ajoutez au moins un produit actif au catalogue.{% endif %}</p>
+  </div>
+  {% if not active_suppliers and can_manage_suppliers %}<button class="btn btn-primary ms-auto" data-bs-toggle="modal" data-bs-target="#supplierModal">Créer un fournisseur</button>{% endif %}
+</div>
+{% endif %}
+
+<div class="purchase-layout mt-4">
+  <section class="panel-card purchase-main-panel">
+    <div class="purchase-toolbar">
+      <form method="get" class="purchase-filter-form">
+        <select class="form-select" name="status">
+          <option value="">Tous les états</option>
+          {% for code, label in status_labels.items() %}<option value="{{ code }}" {% if request.args.get('status') == code %}selected{% endif %}>{{ label }}</option>{% endfor %}
+        </select>
+        <select class="form-select" name="supplier_id">
+          <option value="">Tous les fournisseurs</option>
+          {% for supplier in suppliers %}<option value="{{ supplier.id }}" {% if request.args.get('supplier_id')|int == supplier.id %}selected{% endif %}>{{ supplier.name }}</option>{% endfor %}
+        </select>
+        <button class="btn btn-light border" type="submit">Filtrer</button>
+        {% if request.args %}<a class="btn btn-link" href="{{ url_for('purchases_web.manage', bar_id=bar.id) }}">Réinitialiser</a>{% endif %}
+      </form>
+    </div>
+
+    {% if purchases %}
+    <div class="table-responsive">
+      <table class="table purchase-table align-middle mb-0">
+        <thead>
+          <tr><th>Référence</th><th>Fournisseur</th><th>Contenu</th><th>Total</th><th>Solde</th><th>État</th>{% if can_manage %}<th class="text-end">Action</th>{% endif %}</tr>
+        </thead>
+        <tbody>
+        {% for purchase in purchases %}
+          {% set lines = lines_by_purchase.get(purchase.id, []) %}
+          <tr>
+            <td><strong>{{ purchase.reference }}</strong><small class="d-block text-secondary">{{ purchase.supplier_invoice_reference or 'Sans facture fournisseur' }}</small></td>
+            <td>{{ purchase.supplier_name_snapshot }}</td>
+            <td>
+              <strong>{{ lines|length }} ligne{{ 's' if lines|length != 1 else '' }}</strong>
+              {% if lines %}<small class="d-block text-secondary">{{ lines[0].product_name_snapshot }}{% if lines|length > 1 %} + {{ lines|length - 1 }} autre{{ 's' if lines|length > 2 else '' }}{% endif %}</small>{% endif %}
+            </td>
+            <td><strong>{{ "{:,.0f}".format(purchase.total_amount) }} {{ purchase.currency }}</strong></td>
+            <td>
+              {% if purchase.status == 'POSTED' %}
+                <strong class="{% if due_by_purchase.get(purchase.id, 0) > 0 %}text-danger{% else %}text-success{% endif %}">{{ "{:,.0f}".format(due_by_purchase.get(purchase.id, 0)) }} {{ purchase.currency }}</strong>
+              {% else %}—{% endif %}
+            </td>
+            <td><span class="purchase-status purchase-status-{{ purchase.status|lower }}">{{ status_labels.get(purchase.status, purchase.status) }}</span></td>
+            {% if can_manage %}
+            <td class="text-end">
+              {% if purchase.status == 'DRAFT' %}
+              <div class="d-flex justify-content-end gap-2 flex-wrap">
+                <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#receiveModal{{ purchase.id }}">Réceptionner</button>
+                <button class="btn btn-sm btn-light border" data-bs-toggle="modal" data-bs-target="#cancelModal{{ purchase.id }}">Annuler</button>
+              </div>
+              {% else %}<span class="text-secondary small">Traité</span>{% endif %}
+            </td>
+            {% endif %}
+          </tr>
+          <tr class="purchase-lines-row">
+            <td colspan="7">
+              <details>
+                <summary>Voir le détail de l'achat</summary>
+                <div class="purchase-lines-grid mt-3">
+                  {% for line in lines %}
+                  <div class="purchase-line-item">
+                    <div><strong>{{ line.product_name_snapshot }}</strong><small>{{ line.quantity }} × {{ "{:,.0f}".format(line.unit_cost_snapshot) }} {{ purchase.currency }}</small></div>
+                    <strong>{{ "{:,.0f}".format(line.total_amount) }} {{ purchase.currency }}</strong>
+                  </div>
+                  {% else %}<span class="text-secondary small">Aucune ligne.</span>{% endfor %}
+                </div>
+              </details>
+            </td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="purchase-pagination">
+      <span>Page {{ page }}</span>
+      <div class="d-flex gap-2">
+        {% if page > 1 %}<a class="btn btn-sm btn-light border" href="{{ url_for('purchases_web.manage', bar_id=bar.id, page=page-1, status=request.args.get('status',''), supplier_id=request.args.get('supplier_id','')) }}">← Précédent</a>{% endif %}
+        {% if has_more %}<a class="btn btn-sm btn-light border" href="{{ url_for('purchases_web.manage', bar_id=bar.id, page=page+1, status=request.args.get('status',''), supplier_id=request.args.get('supplier_id','')) }}">Suivant →</a>{% endif %}
+      </div>
+    </div>
+    {% else %}
+    <div class="empty-state">
+      <div class="empty-icon">A</div>
+      <h3>Aucun achat enregistré</h3>
+      <p>Créez un fournisseur puis saisissez une livraison. La réception ajoutera automatiquement les quantités au stock.</p>
+      {% if can_manage and active_suppliers and products %}<button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#purchaseModal">Créer le premier achat</button>{% endif %}
+    </div>
+    {% endif %}
+  </section>
+
+  <aside class="panel-card supplier-panel">
+    <div class="panel-header">
+      <div><p class="eyebrow mb-1">Partenaires</p><h2>Fournisseurs</h2></div>
+      {% if can_manage_suppliers %}<button class="btn btn-sm btn-light border" data-bs-toggle="modal" data-bs-target="#supplierModal">＋</button>{% endif %}
+    </div>
+    <div class="supplier-list">
+      {% for supplier in suppliers %}
+      <div class="supplier-row">
+        <div class="supplier-avatar">{{ supplier.name[0]|upper }}</div>
+        <div class="supplier-copy"><strong>{{ supplier.name }}</strong><small>{{ supplier.phone or supplier.email or 'Coordonnées non renseignées' }}</small><span class="{{ 'text-success' if supplier.is_active else 'text-secondary' }}">{{ 'Actif' if supplier.is_active else 'Inactif' }}</span></div>
+        {% if can_manage_suppliers %}
+        <form method="post">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="supplier_id" value="{{ supplier.id }}">
+          <input type="hidden" name="action" value="{{ 'supplier_disable' if supplier.is_active else 'supplier_enable' }}">
+          <button class="btn btn-sm btn-link" type="submit">{{ 'Désactiver' if supplier.is_active else 'Activer' }}</button>
+        </form>
+        {% endif %}
+      </div>
+      {% else %}<div class="p-4 text-secondary small">Aucun fournisseur pour le moment.</div>{% endfor %}
+    </div>
+  </aside>
+</div>
+
+{% if can_manage_suppliers %}
+<div class="modal fade" id="supplierModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content purchase-modal">
+      <form method="post">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="action" value="supplier_create">
+        <div class="modal-header"><div><p class="eyebrow mb-1">Nouveau fournisseur</p><h2 class="modal-title h5">Ajouter un partenaire</h2></div><button class="btn-close" type="button" data-bs-dismiss="modal"></button></div>
+        <div class="modal-body">
+          <div class="mb-3"><label class="form-label">Nom du fournisseur</label><input class="form-control form-control-lg" name="supplier_name" maxlength="160" required placeholder="Ex. Dépôt Guinness Essomba"></div>
+          <div class="row g-3">
+            <div class="col-md-6"><label class="form-label">Téléphone</label><input class="form-control" name="supplier_phone" maxlength="32" placeholder="+237 ..."></div>
+            <div class="col-md-6"><label class="form-label">E-mail</label><input class="form-control" name="supplier_email" type="email" maxlength="254"></div>
+            <div class="col-12"><label class="form-label">Adresse</label><textarea class="form-control" name="supplier_address" rows="2" maxlength="500"></textarea></div>
+          </div>
+        </div>
+        <div class="modal-footer"><button class="btn btn-light border" type="button" data-bs-dismiss="modal">Annuler</button><button class="btn btn-primary" type="submit">Créer le fournisseur</button></div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{% if can_manage %}
+<div class="modal fade" id="purchaseModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content purchase-modal">
+      <form method="post" id="purchaseForm">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="action" value="purchase_create">
+        <div class="modal-header"><div><p class="eyebrow mb-1">Nouvel approvisionnement</p><h2 class="modal-title h5">Enregistrer un achat fournisseur</h2></div><button class="btn-close" type="button" data-bs-dismiss="modal"></button></div>
+        <div class="modal-body">
+          <div class="row g-3 mb-4">
+            <div class="col-md-5"><label class="form-label">Fournisseur</label><select class="form-select form-select-lg" name="supplier_id" required><option value="">Sélectionner...</option>{% for supplier in active_suppliers %}<option value="{{ supplier.id }}">{{ supplier.name }}</option>{% endfor %}</select></div>
+            <div class="col-md-4"><label class="form-label">Référence interne</label><input class="form-control form-control-lg" name="reference" maxlength="64" placeholder="Automatique si vide"></div>
+            <div class="col-md-3"><label class="form-label">N° facture fournisseur</label><input class="form-control form-control-lg" name="supplier_invoice_reference" maxlength="100" placeholder="Optionnel"></div>
+          </div>
+
+          <div class="purchase-entry-head"><div><p class="eyebrow mb-1">Produits</p><h3>Contenu de la livraison</h3></div><button class="btn btn-sm btn-outline-primary" type="button" id="addPurchaseLine">＋ Ajouter une ligne</button></div>
+          <div id="purchaseLines" class="purchase-entry-lines">
+            <div class="purchase-entry-line">
+              <select class="form-select product-select" name="product_id" required>
+                <option value="">Produit...</option>
+                {% for product in products %}<option value="{{ product.id }}" data-cost="{{ product.valuation_unit_cost }}">{{ product.name }} · {{ product.sku }}</option>{% endfor %}
+              </select>
+              <input class="form-control" name="quantity" type="number" min="0.000001" step="0.001" placeholder="Quantité" required>
+              <div class="input-group"><input class="form-control unit-cost" name="unit_cost" type="number" min="0" step="1" placeholder="Coût unitaire" required><span class="input-group-text">{{ bar.currency }}</span></div>
+              <button class="btn btn-light border remove-purchase-line" type="button" aria-label="Supprimer cette ligne">×</button>
+            </div>
+          </div>
+          <div class="info-box mt-4"><strong>Important :</strong> la création enregistre d'abord l'achat comme brouillon. Le stock ne change que lorsque vous cliquez sur <strong>Réceptionner</strong>.</div>
+        </div>
+        <div class="modal-footer"><button class="btn btn-light border" type="button" data-bs-dismiss="modal">Annuler</button><button class="btn btn-primary" type="submit">Enregistrer le brouillon</button></div>
+      </form>
+    </div>
+  </div>
+</div>
+
+{% for purchase in purchases if purchase.status == 'DRAFT' %}
+<div class="modal fade" id="receiveModal{{ purchase.id }}" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered"><div class="modal-content purchase-modal"><form method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="purchase_receive"><input type="hidden" name="purchase_id" value="{{ purchase.id }}">
+    <div class="modal-header"><div><p class="eyebrow mb-1">Confirmation</p><h2 class="modal-title h5">Réceptionner {{ purchase.reference }}</h2></div><button class="btn-close" type="button" data-bs-dismiss="modal"></button></div>
+    <div class="modal-body"><p class="mb-2">Vous confirmez avoir reçu les produits de <strong>{{ purchase.supplier_name_snapshot }}</strong>.</p><p class="text-secondary mb-0">Cette action ajoutera les quantités au stock et ne pourra pas être rejouée.</p></div>
+    <div class="modal-footer"><button class="btn btn-light border" type="button" data-bs-dismiss="modal">Retour</button><button class="btn btn-primary" type="submit">Confirmer la réception</button></div>
+  </form></div></div>
+</div>
+
+<div class="modal fade" id="cancelModal{{ purchase.id }}" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered"><div class="modal-content purchase-modal"><form method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="purchase_cancel"><input type="hidden" name="purchase_id" value="{{ purchase.id }}">
+    <div class="modal-header"><div><p class="eyebrow mb-1">Annulation</p><h2 class="modal-title h5">Annuler {{ purchase.reference }}</h2></div><button class="btn-close" type="button" data-bs-dismiss="modal"></button></div>
+    <div class="modal-body"><label class="form-label">Motif de l'annulation</label><textarea class="form-control" name="reason" rows="3" required placeholder="Ex. livraison annulée par le fournisseur"></textarea></div>
+    <div class="modal-footer"><button class="btn btn-light border" type="button" data-bs-dismiss="modal">Retour</button><button class="btn btn-danger" type="submit">Annuler l'achat</button></div>
+  </form></div></div>
+</div>
+{% endfor %}
+{% endif %}
+
+<script>
+(function () {
+  const container = document.getElementById('purchaseLines');
+  const addButton = document.getElementById('addPurchaseLine');
+  if (!container || !addButton) return;
+
+  function bindRow(row) {
+    const select = row.querySelector('.product-select');
+    const cost = row.querySelector('.unit-cost');
+    const remove = row.querySelector('.remove-purchase-line');
+    if (select && cost) {
+      select.addEventListener('change', function () {
+        const option = select.options[select.selectedIndex];
+        if (option && option.dataset.cost && (!cost.value || Number(cost.value) === 0)) cost.value = option.dataset.cost;
+      });
+    }
+    if (remove) remove.addEventListener('click', function () {
+      const rows = container.querySelectorAll('.purchase-entry-line');
+      if (rows.length > 1) row.remove();
+      else {
+        row.querySelectorAll('input').forEach(input => input.value = '');
+        if (select) select.value = '';
+      }
+    });
+  }
+
+  container.querySelectorAll('.purchase-entry-line').forEach(bindRow);
+  addButton.addEventListener('click', function () {
+    const source = container.querySelector('.purchase-entry-line');
+    const clone = source.cloneNode(true);
+    clone.querySelectorAll('input').forEach(input => input.value = '');
+    const select = clone.querySelector('select');
+    if (select) select.value = '';
+    bindRow(clone);
+    container.appendChild(clone);
+  });
+})();
+</script>
+{% endblock %}
