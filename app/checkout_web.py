@@ -23,6 +23,7 @@ bp = Blueprint("checkout_web", __name__, url_prefix="/bars/<int:bar_id>/checkout
 PAYMENT_LABELS = {
     "CASH": "Espèces",
     "MOBILE_MONEY": "Mobile Money",
+    "MIXED": "Paiement mixte",
     "CARD": "Carte",
     "BANK_TRANSFER": "Virement",
 }
@@ -33,14 +34,18 @@ def _reference() -> str:
     return f"PAY-{stamp}-{secrets.token_hex(2).upper()}"
 
 
-def _positive_decimal(value, code="INVALID_PAYMENT_AMOUNTS") -> Decimal:
+def _decimal(value, code="INVALID_PAYMENT_AMOUNTS", allow_zero=False) -> Decimal:
     try:
         amount = Decimal(str(value or "").strip())
     except (InvalidOperation, ValueError, TypeError):
         raise ValueError(code) from None
-    if not amount.is_finite() or amount <= 0:
+    if not amount.is_finite() or amount < 0 or (amount == 0 and not allow_zero):
         raise ValueError(code)
     return amount
+
+
+def _positive_decimal(value, code="INVALID_PAYMENT_AMOUNTS") -> Decimal:
+    return _decimal(value, code, allow_zero=False)
 
 
 def _current_assignment(bar_id):
@@ -64,12 +69,13 @@ def _message(code) -> str:
         "ORDER_NOT_PAYABLE": "La commande doit d'abord être marquée Livrée.",
         "PAYMENT_LIMIT_EXCEEDED": "Le montant dépasse le reste à payer.",
         "INVALID_PAYMENT_AMOUNTS": "Vérifiez le montant encaissé et le montant reçu.",
+        "INVALID_MIXED_PAYMENT": "Le paiement mixte doit répartir exactement le reste entre espèces et Mobile Money.",
         "INVALID_METHOD": "Le mode de paiement sélectionné est invalide.",
         "CASH_LOCATION_REQUIRED": "Sélectionnez une caisse ouverte pour un paiement en espèces.",
         "CASH_SESSION_REQUIRED": "Ouvrez d'abord une session de caisse avant d'encaisser.",
         "CASH_SESSION_NOT_OPEN": "La caisse sélectionnée n'est plus ouverte.",
         "CURRENCY_MISMATCH": "La devise de la caisse ne correspond pas à celle de la commande.",
-        "PROVIDER_REFERENCE_REQUIRED": "Renseignez le prestataire et la référence de transaction ensemble.",
+        "PROVIDER_REFERENCE_REQUIRED": "Pour Mobile Money, renseignez le prestataire et la référence de transaction.",
         "INVALID_NONCASH_PAYMENT": "Les informations du paiement non espèces sont invalides.",
         "INSUFFICIENT_STOCK": "Stock insuffisant : la livraison ne peut pas être confirmée.",
     }
@@ -109,10 +115,65 @@ def checkout(bar_id):
             if not can_record:
                 raise PermissionError("FORBIDDEN")
 
+            order = db.session.scalar(
+                select(Order).where(Order.id == order_id, Order.bar_id == bar_id).with_for_update()
+            )
+            if not order:
+                raise LookupError("NOT_FOUND")
+            if order.status not in {"CONFIRMED", "SERVED"}:
+                raise ValueError("ORDER_NOT_PAYABLE")
+            due_before = order_balance(order)["amount_due"]
             method = request.form.get("method", "").strip()
-            applied = _positive_decimal(request.form.get("amount_applied"))
+            base_reference = request.form.get("reference", "").strip() or _reference()
             provider_code = request.form.get("provider_code", "").strip() or None
             provider_transaction_id = request.form.get("provider_transaction_id", "").strip() or None
+
+            if method == "MIXED":
+                cash_part = _decimal(request.form.get("mixed_cash"), allow_zero=True)
+                mobile_part = _decimal(request.form.get("mixed_mobile"), allow_zero=True)
+                if cash_part <= 0 or mobile_part <= 0 or cash_part + mobile_part != due_before:
+                    raise ValueError("INVALID_MIXED_PAYMENT")
+                presented = _positive_decimal(request.form.get("amount_presented"))
+                if presented < cash_part:
+                    raise ValueError("INVALID_PAYMENT_AMOUNTS")
+                cash_session_raw = request.form.get("cash_session_id", "").strip()
+                cash_session_id = int(cash_session_raw) if cash_session_raw else None
+                if not provider_code or not provider_transaction_id:
+                    raise ValueError("PROVIDER_REFERENCE_REQUIRED")
+
+                payment_service.record(
+                    current_user,
+                    bar_id,
+                    order_id,
+                    f"{base_reference}-ESP",
+                    "CASH",
+                    presented,
+                    cash_part,
+                    presented - cash_part,
+                    cash_session_id=cash_session_id,
+                )
+                payment_service.record(
+                    current_user,
+                    bar_id,
+                    order_id,
+                    f"{base_reference}-MOMO",
+                    "MOBILE_MONEY",
+                    mobile_part,
+                    mobile_part,
+                    Decimal("0"),
+                    provider_code=provider_code,
+                    provider_transaction_id=provider_transaction_id,
+                )
+                db.session.commit()
+                flash(
+                    f"Paiement mixte validé : {cash_part:,.0f} espèces + {mobile_part:,.0f} Mobile Money.",
+                    "success",
+                )
+                return redirect(url_for("checkout_web.checkout", bar_id=bar_id))
+
+            applied = _positive_decimal(request.form.get("amount_applied"))
+            if method == "MOBILE_MONEY" and (not provider_code or not provider_transaction_id):
+                raise ValueError("PROVIDER_REFERENCE_REQUIRED")
 
             if method == "CASH":
                 presented = _positive_decimal(request.form.get("amount_presented"))
@@ -132,7 +193,7 @@ def checkout(bar_id):
                 current_user,
                 bar_id,
                 order_id,
-                request.form.get("reference", "").strip() or _reference(),
+                base_reference,
                 method,
                 presented,
                 applied,
@@ -193,9 +254,7 @@ def checkout(bar_id):
     assignment_ids = {order.assigned_staff_id for order in orders if order.assigned_staff_id is not None}
     assignments = {
         item.id: item
-        for item in db.session.scalars(
-            select(StaffAssignment).where(StaffAssignment.id.in_(assignment_ids))
-        )
+        for item in db.session.scalars(select(StaffAssignment).where(StaffAssignment.id.in_(assignment_ids)))
     } if assignment_ids else {}
     user_ids = {item.user_id for item in assignments.values()}
     users = {
