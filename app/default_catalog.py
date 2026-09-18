@@ -14,6 +14,7 @@ from sqlalchemy import select
 
 from app.extensions import db
 from app.models import Bar, Product, ProductCategory, StockBalance
+from app.purchase_defaults import default_units_per_case
 
 DEFAULT_CATALOG_CURRENCY = "XOF"
 
@@ -166,7 +167,7 @@ def seed_default_catalog(bar_id: int) -> dict[str, int]:
                 sale_price=Decimal(str(price)),
                 valuation_unit_cost=Decimal("0"),
                 stock_alert_threshold=Decimal("0"),
-                units_per_case=None,
+                units_per_case=default_units_per_case(product_name),
                 image_key=None,
                 is_active=True,
             )
