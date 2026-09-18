@@ -109,14 +109,117 @@
 
 .alert { border-radius: 13px; }
 
+/* Bar management hub */
+.bar-hero {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 28px;
+  padding: 6px 0 8px;
+}
+.bar-back { color: var(--muted); font-size: .86rem; font-weight: 700; }
+.bar-back:hover { color: var(--brand); }
+.bar-hero-avatar {
+  width: 68px;
+  height: 68px;
+  border-radius: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(145deg, var(--brand), var(--brand-dark));
+  color: #fff;
+  font-weight: 900;
+  font-size: 1.75rem;
+  box-shadow: 0 14px 34px rgba(15, 92, 77, .18);
+}
+.bar-hero h1 { margin: 0; font-size: clamp(2rem, 3.2vw, 3.2rem); font-weight: 850; letter-spacing: -.045em; }
+.bar-hero p { color: var(--muted); margin: .3rem 0 0; }
+.bar-hero-actions { display: flex; flex-wrap: wrap; gap: .65rem; }
+.bar-stats { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+
+.bar-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 350px;
+  gap: 22px;
+  align-items: start;
+}
+.module-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; padding: 20px; }
+.module-card {
+  min-height: 132px;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: #fff;
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: start;
+  color: var(--ink);
+  transition: .18s ease;
+}
+a.module-card:hover { color: var(--ink); border-color: #bad2cb; transform: translateY(-2px); box-shadow: 0 12px 28px rgba(25,46,39,.07); }
+.module-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--brand-soft);
+  color: var(--brand);
+  font-weight: 900;
+  font-size: 1rem;
+}
+.module-card strong { display: block; font-size: .98rem; margin-top: .05rem; }
+.module-card p { color: var(--muted); font-size: .83rem; line-height: 1.5; margin: .35rem 0 0; }
+.module-arrow { color: var(--brand); font-size: 1.2rem; font-weight: 800; }
+.module-card-muted { background: #fafbfa; color: #7d8a85; }
+.module-card-muted .module-icon { background: #f0f3f2; color: #8b9893; }
+.module-coming { display: inline-flex; margin-top: .65rem; padding: .24rem .5rem; border-radius: 999px; background: #eef2f0; color: #77857f; font-size: .68rem; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; }
+
+.bar-side-stack { display: grid; gap: 22px; position: sticky; top: 98px; }
+.info-list { padding: 8px 20px 14px; }
+.info-list > div { display: flex; justify-content: space-between; gap: 1rem; padding: 14px 0; border-bottom: 1px solid #eef2f0; }
+.info-list > div:last-child { border-bottom: 0; }
+.info-list span { color: var(--muted); font-size: .82rem; }
+.info-list strong { text-align: right; font-size: .88rem; }
+.bar-next-card h3 { font-size: 1.15rem; font-weight: 800; margin: .85rem 0 .5rem; }
+.bar-next-card p { color: var(--muted); line-height: 1.55; font-size: .9rem; }
+.next-step-number {
+  width: 42px;
+  height: 42px;
+  border-radius: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--accent);
+  color: #17231f;
+  font-size: .8rem;
+  font-weight: 900;
+}
+
 @media (max-width: 1100px) {
   .form-layout { grid-template-columns: 1fr; }
   .sticky-summary { position: static; }
   .form-side-column { order: -1; }
+  .bar-layout { grid-template-columns: 1fr; }
+  .bar-side-stack { position: static; grid-template-columns: 1fr 1fr; }
+  .bar-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 760px) {
+  .bar-hero { display: block; }
+  .bar-hero-actions { margin-top: 1.25rem; }
+  .module-grid { grid-template-columns: 1fr; padding: 14px; }
+  .bar-side-stack { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 640px) {
   .owner-mode-grid { grid-template-columns: 1fr; }
   .form-section-body { padding: 18px; }
   .setting-row { align-items: flex-start; }
+  .bar-stats { grid-template-columns: 1fr; }
+  .bar-hero-avatar { width: 56px; height: 56px; border-radius: 16px; font-size: 1.4rem; }
+  .module-card { grid-template-columns: 40px minmax(0, 1fr); }
+  .module-arrow { display: none; }
 }
