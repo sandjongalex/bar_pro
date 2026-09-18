@@ -8,7 +8,7 @@ from sqlalchemy.exc import IntegrityError
 
 from app.auth import api_required
 from app.extensions import db
-from app.models import Bar, BarTable, Order, OrderLine, Product, ProductCategory, StockBalance
+from app.models import Bar, BarTable, Order, OrderLine, Product, ProductCategory, StaffAssignment, StockBalance
 from app.order_services import order_service
 from app.permissions import permissions
 
@@ -16,8 +16,8 @@ bp = Blueprint("orders", __name__, url_prefix="/api/v1/bars/<int:bar_id>/orders"
 web_bp = Blueprint("orders_web", __name__, url_prefix="/bars/<int:bar_id>/orders")
 
 STATUS_LABELS = {
-    "DRAFT": "Brouillon",
-    "CONFIRMED": "Confirmée",
+    "DRAFT": "En attente",
+    "CONFIRMED": "À payer",
     "SERVED": "Servie",
     "CANCELLED": "Annulée",
 }
@@ -32,16 +32,18 @@ def _message(code):
     messages = {
         "INVALID_LINES": "Ajoutez au moins un produit avec une quantité valide.",
         "ORDER_EMPTY": "La commande ne contient aucun produit.",
-        "ORDER_NOT_DRAFT": "Cette commande n'est plus en brouillon.",
-        "ORDER_NOT_CONFIRMED": "Cette commande n'est pas en attente de service.",
+        "ORDER_NOT_DRAFT": "Cette commande n'est plus en attente.",
+        "ORDER_NOT_CONFIRMED": "Cette commande n'est pas disponible pour cette opération.",
         "ORDER_NOT_CANCELLABLE": "Cette commande ne peut plus être annulée.",
+        "ORDER_NOT_EDITABLE": "Cette commande ne peut plus être modifiée.",
+        "ORDER_NOTES_TOO_LONG": "Les notes de cette commande sont trop longues.",
         "REASON_REQUIRED": "Le motif d'annulation est obligatoire.",
-        "INSUFFICIENT_STOCK": "Stock insuffisant pour confirmer cette commande.",
+        "INSUFFICIENT_STOCK": "Stock insuffisant pour cette commande.",
         "NOT_FOUND": "Produit, table ou commande introuvable.",
         "FORBIDDEN": "Vous n'êtes pas autorisé à effectuer cette opération.",
         "BAR_SUSPENDED": "Le bar est suspendu : les ventes sont bloquées.",
     }
-    return messages.get(str(code), "Opération refusée. Vérifiez la commande et le stock disponible.")
+    return messages.get(str(code), "Opération refusée. Vérifiez la commande.")
 
 
 def _cart_lines():
@@ -57,6 +59,18 @@ def _cart_lines():
     return lines
 
 
+def _assignment(bar_id):
+    if current_user.category != "EMPLOYEE":
+        return None
+    return db.session.scalar(
+        select(StaffAssignment).where(
+            StaffAssignment.bar_id == bar_id,
+            StaffAssignment.user_id == current_user.id,
+            StaffAssignment.ended_at.is_(None),
+        )
+    )
+
+
 @web_bp.route("/new", methods=["GET", "POST"])
 @login_required
 def quick(bar_id):
@@ -65,6 +79,8 @@ def quick(bar_id):
     if not bar:
         raise LookupError("NOT_FOUND")
 
+    assignment = _assignment(bar_id)
+    is_server = bool(assignment and assignment.role == "SERVER")
     can_edit = permissions.evaluate(current_user, "orders.edit", bar_id).allowed
     can_pay = permissions.evaluate(current_user, "payments.read", bar_id).allowed
 
@@ -82,25 +98,25 @@ def quick(bar_id):
                     table_id=table_id,
                     notes=request.form.get("notes", "").strip() or None,
                 )
-                order_service.confirm(current_user, bar_id, order.id)
                 db.session.commit()
                 flash(
-                    f"Commande {order.reference} confirmée · {order.total_amount:,.0f} {order.currency}.",
+                    f"Commande {order.reference} envoyée à la caisse · {order.total_amount:,.0f} {order.currency}.",
                     "success",
                 )
-                if can_pay:
+                if can_pay and not is_server:
                     return redirect(url_for("checkout_web.checkout", bar_id=bar_id, order_id=order.id))
 
-            elif action == "serve":
+            elif action == "note":
                 if not can_edit:
                     raise PermissionError("FORBIDDEN")
-                order = order_service.serve(
+                order_service.append_note(
                     current_user,
                     bar_id,
                     int(request.form.get("order_id", "0")),
+                    request.form.get("note", "").strip(),
                 )
                 db.session.commit()
-                flash(f"Commande {order.reference} marquée comme servie.", "success")
+                flash("Note complémentaire envoyée à la caisse.", "success")
 
             elif action == "cancel":
                 if not can_edit:
@@ -112,7 +128,7 @@ def quick(bar_id):
                     request.form.get("reason", "").strip(),
                 )
                 db.session.commit()
-                flash(f"Commande {order.reference} annulée. Le stock a été restauré.", "success")
+                flash(f"Commande {order.reference} annulée.", "success")
 
             else:
                 raise ValueError("INVALID_ACTION")
@@ -144,9 +160,7 @@ def quick(bar_id):
 
     balances = {
         balance.product_id: balance.quantity
-        for balance in db.session.scalars(
-            select(StockBalance).where(StockBalance.bar_id == bar_id)
-        )
+        for balance in db.session.scalars(select(StockBalance).where(StockBalance.bar_id == bar_id))
     }
 
     tables = list(
@@ -157,17 +171,14 @@ def quick(bar_id):
         )
     )
 
-    recent_orders = list(
-        db.session.scalars(
-            select(Order)
-            .where(
-                Order.bar_id == bar_id,
-                Order.status.in_(["CONFIRMED", "SERVED", "CANCELLED"]),
-            )
-            .order_by(Order.id.desc())
-            .limit(20)
-        )
+    recent_query = select(Order).where(
+        Order.bar_id == bar_id,
+        Order.status.in_(["DRAFT", "CONFIRMED", "SERVED", "CANCELLED"]),
     )
+    if is_server:
+        recent_query = recent_query.where(Order.assigned_staff_id == assignment.id)
+    recent_orders = list(db.session.scalars(recent_query.order_by(Order.id.desc()).limit(30)))
+
     recent_ids = [order.id for order in recent_orders]
     lines_by_order = {order_id: [] for order_id in recent_ids}
     if recent_ids:
@@ -181,8 +192,9 @@ def quick(bar_id):
     stats = {
         "products": len(products),
         "available": sum(1 for product in products if balances.get(product.id, 0) > 0),
-        "confirmed": sum(1 for order in recent_orders if order.status == "CONFIRMED"),
-        "served": sum(1 for order in recent_orders if order.status == "SERVED"),
+        "waiting": sum(1 for order in recent_orders if order.status == "DRAFT"),
+        "to_pay": sum(1 for order in recent_orders if order.status == "CONFIRMED" and order.payment_status != "PAID"),
+        "paid": sum(1 for order in recent_orders if order.payment_status == "PAID"),
     }
 
     return render_template(
@@ -199,6 +211,7 @@ def quick(bar_id):
         stats=stats,
         can_edit=can_edit,
         can_pay=can_pay,
+        is_server=is_server,
     )
 
 
@@ -218,7 +231,7 @@ def create(bar_id):
         )
         db.session.commit()
         return jsonify({"success": True, "data": {"id": str(o.id), "status": o.status}, "meta": {}}), 201
-    except (ValueError,) as e:
+    except (ValueError, PermissionError, LookupError):
         db.session.rollback()
         return jsonify({"success": False, "error": {"code": "BUSINESS_RULE_VIOLATION", "message": "Commande refusée", "details": None}}), 400
 
@@ -230,7 +243,10 @@ def confirm(bar_id, order_id):
         o = order_service.confirm(request.api_user, bar_id, order_id)
         db.session.commit()
         return jsonify({"success": True, "data": {"status": o.status}, "meta": {}})
-    except (ValueError,) as e:
+    except PermissionError:
+        db.session.rollback()
+        return jsonify({"success": False, "error": {"code": "FORBIDDEN", "message": "Livraison non autorisée", "details": None}}), 403
+    except (ValueError, LookupError):
         db.session.rollback()
         return jsonify({"success": False, "error": {"code": "BUSINESS_RULE_VIOLATION", "message": "Confirmation refusée", "details": None}}), 409
 
@@ -246,7 +262,7 @@ def adjust(bar_id, order_id):
     except LookupError:
         db.session.rollback()
         return jsonify({"success": False, "error": {"code": "NOT_FOUND", "message": "Commande introuvable", "details": None}}), 404
-    except (ValueError,) as e:
+    except (ValueError, PermissionError):
         db.session.rollback()
         return jsonify({"success": False, "error": {"code": "BUSINESS_RULE_VIOLATION", "message": "Modification refusée", "details": None}}), 409
 
@@ -258,7 +274,7 @@ def serve(bar_id, order_id):
         o = order_service.serve(request.api_user, bar_id, order_id)
         db.session.commit()
         return jsonify({"success": True, "data": {"status": o.status}, "meta": {}})
-    except (ValueError,) as e:
+    except (ValueError, PermissionError):
         db.session.rollback()
         return jsonify({"success": False, "error": {"code": "BUSINESS_RULE_VIOLATION", "message": "Service refusé", "details": None}}), 409
 
@@ -270,7 +286,7 @@ def cancel(bar_id, order_id):
         o = order_service.cancel(request.api_user, bar_id, order_id, (request.get_json() or {}).get("reason", ""))
         db.session.commit()
         return jsonify({"success": True, "data": {"status": o.status}, "meta": {}})
-    except (ValueError,) as e:
+    except (ValueError, PermissionError):
         db.session.rollback()
         return jsonify({"success": False, "error": {"code": "BUSINESS_RULE_VIOLATION", "message": "Annulation refusée", "details": None}}), 409
 
@@ -288,6 +304,6 @@ def returns(bar_id, order_id):
         )
         db.session.commit()
         return jsonify({"success": True, "data": {"id": str(o.id)}, "meta": {}})
-    except (ValueError,) as e:
+    except (ValueError, PermissionError):
         db.session.rollback()
         return jsonify({"success": False, "error": {"code": "BUSINESS_RULE_VIOLATION", "message": "Retour refusé", "details": None}}), 409
