@@ -15,6 +15,7 @@ from app.bars import api_bars_bp, bars_bp
 from app.catalog import api_catalog_bp, catalog_bp
 from app.stock import api_stock_bp, stock_bp
 from app.purchases import bp as purchases_bp, suppliers_bp, supplier_payments_bp
+from app.purchases_web import bp as purchases_web_bp
 from app.inventories import api_inventories_bp, inventories_bp
 from app.orders import bp as orders_bp, web_bp as orders_web_bp
 from app.staff import bp as staff_web_bp
@@ -82,6 +83,7 @@ def _register_blueprints(app: Flask) -> None:
     app.register_blueprint(api_catalog_bp)
     app.register_blueprint(stock_bp)
     app.register_blueprint(api_stock_bp)
+    app.register_blueprint(purchases_web_bp)
     app.register_blueprint(suppliers_bp)
     app.register_blueprint(purchases_bp)
     app.register_blueprint(supplier_payments_bp)
