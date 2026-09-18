@@ -9,6 +9,7 @@ from app.extensions import db
 from app.models import Bar, Product, ProductCategory, StaffAssignment, StockBalance, User
 from app.permissions import permissions
 from app.audit import record
+from app.default_catalog import seed_default_catalog
 
 
 def require(actor, action, bar_id):
@@ -121,6 +122,10 @@ def create_bar(actor, owner_id, data, copy_from_id=None):
             db.session.add(clone)
             db.session.flush()
             db.session.add(StockBalance(bar_id=bar.id, product_id=clone.id, quantity=0, version=0))
+
+    # Every newly created bar receives the standard catalogue. The seed is
+    # idempotent, so products copied from another bar are not duplicated.
+    seed_default_catalog(bar.id)
     return bar
 
 
