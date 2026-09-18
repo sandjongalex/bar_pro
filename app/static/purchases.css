@@ -52,6 +52,41 @@
 .purchase-modal .modal-header,.purchase-modal .modal-footer { border-color:var(--line); }
 .purchase-modal .form-label { font-weight:750; font-size:.88rem; }
 .purchase-modal .form-control,.purchase-modal .form-select,.purchase-modal .input-group-text { border-color:#dce5e1; border-radius:11px; min-height:46px; }
+
+/* Keep purchase modal navigation/actions visible on short screens. */
+#purchaseModal .modal-dialog {
+  height:calc(100dvh - 2rem);
+  margin-top:1rem;
+  margin-bottom:1rem;
+}
+#purchaseModal .modal-content {
+  max-height:100%;
+}
+#purchaseModal .purchase-modal > form {
+  display:flex;
+  flex-direction:column;
+  flex:1 1 auto;
+  min-height:0;
+  max-height:100%;
+}
+#purchaseModal .modal-header,
+#purchaseModal .modal-footer {
+  flex:0 0 auto;
+  background:#fff;
+  position:relative;
+  z-index:2;
+}
+#purchaseModal .modal-body {
+  flex:1 1 auto;
+  min-height:0;
+  overflow-y:auto;
+  overscroll-behavior:contain;
+  scrollbar-gutter:stable;
+}
+#purchaseModal .modal-footer {
+  box-shadow:0 -8px 20px rgba(25,46,39,.06);
+}
+
 .purchase-entry-head { display:flex; align-items:center; justify-content:space-between; gap:1rem; margin-bottom:.8rem; }
 .purchase-entry-head h3 { margin:0; font-size:1rem; font-weight:800; }
 .purchase-entry-lines { display:grid; gap:.75rem; }
@@ -78,4 +113,16 @@
   .purchase-entry-line { grid-template-columns:1fr; }
   .purchase-entry-line .product-select,.purchase-entry-line .remove-purchase-line { grid-column:auto; }
   .purchase-entry-line .remove-purchase-line { width:100%; }
+  #purchaseModal .modal-dialog {
+    height:calc(100dvh - 1rem);
+    margin:.5rem;
+  }
+  #purchaseModal .modal-footer {
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:.6rem;
+  }
+  #purchaseModal .modal-footer .btn {
+    width:100%;
+  }
 }
