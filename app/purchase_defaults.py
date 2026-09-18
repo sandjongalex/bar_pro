@@ -1,9 +1,12 @@
-"""Default supplier purchase prices used by the purchasing form.
+"""Default purchasing values used by the supplier purchase form.
 
-These values are purchase-entry defaults only. They deliberately do not mutate
-``Product.valuation_unit_cost`` because that field is used as the cost snapshot
-for sales and therefore follows the product's base stock unit rather than a
-supplier case price.
+Purchase prices are entry defaults only. They deliberately do not mutate
+``Product.valuation_unit_cost`` because that field represents the cost of the
+product's base stock unit (normally one bottle), not the supplier case price.
+
+Case sizes are also defaults. Existing bars can use them immediately even when
+``Product.units_per_case`` has not yet been populated. When a case purchase is
+saved, the purchase service persists the selected case size on the product.
 """
 from __future__ import annotations
 
@@ -70,15 +73,88 @@ DEFAULT_PURCHASE_PRICES_CFA = {
     "black and": Decimal("6000"),
 }
 
+DEFAULT_UNITS_PER_CASE = {
+    "33 export": 12,
+    "mutzig": 12,
+    "castel": 12,
+    "dopel": 12,
+    "isembeck": 12,
+    "beaufort": 12,
+    "castle": 12,
+    "mayan": 12,
+    "booster": 12,
+    "chil": 12,
+    "boster racine": 12,
+    "heineken g": 12,
+    "heineken": 24,
+    "vampur": 24,
+    "bavaria": 24,
+    "vody": 24,
+    "1664": 24,
+    "p. guinness": 24,
+    "g. guinness": 12,
+    "origin": 12,
+    "smooth gm": 15,
+    "smooth pm": 24,
+    "malta": 24,
+    "harp": 12,
+    "ice g": 12,
+    "ice": 24,
+    "kadji": 12,
+    "k44": 12,
+    "booster gin g": 12,
+    "tonic": 12,
+    "malta tonic": 24,
+    "soda": 12,
+    "top 12": 12,
+    "coca 12": 12,
+    "vinto 12": 12,
+    "coca pet": 6,
+    "top pet": 6,
+    "djino pet": 6,
+    "kq": 12,
+    "ucb": 12,
+    "spécial pamplemousse": 12,
+    "vimto": 6,
+    "ucb pet": 6,
+    "reactor": 12,
+    "sprite": 6,
+    "délice": 24,
+    "orangina": 6,
+    "eau super m": 6,
+    "opur": 6,
+    "vital": 6,
+    "cuve du roi": 12,
+    "el vino": 12,
+    "c. morgan": 24,
+    "japap": 6,
+    "black and": 12,
+}
+
+
+def _product_key(product_name: str) -> str:
+    return (product_name or "").strip().casefold()
+
 
 def default_purchase_price(product_name: str, currency: str, fallback) -> Decimal:
-    """Return the configured purchase default without changing product data.
-
-    The supplied catalogue is CFA-denominated. Bars using another currency keep
-    their product valuation cost as the form fallback rather than treating CFA
-    amounts as another currency.
-    """
+    """Return the configured purchase price default for CFA-denominated bars."""
     fallback_value = Decimal(str(fallback or 0))
     if (currency or "").upper() not in CFA_CURRENCIES:
         return fallback_value
-    return DEFAULT_PURCHASE_PRICES_CFA.get((product_name or "").strip().casefold(), fallback_value)
+    return DEFAULT_PURCHASE_PRICES_CFA.get(_product_key(product_name), fallback_value)
+
+
+def default_units_per_case(product_name: str, fallback=None):
+    """Return the configured bottles-per-case default for a known product.
+
+    A positive explicit product value always wins, so bar-specific configuration
+    remains authoritative. Unknown products keep their supplied fallback.
+    """
+    if fallback not in (None, ""):
+        try:
+            parsed = int(fallback)
+        except (TypeError, ValueError):
+            parsed = 0
+        if parsed > 0:
+            return parsed
+    return DEFAULT_UNITS_PER_CASE.get(_product_key(product_name))
