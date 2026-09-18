@@ -178,7 +178,7 @@
 <div class="modal fade" id="purchaseModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
     <div class="modal-content purchase-modal">
-      <form method="post" id="purchaseForm">
+      <form method="post" id="purchaseForm" data-currency="{{ bar.currency }}">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="action" value="purchase_create">
         <div class="modal-header"><div><p class="eyebrow mb-1">Nouvel approvisionnement</p><h2 class="modal-title h5">Enregistrer un achat fournisseur</h2></div><button class="btn-close" type="button" data-bs-dismiss="modal"></button></div>
@@ -189,19 +189,31 @@
             <div class="col-md-3"><label class="form-label">N° facture fournisseur</label><input class="form-control form-control-lg" name="supplier_invoice_reference" maxlength="100" placeholder="Optionnel"></div>
           </div>
 
-          <div class="purchase-entry-head"><div><p class="eyebrow mb-1">Produits</p><h3>Contenu de la livraison</h3></div><button class="btn btn-sm btn-outline-primary" type="button" id="addPurchaseLine">＋ Ajouter une ligne</button></div>
-          <div id="purchaseLines" class="purchase-entry-lines">
-            <div class="purchase-entry-line">
-              <select class="form-select product-select" name="product_id" required>
-                <option value="">Produit...</option>
-                {% for product in products %}<option value="{{ product.id }}" data-cost="{{ product.valuation_unit_cost }}">{{ product.name }} · {{ product.sku }}</option>{% endfor %}
-              </select>
-              <input class="form-control" name="quantity" type="number" min="0.000001" step="0.001" placeholder="Quantité" required>
-              <div class="input-group"><input class="form-control unit-cost" name="unit_cost" type="number" min="0" step="1" placeholder="Coût unitaire" required><span class="input-group-text">{{ bar.currency }}</span></div>
-              <button class="btn btn-light border remove-purchase-line" type="button" aria-label="Supprimer cette ligne">×</button>
+          <div class="purchase-entry-head">
+            <div><p class="eyebrow mb-1">Produits</p><h3>Saisissez uniquement les quantités achetées</h3></div>
+            <div class="purchase-entry-tools">
+              <input class="form-control" id="purchaseProductSearch" type="search" placeholder="Rechercher un produit...">
+              <span class="purchase-selected-count" id="purchaseSelectedCount">0 produit sélectionné</span>
             </div>
           </div>
-          <div class="info-box mt-4"><strong>Important :</strong> la création enregistre d'abord l'achat comme brouillon. Le stock ne change que lorsque vous cliquez sur <strong>Réceptionner</strong>.</div>
+
+          <div class="purchase-entry-columns" aria-hidden="true">
+            <span>Produit</span><span>Quantité</span><span>Prix d'achat</span><span>Total</span>
+          </div>
+
+          <div id="purchaseLines" class="purchase-entry-lines purchase-all-products">
+            {% for product in products %}
+            <div class="purchase-entry-line purchase-catalog-row" data-product-id="{{ product.id }}" data-search="{{ product.name|lower }} {{ product.sku|lower }}">
+              <input type="hidden" name="product_id" value="{{ product.id }}">
+              <div class="purchase-product-label"><strong>{{ product.name }}</strong><small>{{ product.sku }}</small></div>
+              <input class="form-control purchase-quantity" name="quantity" type="number" min="0.001" step="0.001" placeholder="0">
+              <div class="input-group"><input class="form-control unit-cost" name="unit_cost" type="number" min="0" step="1" value="{{ product.valuation_unit_cost }}" aria-label="Prix d'achat de {{ product.name }}"><span class="input-group-text">{{ bar.currency }}</span></div>
+              <strong class="purchase-line-total" data-line-total>0 {{ bar.currency }}</strong>
+            </div>
+            {% endfor %}
+          </div>
+
+          <div class="info-box mt-4"><strong>Principe :</strong> laissez la quantité vide pour les produits non achetés. Les prix sont préremplis mais vous pouvez les modifier avant l'enregistrement.</div>
         </div>
         <div class="modal-footer"><button class="btn btn-light border" type="button" data-bs-dismiss="modal">Annuler</button><button class="btn btn-primary" type="submit">Enregistrer le brouillon</button></div>
       </form>
@@ -229,43 +241,4 @@
 </div>
 {% endfor %}
 {% endif %}
-
-<script>
-(function () {
-  const container = document.getElementById('purchaseLines');
-  const addButton = document.getElementById('addPurchaseLine');
-  if (!container || !addButton) return;
-
-  function bindRow(row) {
-    const select = row.querySelector('.product-select');
-    const cost = row.querySelector('.unit-cost');
-    const remove = row.querySelector('.remove-purchase-line');
-    if (select && cost) {
-      select.addEventListener('change', function () {
-        const option = select.options[select.selectedIndex];
-        if (option && option.dataset.cost && (!cost.value || Number(cost.value) === 0)) cost.value = option.dataset.cost;
-      });
-    }
-    if (remove) remove.addEventListener('click', function () {
-      const rows = container.querySelectorAll('.purchase-entry-line');
-      if (rows.length > 1) row.remove();
-      else {
-        row.querySelectorAll('input').forEach(input => input.value = '');
-        if (select) select.value = '';
-      }
-    });
-  }
-
-  container.querySelectorAll('.purchase-entry-line').forEach(bindRow);
-  addButton.addEventListener('click', function () {
-    const source = container.querySelector('.purchase-entry-line');
-    const clone = source.cloneNode(true);
-    clone.querySelectorAll('input').forEach(input => input.value = '');
-    const select = clone.querySelector('select');
-    if (select) select.value = '';
-    bindRow(clone);
-    container.appendChild(clone);
-  });
-})();
-</script>
 {% endblock %}
