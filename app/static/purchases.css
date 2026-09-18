@@ -59,9 +59,7 @@
   margin-top:1rem;
   margin-bottom:1rem;
 }
-#purchaseModal .modal-content {
-  max-height:100%;
-}
+#purchaseModal .modal-content { max-height:100%; }
 #purchaseModal .purchase-modal > form {
   display:flex;
   flex-direction:column;
@@ -83,19 +81,31 @@
   overscroll-behavior:contain;
   scrollbar-gutter:stable;
 }
-#purchaseModal .modal-footer {
-  box-shadow:0 -8px 20px rgba(25,46,39,.06);
-}
+#purchaseModal .modal-footer { box-shadow:0 -8px 20px rgba(25,46,39,.06); }
 
-.purchase-entry-head { display:flex; align-items:center; justify-content:space-between; gap:1rem; margin-bottom:.8rem; }
+.purchase-entry-head { display:flex; align-items:flex-end; justify-content:space-between; gap:1rem; margin-bottom:.8rem; }
 .purchase-entry-head h3 { margin:0; font-size:1rem; font-weight:800; }
-.purchase-entry-lines { display:grid; gap:.75rem; }
-.purchase-entry-line { display:grid; grid-template-columns:minmax(260px,1.5fr) minmax(130px,.55fr) minmax(190px,.8fr) 44px; gap:.65rem; align-items:center; padding-bottom:.7rem; border-bottom:1px solid #eef2f0; }
+.purchase-entry-tools { display:flex; align-items:center; gap:.65rem; flex-wrap:wrap; justify-content:flex-end; }
+.purchase-entry-tools .form-control { width:min(300px,42vw); min-height:40px; }
+.purchase-selected-count { display:inline-flex; align-items:center; min-height:40px; padding:.45rem .75rem; border-radius:999px; background:#f2f5f4; color:#77847f; font-size:.76rem; font-weight:750; white-space:nowrap; }
+.purchase-selected-count.has-selection { background:#e8f6ee; color:#257447; }
+.purchase-entry-columns { display:grid; grid-template-columns:minmax(240px,1.45fr) minmax(110px,.5fr) minmax(180px,.75fr) minmax(120px,.45fr); gap:.65rem; padding:.55rem .8rem; border:1px solid #e4ebe8; border-bottom:0; border-radius:12px 12px 0 0; background:#f7f9f8; color:#74817c; font-size:.7rem; font-weight:800; text-transform:uppercase; letter-spacing:.04em; }
+.purchase-entry-lines { display:grid; gap:0; border:1px solid #e4ebe8; border-radius:0 0 12px 12px; overflow:hidden; }
+.purchase-entry-line { display:grid; grid-template-columns:minmax(240px,1.45fr) minmax(110px,.5fr) minmax(180px,.75fr) minmax(120px,.45fr); gap:.65rem; align-items:center; padding:.72rem .8rem; border-bottom:1px solid #eef2f0; background:#fff; transition:background .15s ease,border-color .15s ease; }
 .purchase-entry-line:last-child { border-bottom:0; }
-.remove-purchase-line { font-size:1.15rem; font-weight:700; }
-.purchase-line-metrics { grid-column:1 / -1; display:flex; gap:1.25rem; flex-wrap:wrap; align-items:center; padding:.45rem .7rem; background:#f8fbf9; border:1px solid #e6eeea; border-radius:10px; color:#6b7873; font-size:.76rem; }
-.purchase-line-metrics span { display:flex; align-items:center; gap:.35rem; }
-.purchase-line-metrics strong { color:#24342e; font-size:.8rem; }
+.purchase-entry-line[hidden] { display:none !important; }
+.purchase-entry-line.is-selected { background:#f3fbf6; box-shadow:inset 3px 0 0 #2b8a57; }
+.purchase-product-label { min-width:0; }
+.purchase-product-label strong,.purchase-product-label small { display:block; }
+.purchase-product-label strong { font-size:.87rem; color:#21312b; }
+.purchase-product-label small { margin-top:.15rem; color:#8b9792; font-size:.7rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.purchase-quantity { font-weight:750; }
+.purchase-line-total { text-align:right; color:#23332d; font-size:.88rem; white-space:nowrap; }
+.purchase-line-analysis { grid-column:1 / -1; display:flex; align-items:center; gap:1.1rem; flex-wrap:wrap; padding:.4rem .65rem; margin-top:-.15rem; border-radius:9px; background:#f8faf9; color:#6b7873; font-size:.74rem; }
+.purchase-line-analysis > span { display:flex; align-items:center; gap:.35rem; }
+.purchase-line-analysis strong { color:#24342e; }
+.purchase-pack-size { display:flex; align-items:center; gap:.5rem; margin:0; color:#6b7873; font-size:.74rem; }
+.purchase-pack-size .form-control { width:90px; min-height:32px !important; height:32px; padding:.25rem .5rem; }
 .purchase-live-summary { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:.75rem; margin-top:1rem; }
 .purchase-summary-card { padding:14px 16px; border:1px solid #dfe8e4; border-radius:13px; background:#fff; box-shadow:0 6px 18px rgba(25,46,39,.035); }
 .purchase-summary-card span,.purchase-summary-card strong,.purchase-summary-card small { display:block; }
@@ -113,9 +123,15 @@
 @media (max-width:800px) {
   .purchase-hero { display:block; }
   .purchase-hero-actions { margin-top:1rem; }
+  .purchase-entry-head { align-items:stretch; flex-direction:column; }
+  .purchase-entry-tools { justify-content:stretch; }
+  .purchase-entry-tools .form-control { width:100%; flex:1 1 220px; }
+  .purchase-entry-columns { display:none; }
+  .purchase-entry-lines { border-radius:12px; gap:.6rem; padding:.6rem; background:#f7f9f8; }
   .purchase-entry-line { grid-template-columns:1fr 1fr; padding:12px; border:1px solid var(--line); border-radius:12px; }
-  .purchase-entry-line .product-select { grid-column:1 / -1; }
-  .purchase-entry-line .remove-purchase-line { grid-column:2; justify-self:end; }
+  .purchase-product-label { grid-column:1 / -1; }
+  .purchase-line-total { text-align:left; }
+  .purchase-line-analysis { grid-column:1 / -1; }
   .purchase-live-summary { grid-template-columns:1fr; }
 }
 @media (max-width:640px) {
@@ -123,10 +139,11 @@
   .purchase-onboarding { align-items:flex-start; flex-wrap:wrap; }
   .purchase-onboarding .ms-auto { margin-left:0 !important; width:100%; }
   .purchase-filter-form .form-select { width:100%; }
+  .purchase-entry-tools { display:grid; grid-template-columns:1fr; }
   .purchase-entry-line { grid-template-columns:1fr; }
-  .purchase-entry-line .product-select,.purchase-entry-line .remove-purchase-line { grid-column:auto; }
-  .purchase-entry-line .remove-purchase-line { width:100%; }
-  .purchase-line-metrics { display:grid; grid-template-columns:1fr; gap:.35rem; }
+  .purchase-product-label,.purchase-line-analysis { grid-column:auto; }
+  .purchase-line-analysis { display:grid; grid-template-columns:1fr; gap:.35rem; }
+  .purchase-pack-size { justify-content:space-between; }
   #purchaseModal .modal-dialog {
     height:calc(100dvh - 1rem);
     margin:.5rem;
@@ -136,7 +153,5 @@
     grid-template-columns:1fr 1fr;
     gap:.6rem;
   }
-  #purchaseModal .modal-footer .btn {
-    width:100%;
-  }
+  #purchaseModal .modal-footer .btn { width:100%; }
 }
