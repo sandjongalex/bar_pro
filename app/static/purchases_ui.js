@@ -37,7 +37,7 @@
       <div class="purchase-summary-card">
         <span>Chiffre d'affaires potentiel</span>
         <strong data-purchase-revenue>—</strong>
-        <small>Calculé si unités/casier renseignées</small>
+        <small>Prix de vente × unités/casier × quantité</small>
       </div>
       <div class="purchase-summary-card purchase-summary-profit">
         <span>Bénéfice brut estimé</span>
@@ -56,6 +56,10 @@
     metrics = document.createElement('div');
     metrics.className = 'purchase-line-metrics';
     metrics.innerHTML = `
+      <label class="purchase-pack-size">
+        <span>Unités / casier-carton</span>
+        <input class="form-control form-control-sm pack-size-input" type="number" min="1" step="1" placeholder="Ex. 12">
+      </label>
       <span>Total ligne <strong data-line-total>0 ${currency}</strong></span>
       <span>CA potentiel <strong data-line-revenue>—</strong></span>
       <span>Bénéfice brut <strong data-line-profit>—</strong></span>
@@ -68,6 +72,33 @@
     const select = row.querySelector('.product-select');
     if (!select || !select.value) return null;
     return productMeta.get(String(select.value)) || null;
+  }
+
+  function packStorageKey(productId) {
+    return `bar-pro:purchase-pack-size:${barId}:${productId}`;
+  }
+
+  function selectedPackSize(row) {
+    const input = row.querySelector('.pack-size-input');
+    const value = Number(input && input.value ? input.value : 0);
+    if (Number.isInteger(value) && value > 0) return value;
+    const meta = selectedMeta(row);
+    const fallback = Number(meta && meta.units_per_case ? meta.units_per_case : 0);
+    return Number.isInteger(fallback) && fallback > 0 ? fallback : 0;
+  }
+
+  function hydratePackSize(row) {
+    const select = row.querySelector('.product-select');
+    const input = row.querySelector('.pack-size-input');
+    if (!select || !input || !select.value) {
+      if (input) input.value = '';
+      return;
+    }
+
+    const meta = selectedMeta(row);
+    const stored = window.localStorage.getItem(packStorageKey(select.value));
+    const candidate = Number(meta && meta.units_per_case ? meta.units_per_case : stored || 0);
+    input.value = Number.isInteger(candidate) && candidate > 0 ? String(candidate) : '';
   }
 
   function calculateRow(row) {
@@ -84,14 +115,15 @@
 
     let revenue = null;
     let profit = null;
-    if (meta && Number(meta.units_per_case) > 0 && quantity > 0) {
-      revenue = quantity * Number(meta.units_per_case) * Number(meta.sale_price || 0);
+    const packSize = selectedPackSize(row);
+    if (meta && packSize > 0 && quantity > 0) {
+      revenue = quantity * packSize * Number(meta.sale_price || 0);
       profit = revenue - total;
       metrics.querySelector('[data-line-revenue]').textContent = formatMoney(revenue);
       metrics.querySelector('[data-line-profit]').textContent = formatMoney(profit);
     } else if (meta && quantity > 0) {
-      metrics.querySelector('[data-line-revenue]').textContent = 'À configurer';
-      metrics.querySelector('[data-line-profit]').textContent = 'À configurer';
+      metrics.querySelector('[data-line-revenue]').textContent = 'Renseigner unités/casier';
+      metrics.querySelector('[data-line-profit]').textContent = 'Renseigner unités/casier';
     } else {
       metrics.querySelector('[data-line-revenue]').textContent = '—';
       metrics.querySelector('[data-line-profit]').textContent = '—';
@@ -133,8 +165,8 @@
       summary.querySelector('[data-purchase-revenue]').textContent = formatMoney(revenue);
       summary.querySelector('[data-purchase-profit]').textContent = formatMoney(profit);
     } else if (selectedRows > 0) {
-      summary.querySelector('[data-purchase-revenue]').textContent = 'À configurer';
-      summary.querySelector('[data-purchase-profit]').textContent = 'À configurer';
+      summary.querySelector('[data-purchase-revenue]').textContent = 'À compléter';
+      summary.querySelector('[data-purchase-profit]').textContent = 'À compléter';
     } else {
       summary.querySelector('[data-purchase-revenue]').textContent = '—';
       summary.querySelector('[data-purchase-profit]').textContent = '—';
@@ -142,16 +174,17 @@
   }
 
   function bindRow(row) {
-    if (row.dataset.purchaseCalculatorBound === '1') return;
-    row.dataset.purchaseCalculatorBound = '1';
+    if (row._purchaseCalculatorBound) return;
+    row._purchaseCalculatorBound = true;
 
     const quantity = row.querySelector('input[name="quantity"]');
     const cost = row.querySelector('.unit-cost');
     const select = row.querySelector('.product-select');
+    const metrics = ensureMetrics(row);
+    const packInput = metrics.querySelector('.pack-size-input');
 
     if (quantity) {
-      // The previous min=0.000001 + step=0.001 made values such as 2 invalid
-      // in HTML5 validation because the step base did not align with integers.
+      // min=0.000001 + step=0.001 made integer values such as 2 invalid.
       quantity.min = '0.001';
       quantity.step = '0.001';
       quantity.addEventListener('input', calculateAll);
@@ -163,17 +196,27 @@
       cost.addEventListener('change', calculateAll);
     }
 
+    if (packInput) {
+      packInput.addEventListener('input', function () {
+        if (select && select.value && Number(packInput.value) > 0) {
+          window.localStorage.setItem(packStorageKey(select.value), packInput.value);
+        }
+        calculateAll();
+      });
+    }
+
     if (select) {
       select.addEventListener('change', function () {
         const meta = selectedMeta(row);
         if (meta && cost && (!cost.value || Number(cost.value) === 0)) {
           cost.value = meta.default_purchase_price;
         }
+        hydratePackSize(row);
         calculateAll();
       });
     }
 
-    ensureMetrics(row);
+    hydratePackSize(row);
   }
 
   function bindAllRows() {
@@ -208,6 +251,7 @@
       (payload.products || []).forEach((product) => {
         productMeta.set(String(product.id), product);
       });
+      container.querySelectorAll('.purchase-entry-line').forEach(hydratePackSize);
       calculateAll();
     })
     .catch(() => {
