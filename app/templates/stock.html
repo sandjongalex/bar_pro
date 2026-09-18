@@ -7,7 +7,7 @@
     <a class="bar-back" href="{{ url_for('bars.web_detail', bar_id=bar.id) }}">← Retour à {{ bar.name }}</a>
     <p class="eyebrow mt-3 mb-2">Gestion des stocks</p>
     <h1>Stock de {{ bar.name }}</h1>
-    <p>Suivez les quantités disponibles, les alertes, les pertes et l'historique de chaque mouvement.</p>
+    <p>Suivez les bouteilles disponibles, les alertes, les pertes et l'historique de chaque mouvement.</p>
   </div>
   <div class="stock-hero-actions">
     <a class="btn btn-outline-primary" href="{{ url_for('inventories.listing', bar_id=bar.id) }}">Inventaires</a>
@@ -27,7 +27,7 @@
   <article>
     <span>Produits suivis</span>
     <strong>{{ stats.products }}</strong>
-    <small>{{ "{:,.3f}".format(stats.total_quantity) }} unité(s) au total</small>
+    <small>{{ "{:,.3f}".format(stats.total_quantity) }} bouteille(s) au total</small>
   </article>
   <article class="{% if stats.low_stock %}stock-stat-warning{% endif %}">
     <span>Stock faible</span>
@@ -42,7 +42,7 @@
   <article>
     <span>Valeur du stock</span>
     <strong>{{ "{:,.0f}".format(stats.total_value) }}</strong>
-    <small>{{ bar.currency }} selon le coût d'achat enregistré</small>
+    <small>{{ bar.currency }} selon le coût d'achat par bouteille</small>
   </article>
 </section>
 
@@ -61,9 +61,9 @@
       <thead>
         <tr>
           <th>Produit</th>
-          <th>Quantité</th>
-          <th>Seuil</th>
-          <th>Coût unitaire</th>
+          <th>Stock (bouteilles)</th>
+          <th>Seuil (bouteilles)</th>
+          <th>Coût / bouteille</th>
           <th>Valeur stock</th>
           <th>État</th>
           {% if can_adjust %}<th class="text-end">Action</th>{% endif %}
@@ -78,12 +78,12 @@
               <span class="product-avatar">{{ product.name[0]|upper }}</span>
               <div>
                 <strong>{{ product.name }}</strong>
-                <small>{{ product.sku }} · {{ product.base_unit }}</small>
+                <small>{{ product.sku }} · stock en bouteilles</small>
               </div>
             </div>
           </td>
-          <td><strong class="stock-quantity {% if item.is_out %}stock-quantity-out{% elif item.is_low %}stock-quantity-low{% endif %}">{{ item.quantity }}</strong></td>
-          <td>{{ product.stock_alert_threshold }}</td>
+          <td><strong class="stock-quantity {% if item.is_out %}stock-quantity-out{% elif item.is_low %}stock-quantity-low{% endif %}">{{ item.quantity }} bouteille(s)</strong></td>
+          <td>{{ product.stock_alert_threshold }} bouteille(s)</td>
           <td>{{ "{:,.0f}".format(product.valuation_unit_cost) }} {{ bar.currency }}</td>
           <td><strong>{{ "{:,.0f}".format(item.value) }} {{ bar.currency }}</strong></td>
           <td>
@@ -154,8 +154,8 @@
           <th>Date</th>
           <th>Produit</th>
           <th>Type</th>
-          <th>Variation</th>
-          <th>Coût unitaire</th>
+          <th>Variation (bouteilles)</th>
+          <th>Coût / bouteille</th>
           <th>Enregistré par</th>
           <th>Motif</th>
         </tr>
@@ -168,7 +168,7 @@
           <td><span class="stock-date">{{ row.occurred_at.strftime('%d/%m/%Y') }}</span><small>{{ row.occurred_at.strftime('%H:%M') }}</small></td>
           <td><strong>{{ product.name if product else 'Produit #' ~ row.product_id }}</strong><small class="d-block text-secondary">{{ product.sku if product else '' }}</small></td>
           <td><span class="movement-type movement-{{ row.movement_type|lower }}">{{ movement_labels.get(row.movement_type, row.movement_type) }}</span></td>
-          <td><strong class="movement-delta {% if row.quantity_delta > 0 %}movement-positive{% else %}movement-negative{% endif %}">{% if row.quantity_delta > 0 %}+{% endif %}{{ row.quantity_delta }} {{ row.unit_snapshot }}</strong></td>
+          <td><strong class="movement-delta {% if row.quantity_delta > 0 %}movement-positive{% else %}movement-negative{% endif %}">{% if row.quantity_delta > 0 %}+{% endif %}{{ row.quantity_delta }} bouteille(s)</strong></td>
           <td>{{ "{:,.0f}".format(row.unit_cost_snapshot) }} {{ bar.currency }}</td>
           <td>{{ recorder.display_name if recorder else 'Utilisateur #' ~ row.recorded_by_id }}</td>
           <td class="stock-reason">{{ row.reason }}</td>
@@ -216,7 +216,7 @@
             <select class="form-select form-select-lg" id="stock_product_id" name="product_id" required>
               <option value="">Sélectionner un produit...</option>
               {% for item in balances %}
-                <option value="{{ item.product.id }}">{{ item.product.name }} — stock {{ item.quantity }}</option>
+                <option value="{{ item.product.id }}">{{ item.product.name }} — stock {{ item.quantity }} bouteille(s)</option>
               {% endfor %}
             </select>
           </div>
@@ -231,7 +231,7 @@
           </div>
 
           <div class="mb-3">
-            <label class="form-label" for="stock_quantity">Quantité</label>
+            <label class="form-label" for="stock_quantity">Quantité (bouteilles)</label>
             <input class="form-control" id="stock_quantity" name="quantity" type="number" min="0.001" step="0.001" placeholder="Ex. 12" required>
           </div>
 
@@ -243,7 +243,7 @@
 
           <div class="stock-warning mt-4">
             <strong>Important</strong>
-            <span>Les livraisons fournisseurs doivent être enregistrées via le module Achats. Ce formulaire sert aux corrections manuelles, ajouts exceptionnels et pertes.</span>
+            <span>Les livraisons fournisseurs doivent être enregistrées via le module Achats. Les achats en casiers y sont convertis en bouteilles avant d'entrer dans ce stock.</span>
           </div>
         </div>
         <div class="modal-footer">
