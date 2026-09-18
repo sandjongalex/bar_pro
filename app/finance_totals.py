@@ -1,6 +1,8 @@
-"""Shared financial totals. Refunds reduce receipts, returns reduce sales."""
+"""Shared financial totals. Refunds reduce receipts, returns reduce sales and customer credit can settle an order."""
 from decimal import Decimal
 from sqlalchemy import select, func
+
+from app.customer_models import CustomerLedgerEntry
 from app.extensions import db
 from app.models import Payment, Refund, OrderReturn
 
@@ -11,13 +13,32 @@ def total(model, column, **filters):
 
 def order_balance(order, update=False):
     keys = dict(bar_id=order.bar_id, order_id=order.id)
-    paid = total(Payment, Payment.amount_applied, **keys)
-    refunded = total(Refund, Refund.amount, **keys)
-    credits = total(OrderReturn, OrderReturn.total_amount, status="POSTED", **keys)
-    sale = Decimal(0) if order.status == "CANCELLED" else order.total_amount - credits
+    paid = Decimal(total(Payment, Payment.amount_applied, **keys) or 0)
+    refunded = Decimal(total(Refund, Refund.amount, **keys) or 0)
+    credits = Decimal(total(OrderReturn, OrderReturn.total_amount, status="POSTED", **keys) or 0)
+    customer_credit = Decimal(
+        db.session.scalar(
+            select(func.coalesce(func.sum(CustomerLedgerEntry.amount_delta), 0)).where(
+                CustomerLedgerEntry.bar_id == order.bar_id,
+                CustomerLedgerEntry.order_id == order.id,
+            )
+        )
+        or 0
+    )
+    sale = Decimal(0) if order.status == "CANCELLED" else Decimal(order.total_amount) - credits
     net = paid - refunded
+    financed = max(customer_credit, Decimal(0))
+    settled = net + financed
     if update:
-        order.payment_status = "PAID" if net >= sale else "PARTIAL" if net else "UNPAID"
-    return dict(total_paid=paid, total_refunded=refunded, return_credit=credits,
-                net_sale=sale, net_paid=net, amount_due=max(sale-net, Decimal(0)),
-                refundable_overpayment=max(net-sale, Decimal(0)))
+        order.payment_status = "PAID" if settled >= sale else "PARTIAL" if settled else "UNPAID"
+    return dict(
+        total_paid=paid,
+        total_refunded=refunded,
+        return_credit=credits,
+        customer_credit=financed,
+        net_sale=sale,
+        net_paid=net,
+        net_settled=settled,
+        amount_due=max(sale - settled, Decimal(0)),
+        refundable_overpayment=max(net - sale, Decimal(0)),
+    )
