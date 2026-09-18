@@ -37,7 +37,8 @@ def create_app(config_name: str | None = None, test_config: dict[str, Any] | Non
     validate_config(app.config)
     _configure_logging(app)
     _init_extensions(app)
-    from app import models  # noqa: F401 - registers metadata for Flask-Migrate
+    from app import models  # noqa: F401 - registers core metadata for Flask-Migrate
+    from app import purchase_models  # noqa: F401 - purchase/supplier domain extensions
     from app import customer_models  # noqa: F401 - customer receivables/cases/notifications metadata
     _register_blueprints(app)
     _register_error_handlers(app)
