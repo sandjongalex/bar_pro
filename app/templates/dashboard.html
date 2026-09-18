@@ -18,6 +18,21 @@
 <div class="admin-notice"><div><strong>Mode supervision activé</strong><span>Vous disposez d'une vue globale sur les établissements accessibles.</span></div></div>
 {% endif %}
 
+{% if notifications %}
+<section class="panel-card mt-4">
+  <div class="panel-header"><div><p class="eyebrow mb-1">Notifications</p><h2>À consulter</h2></div><span class="badge text-bg-primary">{{ notifications|length }}</span></div>
+  <div class="p-3 d-grid gap-2">
+    {% for notification in notifications %}
+      <div class="d-flex flex-wrap align-items-center gap-3 border rounded-3 p-3 bg-light">
+        <div class="flex-grow-1"><strong class="d-block">{{ notification.title }}</strong><small class="text-secondary">{{ notification.body }}</small></div>
+        {% if notification.order_id %}<a class="btn btn-sm btn-outline-primary" href="{{ url_for('orders_web.quick',bar_id=notification.bar_id) }}">Voir mes commandes</a>{% endif %}
+        <form method="post" action="{{ url_for('web.notification_read',notification_id=notification.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-sm btn-light border" type="submit">Marquer comme lue</button></form>
+      </div>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+
 {% if assignments %}
 <section class="panel-card mt-4">
   <div class="panel-header"><div><p class="eyebrow mb-1">Mon espace</p><h2>Actions de service</h2></div></div>
