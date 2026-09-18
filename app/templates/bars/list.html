@@ -1,0 +1,70 @@
+{% extends 'layout.html' %}
+{% block title %}Établissements · Bar Manager Pro{% endblock %}
+{% block header %}Établissements{% endblock %}
+{% block content %}
+<section class="dashboard-hero">
+  <div>
+    <p class="eyebrow mb-2">Gestion des établissements</p>
+    <h1>Vos bars</h1>
+    <p>Créez, consultez et pilotez les établissements accessibles depuis votre compte.</p>
+  </div>
+  {% if can_create %}
+    <a class="btn btn-primary" href="{{ url_for('bars.web_create') }}">＋ Créer un bar</a>
+  {% endif %}
+</section>
+
+{% if created %}
+<div class="alert alert-success mt-3" role="alert">L'établissement a été créé avec succès.</div>
+{% endif %}
+
+<section class="panel-card mt-4">
+  <div class="panel-header">
+    <div><p class="eyebrow mb-1">Répertoire</p><h2>Établissements accessibles</h2></div>
+    <span class="hero-badge">{{ bars|length }} au total</span>
+  </div>
+
+  {% if bars %}
+  <div class="table-responsive">
+    <table class="table dashboard-table align-middle mb-0">
+      <thead>
+        <tr>
+          <th>Établissement</th>
+          <th>Propriétaire</th>
+          <th>Téléphone</th>
+          <th>Devise</th>
+          <th>État</th>
+          <th class="text-end">Action</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for bar in bars %}
+        <tr>
+          <td>
+            <div class="bar-cell">
+              <span class="bar-avatar">{{ bar.name[0]|upper }}</span>
+              <div><strong>{{ bar.name }}</strong><small>{{ bar.address or 'Adresse non renseignée' }}</small></div>
+            </div>
+          </td>
+          <td>
+            <strong class="d-block">{{ bar.owner.display_name }}</strong>
+            <small class="text-secondary">{{ bar.owner.email }}</small>
+          </td>
+          <td>{{ bar.phone or '—' }}</td>
+          <td>{{ bar.currency }}</td>
+          <td><span class="status-pill {% if bar.status == 'ACTIVE' %}status-active{% else %}status-suspended{% endif %}">{{ 'Actif' if bar.status == 'ACTIVE' else 'Suspendu' }}</span></td>
+          <td class="text-end"><a class="btn btn-outline-primary btn-sm" href="{{ url_for('finance_web.desk',bar_id=bar.id) }}">Ouvrir</a></td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty-state">
+    <div class="empty-icon">＋</div>
+    <h3>Aucun bar n'a encore été créé</h3>
+    <p>Commencez par enregistrer votre premier établissement et son propriétaire.</p>
+    {% if can_create %}<a class="btn btn-primary" href="{{ url_for('bars.web_create') }}">Créer le premier bar</a>{% endif %}
+  </div>
+  {% endif %}
+</section>
+{% endblock %}
