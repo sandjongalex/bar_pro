@@ -60,6 +60,17 @@ def _current_assignment(bar_id):
     )
 
 
+def _cash_session_open(bar_id):
+    return bool(
+        db.session.scalar(
+            select(CashSession.id).where(
+                CashSession.bar_id == bar_id,
+                CashSession.status == "OPEN",
+            )
+        )
+    )
+
+
 def _message(code) -> str:
     messages = {
         "NOT_FOUND": "Commande introuvable.",
@@ -72,7 +83,7 @@ def _message(code) -> str:
         "INVALID_MIXED_PAYMENT": "Le paiement mixte doit répartir exactement le reste entre espèces et Mobile Money.",
         "INVALID_METHOD": "Le mode de paiement sélectionné est invalide.",
         "CASH_LOCATION_REQUIRED": "Sélectionnez une caisse ouverte pour un paiement en espèces.",
-        "CASH_SESSION_REQUIRED": "Ouvrez d'abord une session de caisse avant d'encaisser.",
+        "CASH_SESSION_REQUIRED": "Ouvrez d'abord une session de caisse avant de traiter les commandes.",
         "CASH_SESSION_NOT_OPEN": "La caisse sélectionnée n'est plus ouverte.",
         "CURRENCY_MISMATCH": "La devise de la caisse ne correspond pas à celle de la commande.",
         "PROVIDER_REFERENCE_REQUIRED": "Pour Mobile Money, renseignez le prestataire et la référence de transaction.",
@@ -102,6 +113,8 @@ def checkout(bar_id):
             if action == "deliver":
                 if not can_deliver:
                     raise PermissionError("FORBIDDEN")
+                if is_cashier and not _cash_session_open(bar_id):
+                    raise ValueError("CASH_SESSION_REQUIRED")
                 order = order_service.confirm(current_user, bar_id, order_id)
                 db.session.commit()
                 flash(
@@ -145,7 +158,7 @@ def checkout(bar_id):
                     current_user,
                     bar_id,
                     order_id,
-                    f"{base_reference}-ESP",
+                    f"{base_reference[:59]}-ESP",
                     "CASH",
                     presented,
                     cash_part,
@@ -156,7 +169,7 @@ def checkout(bar_id):
                     current_user,
                     bar_id,
                     order_id,
-                    f"{base_reference}-MOMO",
+                    f"{base_reference[:58]}-MOMO",
                     "MOBILE_MONEY",
                     mobile_part,
                     mobile_part,
