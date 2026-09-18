@@ -1,0 +1,163 @@
+{% extends 'layout.html' %}
+{% block title %}Créer un bar · Bar Manager Pro{% endblock %}
+{% block header %}Créer un établissement{% endblock %}
+{% block content %}
+<section class="dashboard-hero">
+  <div>
+    <p class="eyebrow mb-2">Nouvel établissement</p>
+    <h1>Créer un bar</h1>
+    <p>Renseignez les informations principales du bar et associez-lui un propriétaire.</p>
+  </div>
+  <a class="btn btn-light border" href="{{ url_for('bars.web_list') }}">← Retour</a>
+</section>
+
+{% if error %}
+<div class="alert alert-danger mt-3" role="alert">{{ error }}</div>
+{% endif %}
+
+<form method="post" class="mt-4" id="barCreateForm" novalidate>
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+  <div class="form-layout">
+    <div class="form-main-column">
+      <section class="panel-card form-section">
+        <div class="panel-header">
+          <div><p class="eyebrow mb-1">Étape 1</p><h2>Informations du bar</h2></div>
+        </div>
+        <div class="form-section-body">
+          <div class="row g-3">
+            <div class="col-12">
+              <label class="form-label" for="name">Nom du bar <span class="text-danger">*</span></label>
+              <input class="form-control form-control-lg" id="name" name="name" maxlength="160" value="{{ values.name }}" placeholder="Ex. KAPE BAR" required autofocus>
+              <div class="form-text">Le nom affiché dans le tableau de bord et les rapports.</div>
+            </div>
+            <div class="col-12">
+              <label class="form-label" for="address">Adresse</label>
+              <input class="form-control" id="address" name="address" maxlength="500" value="{{ values.address }}" placeholder="Ex. Carrefour Essomba, Yaoundé">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label" for="phone">Téléphone</label>
+              <input class="form-control" id="phone" name="phone" maxlength="32" value="{{ values.phone }}" placeholder="Ex. +237 6xx xxx xxx">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label" for="timezone">Fuseau horaire <span class="text-danger">*</span></label>
+              <input class="form-control" id="timezone" name="timezone" value="{{ values.timezone }}" required>
+              <div class="form-text">Pour le Cameroun : Africa/Douala</div>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label" for="currency">Devise <span class="text-danger">*</span></label>
+              <input class="form-control text-uppercase" id="currency" name="currency" maxlength="3" value="{{ values.currency }}" required>
+              <div class="form-text">Pour le FCFA : XAF</div>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label" for="stock_alert_threshold">Seuil d'alerte stock</label>
+              <input class="form-control" id="stock_alert_threshold" name="stock_alert_threshold" type="number" min="0" step="0.001" value="{{ values.stock_alert_threshold }}">
+              <div class="form-text">Valeur globale utilisée pour signaler un stock faible.</div>
+            </div>
+          </div>
+
+          <div class="setting-row mt-4">
+            <div>
+              <strong>Autoriser les ventes à crédit</strong>
+              <p class="mb-0">Active la possibilité d'enregistrer des ventes non réglées immédiatement.</p>
+            </div>
+            <div class="form-check form-switch m-0">
+              <input class="form-check-input" type="checkbox" role="switch" id="credit_sales_enabled" name="credit_sales_enabled" value="1" {% if values.credit_sales_enabled %}checked{% endif %}>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel-card form-section mt-4">
+        <div class="panel-header">
+          <div><p class="eyebrow mb-1">Étape 2</p><h2>Propriétaire</h2></div>
+        </div>
+        <div class="form-section-body">
+          <div class="owner-mode-grid mb-4">
+            <label class="choice-card {% if values.owner_mode == 'existing' %}selected{% endif %}">
+              <input type="radio" name="owner_mode" value="existing" {% if values.owner_mode == 'existing' %}checked{% endif %} {% if not owners %}disabled{% endif %}>
+              <span class="choice-icon">✓</span>
+              <span><strong>Propriétaire existant</strong><small>Associer le bar à un compte déjà créé.</small></span>
+            </label>
+            <label class="choice-card {% if values.owner_mode == 'new' %}selected{% endif %}">
+              <input type="radio" name="owner_mode" value="new" {% if values.owner_mode == 'new' %}checked{% endif %}>
+              <span class="choice-icon">＋</span>
+              <span><strong>Nouveau propriétaire</strong><small>Créer son compte en même temps que le bar.</small></span>
+            </label>
+          </div>
+
+          <div id="existingOwnerFields" {% if values.owner_mode != 'existing' %}hidden{% endif %}>
+            {% if owners %}
+            <label class="form-label" for="owner_id">Compte propriétaire <span class="text-danger">*</span></label>
+            <select class="form-select form-select-lg" id="owner_id" name="owner_id">
+              <option value="">Sélectionner un propriétaire</option>
+              {% for owner in owners %}
+              <option value="{{ owner.id }}" {% if values.owner_id|string == owner.id|string %}selected{% endif %}>{{ owner.display_name }} — {{ owner.email }}</option>
+              {% endfor %}
+            </select>
+            {% else %}
+            <div class="info-box">Aucun propriétaire actif n'existe encore. Utilisez l'option « Nouveau propriétaire ».</div>
+            {% endif %}
+          </div>
+
+          <div id="newOwnerFields" {% if values.owner_mode != 'new' %}hidden{% endif %}>
+            <div class="row g-3">
+              <div class="col-md-6">
+                <label class="form-label" for="owner_display_name">Nom du propriétaire <span class="text-danger">*</span></label>
+                <input class="form-control" id="owner_display_name" name="owner_display_name" maxlength="120" value="{{ values.owner_display_name }}" placeholder="Nom et prénom">
+              </div>
+              <div class="col-md-6">
+                <label class="form-label" for="owner_email">Adresse e-mail <span class="text-danger">*</span></label>
+                <input class="form-control" id="owner_email" name="owner_email" type="email" maxlength="254" value="{{ values.owner_email }}" placeholder="proprietaire@exemple.com">
+              </div>
+              <div class="col-md-6">
+                <label class="form-label" for="owner_password">Mot de passe <span class="text-danger">*</span></label>
+                <input class="form-control" id="owner_password" name="owner_password" type="password" minlength="8" autocomplete="new-password" placeholder="Minimum 8 caractères">
+              </div>
+              <div class="col-md-6">
+                <label class="form-label" for="owner_password_confirm">Confirmer le mot de passe <span class="text-danger">*</span></label>
+                <input class="form-control" id="owner_password_confirm" name="owner_password_confirm" type="password" minlength="8" autocomplete="new-password" placeholder="Retapez le mot de passe">
+              </div>
+            </div>
+            <div class="form-text mt-3">Le propriétaire pourra utiliser cette adresse e-mail et ce mot de passe pour se connecter.</div>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <aside class="form-side-column">
+      <section class="panel-card sticky-summary">
+        <div class="form-section-body">
+          <p class="eyebrow mb-2">Résumé</p>
+          <h2 class="h5 fw-bold">Prêt à créer le bar ?</h2>
+          <p class="text-secondary small">Vérifiez les informations avant validation. Le bar sera créé avec l'état « Actif ».</p>
+          <div class="summary-points">
+            <div><span>1</span><p><strong>Établissement</strong><small>Nom, adresse, devise et paramètres.</small></p></div>
+            <div><span>2</span><p><strong>Propriétaire</strong><small>Compte existant ou nouveau compte OWNER.</small></p></div>
+            <div><span>3</span><p><strong>Accès immédiat</strong><small>Le bar apparaîtra dans le tableau de bord.</small></p></div>
+          </div>
+          <button class="btn btn-primary btn-lg w-100 mt-3" type="submit">Créer le bar</button>
+          <a class="btn btn-light border w-100 mt-2" href="{{ url_for('bars.web_list') }}">Annuler</a>
+        </div>
+      </section>
+    </aside>
+  </div>
+</form>
+
+<script>
+  const modeInputs = document.querySelectorAll('input[name="owner_mode"]');
+  const existingFields = document.getElementById('existingOwnerFields');
+  const newFields = document.getElementById('newOwnerFields');
+  const choiceCards = document.querySelectorAll('.choice-card');
+
+  function refreshOwnerMode() {
+    const selected = document.querySelector('input[name="owner_mode"]:checked')?.value || 'new';
+    existingFields.hidden = selected !== 'existing';
+    newFields.hidden = selected !== 'new';
+    choiceCards.forEach(card => card.classList.toggle('selected', card.querySelector('input')?.checked));
+  }
+
+  modeInputs.forEach(input => input.addEventListener('change', refreshOwnerMode));
+  refreshOwnerMode();
+</script>
+{% endblock %}
