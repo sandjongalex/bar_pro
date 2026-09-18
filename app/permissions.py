@@ -19,7 +19,10 @@ ROLE_ACTIONS = {
  "staff.manage":{"SUPER_ADMIN","OWNER"}, "staff.read":{"SUPER_ADMIN","OWNER","BAR_ADMIN"},
  "catalog.read":{"SUPER_ADMIN","OWNER","BAR_ADMIN","CASHIER","SERVER"},
  "orders.read":{"SUPER_ADMIN","OWNER","BAR_ADMIN","CASHIER","SERVER"},
- "orders.create":{"SUPER_ADMIN","OWNER","BAR_ADMIN","CASHIER","SERVER"}, "orders.edit":{"SUPER_ADMIN","OWNER","BAR_ADMIN","CASHIER","SERVER"},
+ # A cashier receives and settles orders; the server is the operational creator.
+ "orders.create":{"SUPER_ADMIN","OWNER","BAR_ADMIN","SERVER"},
+ "orders.edit":{"SUPER_ADMIN","OWNER","BAR_ADMIN","CASHIER","SERVER"},
+ "orders.deliver":{"SUPER_ADMIN","OWNER","BAR_ADMIN","CASHIER"},
  "payments.read":{"SUPER_ADMIN","OWNER","BAR_ADMIN","CASHIER"},
  "refunds.record":{"SUPER_ADMIN","OWNER","BAR_ADMIN","CASHIER"},
  "cash.read":{"SUPER_ADMIN","OWNER","BAR_ADMIN","CASHIER"},
@@ -29,7 +32,7 @@ ROLE_ACTIONS = {
  "payments.record":{"SUPER_ADMIN","OWNER","BAR_ADMIN","CASHIER"},
  "bars.reactivate":{"SUPER_ADMIN"}, "bars.suspend":{"SUPER_ADMIN"},
 }
-WRITES = {"refunds.record","payments.record", "bars.suspend", "bars.reactivate","bars.update_settings","staff.manage","orders.create","orders.edit"}
+WRITES = {"refunds.record","payments.record", "bars.suspend", "bars.reactivate","bars.update_settings","staff.manage","orders.create","orders.edit","orders.deliver"}
 WRITES.update({"catalog.manage", "suppliers.manage", "inventory.adjust", "purchases.manage", "cash.operate"})
 WRITES.add("subscriptions.manage")
 
