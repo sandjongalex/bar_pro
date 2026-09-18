@@ -1,0 +1,209 @@
+{% extends 'layout.html' %}
+{% block title %}Dettes fournisseurs · {{ bar.name }} · Bar Manager Pro{% endblock %}
+{% block header %}Dettes fournisseurs · {{ bar.name }}{% endblock %}
+{% block content %}
+<section class="supplier-debt-hero">
+  <div>
+    <a class="bar-back" href="{{ url_for('bars.web_detail', bar_id=bar.id) }}">← Retour à {{ bar.name }}</a>
+    <p class="eyebrow mt-3 mb-2">Trésorerie fournisseurs</p>
+    <h1>Paiements & dettes fournisseurs</h1>
+    <p>Suivez les achats réceptionnés, les soldes restant à payer et l'historique des règlements fournisseurs.</p>
+  </div>
+  <div class="supplier-debt-actions">
+    <a class="btn btn-outline-primary" href="{{ url_for('purchases_web.manage', bar_id=bar.id) }}">Fournisseurs & achats</a>
+    {% if can_manage and outstanding %}
+    <button class="btn btn-primary" type="button" data-bs-toggle="modal" data-bs-target="#paymentModal" data-purchase-id="{{ outstanding[0].id }}" data-reference="{{ outstanding[0].reference }}" data-supplier="{{ outstanding[0].supplier_name_snapshot }}" data-due="{{ due_by_purchase[outstanding[0].id] }}">＋ Enregistrer un paiement</button>
+    {% endif %}
+  </div>
+</section>
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% for category, message in messages %}
+    <div class="alert alert-{{ category }} mt-3" role="alert">{{ message }}</div>
+  {% endfor %}
+{% endwith %}
+
+<section class="supplier-debt-stats mt-4">
+  <article><span>Dette totale</span><strong>{{ "{:,.0f}".format(stats.due) }} {{ bar.currency }}</strong><small>Solde des achats réceptionnés</small></article>
+  <article><span>Fournisseurs à payer</span><strong>{{ stats.suppliers }}</strong><small>Avec un solde restant</small></article>
+  <article><span>Achats non soldés</span><strong>{{ stats.unpaid_purchases }}</strong><small>Réceptions encore dues</small></article>
+  <article><span>Règlements nets</span><strong>{{ "{:,.0f}".format(stats.net_paid) }} {{ bar.currency }}</strong><small>Paiements moins annulations</small></article>
+</section>
+
+{% if not outstanding %}
+<div class="debt-all-clear mt-4">
+  <div class="debt-all-clear-icon">✓</div>
+  <div><strong>Aucune dette fournisseur en cours</strong><p>Tous les achats réceptionnés sont soldés ou aucun achat n'a encore été réceptionné.</p></div>
+</div>
+{% endif %}
+
+<div class="supplier-debt-layout mt-4">
+  <section class="panel-card debt-main-panel">
+    <div class="panel-header">
+      <div><p class="eyebrow mb-1">À régler</p><h2>Achats non soldés</h2></div>
+      <span class="debt-count-badge">{{ outstanding|length }}</span>
+    </div>
+
+    {% if outstanding %}
+    <div class="table-responsive">
+      <table class="table debt-table align-middle mb-0">
+        <thead><tr><th>Fournisseur</th><th>Achat</th><th>Total</th><th>Déjà payé</th><th>Reste dû</th>{% if can_manage %}<th class="text-end">Action</th>{% endif %}</tr></thead>
+        <tbody>
+        {% for purchase in outstanding %}
+          {% set due = due_by_purchase[purchase.id] %}
+          {% set paid = purchase.total_amount - due %}
+          <tr>
+            <td><div class="debt-supplier-cell"><span>{{ purchase.supplier_name_snapshot[0]|upper }}</span><div><strong>{{ purchase.supplier_name_snapshot }}</strong><small>{{ purchase.supplier_invoice_reference or 'Sans référence facture' }}</small></div></div></td>
+            <td><strong>{{ purchase.reference }}</strong><small class="d-block text-secondary">Réception confirmée</small></td>
+            <td>{{ "{:,.0f}".format(purchase.total_amount) }} {{ purchase.currency }}</td>
+            <td class="text-success">{{ "{:,.0f}".format(paid) }} {{ purchase.currency }}</td>
+            <td><strong class="text-danger">{{ "{:,.0f}".format(due) }} {{ purchase.currency }}</strong></td>
+            {% if can_manage %}
+            <td class="text-end"><button class="btn btn-sm btn-primary pay-purchase-btn" type="button" data-bs-toggle="modal" data-bs-target="#paymentModal" data-purchase-id="{{ purchase.id }}" data-reference="{{ purchase.reference }}" data-supplier="{{ purchase.supplier_name_snapshot }}" data-due="{{ due }}">Payer</button></td>
+            {% endif %}
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="empty-state"><div class="empty-icon">✓</div><h3>Aucun achat à payer</h3><p>Les achats réceptionnés avec un solde apparaîtront ici automatiquement.</p></div>
+    {% endif %}
+  </section>
+
+  <aside class="panel-card debt-summary-panel">
+    <div class="panel-header"><div><p class="eyebrow mb-1">Répartition</p><h2>Par fournisseur</h2></div></div>
+    <div class="debt-supplier-list">
+      {% for item in supplier_debts %}
+      <div class="debt-supplier-row">
+        <div><strong>{{ item.name }}</strong><small>{{ item.purchases }} achat{{ 's' if item.purchases != 1 else '' }} non soldé{{ 's' if item.purchases != 1 else '' }}</small></div>
+        <strong>{{ "{:,.0f}".format(item.due) }} {{ bar.currency }}</strong>
+      </div>
+      {% else %}<div class="p-4 text-secondary small">Aucune dette à répartir.</div>{% endfor %}
+    </div>
+
+    <div class="debt-cash-status">
+      <span>Caisse espèces</span>
+      {% if open_cash_sessions %}
+        {% for session in open_cash_sessions %}
+        <div><strong>{{ session.reference }}</strong><small>Disponible estimé : {{ "{:,.0f}".format(cash_expected.get(session.id, 0)) }} {{ session.currency }}</small></div>
+        {% endfor %}
+      {% else %}
+        <p>Aucune session de caisse ouverte. Un règlement en espèces nécessite une caisse ouverte.</p>
+      {% endif %}
+    </div>
+  </aside>
+</div>
+
+<section class="panel-card mt-4">
+  <div class="panel-header"><div><p class="eyebrow mb-1">Traçabilité</p><h2>Historique des règlements</h2></div><span class="text-secondary small">100 derniers mouvements</span></div>
+  {% if payments %}
+  <div class="table-responsive">
+    <table class="table debt-table align-middle mb-0">
+      <thead><tr><th>Référence</th><th>Fournisseur / achat</th><th>Type</th><th>Mode</th><th>Montant</th><th>Date</th>{% if can_manage %}<th class="text-end">Action</th>{% endif %}</tr></thead>
+      <tbody>
+      {% for payment in payments %}
+        {% set purchase = purchase_by_id.get(payment.purchase_id) %}
+        <tr>
+          <td><strong>{{ payment.reference }}</strong><small class="d-block text-secondary">{{ payment.reason }}</small></td>
+          <td>{% if purchase %}<strong>{{ purchase.supplier_name_snapshot }}</strong><small class="d-block text-secondary">{{ purchase.reference }}</small>{% else %}—{% endif %}</td>
+          <td><span class="payment-kind payment-kind-{{ payment.entry_kind|lower }}">{{ 'Paiement' if payment.entry_kind == 'PAYMENT' else 'Annulation' }}</span></td>
+          <td>{{ payment_labels.get(payment.method, payment.method) }}{% if payment.provider_code %}<small class="d-block text-secondary">{{ payment.provider_code }} · {{ payment.provider_transaction_id }}</small>{% endif %}</td>
+          <td class="{% if payment.entry_kind == 'PAYMENT' %}text-success{% else %}text-danger{% endif %}"><strong>{{ '-' if payment.entry_kind == 'PAYMENT' else '+' }}{{ "{:,.0f}".format(payment.amount) }} {{ payment.currency }}</strong></td>
+          <td>{{ payment.paid_at.strftime('%d/%m/%Y %H:%M') if payment.paid_at else '—' }}</td>
+          {% if can_manage %}
+          <td class="text-end">
+            {% if payment.entry_kind == 'PAYMENT' and payment.id not in reversed_ids %}
+            <button class="btn btn-sm btn-light border reverse-payment-btn" type="button" data-bs-toggle="modal" data-bs-target="#reverseModal" data-payment-id="{{ payment.id }}" data-reference="{{ payment.reference }}" data-method="{{ payment.method }}" data-amount="{{ payment.amount }}">Annuler</button>
+            {% else %}<span class="text-secondary small">—</span>{% endif %}
+          </td>
+          {% endif %}
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}<div class="empty-state"><div class="empty-icon">₣</div><h3>Aucun règlement fournisseur</h3><p>Les paiements apparaîtront ici dès leur enregistrement.</p></div>{% endif %}
+</section>
+
+{% if can_manage %}
+<div class="modal fade" id="paymentModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered"><div class="modal-content debt-modal"><form method="post" id="supplierPaymentForm">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="action" value="pay">
+    <input type="hidden" name="purchase_id" id="paymentPurchaseId">
+    <div class="modal-header"><div><p class="eyebrow mb-1">Règlement fournisseur</p><h2 class="modal-title h5" id="paymentModalTitle">Enregistrer un paiement</h2></div><button class="btn-close" type="button" data-bs-dismiss="modal"></button></div>
+    <div class="modal-body">
+      <div class="payment-context mb-4"><span>Achat</span><strong id="paymentPurchaseReference">—</strong><small id="paymentSupplierName">—</small><div>Reste dû : <strong id="paymentDue">0 {{ bar.currency }}</strong></div></div>
+      <div class="row g-3">
+        <div class="col-md-6"><label class="form-label">Montant</label><div class="input-group"><input class="form-control" id="paymentAmount" name="amount" type="number" min="1" step="1" required><span class="input-group-text">{{ bar.currency }}</span></div></div>
+        <div class="col-md-6"><label class="form-label">Mode de paiement</label><select class="form-select" id="paymentMethod" name="method" required>{% for code, label in payment_labels.items() %}<option value="{{ code }}">{{ label }}</option>{% endfor %}</select></div>
+        <div class="col-12 cash-session-field"><label class="form-label">Session de caisse</label><select class="form-select" name="cash_session_id"><option value="">Sélectionner une caisse ouverte...</option>{% for session in open_cash_sessions %}<option value="{{ session.id }}">{{ session.reference }} · disponible {{ "{:,.0f}".format(cash_expected.get(session.id, 0)) }} {{ session.currency }}</option>{% endfor %}</select><div class="form-text">Obligatoire uniquement pour un paiement en espèces.</div></div>
+        <div class="col-md-6 provider-field d-none"><label class="form-label">Prestataire / banque</label><input class="form-control" name="provider_code" maxlength="32" placeholder="Ex. MTN MOMO, Orange Money"></div>
+        <div class="col-md-6 provider-field d-none"><label class="form-label">Référence transaction</label><input class="form-control" name="provider_transaction_id" maxlength="128" placeholder="Optionnel si non disponible"></div>
+        <div class="col-12"><label class="form-label">Référence interne</label><input class="form-control" name="reference" maxlength="64" placeholder="Automatique si vide"></div>
+        <div class="col-12"><label class="form-label">Motif / note</label><textarea class="form-control" name="reason" rows="2" maxlength="500" required placeholder="Ex. Règlement facture fournisseur"></textarea></div>
+      </div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-light border" type="button" data-bs-dismiss="modal">Annuler</button><button class="btn btn-primary" type="submit">Enregistrer le paiement</button></div>
+  </form></div></div>
+</div>
+
+<div class="modal fade" id="reverseModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered"><div class="modal-content debt-modal"><form method="post" id="reversePaymentForm">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="action" value="reverse">
+    <input type="hidden" name="supplier_payment_id" id="reversePaymentId">
+    <div class="modal-header"><div><p class="eyebrow mb-1">Correction</p><h2 class="modal-title h5">Annuler un règlement</h2></div><button class="btn-close" type="button" data-bs-dismiss="modal"></button></div>
+    <div class="modal-body">
+      <div class="alert alert-warning">L'annulation ne supprime pas le paiement : elle crée un mouvement inverse pour conserver la traçabilité.</div>
+      <p id="reversePaymentCopy" class="mb-3"></p>
+      <div class="mb-3 reverse-cash-field d-none"><label class="form-label">Session de caisse ouverte</label><select class="form-select" name="cash_session_id"><option value="">Sélectionner...</option>{% for session in open_cash_sessions %}<option value="{{ session.id }}">{{ session.reference }}</option>{% endfor %}</select><div class="form-text">Nécessaire si le paiement d'origine était en espèces.</div></div>
+      <div class="mb-3"><label class="form-label">Référence d'annulation</label><input class="form-control" name="reference" maxlength="64" placeholder="Automatique si vide"></div>
+      <div><label class="form-label">Motif de l'annulation</label><textarea class="form-control" name="reason" rows="3" maxlength="500" required placeholder="Ex. Erreur de saisie"></textarea></div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-light border" type="button" data-bs-dismiss="modal">Fermer</button><button class="btn btn-danger" type="submit">Confirmer l'annulation</button></div>
+  </form></div></div>
+</div>
+{% endif %}
+
+<script>
+(function () {
+  const paymentModal = document.getElementById('paymentModal');
+  const method = document.getElementById('paymentMethod');
+  function syncMethod() {
+    if (!method) return;
+    const cash = method.value === 'CASH';
+    document.querySelectorAll('.cash-session-field').forEach(el => el.classList.toggle('d-none', !cash));
+    document.querySelectorAll('.provider-field').forEach(el => el.classList.toggle('d-none', cash));
+  }
+  if (method) { method.addEventListener('change', syncMethod); syncMethod(); }
+
+  if (paymentModal) {
+    paymentModal.addEventListener('show.bs.modal', event => {
+      const button = event.relatedTarget;
+      if (!button) return;
+      const due = Number(button.dataset.due || 0);
+      document.getElementById('paymentPurchaseId').value = button.dataset.purchaseId || '';
+      document.getElementById('paymentPurchaseReference').textContent = button.dataset.reference || '—';
+      document.getElementById('paymentSupplierName').textContent = button.dataset.supplier || '—';
+      document.getElementById('paymentDue').textContent = new Intl.NumberFormat('fr-FR').format(due) + ' {{ bar.currency }}';
+      const amount = document.getElementById('paymentAmount');
+      amount.value = due || '';
+      amount.max = due || '';
+    });
+  }
+
+  const reverseModal = document.getElementById('reverseModal');
+  if (reverseModal) {
+    reverseModal.addEventListener('show.bs.modal', event => {
+      const button = event.relatedTarget;
+      if (!button) return;
+      document.getElementById('reversePaymentId').value = button.dataset.paymentId || '';
+      document.getElementById('reversePaymentCopy').textContent = 'Paiement ' + (button.dataset.reference || '') + ' · ' + new Intl.NumberFormat('fr-FR').format(Number(button.dataset.amount || 0)) + ' {{ bar.currency }}';
+      document.querySelector('.reverse-cash-field').classList.toggle('d-none', button.dataset.method !== 'CASH');
+    });
+  }
+})();
+</script>
+{% endblock %}
