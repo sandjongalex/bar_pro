@@ -1,41 +1,37 @@
 {% extends 'layout.html' %}
-{% block title %}Fournisseurs & achats · {{ bar.name }} · Bar Manager Pro{% endblock %}
-{% block header %}Fournisseurs & achats · {{ bar.name }}{% endblock %}
+{% block title %}Achats · {{ bar.name }} · Bar Manager Pro{% endblock %}
+{% block header %}Achats · {{ bar.name }}{% endblock %}
 {% block content %}
 <section class="purchase-hero">
   <div>
     <a class="bar-back" href="{{ url_for('bars.web_detail', bar_id=bar.id) }}">← Retour à {{ bar.name }}</a>
     <p class="eyebrow mt-3 mb-2">Approvisionnement</p>
-    <h1>Fournisseurs & achats</h1>
-    <p>Enregistrez les fournisseurs, préparez les achats et confirmez les réceptions pour mettre le stock à jour automatiquement.</p>
+    <h1>Achats fournisseurs</h1>
+    <p>Saisissez les achats en casiers ou en bouteilles. Le stock reste géré en unités de vente et les conversions sont automatiques.</p>
   </div>
   <div class="purchase-hero-actions">
-    {% if can_manage_suppliers %}<button class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#supplierModal">＋ Fournisseur</button>{% endif %}
+    <a class="btn btn-outline-primary" href="{{ url_for('purchases_web.suppliers', bar_id=bar.id) }}">Fournisseurs</a>
+    <a class="btn btn-outline-primary" href="{{ url_for('supplier_debts_web.manage', bar_id=bar.id) }}">Paiements</a>
     {% if can_manage %}<button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#purchaseModal" {% if not active_suppliers or not products %}disabled{% endif %}>＋ Nouvel achat</button>{% endif %}
   </div>
 </section>
 
 {% with messages = get_flashed_messages(with_categories=true) %}
-  {% for category, message in messages %}
-    <div class="alert alert-{{ category }} mt-3" role="alert">{{ message }}</div>
-  {% endfor %}
+  {% for category, message in messages %}<div class="alert alert-{{ category }} mt-3" role="alert">{{ message }}</div>{% endfor %}
 {% endwith %}
 
 <section class="purchase-stats mt-4">
   <article><span>Fournisseurs actifs</span><strong>{{ stats.suppliers }}</strong><small>Disponibles pour les achats</small></article>
-  <article><span>Achats en brouillon</span><strong>{{ stats.draft }}</strong><small>À vérifier ou réceptionner</small></article>
-  <article><span>Réceptions confirmées</span><strong>{{ stats.posted }}</strong><small>Achats entrés en stock</small></article>
-  <article><span>Dette fournisseurs</span><strong>{{ "{:,.0f}".format(stats.due) }} {{ bar.currency }}</strong><small>Solde des achats reçus</small></article>
+  <article><span>Achats en brouillon</span><strong>{{ stats.draft }}</strong><small>Modifiables avant réception</small></article>
+  <article><span>Réceptions confirmées</span><strong>{{ stats.posted }}</strong><small>Déjà entrées en stock</small></article>
+  <article><span>Dette fournisseurs</span><strong>{{ "{:,.0f}".format(stats.due) }} {{ bar.currency }}</strong><small>Solde restant sur les achats reçus</small></article>
 </section>
 
 {% if can_manage and (not active_suppliers or not products) %}
 <div class="purchase-onboarding mt-4">
   <div class="purchase-onboarding-number">!</div>
-  <div>
-    <strong>Configuration requise avant un achat</strong>
-    <p>{% if not active_suppliers %}Créez au moins un fournisseur actif.{% endif %} {% if not products %}Ajoutez au moins un produit actif au catalogue.{% endif %}</p>
-  </div>
-  {% if not active_suppliers and can_manage_suppliers %}<button class="btn btn-primary ms-auto" data-bs-toggle="modal" data-bs-target="#supplierModal">Créer un fournisseur</button>{% endif %}
+  <div><strong>Configuration requise avant un achat</strong><p>{% if not active_suppliers %}Créez au moins un fournisseur actif.{% endif %} {% if not products %}Ajoutez au moins un produit actif au catalogue.{% endif %}</p></div>
+  {% if not active_suppliers and can_manage_suppliers %}<a class="btn btn-primary ms-auto" href="{{ url_for('purchases_web.suppliers', bar_id=bar.id) }}">Créer un fournisseur</a>{% endif %}
 </div>
 {% endif %}
 
@@ -59,25 +55,17 @@
     {% if purchases %}
     <div class="table-responsive">
       <table class="table purchase-table align-middle mb-0">
-        <thead>
-          <tr><th>Référence</th><th>Fournisseur</th><th>Contenu</th><th>Total</th><th>Solde</th><th>État</th>{% if can_manage %}<th class="text-end">Action</th>{% endif %}</tr>
-        </thead>
+        <thead><tr><th>Date</th><th>Référence</th><th>Fournisseur</th><th>Contenu</th><th>Total</th><th>Solde</th><th>État</th>{% if can_manage %}<th class="text-end">Action</th>{% endif %}</tr></thead>
         <tbody>
         {% for purchase in purchases %}
           {% set lines = lines_by_purchase.get(purchase.id, []) %}
           <tr>
+            <td>{{ purchase.purchase_date.strftime('%d/%m/%Y') if purchase.purchase_date else '—' }}</td>
             <td><strong>{{ purchase.reference }}</strong><small class="d-block text-secondary">{{ purchase.supplier_invoice_reference or 'Sans facture fournisseur' }}</small></td>
             <td>{{ purchase.supplier_name_snapshot }}</td>
-            <td>
-              <strong>{{ lines|length }} ligne{{ 's' if lines|length != 1 else '' }}</strong>
-              {% if lines %}<small class="d-block text-secondary">{{ lines[0].product_name_snapshot }}{% if lines|length > 1 %} + {{ lines|length - 1 }} autre{{ 's' if lines|length > 2 else '' }}{% endif %}</small>{% endif %}
-            </td>
+            <td><strong>{{ lines|length }} produit{{ 's' if lines|length != 1 else '' }}</strong>{% if lines %}<small class="d-block text-secondary">{{ lines[0].product_name_snapshot }}{% if lines|length > 1 %} + {{ lines|length - 1 }} autre{{ 's' if lines|length > 2 else '' }}{% endif %}</small>{% endif %}</td>
             <td><strong>{{ "{:,.0f}".format(purchase.total_amount) }} {{ purchase.currency }}</strong></td>
-            <td>
-              {% if purchase.status == 'POSTED' %}
-                <strong class="{% if due_by_purchase.get(purchase.id, 0) > 0 %}text-danger{% else %}text-success{% endif %}">{{ "{:,.0f}".format(due_by_purchase.get(purchase.id, 0)) }} {{ purchase.currency }}</strong>
-              {% else %}—{% endif %}
-            </td>
+            <td>{% if purchase.status == 'POSTED' %}<strong class="{% if due_by_purchase.get(purchase.id, 0) > 0 %}text-danger{% else %}text-success{% endif %}">{{ "{:,.0f}".format(due_by_purchase.get(purchase.id, 0)) }} {{ purchase.currency }}</strong>{% else %}—{% endif %}</td>
             <td><span class="purchase-status purchase-status-{{ purchase.status|lower }}">{{ status_labels.get(purchase.status, purchase.status) }}</span></td>
             {% if can_manage %}
             <td class="text-end">
@@ -85,20 +73,35 @@
               <div class="d-flex justify-content-end gap-2 flex-wrap">
                 <button class="btn btn-sm btn-light border" data-bs-toggle="modal" data-bs-target="#editPurchaseModal{{ purchase.id }}">Modifier</button>
                 <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#receiveModal{{ purchase.id }}">Réceptionner</button>
-                <button class="btn btn-sm btn-light border" data-bs-toggle="modal" data-bs-target="#cancelModal{{ purchase.id }}">Annuler</button>
+                <button class="btn btn-sm btn-light border" data-bs-toggle="modal" data-bs-target="#cancelModal{{ purchase.id }}">Supprimer</button>
               </div>
+              {% elif purchase.status == 'POSTED' %}
+                {% if paid_by_purchase.get(purchase.id, 0) == 0 %}
+                <div class="d-flex justify-content-end gap-2 flex-wrap">
+                  <button class="btn btn-sm btn-light border" data-bs-toggle="modal" data-bs-target="#reopenModal{{ purchase.id }}">Corriger</button>
+                  <button class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#cancelReceivedModal{{ purchase.id }}">Annuler</button>
+                </div>
+                {% else %}<a class="btn btn-sm btn-light border" href="{{ url_for('supplier_debts_web.manage', bar_id=bar.id) }}">Voir paiements</a>{% endif %}
               {% else %}<span class="text-secondary small">Traité</span>{% endif %}
             </td>
             {% endif %}
           </tr>
           <tr class="purchase-lines-row">
-            <td colspan="7">
+            <td colspan="8">
               <details>
                 <summary>Voir le détail de l'achat</summary>
+                {% if purchase.notes %}<div class="purchase-note mt-2"><strong>Note :</strong> {{ purchase.notes }}</div>{% endif %}
                 <div class="purchase-lines-grid mt-3">
                   {% for line in lines %}
                   <div class="purchase-line-item">
-                    <div><strong>{{ line.product_name_snapshot }}</strong><small>{{ line.quantity }} × {{ "{:,.0f}".format(line.unit_cost_snapshot) }} {{ purchase.currency }}</small></div>
+                    <div>
+                      <strong>{{ line.product_name_snapshot }}</strong>
+                      <small>
+                        {{ line.purchase_quantity }} {{ 'casier(s)' if line.purchase_unit == 'CASE' else 'bouteille(s)' }} × {{ "{:,.0f}".format(line.purchase_unit_price_snapshot) }} {{ purchase.currency }}
+                        {% if line.purchase_unit == 'CASE' %} · {{ line.units_per_case_snapshot }} bouteilles/casier → {{ line.quantity }} bouteilles{% endif %}
+                      </small>
+                      <small>Coût stock : {{ "{:,.2f}".format(line.unit_cost_snapshot) }} {{ purchase.currency }}/{{ line.unit_snapshot }}</small>
+                    </div>
                     <strong>{{ "{:,.0f}".format(line.total_amount) }} {{ purchase.currency }}</strong>
                   </div>
                   {% else %}<span class="text-secondary small">Aucune ligne.</span>{% endfor %}
@@ -110,188 +113,100 @@
         </tbody>
       </table>
     </div>
-
-    <div class="purchase-pagination">
-      <span>Page {{ page }}</span>
-      <div class="d-flex gap-2">
-        {% if page > 1 %}<a class="btn btn-sm btn-light border" href="{{ url_for('purchases_web.manage', bar_id=bar.id, page=page-1, status=request.args.get('status',''), supplier_id=request.args.get('supplier_id','')) }}">← Précédent</a>{% endif %}
-        {% if has_more %}<a class="btn btn-sm btn-light border" href="{{ url_for('purchases_web.manage', bar_id=bar.id, page=page+1, status=request.args.get('status',''), supplier_id=request.args.get('supplier_id','')) }}">Suivant →</a>{% endif %}
-      </div>
-    </div>
+    <div class="purchase-pagination"><span>Page {{ page }}</span><div class="d-flex gap-2">{% if page > 1 %}<a class="btn btn-sm btn-light border" href="{{ url_for('purchases_web.manage', bar_id=bar.id, page=page-1, status=request.args.get('status',''), supplier_id=request.args.get('supplier_id','')) }}">← Précédent</a>{% endif %}{% if has_more %}<a class="btn btn-sm btn-light border" href="{{ url_for('purchases_web.manage', bar_id=bar.id, page=page+1, status=request.args.get('status',''), supplier_id=request.args.get('supplier_id','')) }}">Suivant →</a>{% endif %}</div></div>
     {% else %}
-    <div class="empty-state">
-      <div class="empty-icon">A</div>
-      <h3>Aucun achat enregistré</h3>
-      <p>Créez un fournisseur puis saisissez une livraison. La réception ajoutera automatiquement les quantités au stock.</p>
-      {% if can_manage and active_suppliers and products %}<button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#purchaseModal">Créer le premier achat</button>{% endif %}
-    </div>
+    <div class="empty-state"><div class="empty-icon">A</div><h3>Aucun achat enregistré</h3><p>Créez un fournisseur puis saisissez votre première livraison.</p>{% if can_manage and active_suppliers and products %}<button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#purchaseModal">Créer le premier achat</button>{% endif %}</div>
     {% endif %}
   </section>
 
   <aside class="panel-card supplier-panel">
-    <div class="panel-header">
-      <div><p class="eyebrow mb-1">Partenaires</p><h2>Fournisseurs</h2></div>
-      {% if can_manage_suppliers %}<button class="btn btn-sm btn-light border" data-bs-toggle="modal" data-bs-target="#supplierModal">＋</button>{% endif %}</div>
+    <div class="panel-header"><div><p class="eyebrow mb-1">Partenaires</p><h2>Fournisseurs</h2></div><a class="btn btn-sm btn-light border" href="{{ url_for('purchases_web.suppliers', bar_id=bar.id) }}">Gérer</a></div>
     <div class="supplier-list">
       {% for supplier in suppliers %}
-      <div class="supplier-row">
-        <div class="supplier-avatar">{{ supplier.name[0]|upper }}</div>
-        <div class="supplier-copy"><strong>{{ supplier.name }}</strong><small>{{ supplier.phone or supplier.email or 'Coordonnées non renseignées' }}</small><span class="{{ 'text-success' if supplier.is_active else 'text-secondary' }}">{{ 'Actif' if supplier.is_active else 'Inactif' }}</span></div>
-        {% if can_manage_suppliers %}
-        <form method="post">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <input type="hidden" name="supplier_id" value="{{ supplier.id }}">
-          <input type="hidden" name="action" value="{{ 'supplier_disable' if supplier.is_active else 'supplier_enable' }}">
-          <button class="btn btn-sm btn-link" type="submit">{{ 'Désactiver' if supplier.is_active else 'Activer' }}</button>
-        </form>
-        {% endif %}
-      </div>
+      <div class="supplier-row"><div class="supplier-avatar">{{ supplier.name[0]|upper }}</div><div class="supplier-copy"><strong>{{ supplier.name }}</strong><small>{{ supplier.phone or supplier.email or 'Coordonnées non renseignées' }}</small><span class="{{ 'text-success' if supplier.is_active else 'text-secondary' }}">{{ 'Actif' if supplier.is_active else 'Inactif' }}</span></div><a class="btn btn-sm btn-link" href="{{ url_for('purchases_web.suppliers', bar_id=bar.id, supplier_id=supplier.id) }}">Voir</a></div>
       {% else %}<div class="p-4 text-secondary small">Aucun fournisseur pour le moment.</div>{% endfor %}
     </div>
   </aside>
 </div>
 
 {% if can_manage_suppliers %}
-<div class="modal fade" id="supplierModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered">
-    <div class="modal-content purchase-modal">
-      <form method="post">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <input type="hidden" name="action" value="supplier_create">
-        <div class="modal-header"><div><p class="eyebrow mb-1">Nouveau fournisseur</p><h2 class="modal-title h5">Ajouter un partenaire</h2></div><button class="btn-close" type="button" data-bs-dismiss="modal"></button></div>
-        <div class="modal-body">
-          <div class="mb-3"><label class="form-label">Nom du fournisseur</label><input class="form-control form-control-lg" name="supplier_name" maxlength="160" required placeholder="Ex. Dépôt Guinness Essomba"></div>
-          <div class="row g-3">
-            <div class="col-md-6"><label class="form-label">Téléphone</label><input class="form-control" name="supplier_phone" maxlength="32" placeholder="+237 ..."></div>
-            <div class="col-md-6"><label class="form-label">E-mail</label><input class="form-control" name="supplier_email" type="email" maxlength="254"></div>
-            <div class="col-12"><label class="form-label">Adresse</label><textarea class="form-control" name="supplier_address" rows="2" maxlength="500"></textarea></div>
-          </div>
-        </div>
-        <div class="modal-footer"><button class="btn btn-light border" type="button" data-bs-dismiss="modal">Annuler</button><button class="btn btn-primary" type="submit">Créer le fournisseur</button></div>
-      </form>
-    </div>
-  </div>
-</div>
+<div class="modal fade" id="supplierModal" tabindex="-1" aria-hidden="true"><div class="modal-dialog modal-dialog-centered"><div class="modal-content purchase-modal"><form method="post">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="supplier_create">
+  <div class="modal-header"><div><p class="eyebrow mb-1">Nouveau fournisseur</p><h2 class="modal-title h5">Ajouter un partenaire</h2></div><button class="btn-close" type="button" data-bs-dismiss="modal"></button></div>
+  <div class="modal-body"><div class="row g-3"><div class="col-12"><label class="form-label">Nom du fournisseur</label><input class="form-control" name="supplier_name" maxlength="160" required></div><div class="col-md-6"><label class="form-label">Téléphone</label><input class="form-control" name="supplier_phone" maxlength="32"></div><div class="col-md-6"><label class="form-label">E-mail</label><input class="form-control" name="supplier_email" type="email" maxlength="254"></div><div class="col-12"><label class="form-label">Adresse</label><textarea class="form-control" name="supplier_address" rows="2" maxlength="500"></textarea></div><div class="col-12"><label class="form-label">Note</label><textarea class="form-control" name="supplier_note" rows="2" maxlength="500"></textarea></div></div></div>
+  <div class="modal-footer"><button class="btn btn-light border" type="button" data-bs-dismiss="modal">Annuler</button><button class="btn btn-primary" type="submit">Créer le fournisseur</button></div>
+</form></div></div></div>
 {% endif %}
 
-{% if can_manage %}
-<div class="modal fade purchase-editor-modal" id="purchaseModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
-    <div class="modal-content purchase-modal">
-      <form method="post" class="purchase-entry-form" data-currency="{{ bar.currency }}">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <input type="hidden" name="action" value="purchase_create">
-        <div class="modal-header"><div><p class="eyebrow mb-1">Nouvel approvisionnement</p><h2 class="modal-title h5">Enregistrer un achat fournisseur</h2></div><button class="btn-close" type="button" data-bs-dismiss="modal"></button></div>
-        <div class="modal-body">
-          <div class="row g-3 mb-4">
-            <div class="col-md-5"><label class="form-label">Fournisseur</label><select class="form-select form-select-lg" name="supplier_id" required><option value="">Sélectionner...</option>{% for supplier in active_suppliers %}<option value="{{ supplier.id }}">{{ supplier.name }}</option>{% endfor %}</select></div>
-            <div class="col-md-4"><label class="form-label">Référence interne</label><input class="form-control form-control-lg" name="reference" maxlength="64" placeholder="Automatique si vide"></div>
-            <div class="col-md-3"><label class="form-label">N° facture fournisseur</label><input class="form-control form-control-lg" name="supplier_invoice_reference" maxlength="100" placeholder="Optionnel"></div>
-          </div>
-
-          <div class="purchase-entry-head">
-            <div><p class="eyebrow mb-1">Produits</p><h3>Saisissez uniquement les quantités achetées</h3></div>
-            <div class="purchase-entry-tools">
-              <input class="form-control purchase-product-search" type="search" placeholder="Rechercher un produit...">
-              <span class="purchase-selected-count">0 produit sélectionné</span>
-            </div>
-          </div>
-
-          <div class="purchase-entry-columns" aria-hidden="true">
-            <span>Produit</span><span>Quantité</span><span>Prix d'achat</span><span>Total</span>
-          </div>
-
-          <div class="purchase-entry-lines purchase-all-products">
-            {% for product in products %}
-            <div class="purchase-entry-line purchase-catalog-row" data-product-id="{{ product.id }}" data-search="{{ product.name|lower }} {{ product.sku|lower }}">
-              <input type="hidden" name="product_id" value="{{ product.id }}">
-              <div class="purchase-product-label"><strong>{{ product.name }}</strong><small>{{ product.sku }}</small></div>
-              <input class="form-control purchase-quantity" name="quantity" type="number" min="0.001" step="0.001" placeholder="0">
-              <div class="input-group"><input class="form-control unit-cost" name="unit_cost" type="number" min="0" step="1" value="{{ product.valuation_unit_cost }}" aria-label="Prix d'achat de {{ product.name }}"><span class="input-group-text">{{ bar.currency }}</span></div>
-              <strong class="purchase-line-total" data-line-total>0 {{ bar.currency }}</strong>
-            </div>
-            {% endfor %}
-          </div>
-
-          <div class="info-box mt-4"><strong>Principe :</strong> laissez la quantité vide pour les produits non achetés. Les prix sont préremplis mais vous pouvez les modifier avant l'enregistrement.</div>
-        </div>
-        <div class="modal-footer"><button class="btn btn-light border" type="button" data-bs-dismiss="modal">Annuler</button><button class="btn btn-primary" type="submit">Enregistrer le brouillon</button></div>
-      </form>
+{% macro purchase_form(form_id, purchase=None) %}
+{% set editing = purchase is not none %}
+{% set purchase_line_lookup = line_lookup.get(purchase.id, {}) if editing else {} %}
+<form method="post" class="purchase-entry-form" data-currency="{{ bar.currency }}" id="{{ form_id }}">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <input type="hidden" name="action" value="{{ 'purchase_update' if editing else 'purchase_create' }}">
+  {% if editing %}<input type="hidden" name="purchase_id" value="{{ purchase.id }}">{% endif %}
+  <div class="modal-header"><div><p class="eyebrow mb-1">{{ 'Modification du brouillon' if editing else 'Nouvel approvisionnement' }}</p><h2 class="modal-title h5">{{ 'Modifier ' ~ purchase.reference if editing else 'Enregistrer un achat fournisseur' }}</h2></div><button class="btn-close" type="button" data-bs-dismiss="modal"></button></div>
+  <div class="modal-body">
+    {% if editing %}<div class="alert alert-light border py-2 mb-4"><strong>Brouillon modifiable :</strong> rien ne change dans le stock tant que l'achat n'est pas réceptionné.</div>{% endif %}
+    <div class="row g-3 mb-4">
+      <div class="col-md-4"><label class="form-label">Fournisseur</label><select class="form-select" name="supplier_id" required><option value="">Sélectionner...</option>{% for supplier in suppliers if supplier.is_active or (editing and supplier.id == purchase.supplier_id) %}<option value="{{ supplier.id }}" {% if editing and supplier.id == purchase.supplier_id %}selected{% endif %}>{{ supplier.name }}{% if not supplier.is_active %} · inactif{% endif %}</option>{% endfor %}</select></div>
+      <div class="col-md-2"><label class="form-label">Date d'achat</label><input class="form-control" name="purchase_date" type="date" value="{{ purchase.purchase_date.isoformat() if editing and purchase.purchase_date else today.isoformat() }}" required></div>
+      <div class="col-md-3"><label class="form-label">Référence interne</label><input class="form-control" name="reference" maxlength="64" value="{{ purchase.reference if editing else '' }}" placeholder="Automatique si vide" {% if editing %}required{% endif %}></div>
+      <div class="col-md-3"><label class="form-label">N° facture fournisseur</label><input class="form-control" name="supplier_invoice_reference" maxlength="100" value="{{ purchase.supplier_invoice_reference or '' if editing else '' }}" placeholder="Optionnel"></div>
+      <div class="col-12"><label class="form-label">Note achat</label><textarea class="form-control" name="notes" rows="2" maxlength="500" placeholder="Ex. livraison du matin, remise négociée, anomalie constatée...">{{ purchase.notes or '' if editing else '' }}</textarea></div>
     </div>
+
+    <div class="purchase-entry-head"><div><p class="eyebrow mb-1">Produits</p><h3>Renseignez uniquement les produits achetés</h3></div><div class="purchase-entry-tools"><input class="form-control purchase-product-search" type="search" placeholder="Rechercher un produit..."><span class="purchase-selected-count">0 produit sélectionné</span></div></div>
+    <div class="purchase-entry-columns purchase-entry-columns-extended" aria-hidden="true"><span>Produit</span><span>Unité</span><span>Qté</span><span>Bouteilles/casier</span><span>Prix achat</span><span>Total</span></div>
+    <div class="purchase-entry-lines purchase-all-products">
+      {% for product in products %}
+      {% set existing_line = purchase_line_lookup.get(product.id) %}
+      <div class="purchase-entry-line purchase-catalog-row purchase-entry-line-extended" data-product-id="{{ product.id }}" data-search="{{ product.name|lower }} {{ product.sku|lower }}">
+        <input type="hidden" name="product_id" value="{{ product.id }}">
+        <div class="purchase-product-label"><strong>{{ product.name }}</strong><small>{{ product.sku }} · vente {{ "{:,.0f}".format(product.sale_price) }} {{ bar.currency }}</small></div>
+        <select class="form-select purchase-unit" name="purchase_unit" aria-label="Unité d'achat de {{ product.name }}">
+          <option value="CASE" {% if not existing_line or existing_line.purchase_unit == 'CASE' %}selected{% endif %}>Casier</option>
+          <option value="BOTTLE" {% if existing_line and existing_line.purchase_unit == 'BOTTLE' %}selected{% endif %}>Bouteille</option>
+        </select>
+        <input class="form-control purchase-quantity" name="purchase_quantity" type="number" min="1" step="1" value="{{ existing_line.purchase_quantity if existing_line else '' }}" placeholder="0">
+        <input class="form-control pack-size-input" name="units_per_case" type="number" min="1" step="1" value="{{ existing_line.units_per_case_snapshot if existing_line and existing_line.units_per_case_snapshot else product.units_per_case or '' }}" placeholder="Ex. 12">
+        <div class="input-group"><input class="form-control unit-cost" name="purchase_unit_price" type="number" min="0" step="1" value="{{ existing_line.purchase_unit_price_snapshot if existing_line else product.valuation_unit_cost }}" aria-label="Prix d'achat de {{ product.name }}"><span class="input-group-text">{{ bar.currency }}</span></div>
+        <strong class="purchase-line-total" data-line-total>{{ "{:,.0f}".format(existing_line.total_amount) if existing_line else 0 }} {{ bar.currency }}</strong>
+        <div class="purchase-line-analysis"><span data-stock-conversion>Stock : —</span><span>CA potentiel <strong data-line-revenue>—</strong></span><span>Bénéfice brut <strong data-line-profit>—</strong></span></div>
+      </div>
+      {% endfor %}
+    </div>
+
+    <div class="purchase-payment-panel mt-4">
+      <div class="purchase-payment-title"><div><p class="eyebrow mb-1">Règlement initial</p><h3>Montant déjà payé</h3></div><small>Optionnel — enregistré uniquement lors de la réception</small></div>
+      <div class="row g-3">
+        <div class="col-md-3"><label class="form-label">Montant payé</label><div class="input-group"><input class="form-control initial-payment-amount" name="amount_paid" type="number" min="0" step="1" value="0"><span class="input-group-text">{{ bar.currency }}</span></div></div>
+        <div class="col-md-3"><label class="form-label">Mode</label><select class="form-select initial-payment-method" name="payment_method"><option value="">Sélectionner...</option>{% for code,label in payment_labels.items() %}<option value="{{ code }}">{{ label }}</option>{% endfor %}</select></div>
+        <div class="col-md-3 purchase-cash-session d-none"><label class="form-label">Caisse</label><select class="form-select" name="cash_session_id"><option value="">Sélectionner...</option>{% for session in open_cash_sessions %}<option value="{{ session.id }}">{{ session.reference }} · {{ "{:,.0f}".format(cash_expected.get(session.id,0)) }}</option>{% endfor %}</select></div>
+        <div class="col-md-3"><label class="form-label">Référence paiement</label><input class="form-control" name="payment_reference" maxlength="64" placeholder="Auto si vide"></div>
+        <div class="col-md-3 purchase-provider-field d-none"><label class="form-label">Prestataire / banque</label><input class="form-control" name="provider_code" maxlength="32"></div>
+        <div class="col-md-3 purchase-provider-field d-none"><label class="form-label">Réf. transaction</label><input class="form-control" name="provider_transaction_id" maxlength="128"></div>
+        <div class="col-12"><label class="form-label">Note paiement</label><input class="form-control" name="payment_note" maxlength="500" placeholder="Ex. acompte fournisseur"></div>
+      </div>
+    </div>
+    <div class="info-box mt-4"><strong>Stock :</strong> un achat en casier est converti automatiquement en bouteilles. Exemple : 3 casiers × 12 = 36 bouteilles ajoutées au stock.</div>
   </div>
-</div>
+  <div class="modal-footer purchase-modal-actions"><button class="btn btn-light border" type="button" data-bs-dismiss="modal">Fermer</button><button class="btn btn-outline-primary" type="submit" name="submit_mode" value="draft">Enregistrer brouillon</button><button class="btn btn-primary" type="submit" name="submit_mode" value="receive">Enregistrer & réceptionner</button></div>
+</form>
+{% endmacro %}
+
+{% if can_manage %}
+<div class="modal fade purchase-editor-modal" id="purchaseModal" tabindex="-1" aria-hidden="true"><div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable"><div class="modal-content purchase-modal">{{ purchase_form('purchaseCreateForm') }}</div></div></div>
 
 {% for purchase in purchases if purchase.status == 'DRAFT' %}
-{% set purchase_line_lookup = line_lookup.get(purchase.id, {}) %}
-<div class="modal fade purchase-editor-modal" id="editPurchaseModal{{ purchase.id }}" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
-    <div class="modal-content purchase-modal">
-      <form method="post" class="purchase-entry-form" data-currency="{{ purchase.currency }}">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <input type="hidden" name="action" value="purchase_update">
-        <input type="hidden" name="purchase_id" value="{{ purchase.id }}">
-        <div class="modal-header">
-          <div><p class="eyebrow mb-1">Modification du brouillon</p><h2 class="modal-title h5">Modifier {{ purchase.reference }}</h2></div>
-          <button class="btn-close" type="button" data-bs-dismiss="modal"></button>
-        </div>
-        <div class="modal-body">
-          <div class="alert alert-light border py-2 mb-4"><strong>Brouillon modifiable :</strong> les changements n'affectent pas le stock tant que vous n'avez pas cliqué sur « Réceptionner ».</div>
-          <div class="row g-3 mb-4">
-            <div class="col-md-5"><label class="form-label">Fournisseur</label><select class="form-select form-select-lg" name="supplier_id" required>{% for supplier in suppliers %}<option value="{{ supplier.id }}" {% if supplier.id == purchase.supplier_id %}selected{% endif %} {% if not supplier.is_active and supplier.id != purchase.supplier_id %}disabled{% endif %}>{{ supplier.name }}{% if not supplier.is_active %} · inactif{% endif %}</option>{% endfor %}</select></div>
-            <div class="col-md-4"><label class="form-label">Référence interne</label><input class="form-control form-control-lg" name="reference" maxlength="64" value="{{ purchase.reference }}" required></div>
-            <div class="col-md-3"><label class="form-label">N° facture fournisseur</label><input class="form-control form-control-lg" name="supplier_invoice_reference" maxlength="100" value="{{ purchase.supplier_invoice_reference or '' }}" placeholder="Optionnel"></div>
-          </div>
+<div class="modal fade purchase-editor-modal" id="editPurchaseModal{{ purchase.id }}" tabindex="-1" aria-hidden="true"><div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable"><div class="modal-content purchase-modal">{{ purchase_form('purchaseEditForm' ~ purchase.id, purchase) }}</div></div></div>
+<div class="modal fade" id="receiveModal{{ purchase.id }}" tabindex="-1" aria-hidden="true"><div class="modal-dialog modal-dialog-centered"><div class="modal-content purchase-modal"><form method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="purchase_receive"><input type="hidden" name="purchase_id" value="{{ purchase.id }}"><div class="modal-header"><div><p class="eyebrow mb-1">Réception</p><h2 class="modal-title h5">Réceptionner {{ purchase.reference }}</h2></div><button class="btn-close" type="button" data-bs-dismiss="modal"></button></div><div class="modal-body"><p>Cette action ajoutera les quantités converties au stock. Vérifiez les casiers, bouteilles et prix avant de confirmer.</p></div><div class="modal-footer"><button class="btn btn-light border" type="button" data-bs-dismiss="modal">Retour</button><button class="btn btn-primary" type="submit">Confirmer la réception</button></div></form></div></div></div>
+<div class="modal fade" id="cancelModal{{ purchase.id }}" tabindex="-1" aria-hidden="true"><div class="modal-dialog modal-dialog-centered"><div class="modal-content purchase-modal"><form method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="purchase_cancel"><input type="hidden" name="purchase_id" value="{{ purchase.id }}"><div class="modal-header"><div><p class="eyebrow mb-1">Suppression du brouillon</p><h2 class="modal-title h5">Supprimer {{ purchase.reference }}</h2></div><button class="btn-close" type="button" data-bs-dismiss="modal"></button></div><div class="modal-body"><label class="form-label">Motif</label><textarea class="form-control" name="reason" rows="3" required></textarea><div class="form-text">Le brouillon sera conservé comme annulé pour la traçabilité.</div></div><div class="modal-footer"><button class="btn btn-light border" type="button" data-bs-dismiss="modal">Retour</button><button class="btn btn-danger" type="submit">Supprimer le brouillon</button></div></form></div></div></div>
+{% endfor %}
 
-          <div class="purchase-entry-head">
-            <div><p class="eyebrow mb-1">Produits</p><h3>Corrigez les quantités ou les prix d'achat</h3></div>
-            <div class="purchase-entry-tools">
-              <input class="form-control purchase-product-search" type="search" placeholder="Rechercher un produit...">
-              <span class="purchase-selected-count">0 produit sélectionné</span>
-            </div>
-          </div>
-
-          <div class="purchase-entry-columns" aria-hidden="true">
-            <span>Produit</span><span>Quantité</span><span>Prix d'achat</span><span>Total</span>
-          </div>
-
-          <div class="purchase-entry-lines purchase-all-products">
-            {% for product in products %}
-            {% set existing_line = purchase_line_lookup.get(product.id) %}
-            <div class="purchase-entry-line purchase-catalog-row" data-product-id="{{ product.id }}" data-search="{{ product.name|lower }} {{ product.sku|lower }}">
-              <input type="hidden" name="product_id" value="{{ product.id }}">
-              <div class="purchase-product-label"><strong>{{ product.name }}</strong><small>{{ product.sku }}</small></div>
-              <input class="form-control purchase-quantity" name="quantity" type="number" min="0.001" step="0.001" value="{{ existing_line.quantity if existing_line else '' }}" placeholder="0">
-              <div class="input-group"><input class="form-control unit-cost" name="unit_cost" type="number" min="0" step="1" value="{{ existing_line.unit_cost_snapshot if existing_line else product.valuation_unit_cost }}" aria-label="Prix d'achat de {{ product.name }}"><span class="input-group-text">{{ purchase.currency }}</span></div>
-              <strong class="purchase-line-total" data-line-total>{% if existing_line %}{{ "{:,.0f}".format(existing_line.total_amount) }}{% else %}0{% endif %} {{ purchase.currency }}</strong>
-            </div>
-            {% endfor %}
-          </div>
-
-          <div class="info-box mt-4"><strong>Modification :</strong> mettez une quantité à vide pour retirer un produit du brouillon. Vous pouvez aussi ajouter un produit, corriger sa quantité ou modifier son prix d'achat.</div>
-        </div>
-        <div class="modal-footer"><button class="btn btn-light border" type="button" data-bs-dismiss="modal">Fermer</button><button class="btn btn-primary" type="submit">Enregistrer les modifications</button></div>
-      </form>
-    </div>
-  </div>
-</div>
-
-<div class="modal fade" id="receiveModal{{ purchase.id }}" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered"><div class="modal-content purchase-modal"><form method="post">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="purchase_receive"><input type="hidden" name="purchase_id" value="{{ purchase.id }}">
-    <div class="modal-header"><div><p class="eyebrow mb-1">Confirmation</p><h2 class="modal-title h5">Réceptionner {{ purchase.reference }}</h2></div><button class="btn-close" type="button" data-bs-dismiss="modal"></button></div>
-    <div class="modal-body"><p class="mb-2">Vous confirmez avoir reçu les produits de <strong>{{ purchase.supplier_name_snapshot }}</strong>.</p><p class="text-secondary mb-0">Cette action ajoutera les quantités au stock et ne pourra pas être rejouée. Vérifiez le brouillon avant de confirmer.</p></div>
-    <div class="modal-footer"><button class="btn btn-light border" type="button" data-bs-dismiss="modal">Retour</button><button class="btn btn-primary" type="submit">Confirmer la réception</button></div>
-  </form></div></div>
-</div>
-
-<div class="modal fade" id="cancelModal{{ purchase.id }}" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered"><div class="modal-content purchase-modal"><form method="post">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="purchase_cancel"><input type="hidden" name="purchase_id" value="{{ purchase.id }}">
-    <div class="modal-header"><div><p class="eyebrow mb-1">Annulation</p><h2 class="modal-title h5">Annuler {{ purchase.reference }}</h2></div><button class="btn-close" type="button" data-bs-dismiss="modal"></button></div>
-    <div class="modal-body"><label class="form-label">Motif de l'annulation</label><textarea class="form-control" name="reason" rows="3" required placeholder="Ex. livraison annulée par le fournisseur"></textarea></div>
-    <div class="modal-footer"><button class="btn btn-light border" type="button" data-bs-dismiss="modal">Retour</button><button class="btn btn-danger" type="submit">Annuler l'achat</button></div>
-  </form></div></div>
-</div>
+{% for purchase in purchases if purchase.status == 'POSTED' and paid_by_purchase.get(purchase.id,0) == 0 %}
+<div class="modal fade" id="reopenModal{{ purchase.id }}" tabindex="-1" aria-hidden="true"><div class="modal-dialog modal-dialog-centered"><div class="modal-content purchase-modal"><form method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="purchase_reopen"><input type="hidden" name="purchase_id" value="{{ purchase.id }}"><div class="modal-header"><div><p class="eyebrow mb-1">Correction</p><h2 class="modal-title h5">Corriger {{ purchase.reference }}</h2></div><button class="btn-close" type="button" data-bs-dismiss="modal"></button></div><div class="modal-body"><div class="alert alert-warning">Le stock ajouté par cet achat sera retiré, puis l'achat repassera en brouillon.</div><label class="form-label">Motif de la correction</label><textarea class="form-control" name="reason" rows="3" required placeholder="Ex. quantité ou prix mal saisi"></textarea></div><div class="modal-footer"><button class="btn btn-light border" type="button" data-bs-dismiss="modal">Retour</button><button class="btn btn-primary" type="submit">Repasser en brouillon</button></div></form></div></div></div>
+<div class="modal fade" id="cancelReceivedModal{{ purchase.id }}" tabindex="-1" aria-hidden="true"><div class="modal-dialog modal-dialog-centered"><div class="modal-content purchase-modal"><form method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="purchase_cancel_received"><input type="hidden" name="purchase_id" value="{{ purchase.id }}"><div class="modal-header"><div><p class="eyebrow mb-1">Annulation</p><h2 class="modal-title h5">Annuler {{ purchase.reference }}</h2></div><button class="btn-close" type="button" data-bs-dismiss="modal"></button></div><div class="modal-body"><div class="alert alert-danger">Le stock correspondant sera retiré. L'opération échouera si une partie de ce stock n'est plus disponible.</div><label class="form-label">Motif</label><textarea class="form-control" name="reason" rows="3" required></textarea></div><div class="modal-footer"><button class="btn btn-light border" type="button" data-bs-dismiss="modal">Retour</button><button class="btn btn-danger" type="submit">Annuler l'achat et corriger le stock</button></div></form></div></div></div>
 {% endfor %}
 {% endif %}
 {% endblock %}
