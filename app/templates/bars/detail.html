@@ -18,7 +18,7 @@
   </div>
   <div class="bar-hero-actions">
     {% if rights.orders_create %}<a class="btn btn-outline-primary" href="{{ url_for('orders_web.quick',bar_id=bar.id) }}">Point de vente</a>{% endif %}
-    {% if rights.payments_read %}<a class="btn btn-primary" href="{{ url_for('finance_web.desk',bar_id=bar.id) }}">Ouvrir la caisse</a>{% endif %}
+    {% if rights.payments_read %}<a class="btn btn-primary" href="{{ url_for('checkout_web.checkout',bar_id=bar.id) }}">Caisse commandes</a>{% endif %}
   </div>
 </section>
 
@@ -39,19 +39,21 @@
       <a class="module-card" href="{{ url_for('stock.history',bar_id=bar.id) }}"><span class="module-icon">S</span><div><strong>Stock</strong><p>Mouvements de stock, pertes et ajustements.</p></div><span class="module-arrow">→</span></a>
       <a class="module-card" href="{{ url_for('inventories.listing',bar_id=bar.id) }}"><span class="module-icon">I</span><div><strong>Inventaires</strong><p>Comptages physiques et écarts de stock.</p></div><span class="module-arrow">→</span></a>
       {% endif %}
+      {% if rights.customers_read %}<a class="module-card" href="{{ url_for('customers_web.manage',bar_id=bar.id) }}"><span class="module-icon">CL</span><div><strong>Clients & crédits</strong><p>Créances clients, règlements, ventes à crédit et casiers.</p></div><span class="module-arrow">→</span></a>{% endif %}
       {% if rights.reports %}
       <a class="module-card" href="{{ url_for('purchases_web.manage',bar_id=bar.id) }}"><span class="module-icon">A</span><div><strong>Fournisseurs & achats</strong><p>Fournisseurs, livraisons et réceptions de marchandises.</p></div><span class="module-arrow">→</span></a>
       <a class="module-card" href="{{ url_for('supplier_debts_web.manage',bar_id=bar.id) }}"><span class="module-icon">D</span><div><strong>Dettes fournisseurs</strong><p>Soldes dus, règlements partiels et historique des paiements.</p></div><span class="module-arrow">→</span></a>
       {% endif %}
-      {% if rights.orders_create %}<a class="module-card" href="{{ url_for('orders_web.quick',bar_id=bar.id) }}"><span class="module-icon">C</span><div><strong>Point de vente</strong><p>Sélection rapide des produits, panier, service et déduction automatique du stock.</p></div><span class="module-arrow">→</span></a>{% endif %}
-      {% if rights.payments_read %}<a class="module-card" href="{{ url_for('finance_web.desk',bar_id=bar.id) }}"><span class="module-icon">₣</span><div><strong>Caisse & paiements</strong><p>Sessions de caisse, paiements, remboursements et mouvements.</p></div><span class="module-arrow">→</span></a>{% endif %}
+      {% if rights.orders_create %}<a class="module-card" href="{{ url_for('orders_web.quick',bar_id=bar.id) }}"><span class="module-icon">C</span><div><strong>Point de vente</strong><p>Saisie des commandes serveuses, table, produits, quantités et notes.</p></div><span class="module-arrow">→</span></a>{% endif %}
+      {% if rights.payments_read %}<a class="module-card" href="{{ url_for('checkout_web.checkout',bar_id=bar.id) }}"><span class="module-icon">₣</span><div><strong>Caisse commandes</strong><p>Livraison, encaissement, paiement mixte et ventes à crédit.</p></div><span class="module-arrow">→</span></a>{% endif %}
+      {% if rights.payments_read %}<a class="module-card" href="{{ url_for('finance_web.desk',bar_id=bar.id) }}"><span class="module-icon">F</span><div><strong>Finance détaillée</strong><p>Sessions de caisse, remboursements, remises et historique financier.</p></div><span class="module-arrow">→</span></a>{% endif %}
       {% if rights.reports %}<div class="module-card module-card-muted"><span class="module-icon">R</span><div><strong>Rapports</strong><p>Ventes, caisse, stocks et performance.</p><span class="module-coming">À connecter</span></div></div>{% endif %}
     </div>
   </section>
 
   <aside class="bar-side-stack">
     <section class="panel-card"><div class="panel-header"><div><p class="eyebrow mb-1">Établissement</p><h2>Informations</h2></div></div><div class="info-list"><div><span>Propriétaire</span><strong>{{ bar.owner.display_name }}</strong></div><div><span>Devise</span><strong>{{ bar.currency }}</strong></div><div><span>Fuseau horaire</span><strong>{{ bar.timezone }}</strong></div><div><span>Ventes à crédit</span><strong>{{ 'Activées' if bar.credit_sales_enabled else 'Désactivées' }}</strong></div><div><span>Seuil stock global</span><strong>{{ bar.stock_alert_threshold }}</strong></div></div></section>
-    <section class="panel-card bar-next-card"><div class="panel-header"><div><p class="eyebrow mb-1">Exploitation</p><h2>Vendre maintenant</h2></div></div><div class="p-4"><div class="next-step-number">05</div><h3>Utiliser le point de vente</h3><p>Les serveuses et caissières peuvent saisir les consommations rapidement. Chaque commande confirmée diminue automatiquement le stock.</p>{% if rights.orders_create %}<a class="btn btn-outline-primary btn-sm mt-2" href="{{ url_for('orders_web.quick',bar_id=bar.id) }}">Ouvrir le point de vente</a>{% endif %}</div></section>
+    <section class="panel-card bar-next-card"><div class="panel-header"><div><p class="eyebrow mb-1">Exploitation</p><h2>Prochaine étape</h2></div></div><div class="p-4"><div class="next-step-number">06</div><h3>Structurer les comptes clients</h3><p>Créez les clients réguliers pour suivre les crédits et les casiers sans mélanger ces créances aux encaissements réels.</p>{% if rights.customers_read %}<a class="btn btn-outline-primary btn-sm mt-2" href="{{ url_for('customers_web.manage',bar_id=bar.id) }}">Ouvrir les clients</a>{% endif %}</div></section>
   </aside>
 </div>
 {% endblock %}
