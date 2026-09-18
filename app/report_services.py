@@ -24,27 +24,29 @@ def summary(actor, bar_id, start=None, end=None):
     def in_period(column):
         return [column >= start] if start and not end else [column < end] if end and not start else [column >= start, column < end] if start and end else []
 
-    # Orders waiting for the cashier are not sales. Revenue is recognized in this
-    # operational report only after the order is delivered and fully settled
-    # (real payment or customer credit).
-    all_orders=list(db.session.scalars(select(Order).where(Order.bar_id==bar_id)))
-    sales=[
-        o for o in all_orders
-        if o.status in {"CONFIRMED","SERVED"}
-        and o.payment_status=="PAID"
-        and (not start or (o.posted_at and o.posted_at>=start))
-        and (not end or (o.posted_at and o.posted_at<end))
-    ]
+    # A waiting server order is not yet a sale. Operational revenue is reported
+    # only after delivery and complete settlement, including customer credit.
+    sales=list(db.session.scalars(
+        select(Order).where(
+            Order.bar_id==bar_id,
+            Order.status.in_(["CONFIRMED","SERVED"]),
+            Order.payment_status=="PAID",
+            *in_period(Order.posted_at),
+        )
+    ))
     sale_ids={o.id for o in sales}
-    sales_lines=list(db.session.scalars(select(OrderLine).where(OrderLine.bar_id==bar_id, OrderLine.order_id.in_(sale_ids)))) if sale_ids else []
+    sales_lines=list(db.session.scalars(
+        select(OrderLine).where(OrderLine.bar_id==bar_id, OrderLine.order_id.in_(sale_ids))
+    )) if sale_ids else []
 
-    delivered_unsettled=[
-        o for o in all_orders
-        if o.status in {"CONFIRMED","SERVED"}
-        and o.payment_status in {"UNPAID","PARTIAL"}
-        and (not start or (o.posted_at and o.posted_at>=start))
-        and (not end or (o.posted_at and o.posted_at<end))
-    ]
+    delivered_unsettled=list(db.session.scalars(
+        select(Order).where(
+            Order.bar_id==bar_id,
+            Order.status.in_(["CONFIRMED","SERVED"]),
+            Order.payment_status.in_(["UNPAID","PARTIAL"]),
+            *in_period(Order.posted_at),
+        )
+    ))
 
     payments=list(db.session.scalars(select(Payment).where(Payment.bar_id==bar_id, *in_period(Payment.received_at))))
     refunds=list(db.session.scalars(select(Refund).where(Refund.bar_id==bar_id, *in_period(Refund.refunded_at))))
