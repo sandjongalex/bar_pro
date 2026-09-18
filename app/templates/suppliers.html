@@ -1,0 +1,139 @@
+{% extends 'layout.html' %}
+{% block title %}Fournisseurs · {{ bar.name }} · Bar Manager Pro{% endblock %}
+{% block header %}Fournisseurs · {{ bar.name }}{% endblock %}
+{% block content %}
+<section class="purchase-hero">
+  <div>
+    <a class="bar-back" href="{{ url_for('bars.web_detail', bar_id=bar.id) }}">← Retour à {{ bar.name }}</a>
+    <p class="eyebrow mt-3 mb-2">Achats · Fournisseurs</p>
+    <h1>Fournisseurs</h1>
+    <p>Coordonnées, historique d'achats, règlements et position du compte fournisseur.</p>
+  </div>
+  <div class="purchase-hero-actions">
+    <a class="btn btn-outline-primary" href="{{ url_for('purchases_web.manage', bar_id=bar.id) }}">Achats</a>
+    <a class="btn btn-outline-primary" href="{{ url_for('supplier_debts_web.manage', bar_id=bar.id) }}">Paiements</a>
+    {% if can_manage %}<button class="btn btn-primary" type="button" data-bs-toggle="modal" data-bs-target="#supplierCreateModal">＋ Fournisseur</button>{% endif %}
+  </div>
+</section>
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% for category, message in messages %}
+    <div class="alert alert-{{ category }} mt-3" role="alert">{{ message }}</div>
+  {% endfor %}
+{% endwith %}
+
+<section class="purchase-stats mt-4">
+  <article><span>Fournisseurs</span><strong>{{ stats.suppliers }}</strong><small>{{ stats.active }} actifs</small></article>
+  <article><span>Achats réceptionnés</span><strong>{{ "{:,.0f}".format(stats.total) }} {{ bar.currency }}</strong><small>Total comptabilisé</small></article>
+  <article><span>Montants payés</span><strong>{{ "{:,.0f}".format(stats.paid) }} {{ bar.currency }}</strong><small>Règlements nets</small></article>
+  <article><span>Dette fournisseur</span><strong>{{ "{:,.0f}".format(stats.debt) }} {{ bar.currency }}</strong><small>{% if stats.credit > 0 %}Crédit : {{ "{:,.0f}".format(stats.credit) }} {{ bar.currency }}{% else %}Solde restant global{% endif %}</small></article>
+</section>
+
+<div class="supplier-directory-layout mt-4">
+  <section class="panel-card supplier-directory-panel">
+    <div class="panel-header"><div><p class="eyebrow mb-1">Répertoire</p><h2>Tous les fournisseurs</h2></div></div>
+    <div class="supplier-directory-list">
+      {% for supplier in suppliers %}
+      {% set summary = summaries.get(supplier.id) %}
+      <a class="supplier-directory-row {% if selected_supplier and selected_supplier.id == supplier.id %}active{% endif %}" href="{{ url_for('purchases_web.suppliers', bar_id=bar.id, supplier_id=supplier.id) }}">
+        <span class="supplier-avatar">{{ supplier.name[0]|upper }}</span>
+        <span class="supplier-directory-copy"><strong>{{ supplier.name }}</strong><small>{{ supplier.phone or supplier.email or supplier.address or 'Coordonnées non renseignées' }}</small></span>
+        <span class="supplier-directory-balance {% if summary and summary.debt > 0 %}text-danger{% elif summary and summary.credit > 0 %}text-success{% endif %}">
+          {% if summary and summary.debt > 0 %}{{ "{:,.0f}".format(summary.debt) }} dû{% elif summary and summary.credit > 0 %}{{ "{:,.0f}".format(summary.credit) }} crédit{% else %}Soldé{% endif %}
+        </span>
+      </a>
+      {% else %}<div class="empty-state"><div class="empty-icon">F</div><h3>Aucun fournisseur</h3><p>Ajoutez votre premier fournisseur pour commencer les achats.</p></div>{% endfor %}
+    </div>
+  </section>
+
+  <section class="panel-card supplier-account-panel">
+    {% if selected_supplier and selected_summary %}
+    <div class="panel-header">
+      <div><p class="eyebrow mb-1">Compte fournisseur</p><h2>{{ selected_supplier.name }}</h2></div>
+      {% if can_manage %}<button class="btn btn-sm btn-light border" type="button" data-bs-toggle="modal" data-bs-target="#supplierEditModal">Modifier</button>{% endif %}
+    </div>
+    <div class="supplier-account-info">
+      <div><span>Téléphone</span><strong>{{ selected_supplier.phone or '—' }}</strong></div>
+      <div><span>E-mail</span><strong>{{ selected_supplier.email or '—' }}</strong></div>
+      <div><span>Adresse</span><strong>{{ selected_supplier.address or '—' }}</strong></div>
+      <div><span>État</span><strong>{{ 'Actif' if selected_supplier.is_active else 'Inactif' }}</strong></div>
+    </div>
+    {% if selected_supplier.note %}<div class="supplier-note"><span>Note</span><p>{{ selected_supplier.note }}</p></div>{% endif %}
+
+    <div class="supplier-account-numbers">
+      <article><span>Total achats</span><strong>{{ "{:,.0f}".format(selected_summary.total) }} {{ bar.currency }}</strong></article>
+      <article><span>Déjà payé</span><strong>{{ "{:,.0f}".format(selected_summary.paid) }} {{ bar.currency }}</strong></article>
+      <article><span>Dette restante</span><strong class="text-danger">{{ "{:,.0f}".format(selected_summary.debt) }} {{ bar.currency }}</strong></article>
+      <article><span>Solde créditeur</span><strong class="text-success">{{ "{:,.0f}".format(selected_summary.credit) }} {{ bar.currency }}</strong></article>
+    </div>
+
+    <div class="panel-header border-top mt-3"><div><p class="eyebrow mb-1">Historique</p><h2>Achats</h2></div><span class="text-secondary small">{{ selected_summary.purchases }} opération{{ 's' if selected_summary.purchases != 1 else '' }}</span></div>
+    {% if selected_history %}
+    <div class="table-responsive">
+      <table class="table purchase-table align-middle mb-0">
+        <thead><tr><th>Date</th><th>Référence</th><th>Total</th><th>État</th></tr></thead>
+        <tbody>
+        {% for purchase in selected_history %}
+        <tr>
+          <td>{{ purchase.purchase_date.strftime('%d/%m/%Y') if purchase.purchase_date else '—' }}</td>
+          <td><strong>{{ purchase.reference }}</strong><small class="d-block text-secondary">{{ purchase.supplier_invoice_reference or 'Sans facture' }}</small></td>
+          <td><strong>{{ "{:,.0f}".format(purchase.total_amount) }} {{ purchase.currency }}</strong></td>
+          <td><span class="purchase-status purchase-status-{{ purchase.status|lower }}">{{ status_labels.get(purchase.status, purchase.status) }}</span></td>
+        </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}<div class="empty-state"><div class="empty-icon">A</div><h3>Aucun achat</h3><p>Les achats de ce fournisseur apparaîtront ici.</p></div>{% endif %}
+
+    {% if can_manage %}
+    <div class="supplier-account-actions">
+      <form method="post">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="supplier_id" value="{{ selected_supplier.id }}">
+        <input type="hidden" name="action" value="{{ 'supplier_disable' if selected_supplier.is_active else 'supplier_enable' }}">
+        <button class="btn btn-sm btn-light border" type="submit">{{ 'Désactiver' if selected_supplier.is_active else 'Réactiver' }}</button>
+      </form>
+      <a class="btn btn-sm btn-primary" href="{{ url_for('purchases_web.manage', bar_id=bar.id, supplier_id=selected_supplier.id) }}">Voir les achats</a>
+    </div>
+    {% endif %}
+    {% else %}
+    <div class="empty-state"><div class="empty-icon">F</div><h3>Sélectionnez un fournisseur</h3><p>Son compte et son historique apparaîtront ici.</p></div>
+    {% endif %}
+  </section>
+</div>
+
+{% if can_manage %}
+<div class="modal fade" id="supplierCreateModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered"><div class="modal-content purchase-modal"><form method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="supplier_create">
+    <div class="modal-header"><div><p class="eyebrow mb-1">Nouveau fournisseur</p><h2 class="modal-title h5">Ajouter un fournisseur</h2></div><button class="btn-close" type="button" data-bs-dismiss="modal"></button></div>
+    <div class="modal-body"><div class="row g-3">
+      <div class="col-12"><label class="form-label">Nom</label><input class="form-control" name="supplier_name" maxlength="160" required></div>
+      <div class="col-md-6"><label class="form-label">Téléphone</label><input class="form-control" name="supplier_phone" maxlength="32"></div>
+      <div class="col-md-6"><label class="form-label">E-mail</label><input class="form-control" name="supplier_email" type="email" maxlength="254"></div>
+      <div class="col-12"><label class="form-label">Adresse</label><textarea class="form-control" name="supplier_address" rows="2" maxlength="500"></textarea></div>
+      <div class="col-12"><label class="form-label">Note</label><textarea class="form-control" name="supplier_note" rows="3" maxlength="500" placeholder="Conditions, contact commercial, jours de livraison..."></textarea></div>
+    </div></div>
+    <div class="modal-footer"><button class="btn btn-light border" type="button" data-bs-dismiss="modal">Annuler</button><button class="btn btn-primary" type="submit">Créer</button></div>
+  </form></div></div>
+</div>
+
+{% if selected_supplier %}
+<div class="modal fade" id="supplierEditModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered"><div class="modal-content purchase-modal"><form method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="supplier_update"><input type="hidden" name="supplier_id" value="{{ selected_supplier.id }}">
+    <div class="modal-header"><div><p class="eyebrow mb-1">Fournisseur</p><h2 class="modal-title h5">Modifier {{ selected_supplier.name }}</h2></div><button class="btn-close" type="button" data-bs-dismiss="modal"></button></div>
+    <div class="modal-body"><div class="row g-3">
+      <div class="col-12"><label class="form-label">Nom</label><input class="form-control" name="supplier_name" maxlength="160" value="{{ selected_supplier.name }}" required></div>
+      <div class="col-md-6"><label class="form-label">Téléphone</label><input class="form-control" name="supplier_phone" maxlength="32" value="{{ selected_supplier.phone or '' }}"></div>
+      <div class="col-md-6"><label class="form-label">E-mail</label><input class="form-control" name="supplier_email" type="email" maxlength="254" value="{{ selected_supplier.email or '' }}"></div>
+      <div class="col-12"><label class="form-label">Adresse</label><textarea class="form-control" name="supplier_address" rows="2" maxlength="500">{{ selected_supplier.address or '' }}</textarea></div>
+      <div class="col-12"><label class="form-label">Note</label><textarea class="form-control" name="supplier_note" rows="3" maxlength="500">{{ selected_supplier.note or '' }}</textarea></div>
+    </div></div>
+    <div class="modal-footer"><button class="btn btn-light border" type="button" data-bs-dismiss="modal">Fermer</button><button class="btn btn-primary" type="submit">Enregistrer</button></div>
+  </form></div></div>
+</div>
+{% endif %}
+{% endif %}
+{% endblock %}
