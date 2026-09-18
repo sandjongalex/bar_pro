@@ -6,7 +6,7 @@ from decimal import Decimal
 import secrets
 from types import SimpleNamespace
 
-from flask import Blueprint, flash, redirect, render_template, request, url_for
+from flask import Blueprint, flash, jsonify, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
@@ -64,6 +64,46 @@ def _lines_from_form():
             }
         )
     return lines
+
+
+@bp.get("/product-meta")
+@login_required
+def product_meta(bar_id):
+    """Small read-only payload used by the purchase calculator in the modal."""
+    permissions.require(current_user, "purchases.read", bar_id)
+    bar = db.session.get(Bar, bar_id)
+    if not bar:
+        raise LookupError("NOT_FOUND")
+
+    products = list(
+        db.session.scalars(
+            select(Product)
+            .where(Product.bar_id == bar_id, Product.is_active.is_(True))
+            .order_by(Product.name, Product.id)
+        )
+    )
+    return jsonify(
+        {
+            "currency": bar.currency,
+            "products": [
+                {
+                    "id": product.id,
+                    "name": product.name,
+                    "sale_price": str(product.sale_price),
+                    "units_per_case": product.units_per_case,
+                    "base_unit": product.base_unit,
+                    "default_purchase_price": str(
+                        default_purchase_price(
+                            product.name,
+                            bar.currency,
+                            product.valuation_unit_cost,
+                        )
+                    ),
+                }
+                for product in products
+            ],
+        }
+    )
 
 
 @bp.route("", methods=["GET", "POST"])
