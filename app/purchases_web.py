@@ -169,6 +169,26 @@ def manage(bar_id):
                     "success",
                 )
 
+            elif action == "purchase_update":
+                if not can_manage:
+                    raise PermissionError("FORBIDDEN")
+                purchase_id = int(request.form.get("purchase_id", "0"))
+                purchase = purchase_service.get(current_user, bar_id, purchase_id)
+                requested_supplier_id = int(request.form.get("supplier_id", "0"))
+                data = {
+                    "reference": request.form.get("reference", "").strip() or purchase.reference,
+                    "supplier_invoice_reference": request.form.get("supplier_invoice_reference", "").strip() or None,
+                    "lines": _lines_from_form(),
+                }
+                if requested_supplier_id != purchase.supplier_id:
+                    data["supplier_id"] = requested_supplier_id
+                purchase = purchase_service.update(current_user, bar_id, purchase_id, data)
+                db.session.commit()
+                flash(
+                    f"Brouillon {purchase.reference} mis à jour. Les nouvelles quantités et les nouveaux prix ont été enregistrés.",
+                    "success",
+                )
+
             elif action == "purchase_receive":
                 if not can_manage:
                     raise PermissionError("FORBIDDEN")
@@ -250,6 +270,7 @@ def manage(bar_id):
 
     purchase_ids = [purchase.id for purchase in purchases]
     lines_by_purchase = {purchase_id: [] for purchase_id in purchase_ids}
+    line_lookup = {purchase_id: {} for purchase_id in purchase_ids}
     if purchase_ids:
         for line in db.session.scalars(
             select(PurchaseLine)
@@ -257,6 +278,7 @@ def manage(bar_id):
             .order_by(PurchaseLine.purchase_id, PurchaseLine.line_no)
         ):
             lines_by_purchase.setdefault(line.purchase_id, []).append(line)
+            line_lookup.setdefault(line.purchase_id, {})[line.product_id] = line
 
     due_by_purchase = {
         purchase.id: purchase_service.due(bar_id, purchase.id)
@@ -297,6 +319,7 @@ def manage(bar_id):
         products=products,
         purchases=purchases,
         lines_by_purchase=lines_by_purchase,
+        line_lookup=line_lookup,
         due_by_purchase=due_by_purchase,
         stats=stats,
         status_labels=STATUS_LABELS,
