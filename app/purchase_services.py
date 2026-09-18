@@ -225,8 +225,6 @@ class PurchaseService:
             units_per_case = None
             if purchase_unit == "CASE":
                 units_per_case = _case_size(line.get("units_per_case") or product.units_per_case)
-                # Remember a package size entered during purchasing so the next
-                # delivery and margin preview do not require the same setup again.
                 if product.units_per_case != units_per_case:
                     product.units_per_case = units_per_case
                 stock_quantity = number(entry_quantity * Decimal(units_per_case), 6, positive=True)
@@ -284,24 +282,66 @@ class PurchaseService:
         return purchase
 
     def reopen(self, actor, bar_id, purchase_id, reason):
-        """Reverse a received purchase and put it back in draft for correction."""
+        """Reverse a received purchase and create a fresh correction draft.
+
+        Purchase lines referenced by stock movements are immutable audit evidence.
+        Reusing those rows as an editable draft would either break their foreign
+        keys or rewrite history.  The posted purchase is therefore cancelled after
+        an auditable stock reversal and a new draft is copied from it for editing.
+        """
         permissions.require(actor, "purchases.manage", bar_id)
         purchase = self._posted(bar_id, purchase_id)
         if self.net_paid(bar_id, purchase.id) != 0:
             raise ValueError("PURCHASE_HAS_PAYMENTS")
         reason = required_text(reason)
-        for line in self._lines(bar_id, purchase.id):
+        source_lines = self._lines(bar_id, purchase.id)
+        if not source_lines:
+            raise ValueError("PURCHASE_EMPTY")
+
+        for line in source_lines:
             stock_service.reverse_purchase_receipt(
                 actor,
                 bar_id,
                 line.id,
                 f"Correction achat {purchase.reference}: {reason}",
             )
-        purchase.status = "DRAFT"
-        purchase.posted_at = None
-        purchase.cancelled_at = None
-        record(actor, bar_id, "purchases.reopen", "purchases", purchase.id, reason)
-        return purchase
+
+        purchase.status = "CANCELLED"
+        purchase.cancelled_at = utcnow()
+
+        correction_lines = [
+            {
+                "product_id": line.product_id,
+                "purchase_unit": line.purchase_unit,
+                "purchase_quantity": line.purchase_quantity,
+                "purchase_unit_price": line.purchase_unit_price_snapshot,
+                "units_per_case": line.units_per_case_snapshot,
+            }
+            for line in source_lines
+        ]
+        correction_reference = f"{purchase.reference[:45]}-CORR-{purchase.id}"
+        correction_note = f"Correction de {purchase.reference}: {reason}"
+        if purchase.notes:
+            correction_note = f"{correction_note} | {purchase.notes}"
+        correction = self.create(
+            actor,
+            bar_id,
+            purchase.supplier_id,
+            correction_reference,
+            correction_lines,
+            purchase.supplier_invoice_reference,
+            purchase.purchase_date,
+            correction_note[:500],
+        )
+        record(
+            actor,
+            bar_id,
+            "purchases.reopen",
+            "purchases",
+            purchase.id,
+            f"{reason} -> brouillon {correction.reference}",
+        )
+        return correction
 
     def cancel_received(self, actor, bar_id, purchase_id, reason):
         """Cancel a received purchase while preserving an auditable stock reversal."""
