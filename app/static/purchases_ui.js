@@ -9,8 +9,10 @@
   if (!match) return;
 
   const barId = match[1];
-  let currency = 'XAF';
+  let currency = form.dataset.currency || 'XAF';
   const productMeta = new Map();
+  const searchInput = document.getElementById('purchaseProductSearch');
+  const selectedCount = document.getElementById('purchaseSelectedCount');
 
   const money = new Intl.NumberFormat('fr-FR', {
     minimumFractionDigits: 0,
@@ -37,7 +39,7 @@
       <div class="purchase-summary-card">
         <span>Chiffre d'affaires potentiel</span>
         <strong data-purchase-revenue>—</strong>
-        <small>Prix de vente × unités/casier × quantité</small>
+        <small>Selon le prix de vente et les unités par casier/carton</small>
       </div>
       <div class="purchase-summary-card purchase-summary-profit">
         <span>Bénéfice brut estimé</span>
@@ -49,29 +51,26 @@
     return summary;
   }
 
-  function ensureMetrics(row) {
-    let metrics = row.querySelector('.purchase-line-metrics');
-    if (metrics) return metrics;
+  function ensureAnalysis(row) {
+    let analysis = row.querySelector('.purchase-line-analysis');
+    if (analysis) return analysis;
 
-    metrics = document.createElement('div');
-    metrics.className = 'purchase-line-metrics';
-    metrics.innerHTML = `
+    analysis = document.createElement('div');
+    analysis.className = 'purchase-line-analysis';
+    analysis.innerHTML = `
       <label class="purchase-pack-size">
         <span>Unités / casier-carton</span>
         <input class="form-control form-control-sm pack-size-input" type="number" min="1" step="1" placeholder="Ex. 12">
       </label>
-      <span>Total ligne <strong data-line-total>0 ${currency}</strong></span>
       <span>CA potentiel <strong data-line-revenue>—</strong></span>
       <span>Bénéfice brut <strong data-line-profit>—</strong></span>
     `;
-    row.appendChild(metrics);
-    return metrics;
+    row.appendChild(analysis);
+    return analysis;
   }
 
   function selectedMeta(row) {
-    const select = row.querySelector('.product-select');
-    if (!select || !select.value) return null;
-    return productMeta.get(String(select.value)) || null;
+    return productMeta.get(String(row.dataset.productId || '')) || null;
   }
 
   function packStorageKey(productId) {
@@ -88,15 +87,12 @@
   }
 
   function hydratePackSize(row) {
-    const select = row.querySelector('.product-select');
     const input = row.querySelector('.pack-size-input');
-    if (!select || !input || !select.value) {
-      if (input) input.value = '';
-      return;
-    }
+    const productId = String(row.dataset.productId || '');
+    if (!input || !productId) return;
 
     const meta = selectedMeta(row);
-    const stored = window.localStorage.getItem(packStorageKey(select.value));
+    const stored = window.localStorage.getItem(packStorageKey(productId));
     const candidate = Number(meta && meta.units_per_case ? meta.units_per_case : stored || 0);
     input.value = Number.isInteger(candidate) && candidate > 0 ? String(candidate) : '';
   }
@@ -104,29 +100,32 @@
   function calculateRow(row) {
     const quantityInput = row.querySelector('input[name="quantity"]');
     const costInput = row.querySelector('.unit-cost');
-    const metrics = ensureMetrics(row);
+    const lineTotal = row.querySelector('[data-line-total]');
+    const analysis = ensureAnalysis(row);
     const meta = selectedMeta(row);
 
     const quantity = Number(quantityInput && quantityInput.value ? quantityInput.value : 0);
     const cost = Number(costInput && costInput.value ? costInput.value : 0);
-    const total = quantity > 0 && cost >= 0 ? quantity * cost : 0;
+    const selected = quantity > 0;
+    const total = selected && cost >= 0 ? quantity * cost : 0;
 
-    metrics.querySelector('[data-line-total]').textContent = formatMoney(total);
+    row.classList.toggle('is-selected', selected);
+    if (lineTotal) lineTotal.textContent = formatMoney(total);
 
     let revenue = null;
     let profit = null;
     const packSize = selectedPackSize(row);
-    if (meta && packSize > 0 && quantity > 0) {
+    if (selected && meta && packSize > 0) {
       revenue = quantity * packSize * Number(meta.sale_price || 0);
       profit = revenue - total;
-      metrics.querySelector('[data-line-revenue]').textContent = formatMoney(revenue);
-      metrics.querySelector('[data-line-profit]').textContent = formatMoney(profit);
-    } else if (meta && quantity > 0) {
-      metrics.querySelector('[data-line-revenue]').textContent = 'Renseigner unités/casier';
-      metrics.querySelector('[data-line-profit]').textContent = 'Renseigner unités/casier';
+      analysis.querySelector('[data-line-revenue]').textContent = formatMoney(revenue);
+      analysis.querySelector('[data-line-profit]').textContent = formatMoney(profit);
+    } else if (selected && meta) {
+      analysis.querySelector('[data-line-revenue]').textContent = 'Renseigner unités/casier';
+      analysis.querySelector('[data-line-profit]').textContent = 'Renseigner unités/casier';
     } else {
-      metrics.querySelector('[data-line-revenue]').textContent = '—';
-      metrics.querySelector('[data-line-profit]').textContent = '—';
+      analysis.querySelector('[data-line-revenue]').textContent = '—';
+      analysis.querySelector('[data-line-profit]').textContent = '—';
     }
 
     row.dataset.purchaseTotal = String(total);
@@ -139,16 +138,15 @@
     let total = 0;
     let revenue = 0;
     let profit = 0;
-    let selectedRows = 0;
+    let activeRows = 0;
     let missingProfitData = false;
 
     rows.forEach((row) => {
       calculateRow(row);
-      const select = row.querySelector('.product-select');
       const quantity = Number(row.querySelector('input[name="quantity"]')?.value || 0);
-      if (!select || !select.value || quantity <= 0) return;
+      if (quantity <= 0) return;
 
-      selectedRows += 1;
+      activeRows += 1;
       total += Number(row.dataset.purchaseTotal || 0);
       if (row.dataset.purchaseRevenue === '' || row.dataset.purchaseProfit === '') {
         missingProfitData = true;
@@ -158,13 +156,18 @@
       }
     });
 
+    if (selectedCount) {
+      selectedCount.textContent = `${activeRows} produit${activeRows > 1 ? 's' : ''} sélectionné${activeRows > 1 ? 's' : ''}`;
+      selectedCount.classList.toggle('has-selection', activeRows > 0);
+    }
+
     const summary = ensureSummary();
     summary.querySelector('[data-purchase-total]').textContent = formatMoney(total);
 
-    if (selectedRows > 0 && !missingProfitData) {
+    if (activeRows > 0 && !missingProfitData) {
       summary.querySelector('[data-purchase-revenue]').textContent = formatMoney(revenue);
       summary.querySelector('[data-purchase-profit]').textContent = formatMoney(profit);
-    } else if (selectedRows > 0) {
+    } else if (activeRows > 0) {
       summary.querySelector('[data-purchase-revenue]').textContent = 'À compléter';
       summary.querySelector('[data-purchase-profit]').textContent = 'À compléter';
     } else {
@@ -173,18 +176,24 @@
     }
   }
 
+  function filterRows() {
+    const query = (searchInput?.value || '').trim().toLocaleLowerCase('fr');
+    container.querySelectorAll('.purchase-entry-line').forEach((row) => {
+      const haystack = (row.dataset.search || '').toLocaleLowerCase('fr');
+      row.hidden = Boolean(query && !haystack.includes(query));
+    });
+  }
+
   function bindRow(row) {
-    if (row._purchaseCalculatorBound) return;
-    row._purchaseCalculatorBound = true;
+    if (row.dataset.purchaseCalculatorBound === '1') return;
+    row.dataset.purchaseCalculatorBound = '1';
 
     const quantity = row.querySelector('input[name="quantity"]');
     const cost = row.querySelector('.unit-cost');
-    const select = row.querySelector('.product-select');
-    const metrics = ensureMetrics(row);
-    const packInput = metrics.querySelector('.pack-size-input');
+    const analysis = ensureAnalysis(row);
+    const packInput = analysis.querySelector('.pack-size-input');
 
     if (quantity) {
-      // min=0.000001 + step=0.001 made integer values such as 2 invalid.
       quantity.min = '0.001';
       quantity.step = '0.001';
       quantity.addEventListener('input', calculateAll);
@@ -198,20 +207,10 @@
 
     if (packInput) {
       packInput.addEventListener('input', function () {
-        if (select && select.value && Number(packInput.value) > 0) {
-          window.localStorage.setItem(packStorageKey(select.value), packInput.value);
+        const productId = String(row.dataset.productId || '');
+        if (productId && Number(packInput.value) > 0) {
+          window.localStorage.setItem(packStorageKey(productId), packInput.value);
         }
-        calculateAll();
-      });
-    }
-
-    if (select) {
-      select.addEventListener('change', function () {
-        const meta = selectedMeta(row);
-        if (meta && cost && (!cost.value || Number(cost.value) === 0)) {
-          cost.value = meta.default_purchase_price;
-        }
-        hydratePackSize(row);
         calculateAll();
       });
     }
@@ -219,23 +218,24 @@
     hydratePackSize(row);
   }
 
-  function bindAllRows() {
-    container.querySelectorAll('.purchase-entry-line').forEach(bindRow);
-    calculateAll();
+  container.querySelectorAll('.purchase-entry-line').forEach(bindRow);
+  ensureSummary();
+  calculateAll();
+
+  if (searchInput) {
+    searchInput.addEventListener('input', filterRows);
   }
 
-  ensureSummary();
-  bindAllRows();
-
-  const observer = new MutationObserver(function () {
-    bindAllRows();
-  });
-  observer.observe(container, { childList: true });
-
-  container.addEventListener('click', function (event) {
-    if (event.target.closest('.remove-purchase-line')) {
-      window.setTimeout(calculateAll, 0);
-    }
+  form.addEventListener('submit', function () {
+    // Keep every product visible while editing, but submit only products that
+    // actually have a purchased quantity.
+    container.querySelectorAll('.purchase-entry-line').forEach((row) => {
+      const quantity = Number(row.querySelector('input[name="quantity"]')?.value || 0);
+      const disabled = quantity <= 0;
+      row.querySelectorAll('input[name="product_id"], input[name="quantity"], input[name="unit_cost"]').forEach((input) => {
+        input.disabled = disabled;
+      });
+    });
   });
 
   fetch(`/bars/${barId}/purchases/product-meta`, {
