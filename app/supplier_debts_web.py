@@ -7,7 +7,7 @@ import secrets
 
 from flask import Blueprint, flash, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
-from sqlalchemy import select
+from sqlalchemy import case, func, select
 from sqlalchemy.exc import IntegrityError
 
 from app.cash_services import cash_service
@@ -135,7 +135,22 @@ def manage(bar_id):
             .order_by(Purchase.id.desc())
         )
     )
-    due_by_purchase = {purchase.id: purchase_service.due(bar_id, purchase.id) for purchase in posted_purchases}
+
+    signed_amount = case(
+        (SupplierPayment.entry_kind == "PAYMENT", SupplierPayment.amount),
+        else_=-SupplierPayment.amount,
+    )
+    net_by_purchase = dict(
+        db.session.execute(
+            select(SupplierPayment.purchase_id, func.coalesce(func.sum(signed_amount), 0))
+            .where(SupplierPayment.bar_id == bar_id)
+            .group_by(SupplierPayment.purchase_id)
+        ).all()
+    )
+    due_by_purchase = {
+        purchase.id: max(Decimal("0"), purchase.total_amount - Decimal(net_by_purchase.get(purchase.id, 0)))
+        for purchase in posted_purchases
+    }
 
     outstanding = [purchase for purchase in posted_purchases if due_by_purchase[purchase.id] > 0]
     paid_purchases = [purchase for purchase in posted_purchases if due_by_purchase[purchase.id] == 0]
@@ -159,15 +174,13 @@ def manage(bar_id):
     purchase_by_id = {purchase.id: purchase for purchase in posted_purchases}
     reversed_ids = {payment.reversal_of_id for payment in payments if payment.reversal_of_id is not None}
 
-    total_payments = sum(
-        (payment.amount for payment in payments if payment.entry_kind == "PAYMENT"),
-        Decimal("0"),
-    )
-    total_reversals = sum(
-        (payment.amount for payment in payments if payment.entry_kind == "REVERSAL"),
-        Decimal("0"),
-    )
     total_due = sum((due_by_purchase[purchase.id] for purchase in outstanding), Decimal("0"))
+    total_net_paid = Decimal(
+        db.session.scalar(
+            select(func.coalesce(func.sum(signed_amount), 0)).where(SupplierPayment.bar_id == bar_id)
+        )
+        or 0
+    )
 
     open_cash_sessions = list(
         db.session.scalars(
@@ -182,7 +195,7 @@ def manage(bar_id):
         "due": total_due,
         "suppliers": len(supplier_debts),
         "unpaid_purchases": len(outstanding),
-        "net_paid": total_payments - total_reversals,
+        "net_paid": total_net_paid,
         "paid_purchases": len(paid_purchases),
     }
 
