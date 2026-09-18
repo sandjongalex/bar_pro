@@ -11,9 +11,10 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
 from app.cash_services import cash_service
+from app.customer_services import customer_service
 from app.extensions import db
 from app.finance_totals import order_balance
-from app.models import Bar, CashSession, Order, OrderLine, Payment, StaffAssignment, User
+from app.models import Bar, CashSession, Customer, Order, OrderLine, Payment, StaffAssignment, User
 from app.order_services import order_service
 from app.payment_services import payment_service
 from app.permissions import permissions
@@ -24,14 +25,15 @@ PAYMENT_LABELS = {
     "CASH": "Espèces",
     "MOBILE_MONEY": "Mobile Money",
     "MIXED": "Paiement mixte",
+    "CREDIT": "Crédit client",
     "CARD": "Carte",
     "BANK_TRANSFER": "Virement",
 }
 
 
-def _reference() -> str:
+def _reference(prefix="PAY") -> str:
     stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
-    return f"PAY-{stamp}-{secrets.token_hex(2).upper()}"
+    return f"{prefix}-{stamp}-{secrets.token_hex(2).upper()}"
 
 
 def _decimal(value, code="INVALID_PAYMENT_AMOUNTS", allow_zero=False) -> Decimal:
@@ -78,6 +80,7 @@ def _message(code) -> str:
         "BAR_SUSPENDED": "Le bar est suspendu : les encaissements sont bloqués.",
         "ORDER_NOT_DRAFT": "Cette commande a déjà été livrée ou annulée.",
         "ORDER_NOT_PAYABLE": "La commande doit d'abord être marquée Livrée.",
+        "ORDER_ALREADY_CREDITED": "Cette commande a déjà été portée au compte d'un client.",
         "PAYMENT_LIMIT_EXCEEDED": "Le montant dépasse le reste à payer.",
         "INVALID_PAYMENT_AMOUNTS": "Vérifiez le montant encaissé et le montant reçu.",
         "INVALID_MIXED_PAYMENT": "Le paiement mixte doit répartir exactement le reste entre espèces et Mobile Money.",
@@ -89,6 +92,9 @@ def _message(code) -> str:
         "PROVIDER_REFERENCE_REQUIRED": "Pour Mobile Money, renseignez le prestataire et la référence de transaction.",
         "INVALID_NONCASH_PAYMENT": "Les informations du paiement non espèces sont invalides.",
         "INSUFFICIENT_STOCK": "Stock insuffisant : la livraison ne peut pas être confirmée.",
+        "CREDIT_DISABLED": "Les ventes à crédit sont désactivées pour cet établissement.",
+        "CUSTOMER_REQUIRED": "Sélectionnez obligatoirement un client pour une vente à crédit.",
+        "CUSTOMER_MISMATCH": "La commande est déjà rattachée à un autre client.",
     }
     return messages.get(str(code), "Opération refusée. Vérifiez les informations saisies.")
 
@@ -105,6 +111,7 @@ def checkout(bar_id):
     is_cashier = bool(assignment and assignment.role == "CASHIER")
     can_record = permissions.evaluate(current_user, "payments.record", bar_id).allowed
     can_deliver = permissions.evaluate(current_user, "orders.deliver", bar_id).allowed
+    can_credit = permissions.evaluate(current_user, "customer_credit.manage", bar_id).allowed
 
     if request.method == "POST":
         action = request.form.get("action", "payment")
@@ -127,6 +134,8 @@ def checkout(bar_id):
                 raise ValueError("INVALID_ACTION")
             if not can_record:
                 raise PermissionError("FORBIDDEN")
+            if is_cashier and not _cash_session_open(bar_id):
+                raise ValueError("CASH_SESSION_REQUIRED")
 
             order = db.session.scalar(
                 select(Order).where(Order.id == order_id, Order.bar_id == bar_id).with_for_update()
@@ -140,6 +149,26 @@ def checkout(bar_id):
             base_reference = request.form.get("reference", "").strip() or _reference()
             provider_code = request.form.get("provider_code", "").strip() or None
             provider_transaction_id = request.form.get("provider_transaction_id", "").strip() or None
+
+            if method == "CREDIT":
+                if not can_credit:
+                    raise PermissionError("FORBIDDEN")
+                customer_raw = request.form.get("customer_id", "").strip()
+                if not customer_raw:
+                    raise LookupError("CUSTOMER_REQUIRED")
+                entry = customer_service.credit_order(
+                    current_user,
+                    bar_id,
+                    order_id,
+                    int(customer_raw),
+                    request.form.get("reference", "").strip() or _reference("CRD"),
+                )
+                db.session.commit()
+                flash(
+                    f"Commande {order.reference} portée au compte client pour {entry.amount_delta:,.0f} {entry.currency}.",
+                    "success",
+                )
+                return redirect(url_for("checkout_web.checkout", bar_id=bar_id))
 
             if method == "MIXED":
                 cash_part = _decimal(request.form.get("mixed_cash"), allow_zero=True)
@@ -296,6 +325,14 @@ def checkout(bar_id):
     )
     cash_expected = {session.id: cash_service.expected(session) for session in open_sessions}
 
+    customers = list(
+        db.session.scalars(
+            select(Customer)
+            .where(Customer.bar_id == bar_id, Customer.is_active.is_(True))
+            .order_by(Customer.display_name, Customer.id)
+        )
+    ) if can_credit else []
+
     recent_payments = list(
         db.session.scalars(
             select(Payment)
@@ -334,11 +371,13 @@ def checkout(bar_id):
         server_name_by_order=server_name_by_order,
         open_sessions=open_sessions,
         cash_expected=cash_expected,
+        customers=customers,
         recent_payments=recent_payments,
         order_by_id=order_by_id,
         payment_labels=PAYMENT_LABELS,
         can_record=can_record,
         can_deliver=can_deliver,
+        can_credit=can_credit,
         is_cashier=is_cashier,
         stats=stats,
     )
