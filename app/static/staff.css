@@ -1,0 +1,96 @@
+/* Staff management */
+.staff-hero { align-items: flex-end; }
+.staff-stats { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.staff-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 360px;
+  gap: 22px;
+  align-items: start;
+}
+.staff-main-column { min-width: 0; }
+.staff-side-column { position: sticky; top: 98px; }
+.staff-side-column .panel-card + .panel-card { margin-top: 22px; }
+
+.staff-table td { vertical-align: middle; }
+.staff-person { display: flex; align-items: center; gap: .8rem; min-width: 220px; }
+.staff-avatar {
+  width: 42px;
+  height: 42px;
+  border-radius: 13px;
+  flex: 0 0 42px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(145deg, #e9f4f1, #dcece7);
+  color: var(--brand);
+  font-weight: 900;
+}
+.staff-person strong,
+.staff-person small { display: block; }
+.staff-person small { color: var(--muted); font-size: .76rem; margin-top: .12rem; }
+.staff-date { white-space: nowrap; color: #66736f; font-size: .86rem; }
+.staff-actions { display: flex; gap: .45rem; justify-content: flex-end; flex-wrap: wrap; }
+.role-form { min-width: 190px; }
+.role-form .form-select { border-radius: 10px; border-color: #dce5e1; }
+
+.role-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: .36rem .62rem;
+  border-radius: 999px;
+  font-size: .75rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+.role-bar_admin { background: #eaf4f1; color: #0f5c4d; }
+.role-cashier { background: #fff3d8; color: #8f6419; }
+.role-server { background: #eef2ff; color: #5260a8; }
+
+.staff-create-card .form-label,
+.staff-side-column .form-label { font-weight: 750; font-size: .88rem; color: #263832; }
+.staff-create-card .form-control,
+.staff-create-card .form-select,
+.staff-side-column .form-control,
+.staff-side-column .form-select {
+  min-height: 46px;
+  border-radius: 11px;
+  border-color: #dce5e1;
+}
+.staff-create-form .btn { min-height: 48px; font-weight: 750; }
+.staff-empty { padding-top: 42px; padding-bottom: 46px; }
+
+.inactive-list { padding: 8px 18px 14px; }
+.inactive-person {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  padding: 13px 0;
+  border-bottom: 1px solid #eef2f0;
+}
+.inactive-person:last-child { border-bottom: 0; }
+.inactive-person strong,
+.inactive-person small { display: block; }
+.inactive-person strong { font-size: .88rem; }
+.inactive-person small { color: var(--muted); font-size: .74rem; margin-top: .1rem; }
+.staff-flashes .alert { box-shadow: 0 8px 20px rgba(25,46,39,.04); }
+
+@media (max-width: 1180px) {
+  .staff-layout { grid-template-columns: 1fr; }
+  .staff-side-column { position: static; display: grid; grid-template-columns: 1fr 1fr; gap: 22px; }
+  .staff-side-column .panel-card + .panel-card { margin-top: 0; }
+  .staff-create-card { grid-row: span 2; }
+}
+
+@media (max-width: 900px) {
+  .staff-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .staff-side-column { grid-template-columns: 1fr; }
+  .staff-create-card { grid-row: auto; }
+}
+
+@media (max-width: 640px) {
+  .staff-stats { grid-template-columns: 1fr; }
+  .staff-actions { justify-content: flex-start; }
+  .role-form { min-width: 160px; }
+  .staff-hero h1 { font-size: 2rem; }
+}
