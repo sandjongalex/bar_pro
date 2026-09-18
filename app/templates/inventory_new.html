@@ -1,10 +1,65 @@
-{% extends 'layout.html' %}{% block content %}
-<h1 class="h3">Nouvel inventaire</h1>
-<form method="post">
-<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-<label for="reference">Référence unique</label><input class="form-control mb-3" id="reference" name="reference" maxlength="64" required>
-<label for="reason">Motif</label><textarea class="form-control mb-3" id="reason" name="reason" maxlength="500" required>Inventaire physique</textarea>
-<fieldset><legend class="h5">Produits à compter</legend>
-{% for product in products %}<div class="form-check"><input class="form-check-input" type="checkbox" id="product_{{ product.id }}" name="product_ids" value="{{ product.id }}"><label class="form-check-label" for="product_{{ product.id }}">{{ product.name }} ({{ product.base_unit }})</label></div>{% else %}<p>Aucun produit disponible.</p>{% endfor %}
-</fieldset>{% if products %}<button class="btn btn-primary mt-3">Créer le brouillon</button>{% endif %}
-</form>{% endblock %}
+{% extends 'layout.html' %}
+{% block title %}Nouvel inventaire · {{ bar.name }} · Bar Manager Pro{% endblock %}
+{% block header %}Nouvel inventaire · {{ bar.name }}{% endblock %}
+{% block content %}
+<section class="inventory-hero">
+  <div>
+    <a class="bar-back" href="{{ url_for('inventories.listing', bar_id=bar.id) }}">← Tous les inventaires</a>
+    <p class="eyebrow mt-3 mb-2">Clôture physique</p>
+    <h1>Démarrer un inventaire</h1>
+    <p>Choisissez la date de fin. Le système prépare automatiquement le stock du dernier inventaire, les achats, le stock théorique et le stock machine pour chaque produit actif.</p>
+  </div>
+  <span class="inventory-product-count">{{ product_count }} produit{{ 's' if product_count != 1 else '' }}</span>
+</section>
+
+{% for category, message in get_flashed_messages(with_categories=true) %}<div class="alert alert-{{ category }} mt-3">{{ message }}</div>{% endfor %}
+
+<div class="inventory-warning mt-4">
+  <div class="inventory-warning-icon">!</div>
+  <div><strong>Le comptage se fait en bouteilles réellement présentes.</strong><p class="mb-0">Un casier de 12 contenant seulement 8 bouteilles doit être saisi comme <strong>8 bouteilles</strong>, jamais comme 1 casier.</p></div>
+</div>
+
+<div class="row g-4 mt-1">
+  <div class="col-xl-8">
+    <section class="panel-card inventory-start-card">
+      <div class="panel-header"><div><p class="eyebrow mb-1">Période</p><h2>Paramètres de l'inventaire</h2></div></div>
+      <form method="post" class="p-4">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="row g-3">
+          <div class="col-md-6">
+            <label class="form-label" for="period_end">Date de fin de l'inventaire</label>
+            <input class="form-control form-control-lg" id="period_end" name="period_end" type="date" value="{{ defaults.period_end }}" required>
+            <div class="form-text">Pour aujourd'hui, l'heure de création du brouillon sert de limite.</div>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label" for="reference">Référence</label>
+            <input class="form-control form-control-lg" id="reference" name="reference" maxlength="64" value="{{ defaults.reference }}" required>
+          </div>
+          <div class="col-12">
+            <label class="form-label" for="reason">Note générale</label>
+            <textarea class="form-control" id="reason" name="reason" maxlength="500" rows="3" required>{{ defaults.reason }}</textarea>
+            <div class="form-text">Vous pourrez aussi ajouter une note spécifique par produit : casse, perte, produit offert, erreur, etc.</div>
+          </div>
+        </div>
+        <div class="inventory-start-summary mt-4">
+          <div><span>Produits à compter</span><strong>{{ product_count }}</strong></div>
+          <div><span>Dernier inventaire</span><strong>{{ previous.reference if previous else 'Premier inventaire' }}</strong></div>
+          <div><span>Devise</span><strong>{{ bar.currency }}</strong></div>
+        </div>
+        <button class="btn btn-primary btn-lg mt-4" type="submit" {% if not product_count %}disabled{% endif %}>Démarrer l'inventaire →</button>
+      </form>
+    </section>
+  </div>
+  <div class="col-xl-4">
+    <section class="panel-card inventory-method-card h-100">
+      <div class="panel-header"><div><p class="eyebrow mb-1">Méthode</p><h2>Calcul automatique</h2></div></div>
+      <div class="p-4 inventory-formulas">
+        <div><span>1</span><p><strong>Stock théorique</strong><br>Stock dernier inventaire + achats</p></div>
+        <div><span>2</span><p><strong>Quantité vendue</strong><br>Stock théorique − stock physique</p></div>
+        <div><span>3</span><p><strong>Ventes théoriques</strong><br>Quantité vendue × prix de vente</p></div>
+        <div><span>4</span><p><strong>Écart machine</strong><br>Stock physique − stock machine</p></div>
+      </div>
+    </section>
+  </div>
+</div>
+{% endblock %}
