@@ -14,6 +14,7 @@
   <link href="{{ url_for('static', filename='supplier_debts.css') }}" rel="stylesheet">
   <link href="{{ url_for('static', filename='pos.css') }}" rel="stylesheet">
   <link href="{{ url_for('static', filename='checkout.css') }}" rel="stylesheet">
+  <link href="{{ url_for('static', filename='customers.css') }}" rel="stylesheet">
 </head>
 <body class="app-body">
 <a class="skip-link" href="#main">Aller au contenu</a>
@@ -28,7 +29,7 @@
         <a class="nav-link {% if request.endpoint == 'web.dashboard' %}active{% endif %}" href="{{ url_for('web.dashboard') }}">
           <span class="nav-icon">⌂</span><span>Tableau de bord</span>
         </a>
-        <a class="nav-link {% if request.endpoint and request.endpoint.startswith('bars.') %}active{% endif %}" href="{{ url_for('bars.web_list') }}">
+        <a class="nav-link {% if request.endpoint and (request.endpoint.startswith('bars.') or request.endpoint.startswith('staff_web.') or request.endpoint.startswith('catalog.') or request.endpoint.startswith('stock.') or request.endpoint.startswith('purchases_web.') or request.endpoint.startswith('supplier_debts_web.') or request.endpoint.startswith('orders_web.') or request.endpoint.startswith('checkout_web.') or request.endpoint.startswith('customers_web.')) %}active{% endif %}" href="{{ url_for('bars.web_list') }}">
           <span class="nav-icon">▦</span><span>Établissements</span>
         </a>
       </nav>
@@ -58,7 +59,7 @@
 
     <nav class="mobile-nav d-lg-none" aria-label="Navigation mobile">
       <a class="{% if request.endpoint == 'web.dashboard' %}active{% endif %}" href="{{ url_for('web.dashboard') }}">Accueil</a>
-      <a class="{% if request.endpoint and request.endpoint.startswith('bars.') %}active{% endif %}" href="{{ url_for('bars.web_list') }}">Établissements</a>
+      <a class="{% if request.endpoint and (request.endpoint.startswith('bars.') or request.endpoint.startswith('staff_web.') or request.endpoint.startswith('catalog.') or request.endpoint.startswith('stock.') or request.endpoint.startswith('purchases_web.') or request.endpoint.startswith('supplier_debts_web.') or request.endpoint.startswith('orders_web.') or request.endpoint.startswith('checkout_web.') or request.endpoint.startswith('customers_web.')) %}active{% endif %}" href="{{ url_for('bars.web_list') }}">Établissements</a>
     </nav>
 
     <main id="main" class="content-area">{% block content %}{% endblock %}</main>
