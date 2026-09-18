@@ -5,7 +5,7 @@ from flask_migrate import upgrade
 from sqlalchemy import select
 
 from app.extensions import db
-from app.models import Bar, Product, ProductCategory, PurchaseLine, StockBalance, Supplier, User
+from app.models import Bar, Product, ProductCategory, Purchase, PurchaseLine, StockBalance, Supplier, User
 from app.purchase_services import purchase_service, supplier_service
 
 
@@ -90,7 +90,7 @@ def test_case_purchase_converts_to_bottles_and_keeps_invoice_price(purchase_env)
     assert balance == Decimal("36")
 
 
-def test_received_purchase_can_be_reopened_corrected_and_received_again(purchase_env):
+def test_received_purchase_correction_preserves_history_and_creates_new_draft(purchase_env):
     owner, bar, product, supplier = purchase_env
     purchase = purchase_service.create(
         owner,
@@ -101,19 +101,25 @@ def test_received_purchase_can_be_reopened_corrected_and_received_again(purchase
     )
     purchase_service.receive(owner, bar.id, purchase.id)
     db.session.commit()
+    original_id = purchase.id
 
-    purchase_service.reopen(owner, bar.id, purchase.id, "Quantité incorrecte")
+    correction = purchase_service.reopen(owner, bar.id, purchase.id, "Quantité incorrecte")
     db.session.flush()
-    assert purchase.status == "DRAFT"
+    original = db.session.get(Purchase, original_id)
+    assert original.status == "CANCELLED"
+    assert correction.status == "DRAFT"
+    assert correction.id != original.id
+    assert correction.reference.startswith("ACH-CORRECT-CORR-")
     assert db.session.scalar(select(StockBalance.quantity).where(StockBalance.product_id == product.id)) == 0
+    assert db.session.scalar(select(PurchaseLine).where(PurchaseLine.purchase_id == original.id)) is not None
 
     purchase_service.update(
         owner,
         bar.id,
-        purchase.id,
+        correction.id,
         {"lines": [{"product_id": product.id, "purchase_unit": "CASE", "purchase_quantity": 2, "purchase_unit_price": 7800, "units_per_case": 12}]},
     )
-    purchase_service.receive(owner, bar.id, purchase.id)
+    purchase_service.receive(owner, bar.id, correction.id)
     db.session.commit()
     assert db.session.scalar(select(StockBalance.quantity).where(StockBalance.product_id == product.id)) == 24
 
