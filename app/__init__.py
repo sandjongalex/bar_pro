@@ -18,6 +18,7 @@ from app.purchases import bp as purchases_bp, suppliers_bp, supplier_payments_bp
 from app.purchases_web import bp as purchases_web_bp
 from app.supplier_debts_web import bp as supplier_debts_web_bp
 from app.checkout_web import bp as checkout_web_bp
+from app.customers_web import bp as customers_web_bp
 from app.inventories import api_inventories_bp, inventories_bp
 from app.orders import bp as orders_bp, web_bp as orders_web_bp
 from app.staff import bp as staff_web_bp
@@ -37,6 +38,7 @@ def create_app(config_name: str | None = None, test_config: dict[str, Any] | Non
     _configure_logging(app)
     _init_extensions(app)
     from app import models  # noqa: F401 - registers metadata for Flask-Migrate
+    from app import customer_models  # noqa: F401 - customer receivables/cases/notifications metadata
     _register_blueprints(app)
     _register_error_handlers(app)
     _register_cli(app)
@@ -89,6 +91,7 @@ def _register_blueprints(app: Flask) -> None:
     app.register_blueprint(purchases_web_bp)
     app.register_blueprint(supplier_debts_web_bp)
     app.register_blueprint(checkout_web_bp)
+    app.register_blueprint(customers_web_bp)
     app.register_blueprint(suppliers_bp)
     app.register_blueprint(purchases_bp)
     app.register_blueprint(supplier_payments_bp)
