@@ -1,1 +1,33 @@
-<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>{{ inventory.reference }}</title></head><body><h1>Inventaire {{ inventory.reference }}</h1><p>État : {{ inventory.status }} · {{ inventory.reason }}</p><p>Compté le : {{ inventory.counted_at }}</p><table border="1"><tr><th>Produit</th><th>Unité</th><th>Théorique</th><th>Compté</th><th>Écart</th></tr>{% for line in inventory.lines %}<tr><td>{{ line.product_name }}</td><td>{{ line.unit }}</td><td>{{ line.expected_quantity }}</td><td>{{ line.counted_quantity if line.counted_quantity is not none else '—' }}</td><td>{{ line.difference_quantity if line.difference_quantity is not none else '—' }}</td></tr>{% endfor %}</table></body></html>
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Inventaire {{ inventory.reference }}</title>
+<style>
+body{font-family:Arial,sans-serif;color:#111;margin:28px;font-size:12px}h1{margin:0 0 4px;font-size:22px}h2{font-size:15px;margin-top:22px}.meta{margin:0 0 18px;color:#555}.summary{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:16px 0}.summary div{border:1px solid #ddd;padding:10px}.summary span{display:block;color:#666;font-size:10px;text-transform:uppercase}.summary strong{font-size:15px}table{width:100%;border-collapse:collapse;margin-top:12px}th,td{border:1px solid #bbb;padding:6px;text-align:right}th:first-child,td:first-child{text-align:left}th{background:#f3f3f3}.note{margin-top:14px;padding:10px;border:1px solid #bbb}.warning{font-weight:bold}.danger{font-weight:bold;color:#a00}@media print{body{margin:10mm}.no-print{display:none}}
+</style>
+</head>
+<body>
+<button class="no-print" onclick="window.print()">Imprimer</button>
+<h1>Inventaire {{ inventory.reference }}</h1>
+<p class="meta">{{ bar.name }} · État : {{ {'DRAFT':'En cours','POSTED':'Validé','CANCELLED':'Annulé'}.get(inventory.status,inventory.status) }} · Fin de période : {{ inventory.period_end_at[:10] if inventory.period_end_at else inventory.counted_at }}</p>
+<p class="warning">Les quantités physiques sont exprimées en bouteilles réellement présentes, et non en casiers.</p>
+<table>
+<thead><tr><th>Produit</th><th>Dernier inv.</th><th>Achats</th><th>Théorique</th><th>Machine</th><th>Physique</th><th>Vendue</th><th>Prix</th><th>Ventes</th><th>Écart</th><th>Note</th></tr></thead>
+<tbody>
+{% for line in inventory.lines %}<tr><td>{{ line.product_name }}</td><td>{{ line.opening_quantity }}</td><td>{{ line.purchase_quantity }}</td><td>{{ line.theoretical_quantity }}</td><td>{{ line.machine_quantity }}</td><td>{{ line.physical_quantity if line.physical_quantity is not none else '—' }}</td><td>{{ line.sold_quantity if line.sold_quantity is not none else '—' }}</td><td>{{ "{:,.0f}".format(line.sale_price|float) }}</td><td>{% if line.theoretical_sales_amount is not none %}{{ "{:,.0f}".format(line.theoretical_sales_amount|float) }}{% else %}—{% endif %}</td><td>{{ line.difference_quantity if line.difference_quantity is not none else '—' }}</td><td>{{ line.note or '' }}</td></tr>{% endfor %}
+</tbody>
+</table>
+{% if inventory.status == 'POSTED' %}
+<h2>Rapprochement caisse</h2>
+<div class="summary">
+<div><span>Ventes théoriques</span><strong>{{ "{:,.0f}".format(inventory.theoretical_sales_amount|float) }} {{ bar.currency }}</strong></div>
+<div><span>Crédits validés</span><strong>{{ "{:,.0f}".format(inventory.credit_sales_amount|float) }} {{ bar.currency }}</strong></div>
+<div><span>Dépenses validées</span><strong>{{ "{:,.0f}".format(inventory.expenses_amount|float) }} {{ bar.currency }}</strong></div>
+<div><span>Attendu en caisse</span><strong>{{ "{:,.0f}".format(inventory.expected_cash_amount|float) }} {{ bar.currency }}</strong></div>
+<div><span>Caisse nette machine</span><strong>{{ "{:,.0f}".format(inventory.recorded_net_amount|float) }} {{ bar.currency }}</strong></div>
+<div><span>Écart caisse</span><strong class="{% if inventory.cash_shortage_amount|float > 0 %}danger{% endif %}">{% if inventory.cash_shortage_amount|float > 0 %}-{{ "{:,.0f}".format(inventory.cash_shortage_amount|float) }}{% else %}+{{ "{:,.0f}".format(inventory.cash_surplus_amount|float) }}{% endif %} {{ bar.currency }}</strong></div>
+</div>
+{% endif %}
+<div class="note"><strong>Note générale :</strong> {{ inventory.reason }}</div>
+</body></html>
