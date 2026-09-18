@@ -1,5 +1,6 @@
 """Suppliers, purchases, receipts and supplier settlements."""
-from decimal import Decimal
+from datetime import date, datetime, timezone
+from decimal import Decimal, ROUND_HALF_UP
 
 from sqlalchemy import func, select
 
@@ -21,6 +22,7 @@ from app.validation import number, required_text
 
 
 PAYMENT_METHODS = {"CASH", "CARD", "MOBILE_MONEY", "BANK_TRANSFER"}
+PURCHASE_UNITS = {"CASE", "BOTTLE"}
 
 
 def _page(query, page=1, page_size=50):
@@ -33,6 +35,29 @@ def _page(query, page=1, page_size=50):
     )
 
 
+def _as_purchase_date(value):
+    if value in (None, ""):
+        return datetime.now(timezone.utc).date()
+    if isinstance(value, datetime):
+        return value.date()
+    if isinstance(value, date):
+        return value
+    try:
+        return date.fromisoformat(str(value))
+    except (TypeError, ValueError):
+        raise ValueError("INVALID_PURCHASE_DATE") from None
+
+
+def _case_size(value):
+    try:
+        parsed = int(str(value).strip())
+    except (TypeError, ValueError):
+        raise ValueError("UNITS_PER_CASE_REQUIRED") from None
+    if parsed <= 0:
+        raise ValueError("UNITS_PER_CASE_REQUIRED")
+    return parsed
+
+
 class SupplierService:
     def create(self, actor, bar_id, data):
         permissions.require(actor, "suppliers.manage", bar_id)
@@ -42,6 +67,7 @@ class SupplierService:
             phone=(data.get("phone") or None),
             email=(data.get("email") or None),
             address=(data.get("address") or None),
+            note=(data.get("note") or None),
             is_active=bool(data.get("is_active", True)),
         )
         db.session.add(item)
@@ -74,7 +100,7 @@ class SupplierService:
             raise LookupError("NOT_FOUND")
         if "name" in data:
             item.name = required_text(data["name"], 160)
-        for key in ("phone", "email", "address"):
+        for key in ("phone", "email", "address", "note"):
             if key in data:
                 setattr(item, key, data.get(key) or None)
         if "is_active" in data:
@@ -84,7 +110,17 @@ class SupplierService:
 
 
 class PurchaseService:
-    def create(self, actor, bar_id, supplier_id, reference, lines, supplier_invoice_reference=None):
+    def create(
+        self,
+        actor,
+        bar_id,
+        supplier_id,
+        reference,
+        lines,
+        supplier_invoice_reference=None,
+        purchase_date=None,
+        notes=None,
+    ):
         permissions.require(actor, "purchases.manage", bar_id)
         supplier = db.session.scalar(
             select(Supplier).where(Supplier.id == supplier_id, Supplier.bar_id == bar_id).with_for_update()
@@ -98,6 +134,8 @@ class PurchaseService:
             supplier_id=supplier_id,
             reference=required_text(reference, 64),
             supplier_invoice_reference=(supplier_invoice_reference or None),
+            purchase_date=_as_purchase_date(purchase_date),
+            notes=(notes or None),
             status="DRAFT",
             currency=db.session.get(Bar, bar_id).currency,
             supplier_name_snapshot=supplier.name,
@@ -127,7 +165,7 @@ class PurchaseService:
             query = query.where(Purchase.status == status)
         if supplier_id:
             query = query.where(Purchase.supplier_id == int(supplier_id))
-        return _page(query.order_by(Purchase.id.desc()), page, page_size)
+        return _page(query.order_by(Purchase.purchase_date.desc(), Purchase.id.desc()), page, page_size)
 
     def update(self, actor, bar_id, purchase_id, data):
         permissions.require(actor, "purchases.manage", bar_id)
@@ -136,6 +174,10 @@ class PurchaseService:
             purchase.reference = required_text(data["reference"], 64)
         if "supplier_invoice_reference" in data:
             purchase.supplier_invoice_reference = data.get("supplier_invoice_reference") or None
+        if "purchase_date" in data:
+            purchase.purchase_date = _as_purchase_date(data.get("purchase_date"))
+        if "notes" in data:
+            purchase.notes = data.get("notes") or None
         if "supplier_id" in data:
             supplier = db.session.scalar(
                 select(Supplier).where(Supplier.id == data["supplier_id"], Supplier.bar_id == bar_id)
@@ -156,17 +198,46 @@ class PurchaseService:
             raise ValueError("PURCHASE_EMPTY")
         db.session.query(PurchaseLine).filter_by(bar_id=bar_id, purchase_id=purchase_id).delete()
         total = Decimal("0")
+
         for n, line in enumerate(lines, 1):
             product = db.session.scalar(
-                select(Product).where(Product.id == line["product_id"], Product.bar_id == bar_id)
+                select(Product).where(Product.id == line["product_id"], Product.bar_id == bar_id).with_for_update()
             )
             if not product or not product.is_active:
                 raise LookupError("NOT_FOUND")
-            qty = number(line["quantity"], 6, positive=True)
-            cost = number(line["unit_cost"])
-            if cost < 0:
+
+            purchase_unit = str(line.get("purchase_unit") or "BOTTLE").upper()
+            if purchase_unit not in PURCHASE_UNITS:
+                raise ValueError("INVALID_PURCHASE_UNIT")
+
+            entry_quantity = number(
+                line.get("purchase_quantity", line.get("quantity")),
+                6,
+                positive=True,
+            )
+            entry_unit_price = number(
+                line.get("purchase_unit_price", line.get("unit_cost", "0")),
+                4,
+            )
+            if entry_unit_price < 0:
                 raise ValueError("INVALID_LINE")
-            amount = number(qty * cost)
+
+            units_per_case = None
+            if purchase_unit == "CASE":
+                units_per_case = _case_size(line.get("units_per_case") or product.units_per_case)
+                # Remember a package size entered during purchasing so the next
+                # delivery and margin preview do not require the same setup again.
+                if product.units_per_case != units_per_case:
+                    product.units_per_case = units_per_case
+                stock_quantity = number(entry_quantity * Decimal(units_per_case), 6, positive=True)
+                base_unit_cost = (entry_unit_price / Decimal(units_per_case)).quantize(
+                    Decimal("0.0001"), rounding=ROUND_HALF_UP
+                )
+            else:
+                stock_quantity = entry_quantity
+                base_unit_cost = entry_unit_price
+
+            amount = number(entry_quantity * entry_unit_price, 4)
             total += amount
             db.session.add(
                 PurchaseLine(
@@ -176,8 +247,12 @@ class PurchaseService:
                     line_no=n,
                     product_name_snapshot=product.name,
                     unit_snapshot=product.base_unit,
-                    quantity=qty,
-                    unit_cost_snapshot=cost,
+                    quantity=stock_quantity,
+                    unit_cost_snapshot=base_unit_cost,
+                    purchase_unit=purchase_unit,
+                    purchase_quantity=entry_quantity,
+                    units_per_case_snapshot=units_per_case,
+                    purchase_unit_price_snapshot=entry_unit_price,
                     subtotal_amount=amount,
                     discount_amount=0,
                     tax_amount=0,
@@ -190,11 +265,7 @@ class PurchaseService:
     def receive(self, actor, bar_id, purchase_id):
         permissions.require(actor, "purchases.manage", bar_id)
         purchase = self._draft(bar_id, purchase_id)
-        lines = list(
-            db.session.scalars(
-                select(PurchaseLine).where(PurchaseLine.purchase_id == purchase.id, PurchaseLine.bar_id == bar_id)
-            )
-        )
+        lines = self._lines(bar_id, purchase.id)
         if not lines:
             raise ValueError("PURCHASE_EMPTY")
         for line in lines:
@@ -212,6 +283,45 @@ class PurchaseService:
         record(actor, bar_id, "purchases.receive", "purchases", purchase.id, purchase.reference)
         return purchase
 
+    def reopen(self, actor, bar_id, purchase_id, reason):
+        """Reverse a received purchase and put it back in draft for correction."""
+        permissions.require(actor, "purchases.manage", bar_id)
+        purchase = self._posted(bar_id, purchase_id)
+        if self.net_paid(bar_id, purchase.id) != 0:
+            raise ValueError("PURCHASE_HAS_PAYMENTS")
+        reason = required_text(reason)
+        for line in self._lines(bar_id, purchase.id):
+            stock_service.reverse_purchase_receipt(
+                actor,
+                bar_id,
+                line.id,
+                f"Correction achat {purchase.reference}: {reason}",
+            )
+        purchase.status = "DRAFT"
+        purchase.posted_at = None
+        purchase.cancelled_at = None
+        record(actor, bar_id, "purchases.reopen", "purchases", purchase.id, reason)
+        return purchase
+
+    def cancel_received(self, actor, bar_id, purchase_id, reason):
+        """Cancel a received purchase while preserving an auditable stock reversal."""
+        permissions.require(actor, "purchases.manage", bar_id)
+        purchase = self._posted(bar_id, purchase_id)
+        if self.net_paid(bar_id, purchase.id) != 0:
+            raise ValueError("PURCHASE_HAS_PAYMENTS")
+        reason = required_text(reason)
+        for line in self._lines(bar_id, purchase.id):
+            stock_service.reverse_purchase_receipt(
+                actor,
+                bar_id,
+                line.id,
+                f"Annulation achat {purchase.reference}: {reason}",
+            )
+        purchase.status = "CANCELLED"
+        purchase.cancelled_at = utcnow()
+        record(actor, bar_id, "purchases.cancel_received", "purchases", purchase.id, reason)
+        return purchase
+
     def cancel(self, actor, bar_id, purchase_id, reason):
         permissions.require(actor, "purchases.manage", bar_id)
         purchase = self._draft(bar_id, purchase_id)
@@ -220,25 +330,28 @@ class PurchaseService:
         record(actor, bar_id, "purchases.cancel", "purchases", purchase.id, required_text(reason))
         return purchase
 
-    def due(self, bar_id, purchase_id):
-        purchase = db.session.get(Purchase, purchase_id)
-        if not purchase or purchase.bar_id != bar_id:
-            raise LookupError("NOT_FOUND")
-        paid = db.session.scalar(
+    def net_paid(self, bar_id, purchase_id):
+        payment = db.session.scalar(
             select(func.coalesce(func.sum(SupplierPayment.amount), 0)).where(
                 SupplierPayment.purchase_id == purchase_id,
                 SupplierPayment.bar_id == bar_id,
                 SupplierPayment.entry_kind == "PAYMENT",
             )
         )
-        reversed_amount = db.session.scalar(
+        reversal = db.session.scalar(
             select(func.coalesce(func.sum(SupplierPayment.amount), 0)).where(
                 SupplierPayment.purchase_id == purchase_id,
                 SupplierPayment.bar_id == bar_id,
                 SupplierPayment.entry_kind == "REVERSAL",
             )
         )
-        return purchase.total_amount - paid + reversed_amount
+        return Decimal(payment or 0) - Decimal(reversal or 0)
+
+    def due(self, bar_id, purchase_id):
+        purchase = db.session.get(Purchase, purchase_id)
+        if not purchase or purchase.bar_id != bar_id:
+            raise LookupError("NOT_FOUND")
+        return purchase.total_amount - self.net_paid(bar_id, purchase_id)
 
     def pay(
         self,
@@ -324,6 +437,25 @@ class PurchaseService:
         if purchase.status != "DRAFT":
             raise ValueError("PURCHASE_NOT_DRAFT")
         return purchase
+
+    def _posted(self, bar_id, purchase_id):
+        purchase = db.session.scalar(
+            select(Purchase).where(Purchase.id == purchase_id, Purchase.bar_id == bar_id).with_for_update()
+        )
+        if not purchase:
+            raise LookupError("NOT_FOUND")
+        if purchase.status != "POSTED":
+            raise ValueError("PURCHASE_NOT_POSTED")
+        return purchase
+
+    def _lines(self, bar_id, purchase_id):
+        return list(
+            db.session.scalars(
+                select(PurchaseLine)
+                .where(PurchaseLine.purchase_id == purchase_id, PurchaseLine.bar_id == bar_id)
+                .order_by(PurchaseLine.line_no)
+            )
+        )
 
     def _payment(
         self,
