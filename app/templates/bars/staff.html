@@ -1,0 +1,221 @@
+{% extends 'layout.html' %}
+{% block title %}Personnel · {{ bar.name }} · Bar Manager Pro{% endblock %}
+{% block header %}Personnel · {{ bar.name }}{% endblock %}
+{% block content %}
+<section class="bar-hero staff-hero">
+  <div class="bar-hero-main">
+    <a class="bar-back" href="{{ url_for('bars.web_detail', bar_id=bar.id) }}">← Retour à {{ bar.name }}</a>
+    <div class="mt-3">
+      <p class="eyebrow mb-2">Équipe & accès</p>
+      <div class="d-flex flex-wrap align-items-center gap-3">
+        <h1>Personnel</h1>
+        <span class="status-pill status-active">{{ counts.total }} actif{{ 's' if counts.total != 1 else '' }}</span>
+      </div>
+      <p>Créez les comptes, attribuez les rôles et contrôlez les accès à {{ bar.name }}.</p>
+    </div>
+  </div>
+</section>
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+    <div class="staff-flashes mt-3">
+      {% for category, message in messages %}
+        <div class="alert alert-{{ category }} mb-2" role="alert">{{ message }}</div>
+      {% endfor %}
+    </div>
+  {% endif %}
+{% endwith %}
+
+<section class="stats-grid staff-stats" aria-label="Résumé du personnel">
+  <article class="stat-card">
+    <div class="stat-icon">U</div>
+    <div><span>Personnel actif</span><strong>{{ counts.total }}</strong><small>Comptes actuellement affectés</small></div>
+  </article>
+  <article class="stat-card">
+    <div class="stat-icon">A</div>
+    <div><span>Administrateurs</span><strong>{{ counts.BAR_ADMIN }}</strong><small>Gestion opérationnelle du bar</small></div>
+  </article>
+  <article class="stat-card">
+    <div class="stat-icon">₣</div>
+    <div><span>Caissiers</span><strong>{{ counts.CASHIER }}</strong><small>Encaissements et caisse</small></div>
+  </article>
+  <article class="stat-card">
+    <div class="stat-icon">S</div>
+    <div><span>Serveurs</span><strong>{{ counts.SERVER }}</strong><small>Commandes et service</small></div>
+  </article>
+</section>
+
+<div class="staff-layout mt-4">
+  <div class="staff-main-column">
+    <section class="panel-card">
+      <div class="panel-header">
+        <div><p class="eyebrow mb-1">Équipe active</p><h2>Membres affectés</h2></div>
+        <span class="hero-badge">{{ assignments|length }} actif{{ 's' if assignments|length != 1 else '' }}</span>
+      </div>
+
+      {% if assignments %}
+      <div class="table-responsive">
+        <table class="table dashboard-table staff-table align-middle mb-0">
+          <thead>
+            <tr><th>Membre</th><th>Rôle</th><th>Depuis</th>{% if can_manage %}<th class="text-end">Gestion</th>{% endif %}</tr>
+          </thead>
+          <tbody>
+          {% for assignment in assignments %}
+            <tr>
+              <td>
+                <div class="staff-person">
+                  <span class="staff-avatar">{{ assignment.user.display_name[0]|upper }}</span>
+                  <div><strong>{{ assignment.user.display_name }}</strong><small>{{ assignment.user.email }}</small></div>
+                </div>
+              </td>
+              <td>
+                {% if can_manage %}
+                <form method="post" class="role-form">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <input type="hidden" name="action" value="role">
+                  <input type="hidden" name="user_id" value="{{ assignment.user_id }}">
+                  <select name="role" class="form-select form-select-sm" aria-label="Rôle de {{ assignment.user.display_name }}" onchange="this.form.submit()">
+                    {% for value, label in role_labels.items() %}<option value="{{ value }}" {% if assignment.role == value %}selected{% endif %}>{{ label }}</option>{% endfor %}
+                  </select>
+                </form>
+                {% else %}
+                  <span class="role-pill role-{{ assignment.role|lower }}">{{ role_labels[assignment.role] }}</span>
+                {% endif %}
+              </td>
+              <td><span class="staff-date">{{ assignment.started_at.strftime('%d/%m/%Y') if assignment.started_at else '—' }}</span></td>
+              {% if can_manage %}
+              <td class="text-end">
+                <div class="staff-actions">
+                  <form method="post" onsubmit="return confirm('Retirer ce membre de {{ bar.name }} ?');">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="action" value="end">
+                    <input type="hidden" name="assignment_id" value="{{ assignment.id }}">
+                    <button class="btn btn-light border btn-sm" type="submit">Retirer</button>
+                  </form>
+                  <form method="post" onsubmit="return confirm('Désactiver complètement le compte de {{ assignment.user.display_name }} ?');">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="action" value="deactivate">
+                    <input type="hidden" name="user_id" value="{{ assignment.user_id }}">
+                    <button class="btn btn-outline-danger btn-sm" type="submit">Désactiver</button>
+                  </form>
+                </div>
+              </td>
+              {% endif %}
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="empty-state staff-empty">
+        <div class="empty-icon">U</div>
+        <h3>Aucun membre du personnel</h3>
+        <p>Ajoutez d'abord une caissière, un serveur ou un administrateur pour préparer l'exploitation de {{ bar.name }}.</p>
+      </div>
+      {% endif %}
+    </section>
+
+    {% if history %}
+    <section class="panel-card mt-4">
+      <div class="panel-header"><div><p class="eyebrow mb-1">Historique</p><h2>Anciennes affectations</h2></div></div>
+      <div class="table-responsive">
+        <table class="table dashboard-table align-middle mb-0">
+          <thead><tr><th>Membre</th><th>Ancien rôle</th><th>Début</th><th>Fin</th></tr></thead>
+          <tbody>
+          {% for assignment in history[:20] %}
+            <tr>
+              <td><strong>{{ assignment.user.display_name }}</strong><small class="d-block text-secondary">{{ assignment.user.email }}</small></td>
+              <td>{{ role_labels.get(assignment.role, assignment.role) }}</td>
+              <td>{{ assignment.started_at.strftime('%d/%m/%Y') if assignment.started_at else '—' }}</td>
+              <td>{{ assignment.ended_at.strftime('%d/%m/%Y') if assignment.ended_at else '—' }}</td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+    {% endif %}
+  </div>
+
+  {% if can_manage %}
+  <aside class="staff-side-column">
+    <section class="panel-card staff-create-card">
+      <div class="panel-header"><div><p class="eyebrow mb-1">Nouveau compte</p><h2>Ajouter un employé</h2></div></div>
+      <form method="post" class="p-4 staff-create-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="action" value="create">
+        <div class="mb-3">
+          <label class="form-label" for="display_name">Nom complet</label>
+          <input class="form-control" id="display_name" name="display_name" maxlength="120" placeholder="Ex. Nancy" required>
+        </div>
+        <div class="mb-3">
+          <label class="form-label" for="email">Adresse e-mail</label>
+          <input class="form-control" id="email" name="email" type="email" maxlength="254" placeholder="nancy@exemple.com" required>
+        </div>
+        <div class="mb-3">
+          <label class="form-label" for="role">Rôle dans le bar</label>
+          <select class="form-select" id="role" name="role" required>
+            <option value="CASHIER">Caissier / Caissière</option>
+            <option value="SERVER">Serveur / Serveuse</option>
+            <option value="BAR_ADMIN">Administrateur du bar</option>
+          </select>
+        </div>
+        <div class="mb-3">
+          <label class="form-label" for="password">Mot de passe initial</label>
+          <input class="form-control" id="password" name="password" type="password" minlength="8" autocomplete="new-password" required>
+        </div>
+        <div class="mb-4">
+          <label class="form-label" for="password_confirm">Confirmer le mot de passe</label>
+          <input class="form-control" id="password_confirm" name="password_confirm" type="password" minlength="8" autocomplete="new-password" required>
+          <div class="form-text">Communiquez ce mot de passe au membre de manière sécurisée.</div>
+        </div>
+        <button class="btn btn-primary w-100" type="submit">Créer et affecter</button>
+      </form>
+    </section>
+
+    {% if available_employees %}
+    <section class="panel-card mt-4">
+      <div class="panel-header"><div><p class="eyebrow mb-1">Compte existant</p><h2>Affecter un employé</h2></div></div>
+      <form method="post" class="p-4">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="action" value="assign">
+        <div class="mb-3">
+          <label class="form-label" for="existing_user">Employé disponible</label>
+          <select class="form-select" id="existing_user" name="user_id" required>
+            <option value="">Sélectionner…</option>
+            {% for user in available_employees %}<option value="{{ user.id }}">{{ user.display_name }} · {{ user.email }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="mb-4">
+          <label class="form-label" for="existing_role">Rôle</label>
+          <select class="form-select" id="existing_role" name="role" required>
+            {% for value, label in role_labels.items() %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
+          </select>
+        </div>
+        <button class="btn btn-outline-primary w-100" type="submit">Affecter au bar</button>
+      </form>
+    </section>
+    {% endif %}
+
+    {% if inactive_people %}
+    <section class="panel-card mt-4">
+      <div class="panel-header"><div><p class="eyebrow mb-1">Comptes désactivés</p><h2>Accès suspendus</h2></div></div>
+      <div class="inactive-list">
+      {% for user in inactive_people %}
+        <div class="inactive-person">
+          <div><strong>{{ user.display_name }}</strong><small>{{ user.email }}</small></div>
+          <form method="post">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="action" value="reactivate">
+            <input type="hidden" name="user_id" value="{{ user.id }}">
+            <button class="btn btn-light border btn-sm" type="submit">Réactiver</button>
+          </form>
+        </div>
+      {% endfor %}
+      </div>
+    </section>
+    {% endif %}
+  </aside>
+  {% endif %}
+</div>
+{% endblock %}
