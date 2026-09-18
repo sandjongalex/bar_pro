@@ -15,8 +15,18 @@ jobs:
           python-version: '3.12'
           cache: pip
       - run: pip install -r requirements.txt
-      - name: Run purchase and supplier tests
+      - name: Run purchase enhancements
         env:
           SECRET_KEY: test-only-environment-value
           TEST_DATABASE_URI: 'sqlite+pysqlite:///:memory:'
-        run: pytest -q tests/test_purchase_enhancements.py tests/test_workflows.py -k 'purchase or supplier'
+        run: pytest -q tests/test_purchase_enhancements.py
+      - name: Run existing purchase and supplier workflows
+        env:
+          SECRET_KEY: test-only-environment-value
+          TEST_DATABASE_URI: 'sqlite+pysqlite:///:memory:'
+        run: pytest -q tests/test_workflows.py -k 'purchase or supplier'
+      - name: Validate migrations and metadata
+        env:
+          SECRET_KEY: test-only-environment-value
+          TEST_DATABASE_URI: 'sqlite+pysqlite:///:memory:'
+        run: pytest -q tests/test_schema.py
