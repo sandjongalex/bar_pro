@@ -9,7 +9,7 @@
     <h1>Point de vente</h1>
     <p>Sélectionnez rapidement les produits, vérifiez le panier puis confirmez la commande. Le stock est déduit automatiquement à la confirmation.</p>
   </div>
-  {% if can_pay %}<a class="btn btn-outline-primary" href="{{ url_for('finance_web.desk', bar_id=bar.id) }}">Caisse & encaissements →</a>{% endif %}
+  {% if can_pay %}<a class="btn btn-outline-primary" href="{{ url_for('checkout_web.checkout', bar_id=bar.id) }}">Encaissement rapide →</a>{% endif %}
 </section>
 
 {% with messages = get_flashed_messages(with_categories=true) %}
@@ -81,7 +81,7 @@
 </form>
 
 <section class="panel-card mt-4">
-  <div class="panel-header pos-recent-head"><div><p class="eyebrow mb-1">Suivi du service</p><h2>Commandes récentes</h2></div>{% if can_pay %}<a class="btn btn-sm btn-light border" href="{{ url_for('finance_web.desk', bar_id=bar.id) }}">Aller aux paiements</a>{% endif %}</div>
+  <div class="panel-header pos-recent-head"><div><p class="eyebrow mb-1">Suivi du service</p><h2>Commandes récentes</h2></div>{% if can_pay %}<a class="btn btn-sm btn-light border" href="{{ url_for('checkout_web.checkout', bar_id=bar.id) }}">Aller aux encaissements</a>{% endif %}</div>
   {% if recent_orders %}
   <div class="table-responsive"><table class="table pos-order-table align-middle mb-0"><thead><tr><th>Commande</th><th>Produits</th><th>Total</th><th>Paiement</th><th>État</th><th class="text-end">Actions</th></tr></thead><tbody>
   {% for order in recent_orders %}
@@ -96,9 +96,10 @@
         {% if order.status == 'CONFIRMED' and can_edit %}
           <div class="d-flex gap-2 justify-content-end flex-wrap">
             <form method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="serve"><input type="hidden" name="order_id" value="{{ order.id }}"><button class="btn btn-sm btn-primary" type="submit">Servie</button></form>
-            {% if order.payment_status == 'UNPAID' %}<button class="btn btn-sm btn-light border" type="button" data-bs-toggle="modal" data-bs-target="#cancelOrder{{ order.id }}">Annuler</button>{% elif can_pay %}<a class="btn btn-sm btn-light border" href="{{ url_for('finance_web.desk', bar_id=bar.id) }}">Paiements</a>{% endif %}
+            {% if can_pay and order.payment_status in ['UNPAID','PARTIAL'] %}<a class="btn btn-sm btn-outline-primary" href="{{ url_for('checkout_web.checkout', bar_id=bar.id, order_id=order.id) }}">Encaisser</a>{% endif %}
+            {% if order.payment_status == 'UNPAID' %}<button class="btn btn-sm btn-light border" type="button" data-bs-toggle="modal" data-bs-target="#cancelOrder{{ order.id }}">Annuler</button>{% endif %}
           </div>
-        {% elif order.status == 'SERVED' and can_pay %}<a class="btn btn-sm btn-outline-primary" href="{{ url_for('finance_web.desk', bar_id=bar.id) }}">Encaisser</a>{% else %}<span class="text-secondary small">—</span>{% endif %}
+        {% elif order.status == 'SERVED' and can_pay and order.payment_status in ['UNPAID','PARTIAL'] %}<a class="btn btn-sm btn-outline-primary" href="{{ url_for('checkout_web.checkout', bar_id=bar.id, order_id=order.id) }}">Encaisser</a>{% else %}<span class="text-secondary small">—</span>{% endif %}
       </td>
     </tr>
   {% endfor %}
