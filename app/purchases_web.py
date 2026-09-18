@@ -4,6 +4,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from decimal import Decimal
 import secrets
+from types import SimpleNamespace
 
 from flask import Blueprint, flash, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
@@ -13,6 +14,7 @@ from sqlalchemy.exc import IntegrityError
 from app.extensions import db
 from app.models import Bar, Product, Purchase, PurchaseLine, Supplier
 from app.permissions import permissions
+from app.purchase_defaults import default_purchase_price
 from app.purchase_services import purchase_service, supplier_service
 
 bp = Blueprint("purchases_web", __name__, url_prefix="/bars/<int:bar_id>/purchases")
@@ -173,13 +175,26 @@ def manage(bar_id):
         )
     )
     active_suppliers = [supplier for supplier in suppliers if supplier.is_active]
-    products = list(
+    product_rows = list(
         db.session.scalars(
             select(Product)
             .where(Product.bar_id == bar_id, Product.is_active.is_(True))
             .order_by(Product.name, Product.id)
         )
     )
+    products = [
+        SimpleNamespace(
+            id=product.id,
+            name=product.name,
+            sku=product.sku,
+            valuation_unit_cost=default_purchase_price(
+                product.name,
+                bar.currency,
+                product.valuation_unit_cost,
+            ),
+        )
+        for product in product_rows
+    ]
 
     status = request.args.get("status", "").strip()
     supplier_id = request.args.get("supplier_id", type=int)
