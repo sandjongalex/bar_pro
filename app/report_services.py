@@ -3,16 +3,20 @@ from collections import defaultdict
 from datetime import datetime, timezone
 from decimal import Decimal
 from sqlalchemy import select
+
+from app.customer_models import CustomerLedgerEntry
 from app.extensions import db
-from app.models import (Bar, Order, OrderLine, Payment, Refund, Product, StockBalance,
+from app.models import (Bar, Customer, Order, OrderLine, Payment, Refund, Product, StockBalance,
                         StockMovement, Expense, CashSession, Purchase, SupplierPayment,
                         Inventory, InventoryLine, ProductCategory)
 from app.permissions import permissions
+
 
 def _date(value, end=False):
     if not value: return None
     try: return datetime.fromisoformat(value).replace(tzinfo=timezone.utc) if "T" in value else datetime.fromisoformat(value).replace(tzinfo=timezone.utc)
     except ValueError: raise ValueError("INVALID_DATE")
+
 
 def summary(actor, bar_id, start=None, end=None):
     permissions.require(actor, "reports.read", bar_id)
@@ -39,6 +43,17 @@ def summary(actor, bar_id, start=None, end=None):
     for o in sales:
         b=order_balance(o)
         if b["amount_due"]>0: unpaid.append({"order_id":o.id,"amount_due":str(b["amount_due"])})
+
+    customers={c.id:c for c in db.session.scalars(select(Customer).where(Customer.bar_id==bar_id))}
+    customer_debts=defaultdict(Decimal)
+    for entry in db.session.scalars(select(CustomerLedgerEntry).where(CustomerLedgerEntry.bar_id==bar_id)):
+        customer_debts[entry.customer_id]+=entry.amount_delta
+    customer_accounts=[
+        {"customer_id":customer_id,"customer":customers[customer_id].display_name if customer_id in customers else str(customer_id),"amount_due":str(max(amount,Decimal(0)))}
+        for customer_id,amount in customer_debts.items() if amount>0
+    ]
+    customer_credit_total=sum((Decimal(item["amount_due"]) for item in customer_accounts),Decimal(0))
+
     balances=list(db.session.scalars(select(StockBalance).where(StockBalance.bar_id==bar_id)))
     bar=db.session.get(Bar,bar_id)
     products={p.id:p for p in db.session.scalars(select(Product).where(Product.bar_id==bar_id))}
@@ -51,7 +66,19 @@ def summary(actor, bar_id, start=None, end=None):
     debt=sum((p.total_amount for p in purchases),Decimal(0))
     supplier_payments=list(db.session.scalars(select(SupplierPayment).where(SupplierPayment.bar_id==bar_id)))
     debt-=sum((x.amount if x.entry_kind=="PAYMENT" else -x.amount for x in supplier_payments),Decimal(0))
-    return {"period":{"start":start.isoformat() if start else None,"end":end.isoformat() if end else None},"sales":{"revenue":str(revenue),"orders":len(sales),"gross_margin_estimate":str(margin),"margin_note":"Indicateur de gestion basé sur les snapshots historiques, pas une comptabilité légale."},"payments":{"received":str(sum((p.amount_applied for p in payments),Decimal(0))),"refunded":str(sum((r.amount for r in refunds),Decimal(0))),"by_method":{k:str(v) for k,v in by_method.items()}},"receivables":{"orders_unpaid":unpaid,"total_due":str(sum((order_balance(o)["amount_due"] for o in sales),Decimal(0)))},"top_products":[{"name":k,"quantity":str(v)} for k,v in sorted(top.items(),key=lambda item:item[1],reverse=True)],"expenses":{"total":str(sum((e.amount for e in expenses if e.entry_kind=="EXPENSE"),Decimal(0)))},"stock":{"low":low,"losses":str(losses)},"cash":{"closing_differences":cash},"inventories":{"differences":inv},"supplier_payables":{"total_due":str(max(debt,Decimal(0)))} }
+    return {
+        "period":{"start":start.isoformat() if start else None,"end":end.isoformat() if end else None},
+        "sales":{"revenue":str(revenue),"orders":len(sales),"gross_margin_estimate":str(margin),"margin_note":"Indicateur de gestion basé sur les snapshots historiques, pas une comptabilité légale."},
+        "payments":{"received":str(sum((p.amount_applied for p in payments),Decimal(0))),"refunded":str(sum((r.amount for r in refunds),Decimal(0))),"by_method":{k:str(v) for k,v in by_method.items()}},
+        "receivables":{"orders_unpaid":unpaid,"orders_total_due":str(sum((order_balance(o)["amount_due"] for o in sales),Decimal(0))),"customer_credit_total":str(customer_credit_total),"customer_accounts":customer_accounts},
+        "top_products":[{"name":k,"quantity":str(v)} for k,v in sorted(top.items(),key=lambda item:item[1],reverse=True)],
+        "expenses":{"total":str(sum((e.amount for e in expenses if e.entry_kind=="EXPENSE"),Decimal(0)))},
+        "stock":{"low":low,"losses":str(losses)},
+        "cash":{"closing_differences":cash},
+        "inventories":{"differences":inv},
+        "supplier_payables":{"total_due":str(max(debt,Decimal(0)))}
+    }
+
 
 def consolidated(actor, start=None, end=None):
     if actor.category!="OWNER": raise PermissionError("FORBIDDEN")
