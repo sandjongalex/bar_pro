@@ -17,14 +17,33 @@ api_bp = Blueprint("api", __name__, url_prefix="/api/v1")
 def index():
     return redirect(url_for("web.dashboard")) if current_user.is_authenticated else redirect(url_for("auth.web_login"))
 
+
 @web_bp.get("/dashboard")
 @login_required
 def dashboard():
     from app.models import Bar, StaffAssignment
     from app.permissions import permissions
-    bars=[bar for bar in Bar.query.order_by(Bar.name).all() if permissions.evaluate(current_user,"bars.read",bar.id).allowed]
-    assignments=[] if current_user.category != "EMPLOYEE" else list(db.session.scalars(select(StaffAssignment).where(StaffAssignment.user_id==current_user.id,StaffAssignment.ended_at.is_(None))))
-    return render_template("dashboard.html", bars=bars, assignments=assignments)
+
+    bars = [
+        bar
+        for bar in Bar.query.order_by(Bar.name).all()
+        if permissions.evaluate(current_user, "bars.read", bar.id).allowed
+    ]
+    assignments = [] if current_user.category != "EMPLOYEE" else list(
+        db.session.scalars(
+            select(StaffAssignment).where(
+                StaffAssignment.user_id == current_user.id,
+                StaffAssignment.ended_at.is_(None),
+            )
+        )
+    )
+    assignment_by_bar = {assignment.bar_id: assignment for assignment in assignments}
+    return render_template(
+        "dashboard.html",
+        bars=bars,
+        assignments=assignments,
+        assignment_by_bar=assignment_by_bar,
+    )
 
 
 @web_bp.get("/health")
