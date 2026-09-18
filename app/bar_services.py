@@ -146,11 +146,46 @@ def update_bar(actor, bar_id, data):
     return bar
 
 
+def create_employee(actor, bar_id, data, role):
+    """Create an employee account and immediately assign it to a bar."""
+    require(actor, "staff.manage", bar_id)
+
+    email = str(data.get("email", "")).strip().lower()
+    display_name = str(data.get("display_name", "")).strip()
+    password = str(data.get("password", ""))
+
+    if not email or "@" not in email or len(email) > 254:
+        raise ValueError("INVALID_STAFF_EMAIL")
+    if not display_name or len(display_name) > 120:
+        raise ValueError("INVALID_STAFF_NAME")
+    if len(password) < 8:
+        raise ValueError("WEAK_STAFF_PASSWORD")
+    if role not in {"BAR_ADMIN", "CASHIER", "SERVER"}:
+        raise ValueError("INVALID_STAFF_ROLE")
+    if db.session.scalar(select(User.id).where(User.email == email)):
+        raise ValueError("STAFF_EMAIL_EXISTS")
+
+    user = User(
+        email=email,
+        display_name=display_name,
+        category="EMPLOYEE",
+        is_active=True,
+    )
+    user.set_password(password)
+    db.session.add(user)
+    db.session.flush()
+    assignment = assign_staff(actor, bar_id, user.id, role)
+    return user, assignment
+
+
 def assign_staff(actor, bar_id, user_id, role):
     require(actor, "staff.manage", bar_id)
     user = db.session.get(User, user_id)
-    if not user or user.category != "EMPLOYEE" or role not in {"BAR_ADMIN", "CASHIER", "SERVER"}:
+    if not user or user.category != "EMPLOYEE" or not user.is_active:
         raise LookupError("INVALID_STAFF")
+    if role not in {"BAR_ADMIN", "CASHIER", "SERVER"}:
+        raise ValueError("INVALID_STAFF_ROLE")
+
     assignment = db.session.scalar(
         select(StaffAssignment).where(
             StaffAssignment.bar_id == bar_id,
@@ -159,15 +194,25 @@ def assign_staff(actor, bar_id, user_id, role):
         )
     )
     old_role = assignment.role if assignment else None
-    if assignment:
-        assignment.role = role
-    else:
+
+    if assignment is None:
+        other_assignment = db.session.scalar(
+            select(StaffAssignment).where(
+                StaffAssignment.user_id == user_id,
+                StaffAssignment.ended_at.is_(None),
+            )
+        )
+        if other_assignment:
+            raise ValueError("STAFF_ALREADY_ASSIGNED")
         assignment = StaffAssignment(
             bar_id=bar_id,
             user_id=user_id,
             role=role,
             started_at=datetime.now(timezone.utc),
         )
+    else:
+        assignment.role = role
+
     db.session.add(assignment)
     db.session.flush()
     record(
@@ -179,3 +224,77 @@ def assign_staff(actor, bar_id, user_id, role):
         f"Rôle: {old_role or 'AUCUN'} -> {role}",
     )
     return assignment
+
+
+def end_staff_assignment(actor, bar_id, assignment_id):
+    """End one active assignment without deleting historical records."""
+    require(actor, "staff.manage", bar_id)
+    assignment = db.session.scalar(
+        select(StaffAssignment).where(
+            StaffAssignment.id == assignment_id,
+            StaffAssignment.bar_id == bar_id,
+            StaffAssignment.ended_at.is_(None),
+        )
+    )
+    if not assignment:
+        raise LookupError("STAFF_ASSIGNMENT_NOT_FOUND")
+
+    assignment.ended_at = datetime.now(timezone.utc)
+    db.session.flush()
+    record(
+        actor,
+        bar_id,
+        "staff.assignment.end",
+        "staff_assignments",
+        assignment.id,
+        "Fin d'affectation",
+    )
+    return assignment
+
+
+def set_employee_active(actor, bar_id, user_id, active):
+    """Activate or deactivate an employee account previously attached to the bar."""
+    require(actor, "staff.manage", bar_id)
+    user = db.session.get(User, user_id)
+    if not user or user.category != "EMPLOYEE":
+        raise LookupError("INVALID_STAFF")
+
+    belongs_to_bar = db.session.scalar(
+        select(StaffAssignment.id).where(
+            StaffAssignment.bar_id == bar_id,
+            StaffAssignment.user_id == user_id,
+        ).limit(1)
+    )
+    if not belongs_to_bar:
+        raise LookupError("INVALID_STAFF")
+
+    active = bool(active)
+    if user.is_active == active:
+        return user
+
+    if not active:
+        assignment = db.session.scalar(
+            select(StaffAssignment).where(
+                StaffAssignment.bar_id == bar_id,
+                StaffAssignment.user_id == user_id,
+                StaffAssignment.ended_at.is_(None),
+            )
+        )
+        if assignment:
+            assignment.ended_at = datetime.now(timezone.utc)
+        user.disabled_at = datetime.now(timezone.utc)
+    else:
+        user.disabled_at = None
+
+    user.is_active = active
+    user.credentials_version += 1
+    db.session.flush()
+    record(
+        actor,
+        bar_id,
+        "staff.account.activate" if active else "staff.account.deactivate",
+        "users",
+        user.id,
+        "Activation du compte" if active else "Désactivation du compte",
+    )
+    return user
