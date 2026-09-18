@@ -52,7 +52,7 @@
           <td>{{ bar.phone or '—' }}</td>
           <td>{{ bar.currency }}</td>
           <td><span class="status-pill {% if bar.status == 'ACTIVE' %}status-active{% else %}status-suspended{% endif %}">{{ 'Actif' if bar.status == 'ACTIVE' else 'Suspendu' }}</span></td>
-          <td class="text-end"><a class="btn btn-outline-primary btn-sm" href="{{ url_for('finance_web.desk',bar_id=bar.id) }}">Ouvrir</a></td>
+          <td class="text-end"><a class="btn btn-primary btn-sm" href="{{ url_for('bars.web_detail',bar_id=bar.id) }}">Gérer</a></td>
         </tr>
       {% endfor %}
       </tbody>
