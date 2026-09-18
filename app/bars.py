@@ -1,11 +1,11 @@
 import os, uuid
 from flask import Blueprint, jsonify, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from app.bar_services import assign_staff, create_bar, create_owner, update_bar
 from app.extensions import db
-from app.models import Bar, User
+from app.models import Bar, Order, Product, StaffAssignment, StockBalance, User
 from app.permissions import permissions
 from app.auth import api_required
 
@@ -48,6 +48,70 @@ def web_list():
         can_create=current_user.category=="SUPER_ADMIN",
         created=request.args.get("created"),
     )
+
+
+@bars_bp.get("/<int:bar_id>")
+@login_required
+def web_detail(bar_id):
+    decision=permissions.evaluate(current_user,"bars.read",bar_id)
+    if not decision.allowed:
+        raise LookupError("NOT_FOUND")
+
+    bar=db.session.get(Bar,bar_id)
+    if not bar:
+        raise LookupError("NOT_FOUND")
+
+    def allowed(action):
+        return permissions.evaluate(current_user,action,bar_id).allowed
+
+    rights={
+        "catalog_read":allowed("catalog.read"),
+        "inventory_read":allowed("inventory.read"),
+        "orders_read":allowed("orders.read"),
+        "orders_create":allowed("orders.create"),
+        "payments_read":allowed("payments.read"),
+        "staff_read":allowed("staff.read"),
+        "staff_manage":allowed("staff.manage"),
+        "settings":allowed("bars.update_settings"),
+        "reports":allowed("reports.read"),
+    }
+
+    stats={"products":None,"staff":None,"low_stock":None,"open_orders":None}
+
+    if rights["catalog_read"]:
+        stats["products"]=db.session.scalar(
+            select(func.count(Product.id)).where(Product.bar_id==bar_id,Product.is_active.is_(True))
+        ) or 0
+
+    if rights["staff_read"]:
+        stats["staff"]=db.session.scalar(
+            select(func.count(StaffAssignment.id)).where(
+                StaffAssignment.bar_id==bar_id,
+                StaffAssignment.ended_at.is_(None),
+            )
+        ) or 0
+
+    if rights["inventory_read"]:
+        stats["low_stock"]=db.session.scalar(
+            select(func.count(StockBalance.id))
+            .join(Product,Product.id==StockBalance.product_id)
+            .where(
+                StockBalance.bar_id==bar_id,
+                Product.bar_id==bar_id,
+                Product.is_active.is_(True),
+                StockBalance.quantity<=Product.stock_alert_threshold,
+            )
+        ) or 0
+
+    if rights["orders_read"]:
+        stats["open_orders"]=db.session.scalar(
+            select(func.count(Order.id)).where(
+                Order.bar_id==bar_id,
+                Order.status.in_(["DRAFT","CONFIRMED"]),
+            )
+        ) or 0
+
+    return render_template("bars/detail.html",bar=bar,stats=stats,rights=rights)
 
 
 @bars_bp.route("/new",methods=["GET","POST"])
@@ -114,7 +178,7 @@ def web_create():
                 "credit_sales_enabled":values["credit_sales_enabled"],
             })
             db.session.commit()
-            return redirect(url_for("bars.web_list",created=bar.id))
+            return redirect(url_for("bars.web_detail",bar_id=bar.id))
         except (PermissionError,LookupError,ValueError) as exc:
             db.session.rollback()
             error_message=_form_error_message(exc)
