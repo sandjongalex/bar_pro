@@ -10,6 +10,7 @@ from flask_login import current_user, login_required
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 
+from app.bar_services import update_bar
 from app.cash_services import cash_service
 from app.customer_models import CustomerCaseEntry, CustomerLedgerEntry
 from app.customer_services import customer_service
@@ -64,11 +65,19 @@ def manage(bar_id):
     can_manage = permissions.evaluate(current_user, "customers.manage", bar_id).allowed
     can_credit = permissions.evaluate(current_user, "customer_credit.manage", bar_id).allowed
     can_cases = permissions.evaluate(current_user, "cases.manage", bar_id).allowed
+    can_settings = permissions.evaluate(current_user, "bars.update_settings", bar_id).allowed
 
     if request.method == "POST":
         action = request.form.get("action", "")
         try:
-            if action == "create":
+            if action in {"credit_enable", "credit_disable"}:
+                if not can_settings:
+                    raise PermissionError("FORBIDDEN")
+                update_bar(current_user, bar_id, {"credit_sales_enabled": action == "credit_enable"})
+                db.session.commit()
+                flash("Ventes à crédit activées." if action == "credit_enable" else "Ventes à crédit désactivées.", "success")
+
+            elif action == "create":
                 customer_service.create(
                     current_user,
                     bar_id,
@@ -110,7 +119,7 @@ def manage(bar_id):
                 flash(f"Règlement client de {abs(payment.amount_delta):,.0f} {payment.currency} enregistré.", "success")
 
             elif action in {"case_out", "case_return"}:
-                entry = customer_service.record_case(
+                customer_service.record_case(
                     current_user,
                     bar_id,
                     int(request.form.get("customer_id", "0")),
@@ -225,4 +234,5 @@ def manage(bar_id):
         can_manage=can_manage,
         can_credit=can_credit,
         can_cases=can_cases,
+        can_settings=can_settings,
     )
