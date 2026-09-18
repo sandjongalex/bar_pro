@@ -17,6 +17,7 @@ from app.stock import api_stock_bp, stock_bp
 from app.purchases import bp as purchases_bp, suppliers_bp, supplier_payments_bp
 from app.inventories import api_inventories_bp, inventories_bp
 from app.orders import bp as orders_bp, web_bp as orders_web_bp
+from app.staff import bp as staff_web_bp
 
 
 def create_app(config_name: str | None = None, test_config: dict[str, Any] | None = None) -> Flask:
@@ -76,6 +77,7 @@ def _register_blueprints(app: Flask) -> None:
     app.register_blueprint(api_auth_bp)
     app.register_blueprint(bars_bp)
     app.register_blueprint(api_bars_bp)
+    app.register_blueprint(staff_web_bp)
     app.register_blueprint(catalog_bp)
     app.register_blueprint(api_catalog_bp)
     app.register_blueprint(stock_bp)
