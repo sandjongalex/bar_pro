@@ -70,7 +70,10 @@
 
       {% if rights.reports %}
       <a class="module-card" href="{{ url_for('purchases_web.manage',bar_id=bar.id) }}">
-        <span class="module-icon">A</span><div><strong>Fournisseurs & achats</strong><p>Fournisseurs, livraisons, réceptions et dettes fournisseurs.</p></div><span class="module-arrow">→</span>
+        <span class="module-icon">A</span><div><strong>Fournisseurs & achats</strong><p>Fournisseurs, livraisons et réceptions de marchandises.</p></div><span class="module-arrow">→</span>
+      </a>
+      <a class="module-card" href="{{ url_for('supplier_debts_web.manage',bar_id=bar.id) }}">
+        <span class="module-icon">D</span><div><strong>Dettes fournisseurs</strong><p>Soldes dus, règlements partiels et historique des paiements.</p></div><span class="module-arrow">→</span>
       </a>
       {% endif %}
 
@@ -109,10 +112,10 @@
     <section class="panel-card bar-next-card">
       <div class="panel-header"><div><p class="eyebrow mb-1">Configuration</p><h2>Prochaine étape</h2></div></div>
       <div class="p-4">
-        <div class="next-step-number">03</div>
-        <h3>Configurer les fournisseurs</h3>
-        <p>Enregistrez les dépôts et fournisseurs de {{ bar.name }}, puis utilisez les achats pour alimenter automatiquement le stock à chaque réception.</p>
-        {% if rights.reports %}<a class="btn btn-outline-primary btn-sm mt-2" href="{{ url_for('purchases_web.manage',bar_id=bar.id) }}">Ouvrir les achats</a>{% endif %}
+        <div class="next-step-number">04</div>
+        <h3>Suivre les dettes fournisseurs</h3>
+        <p>Après chaque réception, suivez le solde restant et enregistrez les règlements partiels ou complets sans perdre la traçabilité.</p>
+        {% if rights.reports %}<a class="btn btn-outline-primary btn-sm mt-2" href="{{ url_for('supplier_debts_web.manage',bar_id=bar.id) }}">Ouvrir les dettes</a>{% endif %}
       </div>
     </section>
   </aside>
