@@ -1,5 +1,44 @@
-{% extends 'layout.html' %}{% block content %}
-<h1 class="h3">Inventaires</h1><a class="btn btn-primary mb-3" href="{{ url_for('inventories.new',bar_id=bar_id) }}">Nouvel inventaire</a>
-<div class="table-responsive"><table class="table"><thead><tr><th>Référence</th><th>État</th><th>Compté le</th><th></th></tr></thead><tbody>{% for row in rows.items %}<tr><td><a href="{{ url_for('inventories.detail',bar_id=bar_id,inventory_id=row.id) }}">{{ row.reference }}</a></td><td>{{ row.status }}</td><td>{{ row.counted_at }}</td><td><a href="{{ url_for('inventories.printable',bar_id=bar_id,inventory_id=row.id) }}">Imprimer</a></td></tr>{% else %}<tr><td colspan="4">Aucun inventaire.</td></tr>{% endfor %}</tbody></table></div>
-<nav aria-label="Pages des inventaires">{% if rows.has_prev %}<a href="{{ url_for('inventories.listing',bar_id=bar_id,page=rows.prev_num) }}">Précédente</a>{% endif %} Page {{ rows.page }} {% if rows.has_next %}<a href="{{ url_for('inventories.listing',bar_id=bar_id,page=rows.next_num) }}">Suivante</a>{% endif %}</nav>
+{% extends 'layout.html' %}
+{% block title %}Inventaires · {{ bar.name }} · Bar Manager Pro{% endblock %}
+{% block header %}Inventaires · {{ bar.name }}{% endblock %}
+{% block content %}
+<section class="inventory-hero">
+  <div>
+    <a class="bar-back" href="{{ url_for('bars.web_detail', bar_id=bar.id) }}">← Retour à {{ bar.name }}</a>
+    <p class="eyebrow mt-3 mb-2">Contrôle physique</p>
+    <h1>Inventaires</h1>
+    <p>Comparez le stock théorique, le stock machine et les bouteilles réellement présentes, puis rapprochez les ventes et la caisse.</p>
+  </div>
+  {% if can_adjust %}<a class="btn btn-primary" href="{{ url_for('inventories.new',bar_id=bar_id) }}">＋ Nouvel inventaire</a>{% endif %}
+</section>
+
+<section class="panel-card mt-4 inventory-history-card">
+  <div class="panel-header"><div><p class="eyebrow mb-1">Historique</p><h2>Clôtures d'inventaire</h2></div></div>
+  {% if rows.items %}
+  <div class="table-responsive">
+    <table class="table inventory-history-table align-middle mb-0">
+      <thead><tr><th>Référence</th><th>Fin de période</th><th>État</th><th>Ventes théoriques</th><th>Écart caisse</th><th class="text-end">Actions</th></tr></thead>
+      <tbody>
+      {% for row in rows.items %}
+        {% set period = period_by_inventory.get(row.id) %}
+        <tr>
+          <td><a class="fw-semibold text-decoration-none" href="{{ url_for('inventories.detail',bar_id=bar_id,inventory_id=row.id) }}">{{ row.reference }}</a><small class="d-block text-secondary">{{ row.reason }}</small></td>
+          <td>{{ period.period_end_at.strftime('%d/%m/%Y') if period else row.counted_at.strftime('%d/%m/%Y') }}</td>
+          <td><span class="inventory-status inventory-status-{{ row.status|lower }}">{{ {'DRAFT':'En cours','POSTED':'Validé','CANCELLED':'Annulé'}.get(row.status,row.status) }}</span></td>
+          <td>{% if period %}<strong>{{ "{:,.0f}".format(period.theoretical_sales_amount) }} {{ bar.currency }}</strong>{% else %}<span class="text-secondary">—</span>{% endif %}</td>
+          <td>{% if period and row.status == 'POSTED' %}
+            {% if period.cash_difference_amount < 0 %}<span class="text-danger fw-semibold">−{{ "{:,.0f}".format(-period.cash_difference_amount) }} {{ bar.currency }}</span>
+            {% elif period.cash_difference_amount > 0 %}<span class="text-warning fw-semibold">+{{ "{:,.0f}".format(period.cash_difference_amount) }} {{ bar.currency }}</span>
+            {% else %}<span class="text-success fw-semibold">0 {{ bar.currency }}</span>{% endif %}
+          {% else %}<span class="text-secondary">—</span>{% endif %}</td>
+          <td class="text-end"><a class="btn btn-sm btn-outline-primary" href="{{ url_for('inventories.detail',bar_id=bar_id,inventory_id=row.id) }}">Ouvrir</a> <a class="btn btn-sm btn-light border" href="{{ url_for('inventories.printable',bar_id=bar_id,inventory_id=row.id) }}" target="_blank">Imprimer</a></td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}<div class="empty-state"><div class="empty-icon">I</div><h3>Aucun inventaire</h3><p>Créez le premier inventaire pour établir le stock physique de référence.</p>{% if can_adjust %}<a class="btn btn-primary" href="{{ url_for('inventories.new',bar_id=bar_id) }}">Démarrer l'inventaire</a>{% endif %}</div>{% endif %}
+</section>
+
+{% if rows.pages > 1 %}<nav class="d-flex justify-content-between mt-3" aria-label="Pages des inventaires">{% if rows.has_prev %}<a class="btn btn-light border" href="{{ url_for('inventories.listing',bar_id=bar_id,page=rows.prev_num) }}">← Précédente</a>{% else %}<span></span>{% endif %}<span class="align-self-center text-secondary">Page {{ rows.page }} / {{ rows.pages }}</span>{% if rows.has_next %}<a class="btn btn-light border" href="{{ url_for('inventories.listing',bar_id=bar_id,page=rows.next_num) }}">Suivante →</a>{% endif %}</nav>{% endif %}
 {% endblock %}
