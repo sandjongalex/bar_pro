@@ -6,7 +6,7 @@
   <div>
     <p class="eyebrow mb-2">Vue d'ensemble</p>
     <h1>Bonjour, {{ current_user.display_name }}</h1>
-    <p>Retrouvez ici vos établissements, leur état et les principales actions disponibles.</p>
+    <p>Retrouvez ici vos établissements et les actions correspondant à votre rôle.</p>
   </div>
   <div class="d-flex flex-wrap gap-2 align-items-center">
     {% if current_user.category == 'SUPER_ADMIN' %}<a class="btn btn-primary" href="{{ url_for('bars.web_create') }}">＋ Créer un bar</a>{% endif %}
@@ -15,24 +15,33 @@
 </section>
 
 {% if current_user.category == 'SUPER_ADMIN' %}
-<div class="admin-notice">
-  <div><strong>Mode supervision activé</strong><span>Vous disposez d'une vue globale sur les établissements accessibles.</span></div>
-</div>
+<div class="admin-notice"><div><strong>Mode supervision activé</strong><span>Vous disposez d'une vue globale sur les établissements accessibles.</span></div></div>
 {% endif %}
 
-<section class="stats-grid" aria-label="Indicateurs disponibles">
-  <article class="stat-card">
-    <div class="stat-icon">▦</div>
-    <div><span>Établissements accessibles</span><strong>{{ bars|length }}</strong><small>Visibles avec vos droits actuels</small></div>
-  </article>
-  <article class="stat-card">
-    <div class="stat-icon">✓</div>
-    <div><span>Établissements actifs</span><strong>{{ bars|selectattr('status','equalto','ACTIVE')|list|length }}</strong><small>Prêts pour les opérations</small></div>
-  </article>
-  <article class="stat-card">
-    <div class="stat-icon">!</div>
-    <div><span>Établissements suspendus</span><strong>{{ bars|selectattr('status','equalto','SUSPENDED')|list|length }}</strong><small>À surveiller</small></div>
-  </article>
+{% if assignments %}
+<section class="panel-card mt-4">
+  <div class="panel-header"><div><p class="eyebrow mb-1">Mon espace</p><h2>Actions de service</h2></div></div>
+  <div class="d-flex flex-wrap gap-3 p-4">
+    {% for bar in bars if bar.status == 'ACTIVE' %}
+      {% set assignment = assignment_by_bar.get(bar.id) %}
+      {% if assignment and assignment.role == 'SERVER' %}
+        <a class="btn btn-primary" href="{{ url_for('orders_web.quick',bar_id=bar.id) }}">＋ Nouvelle commande · {{ bar.name }}</a>
+        <a class="btn btn-outline-primary" href="{{ url_for('orders_web.quick',bar_id=bar.id) }}">Mes commandes</a>
+      {% elif assignment and assignment.role == 'CASHIER' %}
+        <a class="btn btn-primary" href="{{ url_for('checkout_web.checkout',bar_id=bar.id) }}">Commandes caisse · {{ bar.name }}</a>
+        <a class="btn btn-outline-primary" href="{{ url_for('finance_web.desk',bar_id=bar.id) }}">Ouvrir / gérer la caisse</a>
+      {% elif assignment and assignment.role == 'BAR_ADMIN' %}
+        <a class="btn btn-primary" href="{{ url_for('bars.web_detail',bar_id=bar.id) }}">Gérer {{ bar.name }}</a>
+      {% endif %}
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+
+<section class="stats-grid mt-4" aria-label="Indicateurs disponibles">
+  <article class="stat-card"><div class="stat-icon">▦</div><div><span>Établissements accessibles</span><strong>{{ bars|length }}</strong><small>Visibles avec vos droits actuels</small></div></article>
+  <article class="stat-card"><div class="stat-icon">✓</div><div><span>Établissements actifs</span><strong>{{ bars|selectattr('status','equalto','ACTIVE')|list|length }}</strong><small>Prêts pour les opérations</small></div></article>
+  <article class="stat-card"><div class="stat-icon">!</div><div><span>Établissements suspendus</span><strong>{{ bars|selectattr('status','equalto','SUSPENDED')|list|length }}</strong><small>À surveiller</small></div></article>
 </section>
 
 <section class="panel-card mt-4">
@@ -53,7 +62,12 @@
           <td>{{ bar.timezone }}</td>
           <td>{{ bar.currency }}</td>
           <td><span class="status-pill {% if bar.status == 'ACTIVE' %}status-active{% else %}status-suspended{% endif %}">{{ 'Actif' if bar.status == 'ACTIVE' else 'Suspendu' }}</span></td>
-          <td class="text-end"><a class="btn btn-primary btn-sm" href="{{ url_for('bars.web_detail',bar_id=bar.id) }}">Gérer le bar</a></td>
+          <td class="text-end">
+            {% set assignment = assignment_by_bar.get(bar.id) %}
+            {% if assignment and assignment.role == 'SERVER' %}<a class="btn btn-primary btn-sm" href="{{ url_for('orders_web.quick',bar_id=bar.id) }}">Commandes</a>
+            {% elif assignment and assignment.role == 'CASHIER' %}<a class="btn btn-primary btn-sm" href="{{ url_for('checkout_web.checkout',bar_id=bar.id) }}">Caisse</a>
+            {% else %}<a class="btn btn-primary btn-sm" href="{{ url_for('bars.web_detail',bar_id=bar.id) }}">Gérer le bar</a>{% endif %}
+          </td>
         </tr>
       {% endfor %}
       </tbody>
@@ -64,23 +78,8 @@
     <div class="empty-icon">＋</div>
     <h3>Aucun établissement pour le moment</h3>
     <p>Votre tableau de bord est prêt. Ajoutez votre premier établissement pour commencer à exploiter Bar Manager Pro.</p>
-    {% if current_user.category == 'SUPER_ADMIN' %}
-      <a class="btn btn-primary" href="{{ url_for('bars.web_create') }}">Créer le premier bar</a>
-    {% else %}
-      <a class="btn btn-primary" href="{{ url_for('bars.web_list') }}">Gérer les établissements</a>
-    {% endif %}
+    {% if current_user.category == 'SUPER_ADMIN' %}<a class="btn btn-primary" href="{{ url_for('bars.web_create') }}">Créer le premier bar</a>{% endif %}
   </div>
   {% endif %}
 </section>
-
-{% if current_user.category in ['CASHIER','SERVER'] or assignments %}
-<section class="panel-card mt-4">
-  <div class="panel-header"><div><p class="eyebrow mb-1">Raccourcis</p><h2>Actions rapides</h2></div></div>
-  <div class="d-flex flex-wrap gap-2 p-4">
-    {% for bar in bars if bar.status == 'ACTIVE' %}
-      <a class="btn btn-primary" href="{{ url_for('orders_web.quick',bar_id=bar.id) }}">Nouvelle commande · {{ bar.name }}</a>
-    {% endfor %}
-  </div>
-</section>
-{% endif %}
 {% endblock %}
