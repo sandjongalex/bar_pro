@@ -8,7 +8,10 @@
     <h1>Bonjour, {{ current_user.display_name }}</h1>
     <p>Retrouvez ici vos établissements, leur état et les principales actions disponibles.</p>
   </div>
-  <div class="hero-badge">{{ current_user.category|replace('_',' ')|title }}</div>
+  <div class="d-flex flex-wrap gap-2 align-items-center">
+    {% if current_user.category == 'SUPER_ADMIN' %}<a class="btn btn-primary" href="{{ url_for('bars.web_create') }}">＋ Créer un bar</a>{% endif %}
+    <div class="hero-badge">{{ current_user.category|replace('_',' ')|title }}</div>
+  </div>
 </section>
 
 {% if current_user.category == 'SUPER_ADMIN' %}
@@ -60,8 +63,12 @@
   <div class="empty-state">
     <div class="empty-icon">＋</div>
     <h3>Aucun établissement pour le moment</h3>
-    <p>Votre tableau de bord est prêt. Ajoutez ou configurez un établissement pour commencer à exploiter Bar Manager Pro.</p>
-    <a class="btn btn-primary" href="{{ url_for('bars.web_list') }}">Gérer les établissements</a>
+    <p>Votre tableau de bord est prêt. Ajoutez votre premier établissement pour commencer à exploiter Bar Manager Pro.</p>
+    {% if current_user.category == 'SUPER_ADMIN' %}
+      <a class="btn btn-primary" href="{{ url_for('bars.web_create') }}">Créer le premier bar</a>
+    {% else %}
+      <a class="btn btn-primary" href="{{ url_for('bars.web_list') }}">Gérer les établissements</a>
+    {% endif %}
   </div>
   {% endif %}
 </section>
@@ -69,7 +76,7 @@
 {% if current_user.category in ['CASHIER','SERVER'] or assignments %}
 <section class="panel-card mt-4">
   <div class="panel-header"><div><p class="eyebrow mb-1">Raccourcis</p><h2>Actions rapides</h2></div></div>
-  <div class="d-flex flex-wrap gap-2">
+  <div class="d-flex flex-wrap gap-2 p-4">
     {% for bar in bars if bar.status == 'ACTIVE' %}
       <a class="btn btn-primary" href="{{ url_for('orders_web.quick',bar_id=bar.id) }}">Nouvelle commande · {{ bar.name }}</a>
     {% endfor %}
