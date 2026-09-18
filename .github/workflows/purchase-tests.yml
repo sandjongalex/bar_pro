@@ -8,6 +8,9 @@ on:
 jobs:
   pytest:
     runs-on: ubuntu-latest
+    env:
+      SECRET_KEY: test-only-environment-value
+      TEST_DATABASE_URI: 'sqlite+pysqlite:///:memory:'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -16,17 +19,14 @@ jobs:
           cache: pip
       - run: pip install -r requirements.txt
       - name: Run purchase enhancements
-        env:
-          SECRET_KEY: test-only-environment-value
-          TEST_DATABASE_URI: 'sqlite+pysqlite:///:memory:'
         run: pytest -q tests/test_purchase_enhancements.py
       - name: Run existing purchase and supplier workflows
-        env:
-          SECRET_KEY: test-only-environment-value
-          TEST_DATABASE_URI: 'sqlite+pysqlite:///:memory:'
         run: pytest -q tests/test_workflows.py -k 'purchase or supplier'
-      - name: Validate migrations and metadata
-        env:
-          SECRET_KEY: test-only-environment-value
-          TEST_DATABASE_URI: 'sqlite+pysqlite:///:memory:'
-        run: pytest -q tests/test_schema.py
+      - name: Validate migrated metadata
+        run: pytest -q tests/test_schema.py::test_initial_migration_creates_every_model_table tests/test_schema.py::test_migrated_columns_constraints_and_metadata_match tests/test_schema.py::test_flask_cli_upgrade_and_routes_on_empty_database
+      - name: Validate generated data model document
+        run: pytest -q tests/test_schema.py::test_data_model_document_matches_models
+      - name: Validate MySQL migration SQL
+        run: pytest -q tests/test_schema.py::test_mysql_migration_sql_compiles_without_blob_keys
+      - name: Validate remaining schema regressions
+        run: pytest -q tests/test_schema.py -k 'not initial_migration_creates_every_model_table and not migrated_columns_constraints_and_metadata_match and not flask_cli_upgrade_and_routes_on_empty_database and not data_model_document_matches_models and not mysql_migration_sql_compiles_without_blob_keys'
