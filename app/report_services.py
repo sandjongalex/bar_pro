@@ -23,26 +23,45 @@ def summary(actor, bar_id, start=None, end=None):
     start, end = _date(start), _date(end, True)
     def in_period(column):
         return [column >= start] if start and not end else [column < end] if end and not start else [column >= start, column < end] if start and end else []
-    orders=list(db.session.scalars(select(Order).where(Order.bar_id==bar_id, *in_period(Order.created_at))))
-    order_ids={o.id for o in orders}
-    lines=list(db.session.scalars(select(OrderLine).where(OrderLine.bar_id==bar_id, OrderLine.order_id.in_(order_ids))) ) if order_ids else []
+
+    # Orders waiting for the cashier are not sales. Revenue is recognized in this
+    # operational report only after the order is delivered and fully settled
+    # (real payment or customer credit).
+    all_orders=list(db.session.scalars(select(Order).where(Order.bar_id==bar_id)))
+    sales=[
+        o for o in all_orders
+        if o.status in {"CONFIRMED","SERVED"}
+        and o.payment_status=="PAID"
+        and (not start or (o.posted_at and o.posted_at>=start))
+        and (not end or (o.posted_at and o.posted_at<end))
+    ]
+    sale_ids={o.id for o in sales}
+    sales_lines=list(db.session.scalars(select(OrderLine).where(OrderLine.bar_id==bar_id, OrderLine.order_id.in_(sale_ids)))) if sale_ids else []
+
+    delivered_unsettled=[
+        o for o in all_orders
+        if o.status in {"CONFIRMED","SERVED"}
+        and o.payment_status in {"UNPAID","PARTIAL"}
+        and (not start or (o.posted_at and o.posted_at>=start))
+        and (not end or (o.posted_at and o.posted_at<end))
+    ]
+
     payments=list(db.session.scalars(select(Payment).where(Payment.bar_id==bar_id, *in_period(Payment.received_at))))
     refunds=list(db.session.scalars(select(Refund).where(Refund.bar_id==bar_id, *in_period(Refund.refunded_at))))
     expenses=list(db.session.scalars(select(Expense).where(Expense.bar_id==bar_id, *in_period(Expense.incurred_at))))
-    sales=[o for o in orders if o.status!="CANCELLED"]
-    sale_ids={o.id for o in sales}
-    sales_lines=[x for x in lines if x.order_id in sale_ids]
     revenue=sum((x.total_amount for x in sales_lines),Decimal(0))
     margin=sum((x.quantity*(x.unit_sale_price_snapshot-x.unit_cost_snapshot) for x in sales_lines),Decimal(0))
     by_method=defaultdict(Decimal)
     for p in payments: by_method[p.method]+=p.amount_applied
     top=defaultdict(Decimal)
     for x in sales_lines: top[x.product_name_snapshot]+=x.quantity
-    unpaid=[]
+
     from app.finance_totals import order_balance
-    for o in sales:
+    unpaid=[]
+    for o in delivered_unsettled:
         b=order_balance(o)
-        if b["amount_due"]>0: unpaid.append({"order_id":o.id,"amount_due":str(b["amount_due"])})
+        if b["amount_due"]>0:
+            unpaid.append({"order_id":o.id,"amount_due":str(b["amount_due"])})
 
     customers={c.id:c for c in db.session.scalars(select(Customer).where(Customer.bar_id==bar_id))}
     customer_debts=defaultdict(Decimal)
@@ -68,9 +87,9 @@ def summary(actor, bar_id, start=None, end=None):
     debt-=sum((x.amount if x.entry_kind=="PAYMENT" else -x.amount for x in supplier_payments),Decimal(0))
     return {
         "period":{"start":start.isoformat() if start else None,"end":end.isoformat() if end else None},
-        "sales":{"revenue":str(revenue),"orders":len(sales),"gross_margin_estimate":str(margin),"margin_note":"Indicateur de gestion basé sur les snapshots historiques, pas une comptabilité légale."},
+        "sales":{"revenue":str(revenue),"orders":len(sales),"gross_margin_estimate":str(margin),"margin_note":"Ventes livrées et soldées uniquement. Indicateur de gestion basé sur les snapshots historiques, pas une comptabilité légale."},
         "payments":{"received":str(sum((p.amount_applied for p in payments),Decimal(0))),"refunded":str(sum((r.amount for r in refunds),Decimal(0))),"by_method":{k:str(v) for k,v in by_method.items()}},
-        "receivables":{"orders_unpaid":unpaid,"orders_total_due":str(sum((order_balance(o)["amount_due"] for o in sales),Decimal(0))),"customer_credit_total":str(customer_credit_total),"customer_accounts":customer_accounts},
+        "receivables":{"orders_unpaid":unpaid,"orders_total_due":str(sum((order_balance(o)["amount_due"] for o in delivered_unsettled),Decimal(0))),"customer_credit_total":str(customer_credit_total),"customer_accounts":customer_accounts},
         "top_products":[{"name":k,"quantity":str(v)} for k,v in sorted(top.items(),key=lambda item:item[1],reverse=True)],
         "expenses":{"total":str(sum((e.amount for e in expenses if e.entry_kind=="EXPENSE"),Decimal(0)))},
         "stock":{"low":low,"losses":str(losses)},
