@@ -1,7 +1,7 @@
 """Manual payments and traceable refunds share the caller transaction."""
 from sqlalchemy import select
 from app.extensions import db
-from app.models import Order, Payment, Refund, OrderReturn, utcnow
+from app.models import Order, Payment, Refund, OrderReturn, CashSession, StaffAssignment, utcnow
 from app.permissions import permissions
 from app.validation import number, required_text
 from app.finance_totals import order_balance, total
@@ -10,8 +10,29 @@ from app.audit import record
 
 
 class PaymentService:
+    def _require_cashier_session(self, actor, bar_id):
+        if actor.category != "EMPLOYEE":
+            return
+        assignment = db.session.scalar(
+            select(StaffAssignment).where(
+                StaffAssignment.bar_id == bar_id,
+                StaffAssignment.user_id == actor.id,
+                StaffAssignment.ended_at.is_(None),
+            )
+        )
+        if assignment and assignment.role == "CASHIER":
+            opened = db.session.scalar(
+                select(CashSession.id).where(
+                    CashSession.bar_id == bar_id,
+                    CashSession.status == "OPEN",
+                )
+            )
+            if not opened:
+                raise ValueError("CASH_SESSION_REQUIRED")
+
     def record(self, actor, bar_id, order_id, reference, method, presented, applied, change=0, cash_session_id=None, staff_assignment_id=None, provider_code=None, provider_transaction_id=None):
         permissions.require(actor,"payments.record",bar_id)
+        self._require_cashier_session(actor, bar_id)
         order=db.session.scalar(select(Order).where(Order.id==order_id,Order.bar_id==bar_id).with_for_update())
         if not order: raise LookupError("NOT_FOUND")
         if order.status not in {"CONFIRMED","SERVED"}: raise ValueError("ORDER_NOT_PAYABLE")
@@ -41,6 +62,7 @@ class PaymentService:
 
     def refund(self, actor, bar_id, payment_id, reference, amount, reason, order_return_id=None, cash_session_id=None, staff_assignment_id=None):
         permissions.require(actor,"refunds.record",bar_id)
+        self._require_cashier_session(actor, bar_id)
         reason=required_text(reason);reference=required_text(reference,64);amount=number(amount,positive=True)
         payment=db.session.scalar(select(Payment).where(Payment.id==payment_id,Payment.bar_id==bar_id))
         if not payment: raise LookupError("NOT_FOUND")
@@ -69,6 +91,7 @@ class PaymentService:
         from app.order_services import order_service
         permissions.require(actor,"refunds.record",bar_id)
         permissions.require(actor,"orders.edit",bar_id)
+        self._require_cashier_session(actor, bar_id)
         order=db.session.scalar(select(Order).where(Order.id==order_id,Order.bar_id==bar_id).with_for_update())
         if not order or order.status!="CONFIRMED": raise ValueError("ORDER_NOT_CANCELLABLE")
         reference=required_text(reference,40);reason=required_text(reason)
