@@ -83,6 +83,7 @@
             <td class="text-end">
               {% if purchase.status == 'DRAFT' %}
               <div class="d-flex justify-content-end gap-2 flex-wrap">
+                <button class="btn btn-sm btn-light border" data-bs-toggle="modal" data-bs-target="#editPurchaseModal{{ purchase.id }}">Modifier</button>
                 <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#receiveModal{{ purchase.id }}">Réceptionner</button>
                 <button class="btn btn-sm btn-light border" data-bs-toggle="modal" data-bs-target="#cancelModal{{ purchase.id }}">Annuler</button>
               </div>
@@ -130,8 +131,7 @@
   <aside class="panel-card supplier-panel">
     <div class="panel-header">
       <div><p class="eyebrow mb-1">Partenaires</p><h2>Fournisseurs</h2></div>
-      {% if can_manage_suppliers %}<button class="btn btn-sm btn-light border" data-bs-toggle="modal" data-bs-target="#supplierModal">＋</button>{% endif %}
-    </div>
+      {% if can_manage_suppliers %}<button class="btn btn-sm btn-light border" data-bs-toggle="modal" data-bs-target="#supplierModal">＋</button>{% endif %}</div>
     <div class="supplier-list">
       {% for supplier in suppliers %}
       <div class="supplier-row">
@@ -175,10 +175,10 @@
 {% endif %}
 
 {% if can_manage %}
-<div class="modal fade" id="purchaseModal" tabindex="-1" aria-hidden="true">
+<div class="modal fade purchase-editor-modal" id="purchaseModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
     <div class="modal-content purchase-modal">
-      <form method="post" id="purchaseForm" data-currency="{{ bar.currency }}">
+      <form method="post" class="purchase-entry-form" data-currency="{{ bar.currency }}">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="action" value="purchase_create">
         <div class="modal-header"><div><p class="eyebrow mb-1">Nouvel approvisionnement</p><h2 class="modal-title h5">Enregistrer un achat fournisseur</h2></div><button class="btn-close" type="button" data-bs-dismiss="modal"></button></div>
@@ -192,8 +192,8 @@
           <div class="purchase-entry-head">
             <div><p class="eyebrow mb-1">Produits</p><h3>Saisissez uniquement les quantités achetées</h3></div>
             <div class="purchase-entry-tools">
-              <input class="form-control" id="purchaseProductSearch" type="search" placeholder="Rechercher un produit...">
-              <span class="purchase-selected-count" id="purchaseSelectedCount">0 produit sélectionné</span>
+              <input class="form-control purchase-product-search" type="search" placeholder="Rechercher un produit...">
+              <span class="purchase-selected-count">0 produit sélectionné</span>
             </div>
           </div>
 
@@ -201,7 +201,7 @@
             <span>Produit</span><span>Quantité</span><span>Prix d'achat</span><span>Total</span>
           </div>
 
-          <div id="purchaseLines" class="purchase-entry-lines purchase-all-products">
+          <div class="purchase-entry-lines purchase-all-products">
             {% for product in products %}
             <div class="purchase-entry-line purchase-catalog-row" data-product-id="{{ product.id }}" data-search="{{ product.name|lower }} {{ product.sku|lower }}">
               <input type="hidden" name="product_id" value="{{ product.id }}">
@@ -222,11 +222,64 @@
 </div>
 
 {% for purchase in purchases if purchase.status == 'DRAFT' %}
+{% set purchase_line_lookup = line_lookup.get(purchase.id, {}) %}
+<div class="modal fade purchase-editor-modal" id="editPurchaseModal{{ purchase.id }}" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content purchase-modal">
+      <form method="post" class="purchase-entry-form" data-currency="{{ purchase.currency }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="action" value="purchase_update">
+        <input type="hidden" name="purchase_id" value="{{ purchase.id }}">
+        <div class="modal-header">
+          <div><p class="eyebrow mb-1">Modification du brouillon</p><h2 class="modal-title h5">Modifier {{ purchase.reference }}</h2></div>
+          <button class="btn-close" type="button" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="alert alert-light border py-2 mb-4"><strong>Brouillon modifiable :</strong> les changements n'affectent pas le stock tant que vous n'avez pas cliqué sur « Réceptionner ».</div>
+          <div class="row g-3 mb-4">
+            <div class="col-md-5"><label class="form-label">Fournisseur</label><select class="form-select form-select-lg" name="supplier_id" required>{% for supplier in suppliers %}<option value="{{ supplier.id }}" {% if supplier.id == purchase.supplier_id %}selected{% endif %} {% if not supplier.is_active and supplier.id != purchase.supplier_id %}disabled{% endif %}>{{ supplier.name }}{% if not supplier.is_active %} · inactif{% endif %}</option>{% endfor %}</select></div>
+            <div class="col-md-4"><label class="form-label">Référence interne</label><input class="form-control form-control-lg" name="reference" maxlength="64" value="{{ purchase.reference }}" required></div>
+            <div class="col-md-3"><label class="form-label">N° facture fournisseur</label><input class="form-control form-control-lg" name="supplier_invoice_reference" maxlength="100" value="{{ purchase.supplier_invoice_reference or '' }}" placeholder="Optionnel"></div>
+          </div>
+
+          <div class="purchase-entry-head">
+            <div><p class="eyebrow mb-1">Produits</p><h3>Corrigez les quantités ou les prix d'achat</h3></div>
+            <div class="purchase-entry-tools">
+              <input class="form-control purchase-product-search" type="search" placeholder="Rechercher un produit...">
+              <span class="purchase-selected-count">0 produit sélectionné</span>
+            </div>
+          </div>
+
+          <div class="purchase-entry-columns" aria-hidden="true">
+            <span>Produit</span><span>Quantité</span><span>Prix d'achat</span><span>Total</span>
+          </div>
+
+          <div class="purchase-entry-lines purchase-all-products">
+            {% for product in products %}
+            {% set existing_line = purchase_line_lookup.get(product.id) %}
+            <div class="purchase-entry-line purchase-catalog-row" data-product-id="{{ product.id }}" data-search="{{ product.name|lower }} {{ product.sku|lower }}">
+              <input type="hidden" name="product_id" value="{{ product.id }}">
+              <div class="purchase-product-label"><strong>{{ product.name }}</strong><small>{{ product.sku }}</small></div>
+              <input class="form-control purchase-quantity" name="quantity" type="number" min="0.001" step="0.001" value="{{ existing_line.quantity if existing_line else '' }}" placeholder="0">
+              <div class="input-group"><input class="form-control unit-cost" name="unit_cost" type="number" min="0" step="1" value="{{ existing_line.unit_cost_snapshot if existing_line else product.valuation_unit_cost }}" aria-label="Prix d'achat de {{ product.name }}"><span class="input-group-text">{{ purchase.currency }}</span></div>
+              <strong class="purchase-line-total" data-line-total>{% if existing_line %}{{ "{:,.0f}".format(existing_line.total_amount) }}{% else %}0{% endif %} {{ purchase.currency }}</strong>
+            </div>
+            {% endfor %}
+          </div>
+
+          <div class="info-box mt-4"><strong>Modification :</strong> mettez une quantité à vide pour retirer un produit du brouillon. Vous pouvez aussi ajouter un produit, corriger sa quantité ou modifier son prix d'achat.</div>
+        </div>
+        <div class="modal-footer"><button class="btn btn-light border" type="button" data-bs-dismiss="modal">Fermer</button><button class="btn btn-primary" type="submit">Enregistrer les modifications</button></div>
+      </form>
+    </div>
+  </div>
+</div>
+
 <div class="modal fade" id="receiveModal{{ purchase.id }}" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered"><div class="modal-content purchase-modal"><form method="post">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="purchase_receive"><input type="hidden" name="purchase_id" value="{{ purchase.id }}">
     <div class="modal-header"><div><p class="eyebrow mb-1">Confirmation</p><h2 class="modal-title h5">Réceptionner {{ purchase.reference }}</h2></div><button class="btn-close" type="button" data-bs-dismiss="modal"></button></div>
-    <div class="modal-body"><p class="mb-2">Vous confirmez avoir reçu les produits de <strong>{{ purchase.supplier_name_snapshot }}</strong>.</p><p class="text-secondary mb-0">Cette action ajoutera les quantités au stock et ne pourra pas être rejouée.</p></div>
+    <div class="modal-body"><p class="mb-2">Vous confirmez avoir reçu les produits de <strong>{{ purchase.supplier_name_snapshot }}</strong>.</p><p class="text-secondary mb-0">Cette action ajoutera les quantités au stock et ne pourra pas être rejouée. Vérifiez le brouillon avant de confirmer.</p></div>
     <div class="modal-footer"><button class="btn btn-light border" type="button" data-bs-dismiss="modal">Retour</button><button class="btn btn-primary" type="submit">Confirmer la réception</button></div>
   </form></div></div>
 </div>
