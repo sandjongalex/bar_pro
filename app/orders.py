@@ -88,6 +88,8 @@ def quick(bar_id):
                     f"Commande {order.reference} confirmée · {order.total_amount:,.0f} {order.currency}.",
                     "success",
                 )
+                if can_pay:
+                    return redirect(url_for("checkout_web.checkout", bar_id=bar_id, order_id=order.id))
 
             elif action == "serve":
                 if not can_edit:
