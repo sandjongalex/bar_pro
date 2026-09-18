@@ -22,8 +22,12 @@ jobs:
         run: pytest -q tests/test_purchase_enhancements.py
       - name: Run existing purchase and supplier workflows
         run: pytest -q tests/test_workflows.py -k 'purchase or supplier'
-      - name: Validate migrated metadata
-        run: pytest -q tests/test_schema.py::test_initial_migration_creates_every_model_table tests/test_schema.py::test_migrated_columns_constraints_and_metadata_match tests/test_schema.py::test_flask_cli_upgrade_and_routes_on_empty_database
+      - name: Validate schema table count
+        run: pytest -q tests/test_schema.py::test_initial_migration_creates_every_model_table
+      - name: Validate migrated metadata equality
+        run: pytest -q tests/test_schema.py::test_migrated_columns_constraints_and_metadata_match
+      - name: Validate Flask DB upgrade and routes
+        run: pytest -q tests/test_schema.py::test_flask_cli_upgrade_and_routes_on_empty_database
       - name: Validate generated data model document
         run: pytest -q tests/test_schema.py::test_data_model_document_matches_models
       - name: Validate MySQL migration SQL
