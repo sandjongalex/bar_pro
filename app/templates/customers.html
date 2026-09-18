@@ -18,7 +18,15 @@
 {% for category, message in get_flashed_messages(with_categories=true) %}<div class="alert alert-{{ category }} mt-3">{{ message }}</div>{% endfor %}
 
 {% if not bar.credit_sales_enabled %}
-<div class="alert alert-warning mt-4"><strong>Ventes à crédit désactivées.</strong> Les clients et casiers restent utilisables, mais la caisse ne proposera pas le règlement à crédit tant que l'option n'est pas activée pour cet établissement.</div>
+<div class="alert alert-warning mt-4 d-flex flex-wrap align-items-center gap-3">
+  <div class="flex-grow-1"><strong>Ventes à crédit désactivées.</strong> Les clients et casiers restent utilisables, mais la caisse ne proposera pas le règlement à crédit.</div>
+  {% if can_settings %}<form method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="credit_enable"><button class="btn btn-warning" type="submit">Activer le crédit</button></form>{% endif %}
+</div>
+{% elif can_settings %}
+<div class="alert alert-success mt-4 d-flex flex-wrap align-items-center gap-3">
+  <div class="flex-grow-1"><strong>Ventes à crédit activées.</strong> La caissière peut transférer le solde d'une commande sur le compte d'un client.</div>
+  <form method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="credit_disable"><button class="btn btn-sm btn-outline-success" type="submit">Désactiver</button></form>
+</div>
 {% endif %}
 
 <section class="customer-stats mt-4">
