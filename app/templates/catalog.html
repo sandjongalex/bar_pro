@@ -1,1 +1,188 @@
-{% extends 'layout.html' %}{% block title %}Catalogue · Bar Manager Pro{% endblock %}{% block content %}<h1 class="h3">Catalogue</h1><form class="row g-2 mb-3"><label class="col-sm-5"><span class="visually-hidden">Rechercher</span><input class="form-control" name="q" value="{{ request.args.get('q','') }}" placeholder="Nom ou référence"></label><div class="col-auto"><button class="btn btn-primary">Rechercher</button></div></form>{% if products.items %}<div class="table-responsive"><table class="table"><thead><tr><th>Produit</th><th>Référence</th><th>Prix vente</th><th>État</th></tr></thead><tbody>{% for p in products.items %}<tr><td>{{ p.name }}</td><td>{{ p.sku }}</td><td>{{ p.sale_price }}</td><td><span class="badge text-bg-{{ 'success' if p.is_active else 'secondary' }}">{{ 'Actif' if p.is_active else 'Archivé' }}</span></td></tr>{% endfor %}</tbody></table></div>{% else %}<p class="text-muted">Aucun produit.</p>{% endif %}{% endblock %}
+{% extends 'layout.html' %}
+{% block title %}Produits · {{ bar.name }} · Bar Manager Pro{% endblock %}
+{% block header %}Produits · {{ bar.name }}{% endblock %}
+{% block content %}
+<section class="catalog-hero">
+  <div>
+    <a class="bar-back" href="{{ url_for('bars.web_detail', bar_id=bar.id) }}">← Retour à {{ bar.name }}</a>
+    <p class="eyebrow mt-3 mb-2">Catalogue & stock initial</p>
+    <h1>Produits de {{ bar.name }}</h1>
+    <p>Organisez les boissons et autres articles par catégorie, définissez les prix et enregistrez le stock de départ.</p>
+  </div>
+  {% if can_manage %}
+  <div class="catalog-hero-actions">
+    <button class="btn btn-outline-primary" type="button" data-bs-toggle="modal" data-bs-target="#categoryModal">＋ Catégorie</button>
+    <button class="btn btn-primary" type="button" data-bs-toggle="modal" data-bs-target="#productModal" {% if not active_categories %}disabled{% endif %}>＋ Produit</button>
+  </div>
+  {% endif %}
+</section>
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% for category, message in messages %}
+    <div class="alert alert-{{ category }} mt-3" role="alert">{{ message }}</div>
+  {% endfor %}
+{% endwith %}
+
+<section class="catalog-stats mt-4">
+  <article><span>Produits actifs</span><strong>{{ stats.products }}</strong><small>Disponibles dans le catalogue</small></article>
+  <article><span>Catégories actives</span><strong>{{ stats.categories }}</strong><small>Familles de produits</small></article>
+  <article><span>Alertes stock</span><strong>{{ stats.low_stock }}</strong><small>Au seuil ou en dessous</small></article>
+</section>
+
+{% if can_manage and not active_categories %}
+<div class="catalog-onboarding mt-4">
+  <div class="catalog-onboarding-number">1</div>
+  <div><strong>Commencez par créer une catégorie</strong><p>Par exemple : Bières, Eaux, Jus, Vins, Spiritueux ou Repas.</p></div>
+  <button class="btn btn-primary ms-auto" type="button" data-bs-toggle="modal" data-bs-target="#categoryModal">Créer une catégorie</button>
+</div>
+{% endif %}
+
+<div class="catalog-layout mt-4">
+  <section class="panel-card catalog-main-panel">
+    <div class="catalog-toolbar">
+      <form method="get" class="catalog-filter-form">
+        <div class="catalog-search">
+          <span>⌕</span>
+          <input class="form-control" name="q" value="{{ request.args.get('q','') }}" placeholder="Rechercher un produit ou une référence">
+        </div>
+        <select class="form-select" name="category_id">
+          <option value="">Toutes les catégories</option>
+          {% for category in categories %}
+            <option value="{{ category.id }}" {% if request.args.get('category_id')|int == category.id %}selected{% endif %}>{{ category.name }}</option>
+          {% endfor %}
+        </select>
+        <select class="form-select" name="active">
+          <option value="">Tous les états</option>
+          <option value="true" {% if request.args.get('active') == 'true' %}selected{% endif %}>Actifs</option>
+          <option value="false" {% if request.args.get('active') == 'false' %}selected{% endif %}>Archivés</option>
+        </select>
+        <button class="btn btn-light border" type="submit">Filtrer</button>
+        {% if request.args %}<a class="btn btn-link" href="{{ url_for('catalog.web_list', bar_id=bar.id) }}">Réinitialiser</a>{% endif %}
+      </form>
+    </div>
+
+    {% if products.items %}
+    <div class="table-responsive">
+      <table class="table catalog-table align-middle mb-0">
+        <thead><tr><th>Produit</th><th>Catégorie</th><th>Prix de vente</th><th>Stock</th><th>Seuil</th><th>État</th>{% if can_manage %}<th class="text-end">Action</th>{% endif %}</tr></thead>
+        <tbody>
+        {% for p in products.items %}
+          {% set quantity = balances.get(p.id, 0) %}
+          <tr>
+            <td>
+              <div class="product-cell">
+                <span class="product-avatar">{{ p.name[0]|upper }}</span>
+                <div><strong>{{ p.name }}</strong><small>{{ p.sku }} · {{ p.base_unit }}</small></div>
+              </div>
+            </td>
+            <td>
+              {% for category in categories %}{% if category.id == p.category_id %}<span class="category-chip">{{ category.name }}</span>{% endif %}{% endfor %}
+            </td>
+            <td><strong>{{ "{:,.0f}".format(p.sale_price) }} {{ bar.currency }}</strong><small class="d-block text-secondary">Coût : {{ "{:,.0f}".format(p.valuation_unit_cost) }}</small></td>
+            <td><span class="stock-value {% if quantity <= p.stock_alert_threshold %}stock-low{% endif %}">{{ quantity }}</span></td>
+            <td>{{ p.stock_alert_threshold }}</td>
+            <td><span class="status-pill {% if p.is_active %}status-active{% else %}status-suspended{% endif %}">{{ 'Actif' if p.is_active else 'Archivé' }}</span></td>
+            {% if can_manage %}
+            <td class="text-end">
+              <form method="post" class="d-inline">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="product_id" value="{{ p.id }}">
+                <input type="hidden" name="action" value="{{ 'product_disable' if p.is_active else 'product_enable' }}">
+                <button class="btn btn-sm btn-light border" type="submit">{{ 'Archiver' if p.is_active else 'Réactiver' }}</button>
+              </form>
+            </td>
+            {% endif %}
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    {% if products.pages > 1 %}
+    <div class="catalog-pagination">
+      <span>Page {{ products.page }} sur {{ products.pages }}</span>
+      <div>
+        {% if products.has_prev %}<a class="btn btn-sm btn-light border" href="{{ url_for('catalog.web_list', bar_id=bar.id, page=products.prev_num, q=request.args.get('q',''), category_id=request.args.get('category_id',''), active=request.args.get('active','')) }}">← Précédent</a>{% endif %}
+        {% if products.has_next %}<a class="btn btn-sm btn-light border" href="{{ url_for('catalog.web_list', bar_id=bar.id, page=products.next_num, q=request.args.get('q',''), category_id=request.args.get('category_id',''), active=request.args.get('active','')) }}">Suivant →</a>{% endif %}
+      </div>
+    </div>
+    {% endif %}
+    {% else %}
+    <div class="empty-state">
+      <div class="empty-icon">▦</div>
+      <h3>Aucun produit trouvé</h3>
+      <p>{% if categories %}Ajoutez votre premier produit ou modifiez les filtres de recherche.{% else %}Créez d'abord une catégorie, puis ajoutez les produits de {{ bar.name }}.{% endif %}</p>
+      {% if can_manage and active_categories %}<button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#productModal">Ajouter un produit</button>{% endif %}
+    </div>
+    {% endif %}
+  </section>
+
+  <aside class="panel-card category-panel">
+    <div class="panel-header"><div><p class="eyebrow mb-1">Organisation</p><h2>Catégories</h2></div>{% if can_manage %}<button class="btn btn-sm btn-light border" data-bs-toggle="modal" data-bs-target="#categoryModal">＋</button>{% endif %}</div>
+    <div class="category-list">
+      {% for category in categories %}
+      <div class="category-row">
+        <div><strong>{{ category.name }}</strong><small>{{ 'Active' if category.is_active else 'Désactivée' }}</small></div>
+        {% if can_manage %}
+        <form method="post">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="category_id" value="{{ category.id }}">
+          <input type="hidden" name="action" value="{{ 'category_disable' if category.is_active else 'category_enable' }}">
+          <button class="btn btn-sm btn-link" type="submit">{{ 'Désactiver' if category.is_active else 'Activer' }}</button>
+        </form>
+        {% endif %}
+      </div>
+      {% else %}
+      <div class="p-4 text-secondary small">Aucune catégorie pour le moment.</div>
+      {% endfor %}
+    </div>
+  </aside>
+</div>
+
+{% if can_manage %}
+<div class="modal fade" id="categoryModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content catalog-modal">
+      <form method="post">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="action" value="category_create">
+        <div class="modal-header"><div><p class="eyebrow mb-1">Nouvelle catégorie</p><h2 class="modal-title h5">Organiser le catalogue</h2></div><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+        <div class="modal-body">
+          <label class="form-label" for="category_name">Nom de la catégorie</label>
+          <input class="form-control form-control-lg" id="category_name" name="category_name" placeholder="Ex. Bières" maxlength="100" required>
+          <div class="form-text">Une catégorie permet de regrouper les produits similaires.</div>
+        </div>
+        <div class="modal-footer"><button type="button" class="btn btn-light border" data-bs-dismiss="modal">Annuler</button><button class="btn btn-primary" type="submit">Créer la catégorie</button></div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="productModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content catalog-modal">
+      <form method="post">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="action" value="product_create">
+        <div class="modal-header"><div><p class="eyebrow mb-1">Nouveau produit</p><h2 class="modal-title h5">Ajouter au catalogue de {{ bar.name }}</h2></div><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+        <div class="modal-body">
+          <div class="product-form-grid">
+            <div class="field-span-2"><label class="form-label">Catégorie</label><select class="form-select form-select-lg" name="category_id" required><option value="">Sélectionner...</option>{% for category in active_categories %}<option value="{{ category.id }}">{{ category.name }}</option>{% endfor %}</select></div>
+            <div><label class="form-label">Nom du produit</label><input class="form-control" name="name" placeholder="Ex. 33 Export" maxlength="160" required></div>
+            <div><label class="form-label">Référence / SKU</label><input class="form-control" name="sku" placeholder="Ex. BIERE-33-65" maxlength="64" required></div>
+            <div><label class="form-label">Prix de vente</label><div class="input-group"><input class="form-control" name="sale_price" type="number" min="0" step="1" placeholder="800" required><span class="input-group-text">{{ bar.currency }}</span></div></div>
+            <div><label class="form-label">Coût d'achat unitaire</label><div class="input-group"><input class="form-control" name="valuation_unit_cost" type="number" min="0" step="1" placeholder="600" required><span class="input-group-text">{{ bar.currency }}</span></div></div>
+            <div><label class="form-label">Unité de vente</label><select class="form-select" name="base_unit"><option value="bouteille">Bouteille</option><option value="canette">Canette</option><option value="unité">Unité</option><option value="plat">Plat</option><option value="verre">Verre</option><option value="portion">Portion</option></select></div>
+            <div><label class="form-label">Unités par casier/carton</label><input class="form-control" name="units_per_case" type="number" min="1" step="1" placeholder="12"></div>
+            <div><label class="form-label">Stock initial</label><input class="form-control" name="initial_quantity" type="number" min="0" step="0.001" value="0"><div class="form-text">Quantité disponible actuellement.</div></div>
+            <div><label class="form-label">Seuil d'alerte</label><input class="form-control" name="stock_alert_threshold" type="number" min="0" step="0.001" value="0"><div class="form-text">Alerte lorsque le stock atteint ce niveau.</div></div>
+          </div>
+          <div class="info-box mt-4"><strong>Stock initial :</strong> cette quantité sera enregistrée comme premier mouvement de stock et restera traçable dans l'historique.</div>
+        </div>
+        <div class="modal-footer"><button type="button" class="btn btn-light border" data-bs-dismiss="modal">Annuler</button><button class="btn btn-primary" type="submit">Créer le produit</button></div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
