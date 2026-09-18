@@ -35,10 +35,7 @@
 
 <div class="checkout-layout mt-4">
   <section class="panel-card checkout-orders-panel">
-    <div class="panel-header">
-      <div><p class="eyebrow mb-1">File de caisse</p><h2>Commandes</h2></div>
-    </div>
-
+    <div class="panel-header"><div><p class="eyebrow mb-1">File de caisse</p><h2>Commandes</h2></div></div>
     {% if orders %}
     <div class="checkout-order-list">
       {% for order in orders %}
@@ -54,22 +51,14 @@
             </div>
           </div>
           <div class="checkout-order-amount">
-            {% if order.status == 'DRAFT' %}
-              <small>Statut</small><strong>À livrer</strong>
-            {% else %}
-              <small>Reste</small><strong>{{ "{:,.0f}".format(b.amount_due) }} {{ order.currency }}</strong>
-              {% if order.payment_status == 'PARTIAL' %}<span class="checkout-partial">Paiement partiel</span>{% else %}<span class="checkout-partial">À payer</span>{% endif %}
-            {% endif %}
+            {% if order.status == 'DRAFT' %}<small>Statut</small><strong>À livrer</strong>
+            {% else %}<small>Reste</small><strong>{{ "{:,.0f}".format(b.amount_due) }} {{ order.currency }}</strong>{% if order.payment_status == 'PARTIAL' %}<span class="checkout-partial">Paiement partiel</span>{% else %}<span class="checkout-partial">À payer</span>{% endif %}{% endif %}
           </div>
         </a>
       {% endfor %}
     </div>
     {% else %}
-    <div class="empty-state">
-      <div class="empty-icon">✓</div>
-      <h3>Aucune commande à traiter</h3>
-      <p>Les nouvelles commandes envoyées par les serveuses apparaîtront ici.</p>
-    </div>
+    <div class="empty-state"><div class="empty-icon">✓</div><h3>Aucune commande à traiter</h3><p>Les nouvelles commandes envoyées par les serveuses apparaîtront ici.</p></div>
     {% endif %}
   </section>
 
@@ -87,9 +76,7 @@
         <div><span>Table / libellé</span><strong>{{ selected_order.table_label_snapshot or 'Sans table' }}</strong></div>
         {% if selected_order.notes %}<div><span>Note</span><strong>{{ selected_order.notes }}</strong></div>{% endif %}
         <hr>
-        {% for line in selected_lines %}
-        <div><span>{{ line.quantity }} × {{ line.product_name_snapshot }}</span><strong>{{ "{:,.0f}".format(line.total_amount) }}</strong></div>
-        {% endfor %}
+        {% for line in selected_lines %}<div><span>{{ line.quantity }} × {{ line.product_name_snapshot }}</span><strong>{{ "{:,.0f}".format(line.total_amount) }}</strong></div>{% endfor %}
         <hr>
         <div><span>Total vente</span><strong>{{ "{:,.0f}".format(b.net_sale) }} {{ selected_order.currency }}</strong></div>
         {% if selected_order.status != 'DRAFT' %}
@@ -103,62 +90,54 @@
           <div class="checkout-warning mb-3"><strong>En attente de livraison.</strong> Le stock n'a pas encore été déduit.</div>
           {% if can_deliver %}
           <form method="post">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <input type="hidden" name="action" value="deliver">
-            <input type="hidden" name="order_id" value="{{ selected_order.id }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="deliver"><input type="hidden" name="order_id" value="{{ selected_order.id }}">
             <button class="btn btn-primary btn-lg w-100" type="submit" {% if is_cashier and not open_sessions %}disabled{% endif %}>Livrée</button>
           </form>
-          <p class="checkout-help">En cliquant sur « Livrée », les quantités sont déduites du stock et la commande passe à « À payer ».</p>
+          <p class="checkout-help">« Livrée » déduit le stock et place la commande dans la file « À payer ».</p>
           {% endif %}
         </div>
       {% elif can_record %}
       <form method="post" id="checkoutForm" class="checkout-form">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <input type="hidden" name="action" value="payment">
-        <input type="hidden" name="order_id" value="{{ selected_order.id }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="payment"><input type="hidden" name="order_id" value="{{ selected_order.id }}">
+        <input type="hidden" id="orderDue" value="{{ b.amount_due }}">
 
         <label class="form-label">Mode de paiement</label>
         <div class="checkout-methods">
           {% for code, label in payment_labels.items() %}
-          <label class="checkout-method {% if loop.first %}active{% endif %}">
-            <input type="radio" name="method" value="{{ code }}" {% if loop.first %}checked{% endif %}>
-            <span>{{ {'CASH':'₣','MOBILE_MONEY':'M','CARD':'C','BANK_TRANSFER':'V'}.get(code,'•') }}</span>
-            <strong>{{ label }}</strong>
-          </label>
+          <label class="checkout-method {% if loop.first %}active{% endif %}"><input type="radio" name="method" value="{{ code }}" {% if loop.first %}checked{% endif %}><span>{{ {'CASH':'₣','MOBILE_MONEY':'M','MIXED':'±','CARD':'C','BANK_TRANSFER':'V'}.get(code,'•') }}</span><strong>{{ label }}</strong></label>
           {% endfor %}
         </div>
 
-        <div class="row g-3 mt-1">
-          <div class="col-12">
-            <label class="form-label" for="amount_applied">Montant à encaisser</label>
-            <div class="input-group input-group-lg"><input class="form-control" id="amount_applied" name="amount_applied" type="number" min="1" step="1" max="{{ b.amount_due }}" value="{{ b.amount_due }}" required><span class="input-group-text">{{ bar.currency }}</span></div>
-          </div>
-          <div class="col-12" id="cashPresentedGroup">
-            <label class="form-label" for="amount_presented">Montant remis par le client</label>
-            <div class="input-group input-group-lg"><input class="form-control" id="amount_presented" name="amount_presented" type="number" min="1" step="1" value="{{ b.amount_due }}"><span class="input-group-text">{{ bar.currency }}</span></div>
-          </div>
+        <div id="singleAmountGroup" class="row g-3 mt-1">
+          <div class="col-12"><label class="form-label" for="amount_applied">Montant à encaisser</label><div class="input-group input-group-lg"><input class="form-control" id="amount_applied" name="amount_applied" type="number" min="1" step="1" max="{{ b.amount_due }}" value="{{ b.amount_due }}" required><span class="input-group-text">{{ bar.currency }}</span></div></div>
+        </div>
+
+        <div id="mixedGroup" class="row g-3 mt-1" hidden>
+          <div class="col-md-6"><label class="form-label" for="mixed_cash">Part espèces</label><div class="input-group"><input class="form-control" id="mixed_cash" name="mixed_cash" type="number" min="0" step="1" value="0"><span class="input-group-text">{{ bar.currency }}</span></div></div>
+          <div class="col-md-6"><label class="form-label" for="mixed_mobile">Part Mobile Money</label><div class="input-group"><input class="form-control" id="mixed_mobile" name="mixed_mobile" type="number" min="0" step="1" value="{{ b.amount_due }}"><span class="input-group-text">{{ bar.currency }}</span></div></div>
+          <div class="col-12"><div class="checkout-warning">Les deux parts doivent totaliser exactement <strong>{{ "{:,.0f}".format(b.amount_due) }} {{ bar.currency }}</strong>.</div></div>
+        </div>
+
+        <div class="row g-3 mt-1" id="cashPresentedGroup">
+          <div class="col-12"><label class="form-label" for="amount_presented">Montant espèces remis par le client</label><div class="input-group input-group-lg"><input class="form-control" id="amount_presented" name="amount_presented" type="number" min="1" step="1" value="{{ b.amount_due }}"><span class="input-group-text">{{ bar.currency }}</span></div></div>
         </div>
 
         <div class="checkout-change" id="changeBox"><span>Monnaie à rendre</span><strong><span id="changeValue">0</span> {{ bar.currency }}</strong></div>
 
         <div id="cashLocationGroup" class="mt-3">
           <label class="form-label" for="cash_session_id">Session de caisse</label>
-          <select class="form-select form-select-lg" id="cash_session_id" name="cash_session_id">
-            <option value="">Sélectionner une caisse ouverte...</option>
-            {% for session in open_sessions %}<option value="{{ session.id }}">{{ session.reference }} · solde {{ "{:,.0f}".format(cash_expected[session.id]) }} {{ session.currency }}</option>{% endfor %}
-          </select>
+          <select class="form-select form-select-lg" id="cash_session_id" name="cash_session_id"><option value="">Sélectionner une caisse ouverte...</option>{% for session in open_sessions %}<option value="{{ session.id }}">{{ session.reference }} · solde {{ "{:,.0f}".format(cash_expected[session.id]) }} {{ session.currency }}</option>{% endfor %}</select>
           {% if not open_sessions %}<div class="checkout-warning mt-2">Aucune caisse ouverte. <a href="{{ url_for('finance_web.desk', bar_id=bar.id) }}">Ouvrir une caisse</a>.</div>{% endif %}
         </div>
 
         <div id="providerGroup" class="row g-3 mt-1" hidden>
-          <div class="col-md-5"><label class="form-label" for="provider_code">Prestataire</label><input class="form-control" id="provider_code" name="provider_code" maxlength="32" placeholder="MTN, Orange, banque..."></div>
-          <div class="col-md-7"><label class="form-label" for="provider_transaction_id">Référence transaction</label><input class="form-control" id="provider_transaction_id" name="provider_transaction_id" maxlength="128" placeholder="Référence transaction"></div>
+          <div class="col-md-5"><label class="form-label" for="provider_code">Prestataire</label><input class="form-control" id="provider_code" name="provider_code" maxlength="32" placeholder="MTN, Orange..."></div>
+          <div class="col-md-7"><label class="form-label" for="provider_transaction_id">Référence Mobile Money</label><input class="form-control" id="provider_transaction_id" name="provider_transaction_id" maxlength="128" placeholder="Référence transaction"></div>
         </div>
 
         <details class="checkout-reference mt-3"><summary>Référence personnalisée</summary><input class="form-control mt-2" name="reference" maxlength="64" placeholder="Automatique si vide"></details>
-
         <button class="btn btn-primary btn-lg w-100 mt-4" id="checkoutSubmit" type="submit" {% if is_cashier and not open_sessions %}disabled{% endif %}>Encaisser {{ "{:,.0f}".format(b.amount_due) }} {{ selected_order.currency }}</button>
-        <p class="checkout-help">Un paiement partiel reste possible. La commande devient « Payée » lorsque le solde atteint zéro.</p>
+        <p class="checkout-help">Espèces et Mobile Money peuvent être combinés avec « Paiement mixte ».</p>
       </form>
       {% endif %}
     {% else %}
@@ -171,9 +150,7 @@
   <div class="panel-header"><div><p class="eyebrow mb-1">Traçabilité</p><h2>Derniers paiements</h2></div><a class="btn btn-sm btn-light border" href="{{ url_for('finance_web.desk', bar_id=bar.id) }}">Historique complet</a></div>
   {% if recent_payments %}
   <div class="table-responsive"><table class="table checkout-history align-middle mb-0"><thead><tr><th>Référence</th><th>Commande</th><th>Mode</th><th>Montant</th><th>Monnaie rendue</th><th>Date</th></tr></thead><tbody>
-    {% for payment in recent_payments %}
-    <tr><td><strong>{{ payment.reference }}</strong></td><td>{{ order_by_id.get(payment.order_id).reference if order_by_id.get(payment.order_id) else payment.order_id }}</td><td>{{ payment_labels.get(payment.method, payment.method) }}</td><td><strong>{{ "{:,.0f}".format(payment.amount_applied) }} {{ payment.currency }}</strong></td><td>{{ "{:,.0f}".format(payment.change_given) }} {{ payment.currency }}</td><td>{{ payment.received_at }}</td></tr>
-    {% endfor %}
+    {% for payment in recent_payments %}<tr><td><strong>{{ payment.reference }}</strong></td><td>{{ order_by_id.get(payment.order_id).reference if order_by_id.get(payment.order_id) else payment.order_id }}</td><td>{{ payment_labels.get(payment.method, payment.method) }}</td><td><strong>{{ "{:,.0f}".format(payment.amount_applied) }} {{ payment.currency }}</strong></td><td>{{ "{:,.0f}".format(payment.change_given) }} {{ payment.currency }}</td><td>{{ payment.received_at }}</td></tr>{% endfor %}
   </tbody></table></div>
   {% else %}<div class="p-4 text-secondary">Aucun paiement enregistré pour le moment.</div>{% endif %}
 </section>
@@ -184,6 +161,11 @@
   if (!form) return;
   const applied = document.getElementById('amount_applied');
   const presented = document.getElementById('amount_presented');
+  const singleAmountGroup = document.getElementById('singleAmountGroup');
+  const mixedGroup = document.getElementById('mixedGroup');
+  const mixedCash = document.getElementById('mixed_cash');
+  const mixedMobile = document.getElementById('mixed_mobile');
+  const due = Number(document.getElementById('orderDue').value || 0);
   const presentedGroup = document.getElementById('cashPresentedGroup');
   const cashGroup = document.getElementById('cashLocationGroup');
   const providerGroup = document.getElementById('providerGroup');
@@ -191,32 +173,50 @@
   const changeValue = document.getElementById('changeValue');
   const submit = document.getElementById('checkoutSubmit');
   const cashSelect = document.getElementById('cash_session_id');
+  const providerCode = document.getElementById('provider_code');
+  const providerTxn = document.getElementById('provider_transaction_id');
   const formatter = new Intl.NumberFormat('fr-FR', {maximumFractionDigits: 0});
 
   function method() { return form.querySelector('input[name="method"]:checked')?.value || 'CASH'; }
+  function activeAmount() { return method() === 'MIXED' ? Number(mixedCash.value || 0) : Number(applied.value || 0); }
   function updateChange() {
-    const a = Number(applied.value || 0);
+    const cashApplied = activeAmount();
     const p = Number(presented.value || 0);
-    changeValue.textContent = formatter.format(Math.max(0, p - a));
-    submit.textContent = `Encaisser ${formatter.format(a)} {{ bar.currency }}`;
+    changeValue.textContent = formatter.format(Math.max(0, p - cashApplied));
+    const totalLabel = method() === 'MIXED' ? due : Number(applied.value || 0);
+    submit.textContent = `Encaisser ${formatter.format(totalLabel)} {{ bar.currency }}`;
   }
   function updateMethod() {
-    const isCash = method() === 'CASH';
-    presentedGroup.hidden = !isCash;
-    cashGroup.hidden = !isCash;
-    changeBox.hidden = !isCash;
-    providerGroup.hidden = isCash;
-    presented.required = isCash;
-    cashSelect.required = isCash;
-    if (!isCash) presented.value = applied.value;
+    const m = method();
+    const isCash = m === 'CASH';
+    const isMobile = m === 'MOBILE_MONEY';
+    const isMixed = m === 'MIXED';
+    singleAmountGroup.hidden = isMixed;
+    mixedGroup.hidden = !isMixed;
+    presentedGroup.hidden = !(isCash || isMixed);
+    cashGroup.hidden = !(isCash || isMixed);
+    changeBox.hidden = !(isCash || isMixed);
+    providerGroup.hidden = !(isMobile || isMixed);
+    applied.required = !isMixed;
+    mixedCash.required = isMixed;
+    mixedMobile.required = isMixed;
+    presented.required = isCash || isMixed;
+    cashSelect.required = isCash || isMixed;
+    providerCode.required = isMobile || isMixed;
+    providerTxn.required = isMobile || isMixed;
+    if (!(isCash || isMixed)) presented.value = applied.value;
     document.querySelectorAll('.checkout-method').forEach(label => label.classList.toggle('active', label.querySelector('input').checked));
     updateChange();
   }
   form.querySelectorAll('input[name="method"]').forEach(radio => radio.addEventListener('change', updateMethod));
-  applied.addEventListener('input', () => { if (method() !== 'CASH') presented.value = applied.value; updateChange(); });
+  applied.addEventListener('input', () => { if (!['CASH','MIXED'].includes(method())) presented.value = applied.value; updateChange(); });
   presented.addEventListener('input', updateChange);
+  mixedCash.addEventListener('input', () => { const cash = Math.max(0, Number(mixedCash.value || 0)); mixedMobile.value = Math.max(0, due - cash); updateChange(); });
+  mixedMobile.addEventListener('input', updateChange);
   form.addEventListener('submit', event => {
-    if (method() === 'CASH' && !cashSelect.value) { event.preventDefault(); cashSelect.focus(); return; }
+    const m = method();
+    if ((m === 'CASH' || m === 'MIXED') && !cashSelect.value) { event.preventDefault(); cashSelect.focus(); return; }
+    if (m === 'MIXED' && (Number(mixedCash.value || 0) <= 0 || Number(mixedMobile.value || 0) <= 0 || Number(mixedCash.value || 0) + Number(mixedMobile.value || 0) !== due)) { event.preventDefault(); mixedCash.focus(); return; }
     submit.disabled = true;
   });
   updateMethod();
