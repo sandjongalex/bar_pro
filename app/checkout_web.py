@@ -1,4 +1,4 @@
-"""Fast server-rendered checkout for bar orders."""
+"""Fast server-rendered cashier queue and checkout for bar orders."""
 from __future__ import annotations
 
 from datetime import datetime, timezone
@@ -13,7 +13,8 @@ from sqlalchemy.exc import IntegrityError
 from app.cash_services import cash_service
 from app.extensions import db
 from app.finance_totals import order_balance
-from app.models import Bar, CashSession, Order, OrderLine, Payment
+from app.models import Bar, CashSession, Order, OrderLine, Payment, StaffAssignment, User
+from app.order_services import order_service
 from app.payment_services import payment_service
 from app.permissions import permissions
 
@@ -42,22 +43,37 @@ def _positive_decimal(value, code="INVALID_PAYMENT_AMOUNTS") -> Decimal:
     return amount
 
 
+def _current_assignment(bar_id):
+    if current_user.category != "EMPLOYEE":
+        return None
+    return db.session.scalar(
+        select(StaffAssignment).where(
+            StaffAssignment.bar_id == bar_id,
+            StaffAssignment.user_id == current_user.id,
+            StaffAssignment.ended_at.is_(None),
+        )
+    )
+
+
 def _message(code) -> str:
     messages = {
         "NOT_FOUND": "Commande introuvable.",
-        "FORBIDDEN": "Vous n'êtes pas autorisé à enregistrer ce paiement.",
+        "FORBIDDEN": "Vous n'êtes pas autorisé à effectuer cette opération.",
         "BAR_SUSPENDED": "Le bar est suspendu : les encaissements sont bloqués.",
-        "ORDER_NOT_PAYABLE": "Cette commande ne peut pas être encaissée.",
+        "ORDER_NOT_DRAFT": "Cette commande a déjà été livrée ou annulée.",
+        "ORDER_NOT_PAYABLE": "La commande doit d'abord être marquée Livrée.",
         "PAYMENT_LIMIT_EXCEEDED": "Le montant dépasse le reste à payer.",
         "INVALID_PAYMENT_AMOUNTS": "Vérifiez le montant encaissé et le montant reçu.",
         "INVALID_METHOD": "Le mode de paiement sélectionné est invalide.",
         "CASH_LOCATION_REQUIRED": "Sélectionnez une caisse ouverte pour un paiement en espèces.",
+        "CASH_SESSION_REQUIRED": "Ouvrez d'abord une session de caisse avant d'encaisser.",
         "CASH_SESSION_NOT_OPEN": "La caisse sélectionnée n'est plus ouverte.",
         "CURRENCY_MISMATCH": "La devise de la caisse ne correspond pas à celle de la commande.",
         "PROVIDER_REFERENCE_REQUIRED": "Renseignez le prestataire et la référence de transaction ensemble.",
         "INVALID_NONCASH_PAYMENT": "Les informations du paiement non espèces sont invalides.",
+        "INSUFFICIENT_STOCK": "Stock insuffisant : la livraison ne peut pas être confirmée.",
     }
-    return messages.get(str(code), "Paiement refusé. Vérifiez les informations saisies.")
+    return messages.get(str(code), "Opération refusée. Vérifiez les informations saisies.")
 
 
 @bp.route("", methods=["GET", "POST"])
@@ -68,15 +84,32 @@ def checkout(bar_id):
     if not bar:
         raise LookupError("NOT_FOUND")
 
+    assignment = _current_assignment(bar_id)
+    is_cashier = bool(assignment and assignment.role == "CASHIER")
     can_record = permissions.evaluate(current_user, "payments.record", bar_id).allowed
+    can_deliver = permissions.evaluate(current_user, "orders.deliver", bar_id).allowed
 
     if request.method == "POST":
-        if not can_record:
-            raise PermissionError("FORBIDDEN")
-
+        action = request.form.get("action", "payment")
         order_id = int(request.form.get("order_id", "0"))
-        method = request.form.get("method", "").strip()
         try:
+            if action == "deliver":
+                if not can_deliver:
+                    raise PermissionError("FORBIDDEN")
+                order = order_service.confirm(current_user, bar_id, order_id)
+                db.session.commit()
+                flash(
+                    f"Commande {order.reference} livrée. Le stock a été déduit et la commande est maintenant à payer.",
+                    "success",
+                )
+                return redirect(url_for("checkout_web.checkout", bar_id=bar_id, order_id=order_id))
+
+            if action != "payment":
+                raise ValueError("INVALID_ACTION")
+            if not can_record:
+                raise PermissionError("FORBIDDEN")
+
+            method = request.form.get("method", "").strip()
             applied = _positive_decimal(request.form.get("amount_applied"))
             provider_code = request.form.get("provider_code", "").strip() or None
             provider_transaction_id = request.form.get("provider_transaction_id", "").strip() or None
@@ -120,7 +153,7 @@ def checkout(bar_id):
                 return redirect(url_for("checkout_web.checkout", bar_id=bar_id, order_id=order_id))
 
             flash(
-                f"Commande {order.reference if order else order_id} entièrement encaissée.",
+                f"Commande {order.reference if order else order_id} payée. La serveuse peut maintenant voir la validation du paiement.",
                 "success",
             )
             return redirect(url_for("checkout_web.checkout", bar_id=bar_id))
@@ -128,7 +161,7 @@ def checkout(bar_id):
         except (PermissionError, LookupError, ValueError, TypeError, IntegrityError) as exc:
             db.session.rollback()
             if isinstance(exc, IntegrityError):
-                flash("Cette référence de paiement existe déjà. Réessayez.", "danger")
+                flash("Cette référence existe déjà. Réessayez.", "danger")
             else:
                 flash(_message(exc), "danger")
             return redirect(url_for("checkout_web.checkout", bar_id=bar_id, order_id=order_id))
@@ -138,10 +171,10 @@ def checkout(bar_id):
             select(Order)
             .where(
                 Order.bar_id == bar_id,
-                Order.status.in_(["CONFIRMED", "SERVED"]),
+                Order.status.in_(["DRAFT", "CONFIRMED", "SERVED"]),
                 Order.payment_status.in_(["UNPAID", "PARTIAL"]),
             )
-            .order_by(Order.id.desc())
+            .order_by(Order.id.asc())
             .limit(100)
         )
     )
@@ -156,6 +189,24 @@ def checkout(bar_id):
             .order_by(OrderLine.order_id, OrderLine.line_no)
         ):
             lines_by_order.setdefault(line.order_id, []).append(line)
+
+    assignment_ids = {order.assigned_staff_id for order in orders if order.assigned_staff_id is not None}
+    assignments = {
+        item.id: item
+        for item in db.session.scalars(
+            select(StaffAssignment).where(StaffAssignment.id.in_(assignment_ids))
+        )
+    } if assignment_ids else {}
+    user_ids = {item.user_id for item in assignments.values()}
+    users = {
+        item.id: item
+        for item in db.session.scalars(select(User).where(User.id.in_(user_ids)))
+    } if user_ids else {}
+    server_name_by_order = {}
+    for order in orders:
+        staff = assignments.get(order.assigned_staff_id)
+        user = users.get(staff.user_id) if staff else None
+        server_name_by_order[order.id] = user.display_name if user else "Sans serveuse"
 
     selected_order = None
     selected_id = request.args.get("order_id", type=int)
@@ -181,19 +232,21 @@ def checkout(bar_id):
             .limit(30)
         )
     )
+    recent_order_ids = {payment.order_id for payment in recent_payments}
     order_by_id = {
         order.id: order
         for order in db.session.scalars(
             select(Order).where(
                 Order.bar_id == bar_id,
-                Order.id.in_({payment.order_id for payment in recent_payments} or {-1}),
+                Order.id.in_(recent_order_ids or {-1}),
             )
         )
     }
 
-    total_due = sum((balances[order.id]["amount_due"] for order in orders), Decimal("0"))
+    total_due = sum((balances[order.id]["amount_due"] for order in orders if order.status != "DRAFT"), Decimal("0"))
     stats = {
-        "orders": len(orders),
+        "waiting": sum(1 for order in orders if order.status == "DRAFT"),
+        "to_pay": sum(1 for order in orders if order.status in {"CONFIRMED", "SERVED"}),
         "due": total_due,
         "open_cash": len(open_sessions),
         "partial": sum(1 for order in orders if order.payment_status == "PARTIAL"),
@@ -206,11 +259,14 @@ def checkout(bar_id):
         balances=balances,
         lines_by_order=lines_by_order,
         selected_order=selected_order,
+        server_name_by_order=server_name_by_order,
         open_sessions=open_sessions,
         cash_expected=cash_expected,
         recent_payments=recent_payments,
         order_by_id=order_by_id,
         payment_labels=PAYMENT_LABELS,
         can_record=can_record,
+        can_deliver=can_deliver,
+        is_cashier=is_cashier,
         stats=stats,
     )
