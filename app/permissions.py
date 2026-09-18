@@ -18,6 +18,10 @@ ROLE_ACTIONS = {
  "bars.update_settings":{"SUPER_ADMIN","OWNER"}, "bars.create":{"SUPER_ADMIN"},
  "staff.manage":{"SUPER_ADMIN","OWNER"}, "staff.read":{"SUPER_ADMIN","OWNER","BAR_ADMIN"},
  "catalog.read":{"SUPER_ADMIN","OWNER","BAR_ADMIN","CASHIER","SERVER"},
+ "customers.read":{"SUPER_ADMIN","OWNER","BAR_ADMIN","CASHIER"},
+ "customers.manage":{"SUPER_ADMIN","OWNER","BAR_ADMIN","CASHIER"},
+ "customer_credit.manage":{"SUPER_ADMIN","OWNER","BAR_ADMIN","CASHIER"},
+ "cases.manage":{"SUPER_ADMIN","OWNER","BAR_ADMIN","CASHIER"},
  "orders.read":{"SUPER_ADMIN","OWNER","BAR_ADMIN","CASHIER","SERVER"},
  # A cashier receives and settles orders; the server is the operational creator.
  "orders.create":{"SUPER_ADMIN","OWNER","BAR_ADMIN","SERVER"},
@@ -33,7 +37,7 @@ ROLE_ACTIONS = {
  "bars.reactivate":{"SUPER_ADMIN"}, "bars.suspend":{"SUPER_ADMIN"},
 }
 WRITES = {"refunds.record","payments.record", "bars.suspend", "bars.reactivate","bars.update_settings","staff.manage","orders.create","orders.edit","orders.deliver"}
-WRITES.update({"catalog.manage", "suppliers.manage", "inventory.adjust", "purchases.manage", "cash.operate"})
+WRITES.update({"catalog.manage", "suppliers.manage", "inventory.adjust", "purchases.manage", "cash.operate", "customers.manage", "customer_credit.manage", "cases.manage"})
 WRITES.add("subscriptions.manage")
 
 @dataclass(frozen=True)
