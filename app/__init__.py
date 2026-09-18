@@ -40,6 +40,7 @@ def create_app(config_name: str | None = None, test_config: dict[str, Any] | Non
     from app import models  # noqa: F401 - registers core metadata for Flask-Migrate
     from app import purchase_models  # noqa: F401 - purchase/supplier domain extensions
     from app import customer_models  # noqa: F401 - customer receivables/cases/notifications metadata
+    from app import inventory_period_models  # noqa: F401 - inventory period reconciliation metadata
     _register_blueprints(app)
     _register_error_handlers(app)
     _register_cli(app)
