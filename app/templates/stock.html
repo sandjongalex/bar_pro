@@ -1,1 +1,267 @@
-{% extends 'layout.html' %}{% block content %}<h1 class="h3">Historique de stock</h1><div class="table-responsive"><table class="table"><thead><tr><th>Date</th><th>Type</th><th>Variation</th><th>Motif</th></tr></thead><tbody>{% for row in rows.items %}<tr><td>{{ row.occurred_at }}</td><td>{{ row.movement_type }}</td><td>{{ row.quantity_delta }}</td><td>{{ row.reason }}</td></tr>{% else %}<tr><td colspan="4" class="text-muted">Aucun mouvement.</td></tr>{% endfor %}</tbody></table></div>{% endblock %}
+{% extends 'layout.html' %}
+{% block title %}Stock · {{ bar.name }} · Bar Manager Pro{% endblock %}
+{% block header %}Stock · {{ bar.name }}{% endblock %}
+{% block content %}
+<section class="stock-hero">
+  <div>
+    <a class="bar-back" href="{{ url_for('bars.web_detail', bar_id=bar.id) }}">← Retour à {{ bar.name }}</a>
+    <p class="eyebrow mt-3 mb-2">Gestion des stocks</p>
+    <h1>Stock de {{ bar.name }}</h1>
+    <p>Suivez les quantités disponibles, les alertes, les pertes et l'historique de chaque mouvement.</p>
+  </div>
+  <div class="stock-hero-actions">
+    <a class="btn btn-outline-primary" href="{{ url_for('inventories.listing', bar_id=bar.id) }}">Inventaires</a>
+    {% if can_adjust %}
+      <button class="btn btn-primary" type="button" data-bs-toggle="modal" data-bs-target="#movementModal">＋ Mouvement manuel</button>
+    {% endif %}
+  </div>
+</section>
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% for category, message in messages %}
+    <div class="alert alert-{{ category }} mt-3" role="alert">{{ message }}</div>
+  {% endfor %}
+{% endwith %}
+
+<section class="stock-stats mt-4" aria-label="Indicateurs de stock">
+  <article>
+    <span>Produits suivis</span>
+    <strong>{{ stats.products }}</strong>
+    <small>{{ "{:,.3f}".format(stats.total_quantity) }} unité(s) au total</small>
+  </article>
+  <article class="{% if stats.low_stock %}stock-stat-warning{% endif %}">
+    <span>Stock faible</span>
+    <strong>{{ stats.low_stock }}</strong>
+    <small>Au seuil d'alerte ou en dessous</small>
+  </article>
+  <article class="{% if stats.out_of_stock %}stock-stat-danger{% endif %}">
+    <span>Ruptures</span>
+    <strong>{{ stats.out_of_stock }}</strong>
+    <small>Produits avec quantité nulle</small>
+  </article>
+  <article>
+    <span>Valeur du stock</span>
+    <strong>{{ "{:,.0f}".format(stats.total_value) }}</strong>
+    <small>{{ bar.currency }} selon le coût d'achat enregistré</small>
+  </article>
+</section>
+
+<section class="panel-card mt-4">
+  <div class="panel-header stock-panel-header">
+    <div>
+      <p class="eyebrow mb-1">Situation actuelle</p>
+      <h2>État du stock</h2>
+    </div>
+    <a class="btn btn-sm btn-light border" href="{{ url_for('catalog.web_list', bar_id=bar.id) }}">Gérer les produits</a>
+  </div>
+
+  {% if balances %}
+  <div class="table-responsive">
+    <table class="table stock-table align-middle mb-0">
+      <thead>
+        <tr>
+          <th>Produit</th>
+          <th>Quantité</th>
+          <th>Seuil</th>
+          <th>Coût unitaire</th>
+          <th>Valeur stock</th>
+          <th>État</th>
+          {% if can_adjust %}<th class="text-end">Action</th>{% endif %}
+        </tr>
+      </thead>
+      <tbody>
+      {% for item in balances %}
+        {% set product = item.product %}
+        <tr>
+          <td>
+            <div class="product-cell">
+              <span class="product-avatar">{{ product.name[0]|upper }}</span>
+              <div>
+                <strong>{{ product.name }}</strong>
+                <small>{{ product.sku }} · {{ product.base_unit }}</small>
+              </div>
+            </div>
+          </td>
+          <td><strong class="stock-quantity {% if item.is_out %}stock-quantity-out{% elif item.is_low %}stock-quantity-low{% endif %}">{{ item.quantity }}</strong></td>
+          <td>{{ product.stock_alert_threshold }}</td>
+          <td>{{ "{:,.0f}".format(product.valuation_unit_cost) }} {{ bar.currency }}</td>
+          <td><strong>{{ "{:,.0f}".format(item.value) }} {{ bar.currency }}</strong></td>
+          <td>
+            {% if item.is_out %}
+              <span class="stock-state stock-state-out">Rupture</span>
+            {% elif item.is_low %}
+              <span class="stock-state stock-state-low">Stock faible</span>
+            {% else %}
+              <span class="stock-state stock-state-ok">Disponible</span>
+            {% endif %}
+          </td>
+          {% if can_adjust %}
+          <td class="text-end">
+            <button
+              class="btn btn-sm btn-light border js-stock-action"
+              type="button"
+              data-bs-toggle="modal"
+              data-bs-target="#movementModal"
+              data-product-id="{{ product.id }}"
+              data-product-name="{{ product.name }}"
+            >Ajuster</button>
+          </td>
+          {% endif %}
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty-state">
+    <div class="empty-icon">S</div>
+    <h3>Aucun produit à suivre</h3>
+    <p>Ajoutez d'abord des produits au catalogue pour commencer la gestion du stock.</p>
+    <a class="btn btn-primary" href="{{ url_for('catalog.web_list', bar_id=bar.id) }}">Ouvrir le catalogue</a>
+  </div>
+  {% endif %}
+</section>
+
+<section class="panel-card mt-4">
+  <div class="panel-header stock-panel-header">
+    <div>
+      <p class="eyebrow mb-1">Traçabilité</p>
+      <h2>Historique des mouvements</h2>
+    </div>
+    <span class="hero-badge">{{ rows.total }} mouvement(s)</span>
+  </div>
+
+  <form method="get" class="stock-filters">
+    <div class="stock-search">
+      <span>⌕</span>
+      <input class="form-control" name="q" value="{{ request.args.get('q','') }}" placeholder="Produit ou référence">
+    </div>
+    <select class="form-select" name="movement_type">
+      <option value="">Tous les mouvements</option>
+      {% for code, label in movement_labels.items() %}
+        <option value="{{ code }}" {% if request.args.get('movement_type') == code %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+    <button class="btn btn-light border" type="submit">Filtrer</button>
+    {% if request.args %}<a class="btn btn-link" href="{{ url_for('stock.history', bar_id=bar.id) }}">Réinitialiser</a>{% endif %}
+  </form>
+
+  {% if rows.items %}
+  <div class="table-responsive">
+    <table class="table stock-table stock-history-table align-middle mb-0">
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Produit</th>
+          <th>Type</th>
+          <th>Variation</th>
+          <th>Coût unitaire</th>
+          <th>Enregistré par</th>
+          <th>Motif</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for row in rows.items %}
+        {% set product = products_by_id.get(row.product_id) %}
+        {% set recorder = recorders_by_id.get(row.recorded_by_id) %}
+        <tr>
+          <td><span class="stock-date">{{ row.occurred_at.strftime('%d/%m/%Y') }}</span><small>{{ row.occurred_at.strftime('%H:%M') }}</small></td>
+          <td><strong>{{ product.name if product else 'Produit #' ~ row.product_id }}</strong><small class="d-block text-secondary">{{ product.sku if product else '' }}</small></td>
+          <td><span class="movement-type movement-{{ row.movement_type|lower }}">{{ movement_labels.get(row.movement_type, row.movement_type) }}</span></td>
+          <td><strong class="movement-delta {% if row.quantity_delta > 0 %}movement-positive{% else %}movement-negative{% endif %}">{% if row.quantity_delta > 0 %}+{% endif %}{{ row.quantity_delta }} {{ row.unit_snapshot }}</strong></td>
+          <td>{{ "{:,.0f}".format(row.unit_cost_snapshot) }} {{ bar.currency }}</td>
+          <td>{{ recorder.display_name if recorder else 'Utilisateur #' ~ row.recorded_by_id }}</td>
+          <td class="stock-reason">{{ row.reason }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {% if rows.pages > 1 %}
+  <div class="stock-pagination">
+    <span>Page {{ rows.page }} sur {{ rows.pages }}</span>
+    <div class="d-flex gap-2">
+      {% if rows.has_prev %}
+        <a class="btn btn-sm btn-light border" href="{{ url_for('stock.history', bar_id=bar.id, page=rows.prev_num, q=request.args.get('q',''), movement_type=request.args.get('movement_type','')) }}">← Précédent</a>
+      {% endif %}
+      {% if rows.has_next %}
+        <a class="btn btn-sm btn-light border" href="{{ url_for('stock.history', bar_id=bar.id, page=rows.next_num, q=request.args.get('q',''), movement_type=request.args.get('movement_type','')) }}">Suivant →</a>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+  {% else %}
+  <div class="empty-state stock-empty-history">
+    <div class="empty-icon">↕</div>
+    <h3>Aucun mouvement trouvé</h3>
+    <p>Les entrées, ventes, pertes, retours et ajustements apparaîtront ici.</p>
+  </div>
+  {% endif %}
+</section>
+
+{% if can_adjust and balances %}
+<div class="modal fade" id="movementModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content stock-modal">
+      <form method="post">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="modal-header">
+          <div><p class="eyebrow mb-1">Mouvement manuel</p><h2 class="modal-title h5">Ajuster le stock</h2></div>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label" for="stock_product_id">Produit</label>
+            <select class="form-select form-select-lg" id="stock_product_id" name="product_id" required>
+              <option value="">Sélectionner un produit...</option>
+              {% for item in balances %}
+                <option value="{{ item.product.id }}">{{ item.product.name }} — stock {{ item.quantity }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label" for="movement_kind">Type d'opération</label>
+            <select class="form-select" id="movement_kind" name="movement_kind" required>
+              <option value="ADD">Ajouter au stock</option>
+              <option value="REMOVE">Retirer / corriger le stock</option>
+              <option value="LOSS">Déclarer une perte ou une casse</option>
+            </select>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label" for="stock_quantity">Quantité</label>
+            <input class="form-control" id="stock_quantity" name="quantity" type="number" min="0.001" step="0.001" placeholder="Ex. 12" required>
+          </div>
+
+          <div>
+            <label class="form-label" for="stock_reason">Motif</label>
+            <textarea class="form-control" id="stock_reason" name="reason" rows="3" maxlength="500" placeholder="Ex. 2 bouteilles cassées pendant le service" required></textarea>
+            <div class="form-text">Chaque mouvement est conservé dans l'historique pour assurer la traçabilité.</div>
+          </div>
+
+          <div class="stock-warning mt-4">
+            <strong>Important</strong>
+            <span>Les livraisons fournisseurs doivent être enregistrées via le module Achats. Ce formulaire sert aux corrections manuelles, ajouts exceptionnels et pertes.</span>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-light border" data-bs-dismiss="modal">Annuler</button>
+          <button class="btn btn-primary" type="submit">Enregistrer le mouvement</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+  document.querySelectorAll('.js-stock-action').forEach((button) => {
+    button.addEventListener('click', () => {
+      const select = document.getElementById('stock_product_id');
+      if (select) select.value = button.dataset.productId;
+    });
+  });
+</script>
+{% endif %}
+{% endblock %}
