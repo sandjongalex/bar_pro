@@ -16,6 +16,7 @@ from app.catalog import api_catalog_bp, catalog_bp
 from app.stock import api_stock_bp, stock_bp
 from app.purchases import bp as purchases_bp, suppliers_bp, supplier_payments_bp
 from app.purchases_web import bp as purchases_web_bp
+from app.supplier_debts_web import bp as supplier_debts_web_bp
 from app.inventories import api_inventories_bp, inventories_bp
 from app.orders import bp as orders_bp, web_bp as orders_web_bp
 from app.staff import bp as staff_web_bp
@@ -68,6 +69,7 @@ def _register_blueprints(app: Flask) -> None:
     from app.reports import bp as reports_bp
     from app.subscriptions import bp as subscriptions_bp
     from app.finance_web import bp as finance_web_bp
+
     app.register_blueprint(finance_web_bp)
     app.register_blueprint(finance_bp)
     app.register_blueprint(reports_bp)
@@ -84,6 +86,7 @@ def _register_blueprints(app: Flask) -> None:
     app.register_blueprint(stock_bp)
     app.register_blueprint(api_stock_bp)
     app.register_blueprint(purchases_web_bp)
+    app.register_blueprint(supplier_debts_web_bp)
     app.register_blueprint(suppliers_bp)
     app.register_blueprint(purchases_bp)
     app.register_blueprint(supplier_payments_bp)
@@ -91,9 +94,20 @@ def _register_blueprints(app: Flask) -> None:
     app.register_blueprint(api_inventories_bp)
     app.register_blueprint(orders_bp)
     app.register_blueprint(orders_web_bp)
-    for blueprint in (api_bars_bp, api_catalog_bp, api_stock_bp, suppliers_bp, purchases_bp,
-                      supplier_payments_bp,
-                      api_inventories_bp, orders_bp, finance_bp, reports_bp, subscriptions_bp):
+
+    for blueprint in (
+        api_bars_bp,
+        api_catalog_bp,
+        api_stock_bp,
+        suppliers_bp,
+        purchases_bp,
+        supplier_payments_bp,
+        api_inventories_bp,
+        orders_bp,
+        finance_bp,
+        reports_bp,
+        subscriptions_bp,
+    ):
         csrf.exempt(blueprint)
 
     @app.before_request
@@ -101,6 +115,7 @@ def _register_blueprints(app: Flask) -> None:
         from flask import request, abort
         from flask_login import current_user
         from app.permissions import permissions
+
         if request.path.startswith("/api/") and request.is_json:
             if not isinstance(request.get_json(), dict):
                 abort(400)
