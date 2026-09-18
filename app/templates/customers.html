@@ -1,0 +1,154 @@
+{% extends 'layout.html' %}
+{% block title %}Clients & crédits · {{ bar.name }} · Bar Manager Pro{% endblock %}
+{% block header %}Clients & crédits · {{ bar.name }}{% endblock %}
+{% block content %}
+<section class="customer-hero">
+  <div>
+    <a class="bar-back" href="{{ url_for('bars.web_detail', bar_id=bar.id) }}">← Retour à {{ bar.name }}</a>
+    <p class="eyebrow mt-3 mb-2">Comptes clients</p>
+    <h1>Clients, crédits & casiers</h1>
+    <p>Suivez les ventes à crédit, les règlements clients et les casiers confiés, sans mélanger ces opérations avec la caisse de vente.</p>
+  </div>
+  <div class="d-flex gap-2 flex-wrap">
+    {% if can_manage %}<button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#customerModal">＋ Nouveau client</button>{% endif %}
+    <a class="btn btn-outline-primary" href="{{ url_for('checkout_web.checkout', bar_id=bar.id) }}">Caisse commandes</a>
+  </div>
+</section>
+
+{% for category, message in get_flashed_messages(with_categories=true) %}<div class="alert alert-{{ category }} mt-3">{{ message }}</div>{% endfor %}
+
+{% if not bar.credit_sales_enabled %}
+<div class="alert alert-warning mt-4"><strong>Ventes à crédit désactivées.</strong> Les clients et casiers restent utilisables, mais la caisse ne proposera pas le règlement à crédit tant que l'option n'est pas activée pour cet établissement.</div>
+{% endif %}
+
+<section class="customer-stats mt-4">
+  <article><span>Clients actifs</span><strong>{{ stats.customers }}</strong><small>Comptes disponibles</small></article>
+  <article><span>Clients débiteurs</span><strong>{{ stats.debtors }}</strong><small>Solde supérieur à zéro</small></article>
+  <article><span>Dette clients</span><strong>{{ "{:,.0f}".format(stats.debt) }} {{ bar.currency }}</strong><small>Créances à recouvrer</small></article>
+  <article><span>Casiers dehors</span><strong>{{ stats.cases }}</strong><small>Chez les clients</small></article>
+</section>
+
+<div class="customer-layout mt-4">
+  <section class="panel-card">
+    <div class="panel-header"><div><p class="eyebrow mb-1">Portefeuille</p><h2>Clients</h2></div></div>
+    {% if customers %}
+    <div class="table-responsive">
+      <table class="table align-middle mb-0 customer-table">
+        <thead><tr><th>Client</th><th>Contact</th><th>Dette</th><th>Casiers</th><th>État</th><th class="text-end">Actions</th></tr></thead>
+        <tbody>
+        {% for customer in customers %}
+          {% set debt = debt_by_customer.get(customer.id, 0) %}
+          <tr>
+            <td><div class="customer-name"><span>{{ customer.display_name[0]|upper }}</span><strong>{{ customer.display_name }}</strong></div></td>
+            <td><small>{{ customer.phone or customer.email or 'Non renseigné' }}</small></td>
+            <td><strong class="{% if debt > 0 %}text-danger{% else %}text-success{% endif %}">{{ "{:,.0f}".format(debt) }} {{ bar.currency }}</strong></td>
+            <td><strong>{{ cases_by_customer.get(customer.id, 0) }}</strong></td>
+            <td><span class="badge {{ 'text-bg-success' if customer.is_active else 'text-bg-secondary' }}">{{ 'Actif' if customer.is_active else 'Inactif' }}</span></td>
+            <td class="text-end">
+              <div class="d-flex justify-content-end gap-2 flex-wrap">
+                {% if can_credit and customer.is_active and debt > 0 %}<button class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#paymentModal{{ customer.id }}">Règlement</button>{% endif %}
+                {% if can_cases and customer.is_active %}<button class="btn btn-sm btn-light border" data-bs-toggle="modal" data-bs-target="#caseModal{{ customer.id }}">Casiers</button>{% endif %}
+                {% if can_manage %}<form method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="{{ 'disable' if customer.is_active else 'enable' }}"><input type="hidden" name="customer_id" value="{{ customer.id }}"><button class="btn btn-sm btn-link" type="submit">{{ 'Désactiver' if customer.is_active else 'Activer' }}</button></form>{% endif %}
+              </div>
+            </td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}<div class="empty-state"><div class="empty-icon">C</div><h3>Aucun client</h3><p>Créez un client pour gérer le crédit et les casiers.</p></div>{% endif %}
+  </section>
+
+  <aside class="panel-card customer-side">
+    <div class="panel-header"><div><p class="eyebrow mb-1">Règles</p><h2>Fonctionnement</h2></div></div>
+    <div class="p-4 customer-rules">
+      <div><strong>Crédit</strong><p>Une vente à crédit solde la commande mais crée une dette au nom du client.</p></div>
+      <div><strong>Règlement</strong><p>Le remboursement du client réduit sa dette. Un règlement espèces alimente la session de caisse sélectionnée.</p></div>
+      <div><strong>Casiers</strong><p>Une sortie augmente le nombre de casiers dus. Un retour le diminue, sans pouvoir passer sous zéro.</p></div>
+    </div>
+  </aside>
+</div>
+
+<div class="row g-4 mt-1">
+  <div class="col-xl-7">
+    <section class="panel-card h-100">
+      <div class="panel-header"><div><p class="eyebrow mb-1">Créances</p><h2>Historique crédit & règlements</h2></div></div>
+      <div class="table-responsive"><table class="table customer-history mb-0"><thead><tr><th>Client</th><th>Type</th><th>Référence</th><th>Montant</th><th>Date</th><th></th></tr></thead><tbody>
+      {% for entry in ledger %}
+        {% set customer = customer_by_id.get(entry.customer_id) %}
+        <tr>
+          <td>{{ customer.display_name if customer else entry.customer_id }}</td>
+          <td>{{ {'CREDIT_SALE':'Vente à crédit','PAYMENT':'Règlement','REVERSAL':'Annulation','ADJUSTMENT':'Ajustement'}.get(entry.entry_kind, entry.entry_kind) }}</td>
+          <td><strong>{{ entry.reference }}</strong></td>
+          <td class="{{ 'text-danger' if entry.amount_delta > 0 else 'text-success' }}"><strong>{{ '+' if entry.amount_delta > 0 else '' }}{{ "{:,.0f}".format(entry.amount_delta) }} {{ entry.currency }}</strong></td>
+          <td><small>{{ entry.occurred_at }}</small></td>
+          <td class="text-end">{% if can_credit and entry.entry_kind == 'CREDIT_SALE' %}<button class="btn btn-sm btn-link text-danger" data-bs-toggle="modal" data-bs-target="#reverseCredit{{ entry.id }}">Annuler vente</button>{% endif %}</td>
+        </tr>
+      {% else %}<tr><td colspan="6" class="p-4 text-secondary">Aucun mouvement client.</td></tr>{% endfor %}
+      </tbody></table></div>
+    </section>
+  </div>
+  <div class="col-xl-5">
+    <section class="panel-card h-100">
+      <div class="panel-header"><div><p class="eyebrow mb-1">Emballages</p><h2>Historique casiers</h2></div></div>
+      <div class="table-responsive"><table class="table customer-history mb-0"><thead><tr><th>Client</th><th>Produit</th><th>Mouvement</th><th>Date</th></tr></thead><tbody>
+      {% for entry in case_history %}
+        <tr><td>{{ customer_by_id.get(entry.customer_id).display_name if customer_by_id.get(entry.customer_id) else entry.customer_id }}</td><td>{{ product_by_id.get(entry.product_id).name if product_by_id.get(entry.product_id) else entry.product_id }}</td><td class="{{ 'text-danger' if entry.quantity_delta > 0 else 'text-success' }}"><strong>{{ '+' if entry.quantity_delta > 0 else '' }}{{ entry.quantity_delta }}</strong></td><td><small>{{ entry.occurred_at }}</small></td></tr>
+      {% else %}<tr><td colspan="4" class="p-4 text-secondary">Aucun mouvement de casier.</td></tr>{% endfor %}
+      </tbody></table></div>
+    </section>
+  </div>
+</div>
+
+{% if can_manage %}
+<div class="modal fade" id="customerModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content"><form method="post">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="create">
+  <div class="modal-header"><h2 class="modal-title h5">Nouveau client</h2><button class="btn-close" type="button" data-bs-dismiss="modal"></button></div>
+  <div class="modal-body"><div class="mb-3"><label class="form-label">Nom</label><input class="form-control" name="display_name" maxlength="160" required></div><div class="row g-3"><div class="col-md-6"><label class="form-label">Téléphone</label><input class="form-control" name="phone" maxlength="32"></div><div class="col-md-6"><label class="form-label">E-mail</label><input class="form-control" name="email" type="email" maxlength="254"></div></div></div>
+  <div class="modal-footer"><button class="btn btn-light border" type="button" data-bs-dismiss="modal">Annuler</button><button class="btn btn-primary" type="submit">Créer</button></div>
+</form></div></div></div>
+{% endif %}
+
+{% for customer in customers if customer.is_active %}
+  {% set debt = debt_by_customer.get(customer.id, 0) %}
+  {% if can_credit and debt > 0 %}
+  <div class="modal fade" id="paymentModal{{ customer.id }}" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content"><form method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="payment"><input type="hidden" name="customer_id" value="{{ customer.id }}">
+    <div class="modal-header"><div><p class="eyebrow mb-1">Règlement client</p><h2 class="modal-title h5">{{ customer.display_name }}</h2></div><button class="btn-close" type="button" data-bs-dismiss="modal"></button></div>
+    <div class="modal-body">
+      <div class="alert alert-light border">Dette actuelle : <strong>{{ "{:,.0f}".format(debt) }} {{ bar.currency }}</strong></div>
+      <div class="mb-3"><label class="form-label">Montant</label><input class="form-control" name="amount" type="number" min="1" max="{{ debt }}" step="1" value="{{ debt }}" required></div>
+      <div class="mb-3"><label class="form-label">Mode</label><select class="form-select customer-payment-method" name="method" required>{% for code,label in payment_labels.items() %}<option value="{{ code }}">{{ label }}</option>{% endfor %}</select></div>
+      <div class="mb-3"><label class="form-label">Caisse espèces</label><select class="form-select" name="cash_session_id"><option value="">Aucune</option>{% for session in open_sessions %}<option value="{{ session.id }}">{{ session.reference }} · {{ "{:,.0f}".format(cash_expected[session.id]) }} {{ session.currency }}</option>{% endfor %}</select></div>
+      <div class="row g-3"><div class="col-md-5"><label class="form-label">Prestataire</label><input class="form-control" name="provider_code" placeholder="MTN, Orange..."></div><div class="col-md-7"><label class="form-label">Référence transaction</label><input class="form-control" name="provider_transaction_id"></div></div>
+      <div class="mt-3"><label class="form-label">Motif / note</label><input class="form-control" name="reason" maxlength="500"></div>
+      <details class="mt-3"><summary>Référence personnalisée</summary><input class="form-control mt-2" name="reference" maxlength="64"></details>
+    </div>
+    <div class="modal-footer"><button class="btn btn-light border" type="button" data-bs-dismiss="modal">Annuler</button><button class="btn btn-primary" type="submit">Enregistrer le règlement</button></div>
+  </form></div></div></div>
+  {% endif %}
+
+  {% if can_cases %}
+  <div class="modal fade" id="caseModal{{ customer.id }}" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content"><form method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="customer_id" value="{{ customer.id }}">
+    <div class="modal-header"><div><p class="eyebrow mb-1">Gestion des casiers</p><h2 class="modal-title h5">{{ customer.display_name }}</h2></div><button class="btn-close" type="button" data-bs-dismiss="modal"></button></div>
+    <div class="modal-body">
+      <div class="mb-3"><label class="form-label">Mouvement</label><select class="form-select" name="action"><option value="case_out">Sortie vers le client</option><option value="case_return">Retour du client</option></select></div>
+      <div class="mb-3"><label class="form-label">Produit / casier</label><select class="form-select" name="product_id" required>{% for product in products %}<option value="{{ product.id }}">{{ product.name }}{% if product.units_per_case %} · {{ product.units_per_case }} unités/casier{% endif %}</option>{% endfor %}</select></div>
+      <div class="mb-3"><label class="form-label">Nombre de casiers</label><input class="form-control" name="quantity" type="number" min="1" step="1" required></div>
+      <div><label class="form-label">Motif</label><input class="form-control" name="reason" maxlength="500" required placeholder="Ex. consigne client / retour vide"></div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-light border" type="button" data-bs-dismiss="modal">Annuler</button><button class="btn btn-primary" type="submit">Enregistrer</button></div>
+  </form></div></div></div>
+  {% endif %}
+{% endfor %}
+
+{% for entry in ledger if entry.entry_kind == 'CREDIT_SALE' and can_credit %}
+<div class="modal fade" id="reverseCredit{{ entry.id }}" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content"><form method="post">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="reverse_credit"><input type="hidden" name="entry_id" value="{{ entry.id }}">
+  <div class="modal-header"><h2 class="modal-title h5">Annuler la vente à crédit</h2><button class="btn-close" type="button" data-bs-dismiss="modal"></button></div>
+  <div class="modal-body"><p>Cette opération annule la créance liée à la commande et restitue son stock. Elle est bloquée si le crédit a déjà été réglé.</p><label class="form-label">Motif obligatoire</label><textarea class="form-control" name="reason" rows="3" required maxlength="500"></textarea><details class="mt-3"><summary>Référence personnalisée</summary><input class="form-control mt-2" name="reference" maxlength="64"></details></div>
+  <div class="modal-footer"><button class="btn btn-light border" type="button" data-bs-dismiss="modal">Retour</button><button class="btn btn-danger" type="submit">Annuler et restituer le stock</button></div>
+</form></div></div></div>
+{% endfor %}
+{% endblock %}
