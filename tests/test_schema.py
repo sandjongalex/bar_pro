@@ -22,7 +22,7 @@ def test_initial_migration_creates_every_model_table(tmp_path):
     with app.app_context():
         actual = set(inspect(db.engine).get_table_names())
         assert set(db.metadata.tables).issubset(actual)
-        assert len(db.metadata.tables) == 35
+        assert len(db.metadata.tables) == 38
 
 
 def test_initial_downgrade_refuses_destructive_data_loss(tmp_path):
