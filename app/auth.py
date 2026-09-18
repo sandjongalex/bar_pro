@@ -2,7 +2,7 @@
 from datetime import datetime, timedelta
 import hashlib, secrets, uuid
 import jwt
-from flask import Blueprint, current_app, jsonify, request, render_template_string, session, g
+from flask import Blueprint, current_app, jsonify, request, render_template, session, g
 from flask_login import current_user, login_required, login_user, logout_user
 from functools import wraps
 from sqlalchemy import select
@@ -53,9 +53,14 @@ def load_user(user_id):
 @auth_bp.route("/login",methods=["GET","POST"])
 @limiter.limit(lambda: current_app.config["LOGIN_RATE_LIMIT"])
 def web_login():
-    if request.method=="GET": return render_template_string("<form method='post'><input type='hidden' name='csrf_token' value='{{ csrf_token() }}'><input name='email'><input name='password' type='password'><input type='submit'></form>")
-    user=db.session.scalar(select(User).where(User.email==request.form.get("email","").strip().lower()))
-    if not user or not user.is_active or not user.check_password(request.form.get("password", "")): return "Invalid credentials",401
+    if request.method=="GET":
+        if current_user.is_authenticated:
+            return "",302,{"Location":"/"}
+        return render_template("login.html",error=None,email="")
+    email=request.form.get("email","").strip().lower()
+    user=db.session.scalar(select(User).where(User.email==email))
+    if not user or not user.is_active or not user.check_password(request.form.get("password", "")):
+        return render_template("login.html",error="Adresse e-mail ou mot de passe incorrect.",email=email),401
     session.clear(); g.pop("csrf_token",None); login_user(user); session["credentials_version"]=user.credentials_version; return "",302,{"Location":"/"}
 @auth_bp.post("/logout")
 @login_required
