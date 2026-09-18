@@ -98,6 +98,8 @@ def create(bar_id):
         data["reference"],
         data["lines"],
         data.get("supplier_invoice_reference"),
+        data.get("purchase_date"),
+        data.get("notes"),
     )
     return ok({"id": str(item.id), "status": item.status, "total_amount": str(item.total_amount)}, 201)
 
@@ -120,6 +122,20 @@ def update_purchase(bar_id, purchase_id):
 @api_required
 def receive(bar_id, purchase_id):
     item = purchase_service.receive(request.api_user, bar_id, purchase_id)
+    return ok({"id": str(item.id), "status": item.status})
+
+
+@bp.post("/<int:purchase_id>/reopen")
+@api_required
+def reopen(bar_id, purchase_id):
+    item = purchase_service.reopen(request.api_user, bar_id, purchase_id, (request.get_json() or {})["reason"])
+    return ok({"id": str(item.id), "status": item.status})
+
+
+@bp.post("/<int:purchase_id>/cancel-received")
+@api_required
+def cancel_received(bar_id, purchase_id):
+    item = purchase_service.cancel_received(request.api_user, bar_id, purchase_id, (request.get_json() or {})["reason"])
     return ok({"id": str(item.id), "status": item.status})
 
 
