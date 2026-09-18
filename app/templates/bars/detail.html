@@ -68,6 +68,12 @@
       </a>
       {% endif %}
 
+      {% if rights.reports %}
+      <a class="module-card" href="{{ url_for('purchases_web.manage',bar_id=bar.id) }}">
+        <span class="module-icon">A</span><div><strong>Fournisseurs & achats</strong><p>Fournisseurs, livraisons, réceptions et dettes fournisseurs.</p></div><span class="module-arrow">→</span>
+      </a>
+      {% endif %}
+
       {% if rights.orders_create %}
       <a class="module-card" href="{{ url_for('orders_web.quick',bar_id=bar.id) }}">
         <span class="module-icon">C</span><div><strong>Commandes</strong><p>Créer rapidement une nouvelle commande client.</p></div><span class="module-arrow">→</span>
@@ -103,10 +109,10 @@
     <section class="panel-card bar-next-card">
       <div class="panel-header"><div><p class="eyebrow mb-1">Configuration</p><h2>Prochaine étape</h2></div></div>
       <div class="p-4">
-        <div class="next-step-number">02</div>
-        <h3>Configurer le catalogue</h3>
-        <p>Après l'équipe, ajoutez les catégories et produits vendus dans {{ bar.name }}, avec leurs prix et unités de gestion.</p>
-        {% if rights.catalog_read %}<a class="btn btn-outline-primary btn-sm mt-2" href="{{ url_for('catalog.web_list',bar_id=bar.id) }}">Ouvrir les produits</a>{% endif %}
+        <div class="next-step-number">03</div>
+        <h3>Configurer les fournisseurs</h3>
+        <p>Enregistrez les dépôts et fournisseurs de {{ bar.name }}, puis utilisez les achats pour alimenter automatiquement le stock à chaque réception.</p>
+        {% if rights.reports %}<a class="btn btn-outline-primary btn-sm mt-2" href="{{ url_for('purchases_web.manage',bar_id=bar.id) }}">Ouvrir les achats</a>{% endif %}
       </div>
     </section>
   </aside>
