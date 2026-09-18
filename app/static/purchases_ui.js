@@ -90,6 +90,21 @@
       if (isCase) hydratePackSize(row);
     }
 
+    function convertPriceForUnitChange(row, previousUnit, nextUnit) {
+      if (!previousUnit || previousUnit === nextUnit) return;
+      const priceInput = row.querySelector('.unit-cost');
+      const packInput = row.querySelector('.pack-size-input');
+      const price = Number(priceInput?.value || 0);
+      const packSize = Number(packInput?.value || 0);
+      if (!priceInput || price < 0 || !Number.isInteger(packSize) || packSize <= 0) return;
+
+      if (previousUnit === 'CASE' && nextUnit === 'BOTTLE') {
+        priceInput.value = String(Math.round(price / packSize));
+      } else if (previousUnit === 'BOTTLE' && nextUnit === 'CASE') {
+        priceInput.value = String(Math.round(price * packSize));
+      }
+    }
+
     function calculateRow(row) {
       const quantityInput = row.querySelector('.purchase-quantity');
       const priceInput = row.querySelector('.unit-cost');
@@ -205,7 +220,15 @@
         input.addEventListener('input', calculateAll);
         input.addEventListener('change', calculateAll);
       });
-      if (unit) unit.addEventListener('change', calculateAll);
+      if (unit) {
+        row.dataset.lastPurchaseUnit = unit.value;
+        unit.addEventListener('change', function () {
+          const previous = row.dataset.lastPurchaseUnit || unit.value;
+          convertPriceForUnitChange(row, previous, unit.value);
+          row.dataset.lastPurchaseUnit = unit.value;
+          calculateAll();
+        });
+      }
       if (pack) {
         pack.addEventListener('input', function () {
           const productId = String(row.dataset.productId || '');
