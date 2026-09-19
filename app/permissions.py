@@ -12,6 +12,8 @@ ROLE_ACTIONS = {
  "inventory.read":{"SUPER_ADMIN","OWNER","BAR_ADMIN"},
  "inventory.adjust":{"SUPER_ADMIN","OWNER","BAR_ADMIN"},
  "purchases.manage":{"SUPER_ADMIN","OWNER","BAR_ADMIN"},
+ "expenses.read":{"SUPER_ADMIN","OWNER","BAR_ADMIN"},
+ "expenses.manage":{"SUPER_ADMIN","OWNER","BAR_ADMIN"},
  "cash.operate":{"SUPER_ADMIN","OWNER","BAR_ADMIN","CASHIER"},
  "auth.self.read":{"SUPER_ADMIN","OWNER","BAR_ADMIN","CASHIER","SERVER"},
  "bars.read":{"SUPER_ADMIN","OWNER","BAR_ADMIN","CASHIER","SERVER"},
@@ -37,7 +39,7 @@ ROLE_ACTIONS = {
  "bars.reactivate":{"SUPER_ADMIN"}, "bars.suspend":{"SUPER_ADMIN"},
 }
 WRITES = {"refunds.record","payments.record", "bars.suspend", "bars.reactivate","bars.update_settings","staff.manage","orders.create","orders.edit","orders.deliver"}
-WRITES.update({"catalog.manage", "suppliers.manage", "inventory.adjust", "purchases.manage", "cash.operate", "customers.manage", "customer_credit.manage", "cases.manage"})
+WRITES.update({"catalog.manage", "suppliers.manage", "inventory.adjust", "purchases.manage", "expenses.manage", "cash.operate", "customers.manage", "customer_credit.manage", "cases.manage"})
 WRITES.add("subscriptions.manage")
 
 @dataclass(frozen=True)
