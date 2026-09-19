@@ -70,7 +70,17 @@
     <main id="main" class="content-area">
       {% block content %}{% endblock %}
       {% if request.endpoint == 'web.dashboard' and dashboard_data %}
-        {% include 'dashboard_inventory_control.html' %}
+        {% if inventory_control %}
+          {% include 'dashboard_inventory_control.html' %}
+        {% else %}
+          <section class="dashboard-section mt-4">
+            <div class="dashboard-section-heading">
+              <div><p class="eyebrow mb-1">Inventaire & caisse</p><h2>Contrôle du dernier inventaire</h2></div>
+              <a class="btn btn-sm btn-primary" href="{{ url_for('inventories.new', bar_id=active_bar.id) }}">Créer un inventaire</a>
+            </div>
+            <div class="dashboard-alert-empty border rounded-4 bg-white">Aucun inventaire de période validé n'est encore disponible pour cet établissement.</div>
+          </section>
+        {% endif %}
         {% include 'dashboard_activity.html' %}
       {% endif %}
     </main>
