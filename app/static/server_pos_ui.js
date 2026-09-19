@@ -11,8 +11,11 @@
   const countNode = document.getElementById('cartCount');
   const search = document.getElementById('posSearch');
   const clearCart = document.getElementById('clearCart');
+  const orderPanel = document.getElementById('mes-commandes');
+  const orderForm = document.getElementById('posForm');
   if (!grid || !cartLines || !cartPanel || !totalNode || !countNode) return;
 
+  const RETURN_KEY = 'bar-pro:server-orders-return';
   const grandTotal = cartPanel.querySelector('.pos-grand-total strong');
   const initialTotal = totalNode.textContent || '0';
   const currency = (grandTotal?.textContent || '').replace(initialTotal, '').trim();
@@ -39,6 +42,22 @@
     return String(value || '').replace(/[&<>"']/g, (char) => ({
       '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
     }[char]));
+  }
+
+  function rememberOrdersReturn(filter) {
+    try {
+      window.sessionStorage.setItem(RETURN_KEY, filter || 'active');
+    } catch (error) {}
+  }
+
+  function consumeOrdersReturn() {
+    try {
+      const value = window.sessionStorage.getItem(RETURN_KEY);
+      if (value) window.sessionStorage.removeItem(RETURN_KEY);
+      return value || '';
+    } catch (error) {
+      return '';
+    }
   }
 
   function ensureProductBadge(card) {
@@ -90,7 +109,7 @@
     document.body.classList.toggle('server-cart-active', hasCart);
   }
 
-  function setupOrderFilters() {
+  function setupOrderFilters(initialFilter) {
     const filters = Array.from(document.querySelectorAll('[data-server-order-filter]'));
     const cards = Array.from(document.querySelectorAll('[data-server-order-card]'));
     const empty = document.querySelector('[data-server-orders-empty]');
@@ -114,21 +133,134 @@
       }
     }
 
-    filters.forEach((button) => {
-      button.addEventListener('click', () => {
-        filters.forEach((item) => {
-          item.classList.remove('active');
-          item.setAttribute('aria-pressed', 'false');
-        });
-        button.classList.add('active');
-        button.setAttribute('aria-pressed', 'true');
-        applyFilter(button.dataset.serverOrderFilter || 'active');
+    function selectFilter(filter) {
+      const requested = filters.find((item) => item.dataset.serverOrderFilter === filter) || filters[0];
+      filters.forEach((item) => {
+        const active = item === requested;
+        item.classList.toggle('active', active);
+        item.setAttribute('aria-pressed', active ? 'true' : 'false');
       });
+      applyFilter(requested?.dataset.serverOrderFilter || 'active');
+    }
+
+    filters.forEach((button) => {
+      button.addEventListener('click', () => selectFilter(button.dataset.serverOrderFilter || 'active'));
     });
 
-    applyFilter('active');
+    selectFilter(initialFilter || 'active');
   }
 
+  function setupInlineOrderActions() {
+    const cards = Array.from(document.querySelectorAll('[data-server-order-card]'));
+    if (!cards.length) return;
+
+    function closeEditors(exceptEditor) {
+      document.querySelectorAll('.server-order-inline-editor').forEach((editor) => {
+        if (editor === exceptEditor) return;
+        editor.hidden = true;
+        editor.closest('[data-server-order-card]')?.classList.remove('is-editing');
+        const triggerId = editor.dataset.triggerId;
+        if (triggerId) document.getElementById(triggerId)?.setAttribute('aria-expanded', 'false');
+      });
+    }
+
+    cards.forEach((card) => {
+      const actionButtons = Array.from(card.querySelectorAll('.server-order-actions button[data-bs-target]'));
+      actionButtons.forEach((button, index) => {
+        const target = button.getAttribute('data-bs-target');
+        const modal = target ? document.querySelector(target) : null;
+        const sourceForm = modal?.querySelector('form');
+        if (!sourceForm) return;
+
+        const action = sourceForm.querySelector('input[name="action"]')?.value || '';
+        const orderId = sourceForm.querySelector('input[name="order_id"]')?.value || '';
+        const sourceTextarea = sourceForm.querySelector('textarea');
+        if (!action || !orderId || !sourceTextarea) return;
+
+        const editor = document.createElement('div');
+        const editorId = `server-order-inline-${action}-${orderId}`;
+        const triggerId = `server-order-trigger-${action}-${orderId}-${index}`;
+        editor.id = editorId;
+        editor.className = `server-order-inline-editor server-order-inline-${action}`;
+        editor.hidden = true;
+        editor.dataset.triggerId = triggerId;
+
+        const form = document.createElement('form');
+        form.method = 'post';
+        form.className = 'server-order-inline-form';
+        sourceForm.querySelectorAll('input[type="hidden"]').forEach((input) => form.appendChild(input.cloneNode(true)));
+
+        const heading = document.createElement('div');
+        heading.className = 'server-order-inline-head';
+        heading.innerHTML = action === 'cancel'
+          ? '<strong>Annuler cette commande ?</strong><small>Indiquez le motif. Cette action n’est disponible que tant que la caisse n’a pas confirmé la livraison.</small>'
+          : '<strong>Ajouter une note à la caisse</strong><small>La note est ajoutée à cette commande sans ouvrir une autre fenêtre.</small>';
+        form.appendChild(heading);
+
+        const textarea = sourceTextarea.cloneNode(true);
+        textarea.classList.add('server-order-inline-textarea');
+        textarea.rows = action === 'cancel' ? 2 : 2;
+        textarea.setAttribute('aria-label', action === 'cancel' ? 'Motif de l’annulation' : 'Note à la caisse');
+        form.appendChild(textarea);
+
+        const controls = document.createElement('div');
+        controls.className = 'server-order-inline-controls';
+        const closeButton = document.createElement('button');
+        closeButton.type = 'button';
+        closeButton.className = 'btn btn-sm btn-light border';
+        closeButton.textContent = 'Fermer';
+        const submitButton = document.createElement('button');
+        submitButton.type = 'submit';
+        submitButton.className = action === 'cancel' ? 'btn btn-sm btn-danger' : 'btn btn-sm btn-primary';
+        submitButton.textContent = action === 'cancel' ? 'Confirmer l’annulation' : 'Envoyer la note';
+        controls.append(closeButton, submitButton);
+        form.appendChild(controls);
+        editor.appendChild(form);
+        card.appendChild(editor);
+
+        button.id = triggerId;
+        button.removeAttribute('data-bs-toggle');
+        button.removeAttribute('data-bs-target');
+        button.setAttribute('aria-controls', editorId);
+        button.setAttribute('aria-expanded', 'false');
+
+        function closeCurrent() {
+          editor.hidden = true;
+          card.classList.remove('is-editing');
+          button.setAttribute('aria-expanded', 'false');
+        }
+
+        button.addEventListener('click', () => {
+          const opening = editor.hidden;
+          closeEditors(opening ? editor : null);
+          if (!opening) {
+            closeCurrent();
+            return;
+          }
+          editor.hidden = false;
+          card.classList.add('is-editing');
+          button.setAttribute('aria-expanded', 'true');
+          window.setTimeout(() => {
+            textarea.focus({ preventScroll: true });
+            if (window.matchMedia('(max-width: 767px)').matches) {
+              editor.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }
+          }, 40);
+        });
+
+        closeButton.addEventListener('click', closeCurrent);
+        form.addEventListener('submit', () => {
+          rememberOrdersReturn(action === 'cancel' ? 'all' : 'active');
+          submitButton.disabled = true;
+          submitButton.textContent = action === 'cancel' ? 'Annulation…' : 'Envoi…';
+        });
+
+        modal?.remove();
+      });
+    });
+  }
+
+  const returnFilter = consumeOrdersReturn();
   const observer = new MutationObserver(sync);
   observer.observe(cartLines, { childList: true, subtree: true });
 
@@ -151,6 +283,12 @@
     });
   });
 
-  setupOrderFilters();
+  orderForm?.addEventListener('submit', () => rememberOrdersReturn('active'));
+  setupInlineOrderActions();
+  setupOrderFilters(returnFilter || 'active');
   sync();
+
+  if (returnFilter && orderPanel) {
+    window.setTimeout(() => orderPanel.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80);
+  }
 })();
