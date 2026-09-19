@@ -188,21 +188,21 @@ def test_stale_second_editor_cannot_overwrite_first_edit(env):
     )
     db.session.commit()
 
-    first = app.test_client()
-    second_client = app.test_client()
-    assert _login(first, server.email).status_code == 302
-    assert _login(second_client, server.email).status_code == 302
+    client = app.test_client()
+    assert _login(client, server.email).status_code == 302
 
-    first_page = first.get(f"/bars/{bar.id}/orders/new")
-    second_page = second_client.get(f"/bars/{bar.id}/orders/new")
-    first_state = first.get(f"/bars/{bar.id}/order-edits/{order.id}").get_json()
-    second_state = second_client.get(f"/bars/{bar.id}/order-edits/{order.id}").get_json()
+    page = client.get(f"/bars/{bar.id}/orders/new")
+    # Two editors opened before either one saves.  A single authenticated test
+    # client is intentional here: the shared env fixture keeps one Flask app
+    # context alive, while production requests/devices have independent contexts.
+    first_state = client.get(f"/bars/{bar.id}/order-edits/{order.id}").get_json()
+    second_state = client.get(f"/bars/{bar.id}/order-edits/{order.id}").get_json()
     assert first_state["order"]["revision"] == second_state["order"]["revision"]
 
-    first_response = first.post(
+    first_response = client.post(
         f"/bars/{bar.id}/order-edits/{order.id}",
         data={
-            "csrf_token": _csrf(first_page),
+            "csrf_token": _csrf(page),
             "order_revision": first_state["order"]["revision"],
             "product_id": str(product.id),
             "quantity": "3",
@@ -211,10 +211,10 @@ def test_stale_second_editor_cannot_overwrite_first_edit(env):
     )
     assert first_response.status_code == 302
 
-    stale_response = second_client.post(
+    stale_response = client.post(
         f"/bars/{bar.id}/order-edits/{order.id}",
         data={
-            "csrf_token": _csrf(second_page),
+            "csrf_token": _csrf(page),
             "order_revision": second_state["order"]["revision"],
             "product_id": str(second.id),
             "quantity": "1",
