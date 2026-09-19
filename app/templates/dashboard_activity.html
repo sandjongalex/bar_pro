@@ -10,9 +10,9 @@
   </div>
 
   <article class="dashboard-activity-card">
-    {% if activity_data.items %}
+    {% if activity_data['items'] %}
       <div class="dashboard-activity-list">
-        {% for item in activity_data.items %}
+        {% for item in activity_data['items'] %}
         <div class="dashboard-activity-row">
           <div class="dashboard-activity-time">
             <strong>{{ item.occurred_local.strftime('%H:%M') if item.occurred_local else '—' }}</strong>
