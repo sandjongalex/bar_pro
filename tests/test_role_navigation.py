@@ -2,6 +2,7 @@ import re
 
 from app.extensions import db
 from app.models import StaffAssignment, User, utcnow
+from app.order_services import order_service
 from test_workflows import env
 
 
@@ -65,7 +66,16 @@ def test_cashier_navigation_only_surfaces_operational_destinations(env):
 
 
 def test_server_navigation_is_focused_on_orders_and_notifications(env):
-    app, _, bar, _, _, server_user, _, _ = env
+    app, _, bar, _, product, server_user, _, _ = env
+    order_service.create(
+        server_user,
+        bar.id,
+        "SERVER-NAV-ORDER",
+        [{"product_id": product.id, "quantity": 2}],
+        notes="Terrasse",
+    )
+    db.session.commit()
+
     client = app.test_client()
     assert _login(client, server_user.email).status_code == 302
 
@@ -102,6 +112,18 @@ def test_server_navigation_is_focused_on_orders_and_notifications(env):
     assert 'server-product-qty' in ui_script.text
     assert 'server-cart-dock' in ui_script.text
     assert 'max-width: 980px' in ui_script.text
+
+    # Étape 3 UI: Mes commandes devient un suivi opérationnel en cartes filtrables.
+    assert 'class="panel-card mt-4 server-orders-panel"' in page.text
+    assert 'data-server-order-filter="active"' in page.text
+    assert 'data-server-order-filter="waiting"' in page.text
+    assert 'data-server-order-card' in page.text
+    assert 'data-order-state="waiting"' in page.text
+    assert 'SERVER-NAV-ORDER' in page.text
+    assert 'En attente caisse' in page.text
+    assert '2×' in page.text
+    assert 'Water' in page.text
+    assert 'setupOrderFilters' in ui_script.text
 
 
 def test_owner_keeps_full_grouped_navigation(env):
