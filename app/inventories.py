@@ -15,6 +15,7 @@ from app.inventory_period_models import InventoryLineSnapshot, InventoryPeriodSn
 from app.inventory_services import inventory_service
 from app.models import Bar, Inventory, InventoryLine, Product
 from app.permissions import permissions
+from app.product_display_order import product_order_expression
 
 inventories_bp = Blueprint("inventories", __name__, url_prefix="/bars/<int:bar_id>/inventories")
 api_inventories_bp = Blueprint("api_inventories", __name__, url_prefix="/api/v1/bars/<int:bar_id>/inventories")
@@ -53,7 +54,7 @@ def payload(inv):
         select(InventoryLine, Product)
         .join(Product, (Product.id == InventoryLine.product_id) & (Product.bar_id == InventoryLine.bar_id))
         .where(InventoryLine.inventory_id == inv.id, InventoryLine.bar_id == inv.bar_id)
-        .order_by(Product.name, Product.id)
+        .order_by(product_order_expression(Product.name), Product.name, Product.id)
     ).all()
     line_ids = [line.id for line, _ in rows]
     snapshots = {
