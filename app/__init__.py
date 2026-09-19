@@ -42,6 +42,7 @@ def create_app(config_name: str | None = None, test_config: dict[str, Any] | Non
     from app import customer_models  # noqa: F401 - customer receivables/cases/notifications metadata
     from app import inventory_period_models  # noqa: F401 - inventory period reconciliation metadata
     _register_blueprints(app)
+    _register_template_context(app)
     _register_error_handlers(app)
     _register_cli(app)
     return app
@@ -132,6 +133,31 @@ def _register_blueprints(app: Flask) -> None:
         if not request.path.startswith("/api/") and bar_id is not None and current_user.is_authenticated:
             if not permissions.evaluate(current_user, "bars.read", bar_id).allowed:
                 abort(404)
+
+
+def _register_template_context(app: Flask) -> None:
+    """Expose lightweight, request-scoped permission helpers to server templates."""
+
+    @app.context_processor
+    def navigation_helpers():
+        from flask_login import current_user
+        from app.permissions import permissions
+
+        cache: dict[tuple[str, int], bool] = {}
+
+        def nav_can(action: str, bar_id) -> bool:
+            if not current_user.is_authenticated or bar_id is None:
+                return False
+            try:
+                normalized_bar_id = int(bar_id)
+            except (TypeError, ValueError):
+                return False
+            key = (action, normalized_bar_id)
+            if key not in cache:
+                cache[key] = permissions.evaluate(current_user, action, normalized_bar_id).allowed
+            return cache[key]
+
+        return {"nav_can": nav_can}
 
 
 def _register_error_handlers(app: Flask) -> None:
