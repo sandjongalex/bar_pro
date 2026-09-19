@@ -12,6 +12,7 @@
   <div class="d-flex gap-2 flex-wrap align-items-center">
     {% if open_sessions %}<span class="checkout-session-status">● Caisse ouverte</span>{% endif %}
     {% if can_credit %}<a class="btn btn-outline-primary" href="{{ url_for('customers_web.manage', bar_id=bar.id) }}">Clients & crédits</a>{% endif %}
+    {% if is_cashier %}<a class="btn btn-outline-primary" href="{{ url_for('cashier_handovers_web.manage', bar_id=bar.id) }}">Remises serveuses</a>{% endif %}
     <a class="btn btn-outline-primary" href="{{ url_for('finance_web.desk', bar_id=bar.id) }}">Gestion de la caisse</a>
   </div>
 </section>
@@ -205,9 +206,34 @@
         <div class="checkout-change" id="changeBox"><span>Monnaie à rendre</span><strong><span id="changeValue">0</span> {{ bar.currency }}</strong></div>
 
         <div id="cashLocationGroup" class="mt-3">
-          <label class="form-label" for="cash_session_id">Session de caisse</label>
-          <select class="form-select form-select-lg" id="cash_session_id" name="cash_session_id"><option value="">Sélectionner une caisse ouverte...</option>{% for session in open_sessions %}<option value="{{ session.id }}">{{ session.reference }} · solde {{ "{:,.0f}".format(cash_expected[session.id]) }} {{ session.currency }}</option>{% endfor %}</select>
-          {% if not open_sessions %}<div class="checkout-warning mt-2">Aucune caisse ouverte. <a href="{{ url_for('cashier_web.session', bar_id=bar.id) if is_cashier else url_for('finance_web.desk', bar_id=bar.id) }}">Ouvrir une caisse</a>.</div>{% endif %}
+          <label class="form-label d-block">Où se trouvent réellement les espèces ?</label>
+          <div class="d-grid gap-2 mb-3">
+            <label class="border rounded-3 p-3 d-flex gap-2 align-items-start">
+              <input class="form-check-input mt-1" type="radio" name="cash_holder_mode" value="DRAWER" checked>
+              <span><strong>Dans la caisse</strong><small class="d-block text-secondary">L'argent est physiquement dans le tiroir de la caissière.</small></span>
+            </label>
+            {% if selected_server_assignment and selected_server_assignment.role == 'SERVER' and not selected_server_assignment.ended_at %}
+            <label class="border rounded-3 p-3 d-flex gap-2 align-items-start">
+              <input class="form-check-input mt-1" type="radio" name="cash_holder_mode" value="STAFF">
+              <span><strong>Chez {{ selected_server_user.display_name if selected_server_user else server_name_by_order.get(selected_order.id, 'la serveuse') }}</strong><small class="d-block text-secondary">À utiliser si la serveuse a encaissé le client et n'a pas encore remis les espèces à la caisse.</small></span>
+            </label>
+            <input type="hidden" name="staff_assignment_id" value="{{ selected_server_assignment.id }}">
+            {% endif %}
+          </div>
+
+          <div id="drawerCashLocation">
+            <label class="form-label" for="cash_session_id">Session de caisse</label>
+            <select class="form-select form-select-lg" id="cash_session_id" name="cash_session_id"><option value="">Sélectionner une caisse ouverte...</option>{% for session in open_sessions %}<option value="{{ session.id }}">{{ session.reference }} · solde {{ "{:,.0f}".format(cash_expected[session.id]) }} {{ session.currency }}</option>{% endfor %}</select>
+            {% if not open_sessions %}<div class="checkout-warning mt-2">Aucune caisse ouverte. <a href="{{ url_for('cashier_web.session', bar_id=bar.id) if is_cashier else url_for('finance_web.desk', bar_id=bar.id) }}">Ouvrir une caisse</a>.</div>{% endif %}
+          </div>
+
+          {% if selected_server_assignment and selected_server_assignment.role == 'SERVER' and not selected_server_assignment.ended_at %}
+          <div id="staffCashLocation" hidden>
+            <div class="checkout-warning">
+              <strong>Garde de la serveuse :</strong> après validation, la part espèces sera ajoutée à sa garde. Solde actuel : {{ "{:,.0f}".format(selected_server_custody) }} {{ bar.currency }}. Elle devra ensuite être transférée via « Remises serveuses ».
+            </div>
+          </div>
+          {% endif %}
         </div>
 
         <div id="providerGroup" class="row g-3 mt-1" hidden>
@@ -217,7 +243,7 @@
 
         <details class="checkout-reference mt-3"><summary>Référence personnalisée</summary><input class="form-control mt-2" name="reference" maxlength="64" placeholder="Automatique si vide"></details>
         <button class="btn btn-primary btn-lg w-100 mt-4" id="checkoutSubmit" type="submit" {% if is_cashier and not open_sessions %}disabled{% endif %}>Encaisser {{ "{:,.0f}".format(b.amount_due) }} {{ selected_order.currency }}</button>
-        <p class="checkout-help">Espèces et Mobile Money peuvent être combinés. Le crédit transfère le solde sur le compte du client sans créer de faux encaissement.</p>
+        <p class="checkout-help">Espèces et Mobile Money peuvent être combinés. Si les espèces restent chez la serveuse, elles apparaîtront dans sa garde jusqu'à confirmation de la remise.</p>
       </form>
       {% endif %}
     {% else %}
@@ -253,6 +279,8 @@
   const due = Number(document.getElementById('orderDue').value || 0);
   const presentedGroup = document.getElementById('cashPresentedGroup');
   const cashGroup = document.getElementById('cashLocationGroup');
+  const drawerCashLocation = document.getElementById('drawerCashLocation');
+  const staffCashLocation = document.getElementById('staffCashLocation');
   const providerGroup = document.getElementById('providerGroup');
   const changeBox = document.getElementById('changeBox');
   const changeValue = document.getElementById('changeValue');
@@ -263,7 +291,16 @@
   const formatter = new Intl.NumberFormat('fr-FR', {maximumFractionDigits: 0});
 
   function method() { return form.querySelector('input[name="method"]:checked')?.value || 'CASH'; }
+  function holderMode() { return form.querySelector('input[name="cash_holder_mode"]:checked')?.value || 'DRAWER'; }
   function activeAmount() { return method() === 'MIXED' ? Number(mixedCash.value || 0) : Number(applied.value || 0); }
+
+  function updateCashHolder() {
+    const useStaff = holderMode() === 'STAFF';
+    if (drawerCashLocation) drawerCashLocation.hidden = useStaff;
+    if (staffCashLocation) staffCashLocation.hidden = !useStaff;
+    if (cashSelect) cashSelect.required = ['CASH','MIXED'].includes(method()) && !useStaff;
+  }
+
   function updateChange() {
     const m = method();
     const cashApplied = activeAmount();
@@ -272,6 +309,7 @@
     if (m === 'CREDIT') submit.textContent = `Mettre ${formatter.format(due)} {{ bar.currency }} à crédit`;
     else submit.textContent = `Encaisser ${formatter.format(m === 'MIXED' ? due : Number(applied.value || 0))} {{ bar.currency }}`;
   }
+
   function updateMethod() {
     const m = method();
     const isCash = m === 'CASH';
@@ -289,22 +327,24 @@
     mixedCash.required = isMixed;
     mixedMobile.required = isMixed;
     presented.required = isCash || isMixed;
-    cashSelect.required = isCash || isMixed;
     providerCode.required = isMobile || isMixed;
     providerTxn.required = isMobile || isMixed;
     if (customerSelect) customerSelect.required = isCredit;
     if (!(isCash || isMixed)) presented.value = applied.value;
     document.querySelectorAll('.checkout-method').forEach(label => label.classList.toggle('active', label.querySelector('input').checked));
+    updateCashHolder();
     updateChange();
   }
+
   form.querySelectorAll('input[name="method"]').forEach(radio => radio.addEventListener('change', updateMethod));
+  form.querySelectorAll('input[name="cash_holder_mode"]').forEach(radio => radio.addEventListener('change', updateCashHolder));
   applied.addEventListener('input', () => { if (!['CASH','MIXED'].includes(method())) presented.value = applied.value; updateChange(); });
   presented.addEventListener('input', updateChange);
   mixedCash.addEventListener('input', () => { const cash = Math.max(0, Number(mixedCash.value || 0)); mixedMobile.value = Math.max(0, due - cash); updateChange(); });
   mixedMobile.addEventListener('input', updateChange);
   form.addEventListener('submit', event => {
     const m = method();
-    if ((m === 'CASH' || m === 'MIXED') && !cashSelect.value) { event.preventDefault(); cashSelect.focus(); return; }
+    if ((m === 'CASH' || m === 'MIXED') && holderMode() === 'DRAWER' && !cashSelect.value) { event.preventDefault(); cashSelect.focus(); return; }
     if (m === 'CREDIT' && customerSelect && !customerSelect.value) { event.preventDefault(); customerSelect.focus(); return; }
     if (m === 'MIXED' && (Number(mixedCash.value || 0) <= 0 || Number(mixedMobile.value || 0) <= 0 || Number(mixedCash.value || 0) + Number(mixedMobile.value || 0) !== due)) { event.preventDefault(); mixedCash.focus(); return; }
     submit.disabled = true;
