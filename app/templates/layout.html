@@ -68,7 +68,7 @@
 
     <main id="main" class="content-area">
       {% block content %}{% endblock %}
-      {% if request.endpoint == 'web.dashboard' %}{% include 'dashboard_inventory_control.html' %}{% endif %}
+      {% if request.endpoint == 'web.dashboard' and dashboard_data %}{% include 'dashboard_inventory_control.html' %}{% endif %}
     </main>
   </div>
 </div>
