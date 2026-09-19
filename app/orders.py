@@ -11,6 +11,7 @@ from app.extensions import db
 from app.models import Bar, BarTable, Order, OrderLine, Product, ProductCategory, StaffAssignment, StockBalance
 from app.order_services import order_service
 from app.permissions import permissions
+from app.product_display_order import product_order_expression
 
 bp = Blueprint("orders", __name__, url_prefix="/api/v1/bars/<int:bar_id>/orders")
 web_bp = Blueprint("orders_web", __name__, url_prefix="/bars/<int:bar_id>/orders")
@@ -146,7 +147,7 @@ def quick(bar_id):
         db.session.scalars(
             select(Product)
             .where(Product.bar_id == bar_id, Product.is_active.is_(True))
-            .order_by(Product.name, Product.id)
+            .order_by(product_order_expression(Product.name), Product.name, Product.id)
         )
     )
     categories = list(
