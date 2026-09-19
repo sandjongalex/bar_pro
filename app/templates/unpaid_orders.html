@@ -1,0 +1,50 @@
+{% extends 'layout.html' %}
+{% block title %}Commandes impayées · {{ bar.name }} · Bar Manager Pro{% endblock %}
+{% block header %}Commandes impayées · {{ bar.name }}{% endblock %}
+{% block content %}
+<section class="unpaid-hero" data-unpaid-monitor data-live-url="{{ url_for('unpaid_orders_web.data', bar_id=bar.id) }}" data-role="{{ payload.mode }}">
+  <div>
+    <p class="eyebrow mb-2">Surveillance prioritaire</p>
+    <h1>{% if is_server %}Mes commandes livrées non payées{% else %}Commandes livrées non payées{% endif %}</h1>
+    <p>{% if is_server %}Suivez ici uniquement vos commandes déjà livrées qui attendent encore un paiement.{% else %}Toutes les commandes déjà livrées qui ne sont pas encore totalement encaissées sont regroupées ici.{% endif %}</p>
+  </div>
+  <span class="unpaid-live-badge" data-unpaid-live-badge>● Mise à jour auto</span>
+</section>
+
+<section class="unpaid-stats" aria-label="Résumé des commandes impayées">
+  <article><span>À surveiller</span><strong data-unpaid-count>{{ payload.stats.count }}</strong><small>Livrées et non soldées</small></article>
+  <article><span>Paiements partiels</span><strong data-unpaid-partial>{{ payload.stats.partial }}</strong><small>Reste encore à encaisser</small></article>
+  <article><span>Reste total</span><strong><span data-unpaid-due>{{ "{:,.0f}".format(payload.stats.due|float) }}</span> {{ bar.currency }}</strong><small>Montant encore attendu</small></article>
+</section>
+
+<div class="unpaid-empty" data-unpaid-empty {% if payload.orders %}hidden{% endif %}>
+  <div>✓</div>
+  <h2>Aucune commande impayée</h2>
+  <p>Toutes les commandes livrées sont actuellement soldées.</p>
+</div>
+
+<section class="unpaid-grid" data-unpaid-grid>
+  {% for order in payload.orders %}
+  <article class="unpaid-card {% if order.payment_status == 'PARTIAL' %}is-partial{% endif %}" data-unpaid-order-id="{{ order.id }}" data-posted-at="{{ order.posted_at or '' }}">
+    <div class="unpaid-card-head">
+      <div><small>Table</small><strong>{{ order.table }}</strong></div>
+      <span class="unpaid-status">{{ 'Partiellement payée' if order.payment_status == 'PARTIAL' else 'Impayée' }}</span>
+    </div>
+    <div class="unpaid-card-meta">
+      <strong>{{ order.reference }}</strong>
+      <span>{{ order.server_name }}</span>
+      <span data-unpaid-age>Livrée récemment</span>
+    </div>
+    <div class="unpaid-lines">
+      {% for line in order.lines %}<div><span>{{ line.quantity }} × {{ line.name }}</span><strong>{{ "{:,.0f}".format(line.total_amount|float) }}</strong></div>{% endfor %}
+    </div>
+    {% if order.notes %}<p class="unpaid-note">{{ order.notes }}</p>{% endif %}
+    <div class="unpaid-card-foot">
+      <div><small>Reste à encaisser</small><strong>{{ "{:,.0f}".format(order.amount_due|float) }} {{ order.currency }}</strong></div>
+      {% if order.action_url %}<a class="btn btn-primary" href="{{ order.action_url }}">Encaisser →</a>{% else %}<span class="unpaid-watch">À suivre avec la caisse</span>{% endif %}
+    </div>
+  </article>
+  {% endfor %}
+</section>
+{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', filename='unpaid_orders_ui.js') }}" defer></script>{% endblock %}
