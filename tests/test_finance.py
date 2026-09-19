@@ -95,11 +95,11 @@ def test_finance_api_permissions_and_refund_limits(env):
 def test_web_finance_csrf_and_workflow(env):
  import re
  client=env[0].test_client()
- page=client.get('/login');csrf=re.search("name='csrf_token' value='([^']+)'",page.text).group(1)
+ page=client.get('/login');csrf=re.search(r'name=["\']csrf_token["\']\s+value=["\']([^"\']+)["\']',page.text).group(1)
  client.post('/login',data=dict(email=env[1].email,password='test-password',csrf_token=csrf))
  path=f'/bars/{env[2].id}/finance'
  page=client.get(path);assert page.status_code==200
- csrf=re.search('name="csrf_token" value="([^"]+)"',page.text).group(1)
+ csrf=re.search(r'name=["\']csrf_token["\']\s+value=["\']([^"\']+)["\']',page.text).group(1)
  assert client.post(path,data=dict(action='open',reference='BAD',opening_amount=0)).status_code==400
  response=client.post(path,data=dict(action='open',reference='WEB',opening_amount=50,csrf_token=csrf),follow_redirects=True)
  assert response.status_code==200;assert 'WEB' in response.text
