@@ -1,0 +1,118 @@
+{% extends 'layout.html' %}
+{% block title %}Historique caisse · {{ bar.name }} · Bar Manager Pro{% endblock %}
+{% block header %}Historique caisse · {{ bar.name }}{% endblock %}
+{% block content %}
+<section class="checkout-hero">
+  <div>
+    <a class="bar-back" href="{{ url_for('checkout_web.checkout', bar_id=bar.id) }}">← Retour aux commandes</a>
+    <p class="eyebrow mt-3 mb-2">Traçabilité</p>
+    <h1>Historique des encaissements</h1>
+    <p>Recherchez les paiements et remboursements par période, référence, commande, serveuse ou mode de paiement.</p>
+  </div>
+  <div class="d-flex gap-2 flex-wrap">
+    <a class="btn btn-outline-primary" href="{{ url_for('cashier_web.daily', bar_id=bar.id) }}">Situation de caisse</a>
+    <a class="btn btn-outline-primary" href="{{ url_for('cashier_returns_web.manage', bar_id=bar.id) }}">Retours / remboursements</a>
+    <a class="btn btn-outline-primary" href="{{ url_for('cashier_handovers_web.manage', bar_id=bar.id) }}">Remises serveuses</a>
+    <a class="btn btn-primary" href="{{ url_for('checkout_web.checkout', bar_id=bar.id) }}">Commandes</a>
+  </div>
+</section>
+
+{% if range_limited %}
+<div class="alert alert-warning mt-3">La période a été limitée à 367 jours pour préserver les performances.</div>
+{% endif %}
+
+<section class="panel-card mt-4 p-3">
+  <form method="get" class="row g-3 align-items-end">
+    <div class="col-md-2">
+      <label class="form-label" for="from">Du</label>
+      <input class="form-control" id="from" name="from" type="date" value="{{ filters['from'] }}">
+    </div>
+    <div class="col-md-2">
+      <label class="form-label" for="to">Au</label>
+      <input class="form-control" id="to" name="to" type="date" value="{{ filters['to'] }}">
+    </div>
+    <div class="col-md-2">
+      <label class="form-label" for="type">Type</label>
+      <select class="form-select" id="type" name="type">
+        <option value="ALL" {% if filters['type'] == 'ALL' %}selected{% endif %}>Tout</option>
+        <option value="PAYMENT" {% if filters['type'] == 'PAYMENT' %}selected{% endif %}>Paiements</option>
+        <option value="REFUND" {% if filters['type'] == 'REFUND' %}selected{% endif %}>Remboursements</option>
+      </select>
+    </div>
+    <div class="col-md-2">
+      <label class="form-label" for="method">Mode</label>
+      <select class="form-select" id="method" name="method">
+        <option value="ALL" {% if filters['method'] == 'ALL' %}selected{% endif %}>Tous</option>
+        {% for code, label in payment_labels.items() %}<option value="{{ code }}" {% if filters['method'] == code %}selected{% endif %}>{{ label }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="col-md-4">
+      <label class="form-label" for="server_id">Serveuse</label>
+      <select class="form-select" id="server_id" name="server_id">
+        <option value="">Toutes</option>
+        {% for row in staff_rows %}
+        <option value="{{ row.id }}" {% if filters['server_id'] == row.id %}selected{% endif %}>{{ row.display_name }}{% if row.ended_at %} · ancienne affectation{% endif %}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-md-9">
+      <label class="form-label" for="q">Recherche</label>
+      <input class="form-control" id="q" name="q" value="{{ filters['q'] }}" placeholder="Référence paiement, remboursement, commande, client ou table">
+    </div>
+    <div class="col-md-3 d-flex gap-2">
+      <button class="btn btn-primary flex-grow-1" type="submit">Filtrer</button>
+      <a class="btn btn-outline-secondary" href="{{ url_for('cashier_history_web.history', bar_id=bar.id) }}">Effacer</a>
+    </div>
+  </form>
+  <div class="d-flex flex-wrap gap-2 mt-3">
+    <a class="btn btn-sm btn-light border" href="{{ url_for('cashier_history_web.history', bar_id=bar.id, **{'from': today, 'to': today}) }}">Aujourd'hui</a>
+    <a class="btn btn-sm btn-light border" href="{{ url_for('cashier_history_web.history', bar_id=bar.id, **{'from': seven_days, 'to': today}) }}">7 derniers jours</a>
+    <a class="btn btn-sm btn-light border" href="{{ url_for('cashier_history_web.history', bar_id=bar.id, **{'from': month_start, 'to': today}) }}">Ce mois</a>
+  </div>
+</section>
+
+<section class="checkout-stats mt-4" aria-label="Résumé de l'historique filtré">
+  <article><span>Encaissements</span><strong>{{ "{:,.0f}".format(summary['payment_total']) }} {{ bar.currency }}</strong><small>{{ summary['payment_count'] }} paiement(s)</small></article>
+  <article><span>Remboursements</span><strong>{{ "{:,.0f}".format(summary['refund_total']) }} {{ bar.currency }}</strong><small>{{ summary['refund_count'] }} remboursement(s)</small></article>
+  <article><span>Net encaissé</span><strong>{{ "{:,.0f}".format(summary['net_total']) }} {{ bar.currency }}</strong><small>Paiements moins remboursements</small></article>
+  <article><span>Opérations</span><strong>{{ summary['operation_count'] }}</strong><small>Sur la période filtrée</small></article>
+</section>
+
+<section class="panel-card mt-4">
+  <div class="panel-header">
+    <div><p class="eyebrow mb-1">Historique filtré</p><h2>Paiements & remboursements</h2></div>
+    <span class="badge text-bg-light">{{ events|length }} affichée{{ 's' if events|length != 1 else '' }}</span>
+  </div>
+  {% if result_limited %}
+  <div class="alert alert-info m-3 mb-0">Plus de 400 opérations correspondent aux filtres. Les 400 plus récentes sont affichées, tandis que les totaux ci-dessus restent calculés sur toute la période.</div>
+  {% endif %}
+  {% if events %}
+  <div class="table-responsive">
+    <table class="table checkout-history align-middle mb-0">
+      <thead><tr><th>Date</th><th>Type / référence</th><th>Commande</th><th>Serveuse</th><th>Mode</th><th>Enregistré par</th><th class="text-end">Montant</th><th class="text-end">Reçu</th></tr></thead>
+      <tbody>
+      {% for event in events %}
+      <tr>
+        <td>{{ event['occurred_label'] }}</td>
+        <td><strong>{{ 'Paiement' if event['kind'] == 'PAYMENT' else 'Remboursement' }}</strong><small class="d-block text-secondary">{{ event['reference'] }}</small></td>
+        <td>{{ event['order_reference'] }}</td>
+        <td>{{ event['server'] }}</td>
+        <td>{{ event['method_label'] }}</td>
+        <td>{{ event['recorded_by'] }}</td>
+        <td class="text-end"><strong class="{% if event['amount'] < 0 %}text-danger{% else %}text-success{% endif %}">{{ "+" if event['amount'] > 0 else "" }}{{ "{:,.0f}".format(event['amount']) }} {{ event['currency'] }}</strong></td>
+        <td class="text-end"><a class="btn btn-sm btn-outline-dark" target="_blank" rel="noopener" href="{{ url_for('checkout_web.receipt', bar_id=bar.id, order_id=event['order_id']) }}">Imprimer</a></td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="p-4 text-secondary">Aucune opération ne correspond aux filtres sélectionnés.</div>
+  {% endif %}
+</section>
+
+<div class="dashboard-definition-note mt-3">
+  <strong>Lecture :</strong>
+  <span>les paiements augmentent l'encaissement réel, les remboursements le diminuent. Les ventes à crédit client ne figurent pas ici tant qu'aucun argent réel n'a été reçu.</span>
+</div>
+{% endblock %}
