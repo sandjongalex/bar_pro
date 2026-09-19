@@ -8,6 +8,7 @@ from app.auth import api_required
 from app.extensions import db
 from app.models import Bar, Product, StockBalance, StockMovement, User
 from app.permissions import permissions
+from app.product_display_order import product_order_expression
 from app.stock_service import StockError, stock_service
 
 stock_bp = Blueprint("stock", __name__, url_prefix="/bars/<int:bar_id>/stock")
@@ -109,7 +110,7 @@ def history(bar_id):
             ),
         )
         .where(Product.bar_id == bar_id, Product.is_active.is_(True))
-        .order_by(Product.name, Product.id)
+        .order_by(product_order_expression(Product.name), Product.name, Product.id)
     ).all()
 
     balances = []
