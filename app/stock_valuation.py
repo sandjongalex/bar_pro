@@ -1,12 +1,17 @@
 """Moving weighted-average valuation for current stock.
 
 Positive stock entries are valued at their movement cost and folded into the
-current weighted-average unit cost. Negative stock movements consume inventory
-at the current weighted-average cost, so they do not change the unit average
-unless stock reaches zero.
+current weighted-average unit cost. Negative operational stock movements consume
+inventory at the current weighted-average cost, so they do not change the unit
+average unless stock reaches zero.
 
-The replay helpers are also used to repair legacy product valuations from the
-immutable stock movement history without changing stock quantities.
+A purchase receipt reversal is treated specially: it may remove the original
+receipt value only when no real stock outflow occurred after that receipt. This
+prevents silently rewriting inventory valuation after goods have already been
+sold or lost.
+
+The replay helpers repair legacy product valuations from immutable stock movement
+history without changing stock quantities.
 """
 from __future__ import annotations
 
@@ -33,13 +38,7 @@ def _cost(value) -> Decimal:
 
 
 def moving_average_cost(quantity_before, cost_before, quantity_delta, movement_cost) -> Decimal:
-    """Return the unit valuation after one stock movement.
-
-    Receipts and positive returns add value at their own snapshot cost. Outflows
-    consume stock at the current moving-average cost and therefore keep the same
-    unit valuation. Empty stock is reset to zero so the next receipt starts from
-    its actual acquisition cost.
-    """
+    """Return the unit valuation after one ordinary stock movement."""
     quantity_before = _decimal(quantity_before)
     cost_before = _cost(cost_before)
     quantity_delta = _decimal(quantity_delta)
@@ -61,6 +60,25 @@ def moving_average_cost(quantity_before, cost_before, quantity_delta, movement_c
     )
 
 
+def remove_receipt_cost(quantity_before, cost_before, receipt_quantity, receipt_cost) -> Decimal:
+    """Remove one unconsumed receipt from current moving-average inventory value."""
+    quantity_before = _decimal(quantity_before)
+    cost_before = _cost(cost_before)
+    receipt_quantity = _decimal(receipt_quantity)
+    receipt_cost = _cost(receipt_cost)
+    quantity_after = quantity_before - receipt_quantity
+
+    if receipt_quantity <= 0 or quantity_after < 0:
+        raise ValueError("INVALID_RECEIPT_REVERSAL")
+    if quantity_after == 0:
+        return ZERO.quantize(COST_QUANT)
+
+    remaining_value = quantity_before * cost_before - receipt_quantity * receipt_cost
+    if remaining_value < 0:
+        raise ValueError("NEGATIVE_STOCK_VALUE")
+    return (remaining_value / quantity_after).quantize(COST_QUANT, rounding=ROUND_HALF_UP)
+
+
 def replay_product_valuation(bar_id: int, product_id: int) -> dict:
     """Rebuild one product's current valuation from stock movement history."""
     product = db.session.scalar(
@@ -76,24 +94,42 @@ def replay_product_valuation(bar_id: int, product_id: int) -> dict:
             .order_by(StockMovement.occurred_at, StockMovement.id)
         )
     )
+    by_id = {movement.id: movement for movement in movements}
     quantity = ZERO
     unit_cost = ZERO.quantize(COST_QUANT)
     anomaly = None
+    last_real_outflow_id = None
 
     for movement in movements:
         delta = _decimal(movement.quantity_delta)
         try:
+            if delta < 0 and movement.reversal_of_id is not None:
+                source = by_id.get(movement.reversal_of_id)
+                if source and source.movement_type == "PURCHASE":
+                    if last_real_outflow_id is not None and source.id < last_real_outflow_id < movement.id:
+                        raise ValueError("UNSAFE_PURCHASE_REVERSAL_HISTORY")
+                    unit_cost = remove_receipt_cost(
+                        quantity,
+                        unit_cost,
+                        source.quantity_delta,
+                        source.unit_cost_snapshot,
+                    )
+                    quantity += delta
+                    continue
+
             next_cost = moving_average_cost(
                 quantity,
                 unit_cost,
                 delta,
                 movement.unit_cost_snapshot,
             )
+            quantity += delta
+            unit_cost = next_cost
+            if delta < 0 and movement.reversal_of_id is None:
+                last_real_outflow_id = movement.id
         except ValueError as exc:
             anomaly = str(exc)
             break
-        quantity += delta
-        unit_cost = next_cost
 
     balance = db.session.scalar(
         select(StockBalance).where(
