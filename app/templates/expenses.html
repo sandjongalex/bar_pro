@@ -137,14 +137,15 @@
 </div>
 
 <section class="panel-card expenses-panel mt-4">
-  <div class="panel-header"><div><p class="eyebrow mb-1">Historique</p><h2>Écritures de dépenses</h2></div><span class="badge text-bg-light">{{ rows|length }}</span></div>
+  <div class="panel-header"><div><p class="eyebrow mb-1">Historique</p><h2>Écritures de dépenses</h2></div><span class="badge text-bg-light">{{ rows|length }}{% if history_truncated %}+{% endif %}</span></div>
+  {% if history_truncated %}<div class="alert alert-light border-0 border-bottom rounded-0 mb-0">Les 300 écritures les plus récentes sont affichées. Les indicateurs et l'analyse utilisent bien toute la période filtrée.</div>{% endif %}
   <div class="table-responsive">
     <table class="table expenses-table align-middle mb-0">
       <thead><tr><th>Date</th><th>Référence</th><th>Catégorie</th><th>Description</th><th>Paiement</th><th>Saisi par</th><th class="text-end">Montant</th><th class="text-end">Action</th></tr></thead>
       <tbody>
         {% for item in rows %}
         <tr class="{% if item.entry_kind == 'REVERSAL' %}expense-reversal-row{% endif %}">
-          <td>{{ item.incurred_at.strftime('%d/%m/%Y %H:%M') if item.incurred_at else '—' }}</td>
+          <td>{{ display_times.get(item.id, '—') }}</td>
           <td><strong>{{ item.reference }}</strong>{% if item.entry_kind == 'REVERSAL' %}<small class="d-block text-secondary">Annulation #{{ item.reversal_of_id }}</small>{% elif item.id in reversal_source_ids %}<small class="d-block text-danger">Annulée</small>{% endif %}</td>
           <td>{{ item.category_name_snapshot }}</td>
           <td class="expense-description-cell">{{ item.description }}</td>
