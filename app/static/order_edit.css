@@ -1,0 +1,50 @@
+/* Only sell products that are currently available. Live stock sync removes this class when stock returns. */
+.pos-product.out-of-stock{display:none!important}
+
+.order-edit-toggle{white-space:nowrap}
+.order-edit-editor{margin-top:12px;padding:13px;border:1px solid var(--line);border-radius:13px;background:#fafcfb}
+.order-edit-editor[hidden]{display:none!important}
+.order-edit-editor.is-loading{opacity:.72;pointer-events:none}
+.order-edit-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:10px}
+.order-edit-head strong{display:block;font-size:.84rem;color:var(--ink)}
+.order-edit-head small{display:block;margin-top:2px;color:var(--muted);font-size:.68rem;line-height:1.35}
+.order-edit-close{flex:0 0 auto;border:0;background:transparent;color:#71807a;font-size:1.05rem;line-height:1;padding:4px}
+.order-edit-lines{display:grid;gap:8px}
+.order-edit-line{display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:9px;padding:9px 10px;border:1px solid #e4ebe8;border-radius:11px;background:#fff}
+.order-edit-copy{min-width:0}
+.order-edit-copy strong,.order-edit-copy small{display:block}
+.order-edit-copy strong{font-size:.78rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.order-edit-copy small{margin-top:2px;color:var(--muted);font-size:.62rem}
+.order-edit-qty{display:grid;grid-template-columns:36px 52px 36px;align-items:center;border:1px solid #dce5e1;border-radius:10px;overflow:hidden;background:#fff}
+.order-edit-qty button{height:38px;border:0;background:#f5f8f6;color:var(--brand);font-size:1rem;font-weight:900}
+.order-edit-qty input{width:52px;height:38px;border:0;border-left:1px solid #e1e8e5;border-right:1px solid #e1e8e5;text-align:center;font-size:.78rem;font-weight:800;outline:0}
+.order-edit-remove{min-height:38px;border:0;border-radius:9px;padding:0 9px;background:#fff0f0;color:#a13f3f;font-size:.68rem;font-weight:850}
+.order-edit-add{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;margin-top:10px;padding-top:10px;border-top:1px solid var(--line)}
+.order-edit-add select{min-height:42px;font-size:.78rem}
+.order-edit-add button{min-height:42px;white-space:nowrap;font-size:.72rem;font-weight:850}
+.order-edit-reason{margin-top:10px}
+.order-edit-reason label{font-size:.68rem;font-weight:800;color:#61706a}
+.order-edit-reason input{min-height:42px;font-size:.78rem}
+.order-edit-foot{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:11px}
+.order-edit-message{margin:0;color:var(--muted);font-size:.66rem;line-height:1.3}
+.order-edit-message.danger{color:#a13f3f;font-weight:750}
+.order-edit-save{min-height:42px;font-size:.74rem;font-weight:850;white-space:nowrap}
+.order-edit-lock{padding:12px;border:1px solid #eadfbe;border-radius:11px;background:#fff8e8;color:#745b1e;font-size:.75rem;line-height:1.4}
+.cashier-order-edit-host{margin:12px 0}
+.cashier-pay-title .order-edit-toggle{min-height:38px}
+
+@media(max-width:767px){
+  .order-edit-editor{margin-top:10px;padding:11px;border-radius:12px}
+  .order-edit-line{grid-template-columns:minmax(0,1fr) auto;padding:10px 9px}
+  .order-edit-copy{grid-column:1/-1}
+  .order-edit-qty{grid-template-columns:42px 58px 42px}
+  .order-edit-qty button,.order-edit-qty input{height:42px}
+  .order-edit-qty input{width:58px;font-size:16px}
+  .order-edit-remove{min-height:42px}
+  .order-edit-add{grid-template-columns:1fr}
+  .order-edit-add select,.order-edit-add button{width:100%;min-height:46px;font-size:16px}
+  .order-edit-add button{font-size:.76rem}
+  .order-edit-reason input{min-height:46px;font-size:16px}
+  .order-edit-foot{align-items:stretch;flex-direction:column}
+  .order-edit-save{width:100%;min-height:46px}
+}
