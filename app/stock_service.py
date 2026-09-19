@@ -13,6 +13,7 @@ from app.models import (
     utcnow,
 )
 from app.permissions import permissions
+from app.stock_valuation import moving_average_cost
 from app.validation import number
 
 TYPES = {"INITIAL", "PURCHASE", "SALE", "RETURN", "LOSS", "ADJUSTMENT", "INVENTORY_ADJUSTMENT"}
@@ -88,6 +89,16 @@ class StockService:
         new = balance.quantity + delta
         if new < 0:
             raise StockError("INSUFFICIENT_STOCK")
+        try:
+            new_valuation = moving_average_cost(
+                balance.quantity,
+                product.valuation_unit_cost,
+                delta,
+                cost,
+            )
+        except ValueError as exc:
+            raise StockError(str(exc)) from exc
+
         movement = StockMovement(
             bar_id=bar_id,
             product_id=product_id,
@@ -104,14 +115,17 @@ class StockService:
         db.session.add(movement)
         balance.quantity = new
         balance.version += 1
+        product.valuation_unit_cost = new_valuation
         return movement
 
     def reverse_purchase_receipt(self, actor, bar_id, purchase_line_id, reason):
         """Reverse one posted purchase stock movement without deleting history.
 
         A correction can only remove stock that is still physically/logically
-        available.  The reversal is represented by an ADJUSTMENT linked through
+        available. The reversal is represented by an ADJUSTMENT linked through
         ``reversal_of_id``; the original PURCHASE movement remains immutable.
+        The current moving-average valuation is preserved for remaining stock and
+        reset to zero only when the stock becomes empty.
         """
         permissions.require(actor, "purchases.manage", bar_id)
         if not reason or not reason.strip():
@@ -136,12 +150,17 @@ class StockService:
         ):
             raise StockError("ALREADY_REVERSED")
 
+        product = db.session.scalar(
+            select(Product)
+            .where(Product.bar_id == bar_id, Product.id == source.product_id)
+            .with_for_update()
+        )
         balance = db.session.scalar(
             select(StockBalance)
             .where(StockBalance.bar_id == bar_id, StockBalance.product_id == source.product_id)
             .with_for_update()
         )
-        if not balance:
+        if not product or not balance:
             raise LookupError("NOT_FOUND")
         delta = -source.quantity_delta
         new_quantity = balance.quantity + delta
@@ -154,7 +173,7 @@ class StockService:
             movement_type="ADJUSTMENT",
             quantity_delta=delta,
             unit_snapshot=source.unit_snapshot,
-            unit_cost_snapshot=source.unit_cost_snapshot,
+            unit_cost_snapshot=product.valuation_unit_cost,
             reversal_of_id=source.id,
             manual_kind=None,
             reason=reason.strip(),
@@ -164,6 +183,12 @@ class StockService:
         db.session.add(reversal)
         balance.quantity = new_quantity
         balance.version += 1
+        product.valuation_unit_cost = moving_average_cost(
+            balance.quantity - delta,
+            product.valuation_unit_cost,
+            delta,
+            product.valuation_unit_cost,
+        )
         return reversal
 
 
