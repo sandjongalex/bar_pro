@@ -119,9 +119,75 @@
   </aside>
 </form>
 
-<section class="panel-card mt-4" id="mes-commandes">
-  <div class="panel-header pos-recent-head"><div><p class="eyebrow mb-1">{% if is_server %}Suivi personnel{% else %}Suivi{% endif %}</p><h2>{% if is_server %}Mes commandes{% else %}Commandes récentes{% endif %}</h2></div>{% if can_pay %}<a class="btn btn-sm btn-light border" href="{{ url_for('checkout_web.checkout', bar_id=bar.id) }}">Caisse commandes</a>{% endif %}</div>
-  {% if recent_orders %}
+<section class="panel-card mt-4 {% if is_server %}server-orders-panel{% endif %}" id="mes-commandes">
+  <div class="panel-header pos-recent-head server-orders-head">
+    <div>
+      <p class="eyebrow mb-1">{% if is_server %}Suivi personnel{% else %}Suivi{% endif %}</p>
+      <h2>{% if is_server %}Mes commandes{% else %}Commandes récentes{% endif %}</h2>
+      {% if is_server %}<p class="server-orders-help">Les commandes actives restent en premier. Vérifiez rapidement la table, le montant et l'état côté caisse.</p>{% endif %}
+    </div>
+    {% if can_pay %}<a class="btn btn-sm btn-light border" href="{{ url_for('checkout_web.checkout', bar_id=bar.id) }}">Caisse commandes</a>{% endif %}
+  </div>
+
+  {% if is_server and recent_orders %}
+  <div class="server-order-filters" role="group" aria-label="Filtrer mes commandes">
+    <button class="active" type="button" data-server-order-filter="active" aria-pressed="true">Actives <span>{{ stats.waiting + stats.to_pay }}</span></button>
+    <button type="button" data-server-order-filter="waiting" aria-pressed="false">En attente <span>{{ stats.waiting }}</span></button>
+    <button type="button" data-server-order-filter="to_pay" aria-pressed="false">À payer <span>{{ stats.to_pay }}</span></button>
+    <button type="button" data-server-order-filter="paid" aria-pressed="false">Payées <span>{{ stats.paid }}</span></button>
+    <button type="button" data-server-order-filter="all" aria-pressed="false">Toutes</button>
+  </div>
+
+  <div class="server-orders-grid" data-server-orders-grid>
+    {% for order in recent_orders %}
+      {% set lines = lines_by_order.get(order.id, []) %}
+      {% if order.payment_status == 'PAID' %}{% set server_state = 'paid' %}
+      {% elif order.status == 'DRAFT' %}{% set server_state = 'waiting' %}
+      {% elif order.status == 'CONFIRMED' %}{% set server_state = 'to_pay' %}
+      {% elif order.status == 'CANCELLED' %}{% set server_state = 'cancelled' %}
+      {% else %}{% set server_state = 'other' %}{% endif %}
+      <article class="server-order-card server-order-card-{{ server_state }}" data-server-order-card data-order-state="{{ server_state }}">
+        <div class="server-order-card-head">
+          <div class="server-order-location">
+            <small>Table</small>
+            <strong>{{ order.table_label_snapshot or 'Sans table' }}</strong>
+          </div>
+          <div class="server-order-amount">{{ "{:,.0f}".format(order.total_amount) }} <small>{{ order.currency }}</small></div>
+        </div>
+
+        <div class="server-order-status-row">
+          {% if server_state == 'waiting' %}<span class="server-order-state waiting">● En attente caisse</span>
+          {% elif server_state == 'to_pay' %}<span class="server-order-state to-pay">✓ Livrée · à payer</span>
+          {% elif server_state == 'paid' %}<span class="server-order-state paid">✓ Payée</span>
+          {% elif server_state == 'cancelled' %}<span class="server-order-state cancelled">Annulée</span>
+          {% else %}<span class="server-order-state">{{ status_labels.get(order.status, order.status) }}</span>{% endif %}
+          <small class="server-order-reference">{{ order.reference }}</small>
+        </div>
+
+        <div class="server-order-products">
+          {% for line in lines[:4] %}
+          <div><strong>{{ line.quantity }}×</strong><span>{{ line.product_name_snapshot }}</span></div>
+          {% endfor %}
+          {% if lines|length > 4 %}<small>+ {{ lines|length - 4 }} autre{{ 's' if lines|length - 4 > 1 else '' }}</small>{% endif %}
+        </div>
+
+        {% if order.notes %}<div class="server-order-note"><span>Note</span><p>{{ order.notes }}</p></div>{% endif %}
+
+        <div class="server-order-footer">
+          <small>{{ order.created_at }}</small>
+          {% if order.status in ['DRAFT','CONFIRMED'] and can_edit and order.payment_status != 'PAID' %}
+          <div class="server-order-actions">
+            <button class="btn btn-sm btn-light border" type="button" data-bs-toggle="modal" data-bs-target="#noteOrder{{ order.id }}">＋ Note</button>
+            {% if order.status == 'DRAFT' %}<button class="btn btn-sm btn-outline-danger" type="button" data-bs-toggle="modal" data-bs-target="#cancelOrder{{ order.id }}">Annuler</button>{% endif %}
+          </div>
+          {% endif %}
+        </div>
+      </article>
+    {% endfor %}
+  </div>
+  <div class="server-orders-filter-empty" data-server-orders-empty hidden>Aucune commande dans ce filtre.</div>
+
+  {% elif recent_orders %}
   <div class="table-responsive"><table class="table pos-order-table align-middle mb-0"><thead><tr><th>Commande</th><th>Table / note</th><th>Produits</th><th>Total</th><th>Paiement</th><th>État</th><th class="text-end">Action</th></tr></thead><tbody>
   {% for order in recent_orders %}
     {% set lines = lines_by_order.get(order.id, []) %}
