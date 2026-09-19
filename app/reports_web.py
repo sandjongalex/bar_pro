@@ -12,6 +12,7 @@ from flask_login import current_user, login_required
 from app.extensions import db
 from app.models import Bar
 from app.permissions import permissions
+from app.report_analytics import comparison_bundle, report_chart_data, report_presets
 from app.report_services import summary
 
 bp = Blueprint("reports_web", __name__, url_prefix="/bars/<int:bar_id>/reports")
@@ -52,6 +53,8 @@ def desk(bar_id: int):
     start, end = _requested_period(bar)
     try:
         report = summary(current_user, bar_id, start, end)
+        comparison = comparison_bundle(current_user, bar_id, start, end, report)
+        chart_data = report_chart_data(current_user, bar_id, start, end, report)
     except ValueError:
         flash("La période sélectionnée est invalide. Vérifiez les dates de début et de fin.", "danger")
         default_start, default_end = _default_dates(bar)
@@ -64,6 +67,9 @@ def desk(bar_id: int):
         start=start,
         end=end,
         method_labels=METHOD_LABELS,
+        presets=report_presets(bar),
+        comparison=comparison,
+        chart_data=chart_data,
     )
 
 
