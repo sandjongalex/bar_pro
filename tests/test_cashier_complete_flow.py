@@ -4,7 +4,7 @@ from sqlalchemy import select
 
 from app.cash_services import cash_service
 from app.extensions import db
-from app.models import CashSession, OrderLine, Payment, Refund, StaffAssignment, User, utcnow
+from app.models import CashSession, Order, OrderLine, Payment, Refund, StaffAssignment, User, utcnow
 from app.order_services import order_service
 from app.payment_services import payment_service
 from test_workflows import env
@@ -40,6 +40,39 @@ def _cashier(bar):
     )
     db.session.commit()
     return cashier
+
+
+def test_cashier_can_create_counter_order_and_go_to_checkout(env):
+    app, _, bar, _, product, _, _, _ = env
+    cashier = _cashier(bar)
+    client = app.test_client()
+    assert _login(client, cashier.email).status_code == 302
+
+    page = client.get(f"/bars/{bar.id}/orders/new")
+    assert page.status_code == 200
+    csrf = _csrf_from(page)
+
+    response = client.post(
+        f"/bars/{bar.id}/orders/new",
+        data={
+            "csrf_token": csrf,
+            "action": "create",
+            "reference": "COUNTER-SALE",
+            "product_id": str(product.id),
+            "quantity": "1",
+            "notes": "Achat direct au comptoir",
+        },
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 302
+    order = db.session.scalar(select(Order).where(Order.bar_id == bar.id, Order.reference == "COUNTER-SALE"))
+    assert order is not None
+    assert order.created_by_id == cashier.id
+    assert order.assigned_staff_id is None
+    assert order.status == "DRAFT"
+    assert f"/bars/{bar.id}/checkout" in response.headers["Location"]
+    assert f"order_id={order.id}" in response.headers["Location"]
 
 
 def test_complete_cashier_flow_server_cash_handover_return_history_receipt_close(env):
