@@ -3,6 +3,7 @@ from decimal import Decimal
 import pytest
 from sqlalchemy import select
 
+from app.cash_services import cash_service
 from app.extensions import db
 from app.finance_totals import order_balance
 from app.models import OrderLine, OrderReturnLine, Product, StaffAssignment, StockBalance, User, utcnow
@@ -26,6 +27,10 @@ def _cashier(bar):
             started_at=utcnow(),
         )
     )
+    db.session.flush()
+    # Les paiements d'une caissière exigent une session de caisse ouverte.
+    # Le test doit respecter cette règle métier au lieu de la contourner.
+    cash_service.open(user, bar.id, "EDIT-CASH-SESSION", 0)
     db.session.commit()
     return user
 
