@@ -22,6 +22,7 @@ from app.customers_web import bp as customers_web_bp
 from app.inventories import api_inventories_bp, inventories_bp
 from app.orders import bp as orders_bp, web_bp as orders_web_bp
 from app.staff import bp as staff_web_bp
+from app.reports_web import bp as reports_web_bp
 
 
 def create_app(config_name: str | None = None, test_config: dict[str, Any] | None = None) -> Flask:
@@ -79,6 +80,7 @@ def _register_blueprints(app: Flask) -> None:
 
     app.register_blueprint(finance_web_bp)
     app.register_blueprint(cashier_web_bp)
+    app.register_blueprint(reports_web_bp)
     app.register_blueprint(finance_bp)
     app.register_blueprint(reports_bp)
     app.register_blueprint(subscriptions_bp)
