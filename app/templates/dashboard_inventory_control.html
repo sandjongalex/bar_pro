@@ -3,6 +3,7 @@
     <div>
       <p class="eyebrow mb-1">Inventaire & caisse</p>
       <h2 id="dashboard-inventory-control-title">Contrôle du dernier inventaire</h2>
+      {% if inventory_control %}
       <small class="text-secondary">
         {{ inventory_control.reference }} ·
         {% if inventory_control.period_start_date %}
@@ -12,10 +13,18 @@
         {% endif %}
         au {{ inventory_control.period_end_date.strftime('%d/%m/%Y') }}
       </small>
+      {% else %}
+      <small class="text-secondary">Aucun inventaire de période validé pour cet établissement.</small>
+      {% endif %}
     </div>
+    {% if inventory_control %}
     <a class="btn btn-sm btn-outline-primary" href="{{ url_for('inventories.detail', bar_id=active_bar.id, inventory_id=inventory_control.inventory_id) }}">Voir l'inventaire</a>
+    {% elif active_bar %}
+    <a class="btn btn-sm btn-primary" href="{{ url_for('inventories.new', bar_id=active_bar.id) }}">Créer un inventaire</a>
+    {% endif %}
   </div>
 
+  {% if inventory_control %}
   <div class="inventory-control-grid">
     <article class="inventory-control-card">
       <span>Ventes théoriques</span>
@@ -99,4 +108,10 @@
     <strong>Important :</strong>
     <span>« Net enregistré » correspond aux encaissements saisis dans l'application moins les dépenses. Le comptage physique du tiroir de caisse reste contrôlé lors de la clôture de la session de caisse.</span>
   </div>
+  {% else %}
+  <div class="inventory-control-empty">
+    <strong>Commencez par valider un inventaire physique.</strong>
+    <span>Le rapprochement ventes théoriques, ventes enregistrées, crédits, dépenses, stock physique et caisse apparaîtra ici automatiquement.</span>
+  </div>
+  {% endif %}
 </section>
