@@ -1,0 +1,102 @@
+<section class="dashboard-section mt-4" aria-labelledby="dashboard-inventory-control-title">
+  <div class="dashboard-section-heading">
+    <div>
+      <p class="eyebrow mb-1">Inventaire & caisse</p>
+      <h2 id="dashboard-inventory-control-title">Contrôle du dernier inventaire</h2>
+      <small class="text-secondary">
+        {{ inventory_control.reference }} ·
+        {% if inventory_control.period_start_date %}
+          du {{ inventory_control.period_start_date.strftime('%d/%m/%Y') }}
+        {% else %}
+          depuis l'origine
+        {% endif %}
+        au {{ inventory_control.period_end_date.strftime('%d/%m/%Y') }}
+      </small>
+    </div>
+    <a class="btn btn-sm btn-outline-primary" href="{{ url_for('inventories.detail', bar_id=active_bar.id, inventory_id=inventory_control.inventory_id) }}">Voir l'inventaire</a>
+  </div>
+
+  <div class="inventory-control-grid">
+    <article class="inventory-control-card">
+      <span>Ventes théoriques</span>
+      <strong>{{ "{:,.0f}".format(inventory_control.theoretical_sales) }} <small>{{ inventory_control.currency }}</small></strong>
+      <small>Calculées par stock initial + achats − stock physique</small>
+    </article>
+    <article class="inventory-control-card">
+      <span>Ventes enregistrées</span>
+      <strong>{{ "{:,.0f}".format(inventory_control.recorded_sales) }} <small>{{ inventory_control.currency }}</small></strong>
+      <small>Commandes livrées enregistrées sur la période</small>
+    </article>
+    <article class="inventory-control-card {% if inventory_control.sales_difference < 0 %}is-danger{% elif inventory_control.sales_difference > 0 %}is-warning{% endif %}">
+      <span>Écart ventes</span>
+      <strong>{{ "+" if inventory_control.sales_difference > 0 else "" }}{{ "{:,.0f}".format(inventory_control.sales_difference) }} <small>{{ inventory_control.currency }}</small></strong>
+      <small>Ventes enregistrées − ventes théoriques</small>
+    </article>
+    <article class="inventory-control-card">
+      <span>Crédits validés</span>
+      <strong>{{ "{:,.0f}".format(inventory_control.credit_sales) }} <small>{{ inventory_control.currency }}</small></strong>
+      <small>Ventes de la période laissées en créance client</small>
+    </article>
+    <article class="inventory-control-card">
+      <span>Dépenses</span>
+      <strong>{{ "{:,.0f}".format(inventory_control.expenses) }} <small>{{ inventory_control.currency }}</small></strong>
+      <small>Dépenses nettes validées sur la période</small>
+    </article>
+    <article class="inventory-control-card is-primary">
+      <span>Caisse théorique</span>
+      <strong>{{ "{:,.0f}".format(inventory_control.expected_cash) }} <small>{{ inventory_control.currency }}</small></strong>
+      <small>Ventes théoriques − crédits − dépenses</small>
+    </article>
+    <article class="inventory-control-card">
+      <span>Net enregistré</span>
+      <strong>{{ "{:,.0f}".format(inventory_control.recorded_net) }} <small>{{ inventory_control.currency }}</small></strong>
+      <small>Paiements enregistrés nets − dépenses</small>
+    </article>
+    <article class="inventory-control-card {% if inventory_control.cash_difference < 0 %}is-danger{% elif inventory_control.cash_difference > 0 %}is-success{% endif %}">
+      <span>{% if inventory_control.cash_difference < 0 %}Manquant{% elif inventory_control.cash_difference > 0 %}Surplus{% else %}Écart caisse{% endif %}</span>
+      <strong>{{ "{:,.0f}".format(inventory_control.cash_shortage if inventory_control.cash_difference < 0 else inventory_control.cash_surplus) }} <small>{{ inventory_control.currency }}</small></strong>
+      <small>Écart de rapprochement du dernier inventaire</small>
+    </article>
+  </div>
+
+  <div class="inventory-stock-control mt-3">
+    <div class="inventory-stock-summary">
+      <div><span>Stock théorique</span><strong>{{ "{:,.0f}".format(inventory_control.theoretical_stock) }}</strong><small>bouteilles / unités</small></div>
+      <div><span>Stock machine</span><strong>{{ "{:,.0f}".format(inventory_control.machine_stock) }}</strong><small>avant ajustement inventaire</small></div>
+      <div><span>Stock physique</span><strong>{{ "{:,.0f}".format(inventory_control.physical_stock) }}</strong><small>réellement compté</small></div>
+      <div class="{% if inventory_control.stock_difference < 0 %}is-danger{% elif inventory_control.stock_difference > 0 %}is-warning{% endif %}"><span>Écart stock</span><strong>{{ "+" if inventory_control.stock_difference > 0 else "" }}{{ "{:,.0f}".format(inventory_control.stock_difference) }}</strong><small>physique − machine</small></div>
+    </div>
+
+    <div class="inventory-control-table-wrap">
+      <div class="inventory-control-table-head">
+        <div><span class="alert-kicker">Écarts produits</span><h3>Produits à contrôler</h3></div>
+        <span class="dashboard-chart-badge">{{ inventory_control.discrepancy_count }} écart{{ 's' if inventory_control.discrepancy_count != 1 else '' }}</span>
+      </div>
+      {% if inventory_control.discrepancies %}
+      <div class="table-responsive">
+        <table class="table inventory-control-table align-middle mb-0">
+          <thead><tr><th>Produit</th><th class="text-end">Machine</th><th class="text-end">Physique</th><th class="text-end">Écart</th><th>Note</th></tr></thead>
+          <tbody>
+            {% for item in inventory_control.discrepancies %}
+            <tr>
+              <td><strong>{{ item.name }}</strong><small>{{ item.unit }}</small></td>
+              <td class="text-end">{{ "{:,.0f}".format(item.machine) }}</td>
+              <td class="text-end">{{ "{:,.0f}".format(item.physical) }}</td>
+              <td class="text-end"><span class="inventory-diff {% if item.difference < 0 %}is-danger{% else %}is-warning{% endif %}">{{ "+" if item.difference > 0 else "" }}{{ "{:,.0f}".format(item.difference) }}</span></td>
+              <td>{{ item.note or '—' }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="dashboard-alert-empty">Aucun écart entre le stock physique et le stock machine sur ce dernier inventaire.</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="dashboard-definition-note mt-3">
+    <strong>Important :</strong>
+    <span>« Net enregistré » correspond aux encaissements saisis dans l'application moins les dépenses. Le comptage physique du tiroir de caisse reste contrôlé lors de la clôture de la session de caisse.</span>
+  </div>
+</section>
