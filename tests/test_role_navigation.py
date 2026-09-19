@@ -60,6 +60,8 @@ def test_cashier_navigation_only_surfaces_operational_destinations(env):
     assert 'data-context-nav' in page.text
     assert 'aria-label="Retour vers Caisse"' in page.text
     assert '<strong>Session de caisse</strong>' in page.text
+    assert 'aria-label="Raccourcis caisse"' in page.text
+    assert 'data-context-shortcuts' in page.text
 
 
 def test_server_navigation_is_focused_on_orders_and_notifications(env):
@@ -80,6 +82,9 @@ def test_server_navigation_is_focused_on_orders_and_notifications(env):
     assert 'aria-label="Retour vers Mes commandes"' in page.text
     assert '#mes-commandes' in page.text
     assert '<strong>Nouvelle commande</strong>' in page.text
+    assert 'aria-label="Raccourcis service"' in page.text
+    assert '>＋ Nouvelle commande</a>' in page.text
+    assert '>Mes commandes</a>' in page.text
 
 
 def test_owner_keeps_full_grouped_navigation(env):
@@ -95,6 +100,7 @@ def test_owner_keeps_full_grouped_navigation(env):
     assert '<span class="nav-link-text">Finances</span>' in page.text
     assert 'class="nav-role-label">Poste caissière' not in page.text
     assert 'class="nav-role-label">Espace serveuse' not in page.text
+    assert 'aria-label="Raccourcis ventes"' in page.text
 
 
 def test_owner_catalog_context_goes_back_to_stock(env):
@@ -108,3 +114,20 @@ def test_owner_catalog_context_goes_back_to_stock(env):
     assert 'aria-label="Retour vers État du stock"' in page.text
     assert '<span>Stock</span>' in page.text
     assert '<strong>Produits &amp; catégories</strong>' in page.text
+    assert 'aria-label="Raccourcis stock"' in page.text
+    assert '>Produits</a>' in page.text
+    assert '>État du stock</a>' in page.text
+    assert '>Inventaires</a>' in page.text
+
+
+def test_owner_purchase_context_links_related_windows(env):
+    app, owner, bar, _, _, _, _, _ = env
+    client = app.test_client()
+    assert _login(client, owner.email).status_code == 302
+
+    page = client.get(f"/bars/{bar.id}/purchases")
+    assert page.status_code == 200
+    assert 'aria-label="Raccourcis achats"' in page.text
+    assert '>Achats</a>' in page.text
+    assert '>Fournisseurs</a>' in page.text
+    assert '>Dettes</a>' in page.text
