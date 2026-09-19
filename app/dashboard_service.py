@@ -52,11 +52,20 @@ def _between(column, start_at, end_at):
     return column >= start_at, column <= end_at
 
 
-def _settled_orders_today(bar_id: int, start_at, end_at):
-    """Orders whose financial settlement was completed through activity today.
+def _naive_datetime(value):
+    if value is None:
+        return None
+    return value.replace(tzinfo=None) if getattr(value, "tzinfo", None) is not None else value
 
-    Payments and customer-credit entries are the two events capable of settling
-    an order.  We then keep only orders that are currently fully settled.
+
+def _settled_orders_today(bar_id: int, start_at, end_at):
+    """Return orders whose final settlement event falls inside the given bounds.
+
+    A multi-part payment can span several days.  Looking only for "any payment in
+    the day" would therefore count the same order on more than one historical day
+    once it eventually becomes PAID.  We first collect orders touched in the
+    requested interval, then keep only those whose latest settlement event
+    (payment or CREDIT_SALE) is actually inside that interval.
     """
     payment_ids = set(
         db.session.scalars(
@@ -79,11 +88,47 @@ def _settled_orders_today(bar_id: int, start_at, end_at):
     candidate_ids = payment_ids | credit_ids
     if not candidate_ids:
         return []
+
+    last_payment = dict(
+        db.session.execute(
+            select(Payment.order_id, func.max(Payment.received_at))
+            .where(Payment.bar_id == bar_id, Payment.order_id.in_(candidate_ids))
+            .group_by(Payment.order_id)
+        ).all()
+    )
+    last_credit = dict(
+        db.session.execute(
+            select(CustomerLedgerEntry.order_id, func.max(CustomerLedgerEntry.occurred_at))
+            .where(
+                CustomerLedgerEntry.bar_id == bar_id,
+                CustomerLedgerEntry.order_id.in_(candidate_ids),
+                CustomerLedgerEntry.entry_kind == "CREDIT_SALE",
+            )
+            .group_by(CustomerLedgerEntry.order_id)
+        ).all()
+    )
+
+    settled_ids = []
+    for order_id in candidate_ids:
+        events = [
+            _naive_datetime(last_payment.get(order_id)),
+            _naive_datetime(last_credit.get(order_id)),
+        ]
+        events = [event for event in events if event is not None]
+        if not events:
+            continue
+        settled_at = max(events)
+        if start_at <= settled_at <= end_at:
+            settled_ids.append(order_id)
+
+    if not settled_ids:
+        return []
+
     return list(
         db.session.execute(
             select(Order.id, Order.total_amount).where(
                 Order.bar_id == bar_id,
-                Order.id.in_(candidate_ids),
+                Order.id.in_(settled_ids),
                 Order.status.in_(["CONFIRMED", "SERVED"]),
                 Order.payment_status == "PAID",
             )
