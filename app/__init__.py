@@ -148,28 +148,65 @@ def _register_blueprints(app: Flask) -> None:
 
 
 def _register_template_context(app: Flask) -> None:
-    """Expose lightweight, request-scoped permission helpers to server templates."""
+    """Expose lightweight, request-scoped navigation helpers to server templates."""
 
     @app.context_processor
     def navigation_helpers():
         from flask_login import current_user
+        from sqlalchemy import select
+        from app.models import StaffAssignment
         from app.permissions import permissions
 
-        cache: dict[tuple[str, int], bool] = {}
+        permission_cache: dict[tuple[str, int], bool] = {}
+        role_cache: dict[int, str | None] = {}
+
+        def _bar_id(value):
+            try:
+                return int(value)
+            except (TypeError, ValueError):
+                return None
 
         def nav_can(action: str, bar_id) -> bool:
-            if not current_user.is_authenticated or bar_id is None:
+            if not current_user.is_authenticated:
                 return False
-            try:
-                normalized_bar_id = int(bar_id)
-            except (TypeError, ValueError):
+            normalized_bar_id = _bar_id(bar_id)
+            if normalized_bar_id is None:
                 return False
             key = (action, normalized_bar_id)
-            if key not in cache:
-                cache[key] = permissions.evaluate(current_user, action, normalized_bar_id).allowed
-            return cache[key]
+            if key not in permission_cache:
+                permission_cache[key] = permissions.evaluate(current_user, action, normalized_bar_id).allowed
+            return permission_cache[key]
 
-        return {"nav_can": nav_can}
+        def nav_role(bar_id):
+            """Return the effective role for role-specific navigation only."""
+            if not current_user.is_authenticated:
+                return None
+            normalized_bar_id = _bar_id(bar_id)
+            if normalized_bar_id is None:
+                return None
+            if normalized_bar_id in role_cache:
+                return role_cache[normalized_bar_id]
+
+            if current_user.category == "SUPER_ADMIN":
+                role = "SUPER_ADMIN"
+            elif current_user.category == "OWNER":
+                role = "OWNER"
+            elif current_user.category == "EMPLOYEE":
+                assignment = db.session.scalar(
+                    select(StaffAssignment).where(
+                        StaffAssignment.bar_id == normalized_bar_id,
+                        StaffAssignment.user_id == current_user.id,
+                        StaffAssignment.ended_at.is_(None),
+                    )
+                )
+                role = assignment.role if assignment else None
+            else:
+                role = None
+
+            role_cache[normalized_bar_id] = role
+            return role
+
+        return {"nav_can": nav_can, "nav_role": nav_role}
 
 
 def _register_error_handlers(app: Flask) -> None:
