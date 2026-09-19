@@ -4,7 +4,7 @@ from sqlalchemy import select
 
 from app.cash_services import cash_service
 from app.extensions import db
-from app.models import CashSession, Order, OrderLine, Payment, Refund, StaffAssignment, User, utcnow
+from app.models import OrderLine, Payment, Refund, StaffAssignment, User, utcnow
 from app.order_services import order_service
 from app.payment_services import payment_service
 from test_workflows import env
@@ -42,37 +42,23 @@ def _cashier(bar):
     return cashier
 
 
-def test_cashier_can_create_counter_order_and_go_to_checkout(env):
-    app, _, bar, _, product, _, _, _ = env
+def test_cashier_order_and_checkout_entries_use_workspace(env):
+    app, _, bar, _, _, _, _, _ = env
     cashier = _cashier(bar)
+    cash_service.open(cashier, bar.id, "ENTRY-CASH", 0)
+    db.session.commit()
+
     client = app.test_client()
     assert _login(client, cashier.email).status_code == 302
 
-    page = client.get(f"/bars/{bar.id}/orders/new")
-    assert page.status_code == 200
-    csrf = _csrf_from(page)
+    orders_entry = client.get(f"/bars/{bar.id}/orders/new", follow_redirects=False)
+    assert orders_entry.status_code == 302
+    assert f"/bars/{bar.id}/cashier/workspace" in orders_entry.headers["Location"]
+    assert "sale=1" in orders_entry.headers["Location"]
 
-    response = client.post(
-        f"/bars/{bar.id}/orders/new",
-        data={
-            "csrf_token": csrf,
-            "action": "create",
-            "reference": "COUNTER-SALE",
-            "product_id": str(product.id),
-            "quantity": "1",
-            "notes": "Achat direct au comptoir",
-        },
-        follow_redirects=False,
-    )
-
-    assert response.status_code == 302
-    order = db.session.scalar(select(Order).where(Order.bar_id == bar.id, Order.reference == "COUNTER-SALE"))
-    assert order is not None
-    assert order.created_by_id == cashier.id
-    assert order.assigned_staff_id is None
-    assert order.status == "DRAFT"
-    assert f"/bars/{bar.id}/checkout" in response.headers["Location"]
-    assert f"order_id={order.id}" in response.headers["Location"]
+    checkout_entry = client.get(f"/bars/{bar.id}/checkout", follow_redirects=False)
+    assert checkout_entry.status_code == 302
+    assert f"/bars/{bar.id}/cashier/workspace" in checkout_entry.headers["Location"]
 
 
 def test_complete_cashier_flow_server_cash_handover_return_history_receipt_close(env):
@@ -167,10 +153,12 @@ def test_complete_cashier_flow_server_cash_handover_return_history_receipt_close
     client = app.test_client()
     assert _login(client, cashier.email).status_code == 302
 
-    checkout = client.get(f"/bars/{bar.id}/checkout")
-    assert checkout.status_code == 200
-    assert "FLOW-ORDER" in checkout.text
-    assert "Imprimer le reçu" in checkout.text
+    checkout_redirect = client.get(f"/bars/{bar.id}/checkout", follow_redirects=False)
+    assert checkout_redirect.status_code == 302
+    assert f"/bars/{bar.id}/cashier/workspace" in checkout_redirect.headers["Location"]
+    workspace = client.get(checkout_redirect.headers["Location"])
+    assert workspace.status_code == 200
+    assert "Poste de caisse" in workspace.text
 
     handovers = client.get(f"/bars/{bar.id}/cashier-handovers")
     assert handovers.status_code == 200
