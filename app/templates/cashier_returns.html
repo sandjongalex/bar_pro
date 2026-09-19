@@ -71,8 +71,7 @@
 
     {% if balance.customer_credit > 0 %}
     <div class="checkout-warning m-3">
-      <strong>Commande financée à crédit client.</strong> Le retour partiel d'une vente à crédit nécessite une correction du compte client avant remboursement. Cette opération reste bloquée ici pour éviter de créer une dette client incorrecte.
-      <a href="{{ url_for('customers_web.manage', bar_id=bar.id) }}">Ouvrir Clients & crédits →</a>
+      <strong>Commande financée à crédit client.</strong> Le retour partiel d'une vente à crédit nécessite une correction spécifique de la créance client. Ce cas est volontairement bloqué ici pour éviter une écriture comptable incorrecte ; nous le traiterons dans une étape dédiée.
     </div>
     {% endif %}
 
