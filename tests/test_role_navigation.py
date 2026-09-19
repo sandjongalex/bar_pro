@@ -94,6 +94,15 @@ def test_server_navigation_is_focused_on_orders_and_notifications(env):
     assert '3. Envoyer à la caisse' in page.text
     assert 'À traiter par la caisse' in page.text
 
+    # Étape 2 UI: sélection tactile rapide + dock panier responsive.
+    assert 'server_pos.css' in page.text
+    assert 'server_pos_ui.js' in page.text
+    ui_script = client.get('/static/server_pos_ui.js')
+    assert ui_script.status_code == 200
+    assert 'server-product-qty' in ui_script.text
+    assert 'server-cart-dock' in ui_script.text
+    assert 'max-width: 980px' in ui_script.text
+
 
 def test_owner_keeps_full_grouped_navigation(env):
     app, owner, bar, _, _, _, _, _ = env
