@@ -6,9 +6,10 @@ Negative operational movements consume inventory at the current average cost.
 Legacy installations can contain opening stock with a zero cost because valuation
 was not maintained historically. They can also contain purchases entered before
 CASE/BOTTLE metadata existed: the quantity was stored as bottles while the unit
-cost actually held the configured case price. Replay repairs recognise only the
-known configured case-price signature, convert it to a base-unit cost, and mark
-the result as estimated so production application remains explicit.
+cost actually held a case price. Replay repairs recognise conservative case-price
+signatures from either explicit received CASE history or the configured default,
+convert them to a base-unit cost, and mark the result as estimated so production
+application remains explicit.
 """
 from __future__ import annotations
 
@@ -91,13 +92,55 @@ def remove_receipt_cost(quantity_before, cost_before, receipt_quantity, receipt_
     return (remaining_value / quantity_after).quantize(COST_QUANT, rounding=ROUND_HALF_UP)
 
 
-def _legacy_purchase_cost(product: Product, movement: StockMovement, currency: str):
+def _received_case_signatures(movements) -> set[tuple[int, Decimal]]:
+    """Return observed ``(case_size, case_price)`` pairs from received CASE stock.
+
+    Only purchase lines that actually produced a PURCHASE stock movement are used,
+    so drafts and unreceived purchase documents cannot influence legacy repair.
+    """
+    signatures: set[tuple[int, Decimal]] = set()
+    for movement in movements:
+        if movement.movement_type != "PURCHASE" or movement.purchase_line_id is None:
+            continue
+        line = db.session.get(PurchaseLine, movement.purchase_line_id)
+        if not line:
+            continue
+        if line.bar_id != movement.bar_id or line.product_id != movement.product_id:
+            continue
+        if str(getattr(line, "purchase_unit", "") or "").upper() != "CASE":
+            continue
+        case_size = getattr(line, "units_per_case_snapshot", None)
+        if not case_size:
+            continue
+        try:
+            case_size = int(case_size)
+        except (TypeError, ValueError):
+            continue
+        if case_size <= 1:
+            continue
+        case_price = _cost(getattr(line, "purchase_unit_price_snapshot", 0))
+        if case_price > 0:
+            signatures.add((case_size, case_price))
+    return signatures
+
+
+def _legacy_purchase_cost(
+    product: Product,
+    movement: StockMovement,
+    currency: str,
+    received_case_signatures: set[tuple[int, Decimal]],
+):
     """Return a replay cost and optional legacy-normalisation reason.
 
     Old rows migrated before purchase-unit metadata was trustworthy can look like
-    ``BOTTLE @ 7800`` for a product whose configured supplier case price is 7800
-    and case size is 12. We normalise only an exact configured case-price match;
-    arbitrary expensive bottle purchases are never guessed.
+    ``BOTTLE @ 7500`` even though 7500 was the supplier case price. We normalise
+    only when the entire legacy line carries the same price and either:
+
+    * an actually received CASE line for the same product proves the same case
+      price and case size, or
+    * the price exactly matches the configured default case price.
+
+    Arbitrary expensive bottle purchases are therefore never guessed.
     """
     raw_cost = _cost(movement.unit_cost_snapshot)
     if movement.movement_type != "PURCHASE" or movement.purchase_line_id is None:
@@ -115,31 +158,33 @@ def _legacy_purchase_cost(product: Product, movement: StockMovement, currency: s
     case_size = default_units_per_case(product.name, product.units_per_case)
     if not case_size or int(case_size) <= 1:
         return raw_cost, None
+    case_size = int(case_size)
 
-    configured_case_price = default_purchase_price(
-        product.name,
-        currency,
-        Decimal("-1"),
-    )
-    if configured_case_price <= 0:
-        return raw_cost, None
-
-    configured_case_price = _cost(configured_case_price)
     line_purchase_price = _cost(getattr(line, "purchase_unit_price_snapshot", raw_cost))
     line_unit_cost = _cost(getattr(line, "unit_cost_snapshot", raw_cost))
-
-    if not (
-        raw_cost == configured_case_price
-        and line_purchase_price == configured_case_price
-        and line_unit_cost == configured_case_price
-    ):
+    if not (raw_cost == line_purchase_price == line_unit_cost):
         return raw_cost, None
 
-    base_cost = (configured_case_price / Decimal(int(case_size))).quantize(
+    reason = None
+    if (case_size, raw_cost) in received_case_signatures:
+        reason = "LEGACY_CASE_PRICE_MATCHED_TO_CASE_HISTORY"
+    else:
+        configured_case_price = default_purchase_price(
+            product.name,
+            currency,
+            Decimal("-1"),
+        )
+        if configured_case_price > 0 and raw_cost == _cost(configured_case_price):
+            reason = "LEGACY_CASE_PRICE_NORMALIZED"
+
+    if reason is None:
+        return raw_cost, None
+
+    base_cost = (raw_cost / Decimal(case_size)).quantize(
         COST_QUANT,
         rounding=ROUND_HALF_UP,
     )
-    return base_cost, "LEGACY_CASE_PRICE_NORMALIZED"
+    return base_cost, reason
 
 
 def replay_product_valuation(bar_id: int, product_id: int) -> dict:
@@ -165,6 +210,7 @@ def replay_product_valuation(bar_id: int, product_id: int) -> dict:
             .order_by(StockMovement.occurred_at, StockMovement.id)
         )
     )
+    received_case_signatures = _received_case_signatures(movements)
     by_id = {movement.id: movement for movement in movements}
     effective_cost_by_id: dict[int, Decimal] = {}
     quantity = ZERO
@@ -192,7 +238,12 @@ def replay_product_valuation(bar_id: int, product_id: int) -> dict:
                     quantity += delta
                     continue
 
-            replay_cost, normalization_reason = _legacy_purchase_cost(product, movement, bar.currency)
+            replay_cost, normalization_reason = _legacy_purchase_cost(
+                product,
+                movement,
+                bar.currency,
+                received_case_signatures,
+            )
             if normalization_reason:
                 estimated = True
                 estimate_reasons.add(normalization_reason)
