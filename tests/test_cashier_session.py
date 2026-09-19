@@ -74,9 +74,13 @@ def test_cashier_must_open_session_before_checkout(env):
     assert session.opened_by_id == cashier.id
     assert session.reference.startswith("CAISSE-")
 
-    checkout = client.get(checkout_path)
-    assert checkout.status_code == 200
-    assert "Commandes reçues" in checkout.text
+    checkout = client.get(checkout_path, follow_redirects=False)
+    assert checkout.status_code == 302
+    assert f"/bars/{bar.id}/cashier/workspace" in checkout.headers["Location"]
+    workspace = client.get(checkout.headers["Location"])
+    assert workspace.status_code == 200
+    assert "Poste de caisse" in workspace.text
+    assert "Commandes reçues" in workspace.text
 
 
 def test_cashier_session_page_reuses_existing_open_session(env):
