@@ -12,6 +12,10 @@
   box-shadow:0 10px 28px rgba(25,46,39,.04);
 }
 
+.dashboard-chart-card-wide {
+  grid-column:1 / -1;
+}
+
 .dashboard-chart-head {
   min-height:76px;
   padding:16px 18px;
@@ -54,6 +58,10 @@
   min-height:360px;
 }
 
+.dashboard-chart-canvas-trend {
+  min-height:380px;
+}
+
 .dashboard-chart-empty {
   min-height:210px;
   display:flex;
@@ -92,10 +100,12 @@
 
 @media (max-width: 1050px) {
   .dashboard-chart-grid { grid-template-columns:1fr; }
+  .dashboard-chart-card-wide { grid-column:auto; }
 }
 
 @media (max-width: 560px) {
   .dashboard-chart-canvas,
-  .dashboard-chart-canvas-products { min-height:290px; padding:12px; }
+  .dashboard-chart-canvas-products,
+  .dashboard-chart-canvas-trend { min-height:290px; padding:12px; }
   .dashboard-chart-head { align-items:flex-start; }
 }
