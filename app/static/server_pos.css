@@ -10,6 +10,9 @@
 /* Étape 4: Note / Annuler directly inside the order card, without modal navigation. */
 .server-order-card.is-editing{box-shadow:0 10px 28px rgba(24,54,44,.08)}.server-order-inline-editor{margin:12px -15px -15px;padding:13px 15px 15px;border-top:1px solid var(--line);background:#fafcfb}.server-order-inline-editor[hidden]{display:none!important}.server-order-inline-form{display:grid;gap:10px}.server-order-inline-head{display:grid;gap:3px}.server-order-inline-head strong{font-size:.82rem;color:var(--ink)}.server-order-inline-head small{font-size:.68rem;line-height:1.35;color:var(--muted)}.server-order-inline-textarea{min-height:72px!important;resize:vertical;border-color:#d8e3df!important;border-radius:11px!important;font-size:.82rem!important}.server-order-inline-controls{display:flex;align-items:center;justify-content:flex-end;gap:7px;flex-wrap:wrap}.server-order-inline-controls .btn{min-height:38px;font-size:.7rem;font-weight:800}.server-order-inline-cancel{background:#fffafa}.server-order-inline-cancel .server-order-inline-head strong{color:#a23f3f}
 
+/* Étape 5: one-touch switch between order entry and personal tracking. */
+.server-section-switcher{display:none}.server-pos-layout,.server-orders-panel{scroll-margin-top:94px}
+
 @media(max-width:980px){
   .server-pos-layout .pos-products{grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;padding:11px}
   .server-pos-layout .pos-product{min-height:125px;padding:11px;padding-bottom:39px;gap:.28rem}
@@ -31,6 +34,13 @@
   .server-orders-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;padding:14px}
   .server-order-filters{padding-left:14px;padding-right:14px}
   .server-orders-head{padding:16px 14px 9px}
+}
+
+@media(min-width:768px) and (max-width:991px){
+  .server-section-switcher{position:sticky;top:76px;z-index:19;display:grid;grid-template-columns:1fr 1fr;gap:5px;margin:12px 0 14px;padding:5px;border:1px solid var(--line);border-radius:14px;background:rgba(255,255,255,.96);box-shadow:0 8px 24px rgba(24,54,44,.08);backdrop-filter:blur(10px)}
+  .server-section-switcher a{min-height:46px;display:flex;align-items:center;justify-content:center;gap:7px;padding:7px 12px;border-radius:10px;color:#62716b;font-size:.78rem;font-weight:850;touch-action:manipulation}
+  .server-section-switcher a span{font-size:1rem;font-weight:900}.server-section-switcher a.active{background:var(--brand);color:#fff}
+  .server-pos-layout,.server-orders-panel{scroll-margin-top:138px}
 }
 
 @media(max-width:767px){
