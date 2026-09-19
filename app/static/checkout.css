@@ -2,3 +2,118 @@
 .checkout-hero{display:flex;justify-content:space-between;align-items:flex-end;gap:2rem}.checkout-hero h1{margin:0;font-size:clamp(2rem,3vw,3rem);font-weight:850;letter-spacing:-.04em}.checkout-hero p:not(.eyebrow){margin:.55rem 0 0;color:var(--muted);max-width:760px}.checkout-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px}.checkout-stats article{background:#fff;border:1px solid var(--line);border-radius:16px;padding:20px;box-shadow:0 8px 24px rgba(25,46,39,.04)}.checkout-stats span,.checkout-stats strong,.checkout-stats small{display:block}.checkout-stats span{font-size:.82rem;color:#6e7b76;font-weight:750}.checkout-stats strong{font-size:1.65rem;margin:.25rem 0;letter-spacing:-.035em}.checkout-stats small{font-size:.76rem;color:#97a19d}.checkout-layout{display:grid;grid-template-columns:minmax(0,1fr) minmax(380px,460px);gap:22px;align-items:start}.checkout-orders-panel,.checkout-pay-panel{min-width:0}.checkout-pay-panel{position:sticky;top:98px;padding:20px}.checkout-order-list{display:grid}.checkout-order-card{display:flex;justify-content:space-between;align-items:center;gap:1rem;padding:16px 18px;border-bottom:1px solid #edf2ef;text-decoration:none;color:inherit;transition:.16s ease}.checkout-order-card:hover{background:#fafcfb}.checkout-order-card.active{background:var(--brand-soft);box-shadow:inset 4px 0 0 var(--brand)}.checkout-order-main{display:flex;align-items:center;gap:.85rem;min-width:0}.checkout-order-main>div:last-child{min-width:0}.checkout-order-main strong,.checkout-order-main small,.checkout-order-main span{display:block}.checkout-order-main small{color:var(--muted);font-size:.75rem;margin:.12rem 0}.checkout-order-main span{font-size:.72rem;color:#88938f;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:420px}.checkout-order-icon{width:40px;height:40px;border-radius:12px;display:flex;align-items:center;justify-content:center;background:#edf3f0;color:var(--brand);font-weight:900;flex:0 0 auto}.checkout-order-card.active .checkout-order-icon{background:#fff}.checkout-order-amount{text-align:right;white-space:nowrap}.checkout-order-amount small,.checkout-order-amount strong{display:block}.checkout-order-amount small{font-size:.7rem;color:var(--muted)}.checkout-order-amount strong{font-size:1rem}.checkout-partial{display:inline-block;margin-top:.2rem;padding:.2rem .45rem;border-radius:999px;background:#fff0c7;color:#85600d;font-size:.66rem;font-weight:800}.checkout-pay-head{display:flex;align-items:flex-start;justify-content:space-between;gap:1rem}.checkout-pay-head h2{font-size:1.25rem;margin:0;font-weight:850}.checkout-due-badge{display:inline-flex;background:#eef7f2;color:var(--brand);font-weight:850;border-radius:999px;padding:.48rem .72rem;white-space:nowrap}.checkout-receipt{margin-top:1rem;padding:15px;border:1px dashed #ccd9d3;border-radius:14px;background:#fcfdfc}.checkout-receipt>div{display:flex;justify-content:space-between;gap:1rem;padding:.28rem 0;font-size:.84rem}.checkout-receipt>div span{color:#69756f}.checkout-receipt hr{margin:.65rem 0;border-color:#dfe8e4}.checkout-receipt-due{font-size:1rem!important;padding-top:.55rem!important}.checkout-receipt-due strong{color:var(--brand)}.checkout-form{margin-top:1.2rem;border-top:1px solid var(--line);padding-top:1.15rem}.checkout-form .form-label{font-weight:750;font-size:.84rem}.checkout-methods{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:.55rem}.checkout-method{position:relative;border:1px solid #dce5e1;border-radius:12px;padding:.75rem .45rem;text-align:center;cursor:pointer;background:#fff;transition:.16s ease}.checkout-method input{position:absolute;opacity:0;pointer-events:none}.checkout-method span,.checkout-method strong{display:block}.checkout-method span{width:30px;height:30px;margin:0 auto .35rem;border-radius:9px;background:#f0f4f2;display:flex;align-items:center;justify-content:center;font-weight:900;color:#58645f}.checkout-method strong{font-size:.72rem}.checkout-method.active{border-color:var(--brand);background:var(--brand-soft);box-shadow:0 0 0 1px var(--brand)}.checkout-method.active span{background:#fff;color:var(--brand)}.checkout-change{display:flex;justify-content:space-between;align-items:center;margin-top:14px;padding:13px 14px;border-radius:12px;background:#f5f8f6}.checkout-change span{font-size:.8rem;color:#64706b}.checkout-change strong{font-size:1.1rem}.checkout-warning{font-size:.78rem;padding:.7rem .8rem;border-radius:10px;background:#fff4dd;color:#76570f}.checkout-warning a{font-weight:800}.checkout-reference summary{cursor:pointer;font-size:.8rem;font-weight:750;color:var(--brand)}.checkout-help{text-align:center;color:var(--muted);font-size:.72rem;margin:.55rem 0 0}.checkout-history thead th{background:#fafbfa;color:#7b8883;font-size:.71rem;text-transform:uppercase;letter-spacing:.07em;font-weight:800;padding:13px 15px}.checkout-history td{padding:14px 15px;border-bottom-color:#eef2f0;font-size:.82rem}.checkout-empty-selection{min-height:360px;display:flex;flex-direction:column;justify-content:center}
 .cash-breakdown{display:grid;gap:.7rem}.cash-breakdown>div{display:flex;justify-content:space-between;gap:1rem;padding:.65rem .8rem;border-radius:10px;background:#f8faf9}.cash-breakdown span{color:#6c7873;font-size:.82rem}.cash-breakdown strong{font-size:.88rem;text-align:right}.cash-breakdown-total{border:1px solid #cfe1d8;background:#eef7f2!important}.cash-breakdown-total span,.cash-breakdown-total strong{font-weight:850;color:var(--brand)}.cash-closing-card{position:sticky;top:98px}.cash-expected-box{display:flex;justify-content:space-between;align-items:center;gap:1rem;padding:14px 16px;border-radius:14px;background:#f3f7f5;border:1px solid #dce7e2}.cash-expected-box span{font-size:.82rem;color:#66736d}.cash-expected-box strong{font-size:1.15rem}.cash-variance-preview{padding:14px 16px;border:1px solid #dfe7e3;border-radius:14px;background:#fafcfb}.cash-variance-preview span,.cash-variance-preview strong,.cash-variance-preview small{display:block}.cash-variance-preview span{font-size:.75rem;text-transform:uppercase;letter-spacing:.06em;color:#7a8681;font-weight:800}.cash-variance-preview strong{font-size:1.35rem;margin:.15rem 0}.cash-variance-preview small{color:#7e8985}.cash-variance-preview.balanced{background:#eef8f1;border-color:#c9e4d1}.cash-variance-preview.balanced strong,.cash-variance-preview.balanced small{color:#176b36}.cash-variance-preview.shortage{background:#fff0f0;border-color:#efc7c7}.cash-variance-preview.shortage strong,.cash-variance-preview.shortage small{color:#a52b2b}.cash-variance-preview.excess{background:#fff7e5;border-color:#ead69d}.cash-variance-preview.excess strong,.cash-variance-preview.excess small{color:#8a6508}.cash-close-result{background:#fff;border:1px solid var(--line);border-radius:18px;padding:22px;box-shadow:0 8px 24px rgba(25,46,39,.04)}.cash-close-result-head{display:flex;justify-content:space-between;gap:1rem;align-items:flex-start}.cash-close-result-head h2{margin:0;font-size:1.2rem}.cash-variance-badge{display:inline-flex;padding:.4rem .7rem;border-radius:999px;font-size:.74rem;font-weight:850}.cash-variance-badge.balanced{background:#eaf7ee;color:#176b36}.cash-variance-badge.shortage{background:#ffe8e8;color:#a52b2b}.cash-variance-badge.excess{background:#fff3cf;color:#805f07}.cash-close-result-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-top:18px}.cash-close-result-grid>div{padding:14px;border-radius:12px;background:#f8faf9}.cash-close-result-grid span,.cash-close-result-grid strong{display:block}.cash-close-result-grid span{font-size:.76rem;color:#7a8581}.cash-close-result-grid strong{margin-top:.2rem;font-size:.95rem}
 @media(max-width:1100px){.checkout-layout{grid-template-columns:1fr}.checkout-pay-panel,.cash-closing-card{position:static}.checkout-stats{grid-template-columns:repeat(2,minmax(0,1fr))}.cash-close-result-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:760px){.checkout-hero{display:block}.checkout-hero>.btn{margin-top:1rem}.checkout-hero>div:last-child{width:100%;margin-top:1rem}.checkout-hero>div:last-child .btn{flex:1 1 180px}.checkout-methods{grid-template-columns:repeat(2,minmax(0,1fr))}.checkout-order-card{align-items:flex-start}.checkout-order-main span{max-width:220px}.checkout-pay-panel .form-control,.checkout-pay-panel .form-select,.panel-card .form-control,.panel-card .form-select{min-height:46px}.checkout-pay-panel .btn,.panel-card .btn{min-height:44px}.table-responsive{-webkit-overflow-scrolling:touch}.checkout-history{min-width:820px}.content-area{padding-bottom:84px}}@media(max-width:560px){.checkout-stats{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.checkout-stats article{padding:14px}.checkout-stats strong{font-size:1.2rem}.checkout-stats small{font-size:.69rem}.checkout-order-card{display:block;padding:14px}.checkout-order-amount{text-align:left;margin:.7rem 0 0 3.2rem}.checkout-pay-panel{padding:14px}.checkout-pay-head{display:block}.checkout-due-badge{margin-top:.65rem}.checkout-methods{grid-template-columns:1fr 1fr}.checkout-method{padding:.7rem .35rem}.checkout-method strong{font-size:.68rem}.checkout-receipt>div{align-items:flex-start}.checkout-receipt>div strong{text-align:right;max-width:56%}.cash-close-result-head{display:block}.cash-variance-badge{margin-top:.75rem}.cash-close-result-grid{grid-template-columns:1fr}.cash-breakdown>div{align-items:flex-start}.checkout-hero h1{font-size:1.8rem}.checkout-hero>div:last-child{display:grid!important;grid-template-columns:1fr}.checkout-hero>div:last-child .btn,.checkout-hero>div:last-child .checkout-session-status{width:100%;text-align:center}.panel-header{align-items:flex-start;gap:.75rem}.panel-header .btn{white-space:normal}.checkout-warning{font-size:.8rem}.checkout-history{min-width:760px}}@media(max-width:390px){.checkout-stats{grid-template-columns:1fr}.checkout-order-main span{max-width:180px}.checkout-order-amount{margin-left:0}.checkout-receipt>div{display:block}.checkout-receipt>div strong{display:block;max-width:none;text-align:left;margin-top:.15rem}.checkout-methods{grid-template-columns:1fr 1fr}}
+
+/* Cashier workspace — responsive operational UX (desktop / tablet / phone) */
+body .cashier-workspace-head{align-items:center;gap:16px}
+body .cashier-head-actions .btn{min-height:44px;display:inline-flex;align-items:center;justify-content:center;white-space:nowrap}
+body .cashier-kpis a,body .cashier-kpis article{min-height:78px}
+body .cashier-order-link{min-height:66px;align-items:center;transition:background .12s ease,box-shadow .12s ease}
+body .cashier-order-copy{min-width:0}
+body .cashier-order-copy small{overflow-wrap:anywhere}
+body .cashier-pay-panel .btn-lg,body .cashier-sale-actions .btn-lg{min-height:54px;font-weight:850}
+body .cashier-method{min-height:58px;display:flex;flex-direction:column;justify-content:center;touch-action:manipulation}
+body .cashier-method strong{font-size:.72rem}
+body .cashier-sale-layout .pos-products{grid-template-columns:repeat(auto-fill,minmax(145px,1fr));max-height:62vh;overflow-y:auto;overscroll-behavior:contain;scrollbar-gutter:stable}
+body .cashier-sale-layout .pos-product{min-height:138px;touch-action:manipulation}
+body .cashier-sale-cart{position:sticky;top:92px;align-self:start;max-height:calc(100vh - 108px);overflow-y:auto;overscroll-behavior:contain}
+body .cashier-sale-actions{position:sticky;bottom:0;z-index:4;background:#fff;box-shadow:0 -8px 18px rgba(25,46,39,.05)}
+body .cashier-fast-cash .btn,body #cashierPaymentSubmit{min-height:56px}
+body .cashier-mobile-bar a,body .cashier-mobile-bar button{touch-action:manipulation}
+
+/* Large desktop: keep queue and payment visible together, maximize product density. */
+@media(min-width:1200px){
+  body .cashier-main-grid{grid-template-columns:minmax(0,1fr) minmax(400px,460px);gap:18px}
+  body .cashier-sale-layout{grid-template-columns:minmax(0,1fr) 370px}
+  body .cashier-sale-layout .pos-products{grid-template-columns:repeat(auto-fill,minmax(155px,1fr));max-height:66vh}
+  body .cashier-order-link{padding:13px 16px}
+}
+
+/* Tablet landscape / small laptop: two useful panes without oversized whitespace. */
+@media(min-width:901px) and (max-width:1199px){
+  body .cashier-main-grid{grid-template-columns:minmax(0,1.12fr) minmax(340px,.88fr);gap:14px}
+  body .cashier-pay-panel{position:sticky;top:84px;padding:14px}
+  body .cashier-sale-layout{grid-template-columns:minmax(0,1fr) 330px}
+  body .cashier-sale-cart{position:sticky;top:84px;max-height:calc(100vh - 98px)}
+  body .cashier-sale-layout .pos-products{grid-template-columns:repeat(auto-fill,minmax(138px,1fr));max-height:58vh}
+  body .cashier-workspace-head{padding:12px 14px}
+  body .cashier-head-actions{gap:6px}
+  body .cashier-head-actions .btn{padding-left:12px;padding-right:12px}
+}
+
+/* Tablet portrait: stack intelligently, retain large touch targets. */
+@media(min-width:700px) and (max-width:900px){
+  body .cashier-main-grid{grid-template-columns:1fr}
+  body .cashier-pay-panel{position:static;padding:16px}
+  body .cashier-sale-layout{grid-template-columns:1fr}
+  body .cashier-sale-catalog{border-right:0;border-bottom:1px solid var(--line)}
+  body .cashier-sale-cart{position:static;max-height:none;overflow:visible}
+  body .cashier-sale-layout .pos-products{grid-template-columns:repeat(4,minmax(0,1fr));max-height:48vh;overflow-y:auto}
+  body .cashier-methods{grid-template-columns:repeat(3,minmax(0,1fr))}
+  body .cashier-order-link{min-height:72px}
+  body .cashier-head-actions .btn{min-height:48px}
+  body .cashier-sale-actions{position:sticky;bottom:0}
+}
+
+/* Phone: focused cashier UI, no duplicate global mobile navigation. */
+@media(max-width:699px){
+  body:has(.cashier-workspace-head) .mobile-nav{display:none!important}
+  body:has(.cashier-workspace-head) .content-area{padding-left:10px;padding-right:10px;padding-bottom:calc(96px + env(safe-area-inset-bottom))!important}
+  body .cashier-workspace-head{display:block;padding:12px;border-radius:14px}
+  body .cashier-workspace-head p{display:none}
+  body .cashier-head-actions{margin-top:10px;display:grid;grid-template-columns:1fr}
+  body .cashier-head-actions>:not(#openQuickSale){display:none!important}
+  body .cashier-head-actions #openQuickSale{width:100%;min-height:50px;font-size:.95rem;font-weight:850}
+  body .cashier-open-pill{padding:.4rem .6rem}
+  body .cashier-kpis{grid-template-columns:1fr 1fr;gap:7px;margin-top:9px}
+  body .cashier-kpis a,body .cashier-kpis article{padding:10px 11px;min-height:70px}
+  body .cashier-kpis article:last-child{grid-column:1/-1;min-height:64px}
+  body .cashier-kpis strong{font-size:1.18rem}
+  body .cashier-kpis small{display:block;font-size:.64rem;line-height:1.2}
+  body .cashier-sale-panel{margin-top:10px;border-radius:12px}
+  body .cashier-sale-head{position:sticky;top:0;z-index:6;background:#fff;padding:11px 12px}
+  body .cashier-sale-head h2{font-size:1rem}
+  body .cashier-sale-layout{grid-template-columns:1fr}
+  body .cashier-sale-catalog{border-right:0;border-bottom:1px solid var(--line)}
+  body .cashier-sale-layout .pos-toolbar{padding:10px 11px;gap:9px}
+  body .cashier-sale-layout .pos-search input{min-height:46px}
+  body .cashier-sale-layout .pos-products{grid-template-columns:1fr 1fr;gap:8px;padding:10px;max-height:45vh;overflow-y:auto}
+  body .cashier-sale-layout .pos-product{min-height:126px;padding:10px}
+  body .cashier-sale-layout .pos-product>strong{font-size:.86rem}
+  body .cashier-sale-layout .pos-cart-lines{max-height:27vh;overflow-y:auto}
+  body .cashier-sale-cart{position:static;max-height:none;overflow:visible}
+  body .cashier-sale-actions{position:sticky;bottom:0;padding:10px 12px}
+  body .cashier-sale-actions .form-text{font-size:.68rem}
+  body .cashier-main-grid{grid-template-columns:1fr;gap:10px;margin-top:10px}
+  body .cashier-queue-top{padding:11px 12px}
+  body .cashier-queue-label{padding:9px 11px}
+  body .cashier-order-link{min-height:72px;padding:11px 12px;align-items:flex-start}
+  body .cashier-order-copy strong{font-size:.9rem}
+  body .cashier-order-copy small{font-size:.7rem;line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  body .cashier-order-money strong{font-size:.88rem}
+  body .cashier-pay-panel{position:static;padding:12px;scroll-margin-top:12px}
+  body .cashier-pay-title{align-items:center}
+  body .cashier-pay-title h2{font-size:1.05rem}
+  body .cashier-pay-total{font-size:1.05rem}
+  body .cashier-order-summary{margin:10px 0;padding:10px}
+  body .cashier-line-list{max-height:150px;overflow-y:auto}
+  body .cashier-fast-cash{margin:10px 0;padding:10px}
+  body .cashier-fast-cash .btn{min-height:56px;font-size:1rem}
+  body .cashier-methods{grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}
+  body .cashier-method{min-height:60px;padding:8px 5px}
+  body .cashier-method span{font-size:1.05rem}
+  body #cashierPaymentForm .form-control,body #cashierPaymentForm .form-select{min-height:50px;font-size:1rem}
+  body #cashierPaymentSubmit{min-height:58px;font-size:1rem}
+  body .cashier-mobile-bar{left:8px;right:8px;bottom:max(8px,env(safe-area-inset-bottom));padding:5px;gap:3px;border-radius:16px}
+  body .cashier-mobile-bar a,body .cashier-mobile-bar button{min-height:52px;display:flex;align-items:center;justify-content:center;line-height:1.12;font-size:.69rem}
+}
+
+/* Very small phones: preserve legibility instead of squeezing controls. */
+@media(max-width:390px){
+  body .cashier-kpis{grid-template-columns:1fr 1fr}
+  body .cashier-kpis article:last-child{grid-column:1/-1}
+  body .cashier-sale-layout .pos-products{grid-template-columns:1fr 1fr;gap:7px;padding:8px}
+  body .cashier-sale-layout .pos-product{min-height:120px;padding:8px}
+  body .cashier-methods{grid-template-columns:1fr 1fr}
+  body .cashier-order-link{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px}
+  body .cashier-order-money{font-size:.82rem}
+}
