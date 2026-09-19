@@ -6,16 +6,74 @@
   <div>
     <p class="eyebrow mb-2">Vue d'ensemble</p>
     <h1>Bonjour, {{ current_user.display_name }}</h1>
-    <p>Retrouvez ici vos établissements et les actions correspondant à votre rôle.</p>
+    {% if active_bar and dashboard_data %}
+      <p>Suivi opérationnel de <strong>{{ active_bar.name }}</strong> pour le {{ dashboard_data.local_date.strftime('%d/%m/%Y') }}.</p>
+    {% else %}
+      <p>Retrouvez ici vos établissements et les actions correspondant à votre rôle.</p>
+    {% endif %}
   </div>
-  <div class="d-flex flex-wrap gap-2 align-items-center">
+  <div class="dashboard-hero-actions">
+    {% if reportable_bars|length > 1 %}
+    <form method="get" class="dashboard-bar-selector" aria-label="Sélectionner un établissement">
+      <label for="dashboard-bar">Établissement</label>
+      <select class="form-select" id="dashboard-bar" name="bar_id" onchange="this.form.submit()">
+        {% for bar in reportable_bars %}
+          <option value="{{ bar.id }}" {% if active_bar and bar.id == active_bar.id %}selected{% endif %}>{{ bar.name }}</option>
+        {% endfor %}
+      </select>
+    </form>
+    {% elif active_bar %}
+      <div class="hero-badge">{{ active_bar.name }}</div>
+    {% endif %}
     {% if current_user.category == 'SUPER_ADMIN' %}<a class="btn btn-primary" href="{{ url_for('bars.web_create') }}">＋ Créer un bar</a>{% endif %}
-    <div class="hero-badge">{{ current_user.category|replace('_',' ')|title }}</div>
   </div>
 </section>
 
 {% if current_user.category == 'SUPER_ADMIN' %}
-<div class="admin-notice"><div><strong>Mode supervision activé</strong><span>Vous disposez d'une vue globale sur les établissements accessibles.</span></div></div>
+<div class="admin-notice"><div><strong>Mode supervision activé</strong><span>Les indicateurs affichés correspondent uniquement à l'établissement sélectionné.</span></div></div>
+{% endif %}
+
+{% if dashboard_data %}
+<section class="dashboard-section mt-4" aria-labelledby="dashboard-kpis-title">
+  <div class="dashboard-section-heading">
+    <div>
+      <p class="eyebrow mb-1">Aujourd'hui</p>
+      <h2 id="dashboard-kpis-title">Indicateurs clés · {{ active_bar.name }}</h2>
+    </div>
+    <a class="btn btn-sm btn-outline-primary" href="{{ url_for('bars.web_detail', bar_id=active_bar.id) }}">Gérer le bar</a>
+  </div>
+
+  <div class="depot-stats-grid">
+    {% for card in dashboard_data.cards %}
+      {% set label = card[0] %}
+      {% set value = card[1] %}
+      {% set kind = card[2] %}
+      {% set tone = card[3] %}
+      {% set helper = card[4] %}
+      <article class="depot-stat-card depot-tone-{{ tone }}">
+        <div class="depot-stat-accent" aria-hidden="true"></div>
+        <div class="depot-stat-content">
+          <span class="depot-stat-label">{{ label }}</span>
+          <strong class="depot-stat-value">
+            {% if kind == 'money' %}
+              {{ "{:,.0f}".format(value) }} <small>{{ dashboard_data.currency }}</small>
+            {% elif kind == 'quantity' %}
+              {{ "{:,.0f}".format(value) }}
+            {% else %}
+              {{ value }}
+            {% endif %}
+          </strong>
+          <small class="depot-stat-helper">{{ helper }}</small>
+        </div>
+      </article>
+    {% endfor %}
+  </div>
+
+  <div class="dashboard-definition-note mt-3">
+    <strong>Lecture des chiffres :</strong>
+    <span>« Ventes du jour » inclut les commandes soldées par paiement ou par crédit client. « Total encaissé » contient uniquement l'argent réellement reçu, net des remboursements.</span>
+  </div>
+</section>
 {% endif %}
 
 {% if notifications %}
@@ -53,11 +111,13 @@
 </section>
 {% endif %}
 
+{% if not dashboard_data %}
 <section class="stats-grid mt-4" aria-label="Indicateurs disponibles">
   <article class="stat-card"><div class="stat-icon">▦</div><div><span>Établissements accessibles</span><strong>{{ bars|length }}</strong><small>Visibles avec vos droits actuels</small></div></article>
   <article class="stat-card"><div class="stat-icon">✓</div><div><span>Établissements actifs</span><strong>{{ bars|selectattr('status','equalto','ACTIVE')|list|length }}</strong><small>Prêts pour les opérations</small></div></article>
   <article class="stat-card"><div class="stat-icon">!</div><div><span>Établissements suspendus</span><strong>{{ bars|selectattr('status','equalto','SUSPENDED')|list|length }}</strong><small>À surveiller</small></div></article>
 </section>
+{% endif %}
 
 <section class="panel-card mt-4">
   <div class="panel-header">
@@ -72,7 +132,7 @@
       <thead><tr><th>Établissement</th><th>Fuseau</th><th>Devise</th><th>État</th><th class="text-end">Action</th></tr></thead>
       <tbody>
       {% for bar in bars %}
-        <tr>
+        <tr {% if active_bar and active_bar.id == bar.id %}class="table-active"{% endif %}>
           <td><div class="bar-cell"><span class="bar-avatar">{{ bar.name[0]|upper }}</span><div><strong>{{ bar.name }}</strong><small>{{ bar.address or 'Adresse non renseignée' }}</small></div></div></td>
           <td>{{ bar.timezone }}</td>
           <td>{{ bar.currency }}</td>
@@ -81,6 +141,7 @@
             {% set assignment = assignment_by_bar.get(bar.id) %}
             {% if assignment and assignment.role == 'SERVER' %}<a class="btn btn-primary btn-sm" href="{{ url_for('orders_web.quick',bar_id=bar.id) }}">Commandes</a>
             {% elif assignment and assignment.role == 'CASHIER' %}<a class="btn btn-primary btn-sm" href="{{ url_for('checkout_web.checkout',bar_id=bar.id) }}">Caisse</a>
+            {% elif bar in reportable_bars %}<a class="btn btn-primary btn-sm" href="{{ url_for('web.dashboard',bar_id=bar.id) }}">Tableau de bord</a>
             {% else %}<a class="btn btn-primary btn-sm" href="{{ url_for('bars.web_detail',bar_id=bar.id) }}">Gérer le bar</a>{% endif %}
           </td>
         </tr>
