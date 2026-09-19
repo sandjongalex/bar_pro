@@ -39,6 +39,7 @@
   {% set nav_bar_id = route_bar_id %}
   {% set nav_bar_name = 'Établissement #' ~ route_bar_id %}
 {% endif %}
+{% set nav_effective_role = nav_role(nav_bar_id) if nav_bar_id else none %}
 
 <a class="skip-link" href="#main">Aller au contenu</a>
 <div class="app-shell">
@@ -126,21 +127,37 @@
 
     {% if endpoint != 'cashier_workspace_web.workspace' %}
     <nav class="global-mobile-bottom d-md-none" aria-label="Navigation rapide">
-      <a class="{% if endpoint == 'web.dashboard' %}active{% endif %}" href="{{ url_for('web.dashboard', bar_id=nav_bar_id) if nav_bar_id else url_for('web.dashboard') }}"><span>⌂</span><strong>Accueil</strong></a>
-      {% if nav_bar_id and nav_can('orders.create', nav_bar_id) %}
-      <a class="{% if endpoint.startswith('orders_web.') %}active{% endif %}" href="{{ url_for('orders_web.quick', bar_id=nav_bar_id) }}"><span>＋</span><strong>Vente</strong></a>
-      {% elif not nav_bar_id %}
-      <a class="{% if endpoint == 'bars.web_list' %}active{% endif %}" href="{{ url_for('bars.web_list') }}"><span>▦</span><strong>Bars</strong></a>
+      {% if nav_effective_role == 'CASHIER' %}
+        <a class="{% if endpoint.startswith('checkout_web.') or endpoint.startswith('cashier_workspace_web.') %}active{% endif %}" href="{{ url_for('checkout_web.checkout', bar_id=nav_bar_id) }}"><span>₣</span><strong>Caisse</strong></a>
+        <a class="{% if endpoint.startswith('cashier_handovers_web.') %}active{% endif %}" href="{{ url_for('cashier_handovers_web.manage', bar_id=nav_bar_id) }}"><span>⇄</span><strong>Remises</strong></a>
+        <a class="{% if endpoint.startswith('cashier_returns_web.') %}active{% endif %}" href="{{ url_for('cashier_returns_web.manage', bar_id=nav_bar_id) }}"><span>↩</span><strong>Retours</strong></a>
+        {% if nav_can('customers.read', nav_bar_id) %}
+        <a class="{% if endpoint.startswith('customers_web.') %}active{% endif %}" href="{{ url_for('customers_web.manage', bar_id=nav_bar_id) }}"><span>CL</span><strong>Clients</strong></a>
+        {% endif %}
+        <button type="button" data-bs-toggle="offcanvas" data-bs-target="#appNavDrawer" aria-controls="appNavDrawer"><span>•••</span><strong>Plus</strong></button>
+
+      {% elif nav_effective_role == 'SERVER' %}
+        <a class="{% if endpoint.startswith('orders_web.') %}active{% endif %}" href="{{ url_for('orders_web.quick', bar_id=nav_bar_id) }}"><span>＋</span><strong>Commande</strong></a>
+        <a href="{{ url_for('web.dashboard', bar_id=nav_bar_id) ~ '#dashboard-notifications' }}"><span>●</span><strong>Notifs</strong></a>
+        <button type="button" data-bs-toggle="offcanvas" data-bs-target="#appNavDrawer" aria-controls="appNavDrawer"><span>•••</span><strong>Plus</strong></button>
+
+      {% else %}
+        <a class="{% if endpoint == 'web.dashboard' %}active{% endif %}" href="{{ url_for('web.dashboard', bar_id=nav_bar_id) if nav_bar_id else url_for('web.dashboard') }}"><span>⌂</span><strong>Accueil</strong></a>
+        {% if nav_bar_id and nav_can('orders.create', nav_bar_id) %}
+        <a class="{% if endpoint.startswith('orders_web.') %}active{% endif %}" href="{{ url_for('orders_web.quick', bar_id=nav_bar_id) }}"><span>＋</span><strong>Vente</strong></a>
+        {% elif not nav_bar_id %}
+        <a class="{% if endpoint == 'bars.web_list' %}active{% endif %}" href="{{ url_for('bars.web_list') }}"><span>▦</span><strong>Bars</strong></a>
+        {% endif %}
+        {% if nav_bar_id and nav_can('payments.read', nav_bar_id) %}
+        <a class="{% if endpoint.startswith('checkout_web.') or endpoint.startswith('cashier_workspace_web.') %}active{% endif %}" href="{{ url_for('checkout_web.checkout', bar_id=nav_bar_id) }}"><span>₣</span><strong>Caisse</strong></a>
+        {% endif %}
+        {% if nav_bar_id and nav_can('inventory.read', nav_bar_id) %}
+        <a class="{% if endpoint.startswith('stock.') or endpoint.startswith('inventories.') %}active{% endif %}" href="{{ url_for('stock.history', bar_id=nav_bar_id) }}"><span>▦</span><strong>Stock</strong></a>
+        {% elif nav_bar_id and nav_can('catalog.read', nav_bar_id) %}
+        <a class="{% if endpoint.startswith('catalog.') %}active{% endif %}" href="{{ url_for('catalog.web_list', bar_id=nav_bar_id) }}"><span>P</span><strong>Produits</strong></a>
+        {% endif %}
+        <button type="button" data-bs-toggle="offcanvas" data-bs-target="#appNavDrawer" aria-controls="appNavDrawer"><span>•••</span><strong>Plus</strong></button>
       {% endif %}
-      {% if nav_bar_id and nav_can('payments.read', nav_bar_id) %}
-      <a class="{% if endpoint.startswith('checkout_web.') or endpoint.startswith('cashier_workspace_web.') %}active{% endif %}" href="{{ url_for('checkout_web.checkout', bar_id=nav_bar_id) }}"><span>₣</span><strong>Caisse</strong></a>
-      {% endif %}
-      {% if nav_bar_id and nav_can('inventory.read', nav_bar_id) %}
-      <a class="{% if endpoint.startswith('stock.') or endpoint.startswith('inventories.') %}active{% endif %}" href="{{ url_for('stock.history', bar_id=nav_bar_id) }}"><span>▦</span><strong>Stock</strong></a>
-      {% elif nav_bar_id and nav_can('catalog.read', nav_bar_id) %}
-      <a class="{% if endpoint.startswith('catalog.') %}active{% endif %}" href="{{ url_for('catalog.web_list', bar_id=nav_bar_id) }}"><span>P</span><strong>Produits</strong></a>
-      {% endif %}
-      <button type="button" data-bs-toggle="offcanvas" data-bs-target="#appNavDrawer" aria-controls="appNavDrawer"><span>•••</span><strong>Plus</strong></button>
     </nav>
     {% endif %}
   </div>
