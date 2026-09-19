@@ -12,18 +12,12 @@
   const currency = data.currency || '';
   const number = (value) => new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0 }).format(Number(value || 0));
   const money = (value) => `${number(value)} ${currency}`.trim();
-
-  const common = {
+  const base = {
     responsive: true,
     maintainAspectRatio: false,
     animation: false,
     plugins: {
       legend: { position: 'bottom', labels: { usePointStyle: true, boxWidth: 8 } },
-      tooltip: { intersect: false, mode: 'index' },
-    },
-    scales: {
-      x: { grid: { display: false } },
-      y: { beginAtZero: true, ticks: { callback: (value) => number(value) } },
     },
   };
 
@@ -40,14 +34,15 @@
         ],
       },
       options: {
-        ...common,
+        ...base,
+        interaction: { intersect: false, mode: 'index' },
+        scales: {
+          x: { grid: { display: false } },
+          y: { beginAtZero: true, ticks: { callback: (value) => number(value) } },
+        },
         plugins: {
-          ...common.plugins,
-          tooltip: {
-            intersect: false,
-            mode: 'index',
-            callbacks: { label: (ctx) => `${ctx.dataset.label}: ${money(ctx.parsed.y)}` },
-          },
+          ...base.plugins,
+          tooltip: { callbacks: { label: (ctx) => `${ctx.dataset.label}: ${money(ctx.parsed.y)}` } },
         },
       },
     });
@@ -62,10 +57,14 @@
         datasets: [{ label: 'Quantité nette', data: data.top_products.values, backgroundColor: '#0f5c4d', borderRadius: 6 }],
       },
       options: {
-        ...common,
+        ...base,
         indexAxis: 'y',
+        scales: {
+          x: { beginAtZero: true, ticks: { callback: (value) => number(value) } },
+          y: { grid: { display: false } },
+        },
         plugins: {
-          ...common.plugins,
+          ...base.plugins,
           legend: { display: false },
           tooltip: { callbacks: { label: (ctx) => `Quantité: ${number(ctx.parsed.x)}` } },
         },
@@ -83,23 +82,21 @@
       OTHER: 'Autre',
     }[code] || code));
     new Chart(methodCanvas, {
-      type: 'doughnut',
+      type: 'bar',
       data: {
         labels,
-        datasets: [{
-          data: data.payment_methods.values,
-          backgroundColor: ['#0f5c4d', '#2f7ed8', '#f2b544', '#7950b8', '#8a9692'],
-          borderWidth: 0,
-        }],
+        datasets: [{ label: 'Net encaissé', data: data.payment_methods.values, backgroundColor: '#2f7ed8', borderRadius: 6 }],
       },
       options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        animation: false,
-        cutout: '62%',
+        ...base,
+        scales: {
+          x: { grid: { display: false } },
+          y: { beginAtZero: true, ticks: { callback: (value) => number(value) } },
+        },
         plugins: {
-          legend: { position: 'bottom', labels: { usePointStyle: true, boxWidth: 8 } },
-          tooltip: { callbacks: { label: (ctx) => `${ctx.label}: ${money(ctx.raw)}` } },
+          ...base.plugins,
+          legend: { display: false },
+          tooltip: { callbacks: { label: (ctx) => `Net: ${money(ctx.parsed.y)}` } },
         },
       },
     });
@@ -117,9 +114,13 @@
         ],
       },
       options: {
-        ...common,
+        ...base,
+        scales: {
+          x: { grid: { display: false } },
+          y: { beginAtZero: true, ticks: { callback: (value) => number(value) } },
+        },
         plugins: {
-          ...common.plugins,
+          ...base.plugins,
           tooltip: { callbacks: { label: (ctx) => `${ctx.dataset.label}: ${money(ctx.parsed.y)}` } },
         },
       },
