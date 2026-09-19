@@ -15,7 +15,8 @@ from sqlalchemy import select
 
 from app.extensions import db, limiter
 from app.finance_totals import order_balance
-from app.models import Order, OrderLine, Product, StaffAssignment, StockBalance, User
+from app.models import Order, Product, StaffAssignment, StockBalance, User
+from app.order_line_views import effective_lines_by_order
 from app.permissions import permissions
 
 bp = Blueprint("live_orders_web", __name__, url_prefix="/bars/<int:bar_id>/live")
@@ -65,19 +66,6 @@ def _stock_payload(bar_id: int) -> dict[str, str]:
     }
 
 
-def _lines_by_order(bar_id: int, order_ids: list[int]) -> dict[int, list[OrderLine]]:
-    result = {order_id: [] for order_id in order_ids}
-    if not order_ids:
-        return result
-    for line in db.session.scalars(
-        select(OrderLine)
-        .where(OrderLine.bar_id == bar_id, OrderLine.order_id.in_(order_ids))
-        .order_by(OrderLine.order_id, OrderLine.line_no)
-    ):
-        result.setdefault(line.order_id, []).append(line)
-    return result
-
-
 def _server_names(orders: list[Order]) -> dict[int, str]:
     assignment_ids = {order.assigned_staff_id for order in orders if order.assigned_staff_id is not None}
     if not assignment_ids:
@@ -99,6 +87,18 @@ def _server_names(orders: list[Order]) -> dict[int, str]:
         user = users.get(staff.user_id) if staff else None
         result[order.id] = user.display_name if user else "Comptoir"
     return result
+
+
+def _line_payload(lines: list[dict]) -> list[dict]:
+    return [
+        {
+            "line_id": line["id"],
+            "product_id": line["product_id"],
+            "name": line["product_name_snapshot"],
+            "quantity": _decimal_text(line["quantity"]),
+        }
+        for line in lines
+    ]
 
 
 @bp.get("/orders")
@@ -124,9 +124,10 @@ def orders(bar_id: int):
                 .limit(30)
             )
         )
-        lines_by_order = _lines_by_order(bar_id, [order.id for order in recent_orders])
+        lines_by_order = effective_lines_by_order(bar_id, [order.id for order in recent_orders])
         payload_orders = []
         for order in recent_orders:
+            balance = order_balance(order)
             payload_orders.append(
                 {
                     "id": order.id,
@@ -136,16 +137,10 @@ def orders(bar_id: int):
                     "state": _order_state(order),
                     "table": order.table_label_snapshot or "Sans table",
                     "notes": order.notes or "",
-                    "total_amount": _decimal_text(order.total_amount),
+                    "total_amount": _decimal_text(balance["net_sale"]),
                     "currency": order.currency,
                     "created_at": str(order.created_at),
-                    "lines": [
-                        {
-                            "name": line.product_name_snapshot,
-                            "quantity": _decimal_text(line.quantity),
-                        }
-                        for line in lines_by_order.get(order.id, [])
-                    ],
+                    "lines": _line_payload(lines_by_order.get(order.id, [])),
                 }
             )
 
@@ -180,7 +175,7 @@ def orders(bar_id: int):
             .limit(120)
         )
     )
-    lines_by_order = _lines_by_order(bar_id, [order.id for order in active_orders])
+    lines_by_order = effective_lines_by_order(bar_id, [order.id for order in active_orders])
     server_names = _server_names(active_orders)
 
     payload_orders = []
@@ -207,8 +202,9 @@ def orders(bar_id: int):
                 "currency": order.currency,
                 "amount_due": _decimal_text(balance["amount_due"]),
                 "net_sale": _decimal_text(balance["net_sale"]),
-                "first_product": lines[0].product_name_snapshot if lines else "",
+                "first_product": lines[0]["product_name_snapshot"] if lines else "",
                 "extra_lines": max(len(lines) - 1, 0),
+                "lines": _line_payload(lines),
             }
         )
 
