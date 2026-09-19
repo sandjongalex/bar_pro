@@ -71,6 +71,65 @@ def register_cli(app: Flask) -> None:
             f"Tarif de référence : {DEFAULT_CATALOG_CURRENCY}."
         )
 
+    @app.cli.command("rebuild-stock-valuations")
+    @click.option("--bar-id", type=int, help="Identifiant d'un établissement existant.")
+    @click.option("--all-bars", is_flag=True, help="Analyser tous les établissements.")
+    @click.option("--apply", is_flag=True, help="Appliquer les nouveaux coûts moyens. Sans cette option, aucune écriture.")
+    def rebuild_stock_valuations_command(bar_id: int | None, all_bars: bool, apply: bool) -> None:
+        """Preview or repair moving weighted-average product valuations."""
+        from app.stock_valuation import rebuild_bar_valuations
+
+        if (bar_id is None) == (not all_bars):
+            raise click.ClickException("Utilisez soit --bar-id ID, soit --all-bars.")
+
+        if all_bars:
+            bars = list(db.session.scalars(select(Bar).order_by(Bar.id)))
+        else:
+            bar = db.session.get(Bar, bar_id)
+            if not bar:
+                raise click.ClickException("Établissement introuvable.")
+            bars = [bar]
+
+        grand_changed = 0
+        grand_skipped = 0
+        try:
+            for bar in bars:
+                result = rebuild_bar_valuations(bar.id, apply=apply)
+                grand_changed += result["changed"]
+                grand_skipped += result["skipped"]
+                click.echo(f"\n{bar.id} - {bar.name}")
+                for row in result["rows"]:
+                    if row["status"] not in {"CHANGED", "QUANTITY_MISMATCH"}:
+                        continue
+                    product = row["product"]
+                    click.echo(
+                        f"  {product.id} · {product.name}: {row['status']} | "
+                        f"stock={row['balance_quantity']} | "
+                        f"ancien={row['old_unit_cost']} | nouveau={row['new_unit_cost']}"
+                    )
+                    if row["anomaly"]:
+                        click.echo(f"    anomalie: {row['anomaly']}")
+                click.echo(
+                    f"  Résumé: {result['products']} produit(s), "
+                    f"{result['changed']} coût(s) à corriger, {result['skipped']} ignoré(s)."
+                )
+
+            if apply:
+                db.session.commit()
+                click.echo(
+                    f"\nApplication terminée : {grand_changed} coût(s) mis à jour, "
+                    f"{grand_skipped} produit(s) ignoré(s)."
+                )
+            else:
+                db.session.rollback()
+                click.echo(
+                    f"\nAPERÇU UNIQUEMENT : {grand_changed} coût(s) seraient mis à jour. "
+                    "Relancez avec --apply après vérification."
+                )
+        except Exception:
+            db.session.rollback()
+            raise
+
     @app.cli.command("seed-demo")
     def seed_demo() -> None:
         """Insert clearly fictional tenant-isolation data in non-production only."""
