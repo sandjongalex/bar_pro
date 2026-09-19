@@ -13,7 +13,7 @@ from app.models import (
     utcnow,
 )
 from app.permissions import permissions
-from app.stock_valuation import moving_average_cost
+from app.stock_valuation import moving_average_cost, remove_receipt_cost
 from app.validation import number
 
 TYPES = {"INITIAL", "PURCHASE", "SALE", "RETURN", "LOSS", "ADJUSTMENT", "INVENTORY_ADJUSTMENT"}
@@ -119,13 +119,12 @@ class StockService:
         return movement
 
     def reverse_purchase_receipt(self, actor, bar_id, purchase_line_id, reason):
-        """Reverse one posted purchase stock movement without deleting history.
+        """Reverse one unconsumed posted purchase receipt without deleting history.
 
-        A correction can only remove stock that is still physically/logically
-        available. The reversal is represented by an ADJUSTMENT linked through
-        ``reversal_of_id``; the original PURCHASE movement remains immutable.
-        The current moving-average valuation is preserved for remaining stock and
-        reset to zero only when the stock becomes empty.
+        If stock has already left the product after the receipt (sale, loss or
+        negative adjustment), cancelling that historical receipt would require a
+        COGS restatement. The service blocks that ambiguous case rather than
+        silently corrupting the current moving-average valuation.
         """
         permissions.require(actor, "purchases.manage", bar_id)
         if not reason or not reason.strip():
@@ -150,6 +149,20 @@ class StockService:
         ):
             raise StockError("ALREADY_REVERSED")
 
+        later_real_outflow = db.session.scalar(
+            select(StockMovement.id)
+            .where(
+                StockMovement.bar_id == bar_id,
+                StockMovement.product_id == source.product_id,
+                StockMovement.id > source.id,
+                StockMovement.quantity_delta < 0,
+                StockMovement.reversal_of_id.is_(None),
+            )
+            .limit(1)
+        )
+        if later_real_outflow:
+            raise StockError("PURCHASE_REVERSAL_AFTER_OUTFLOW")
+
         product = db.session.scalar(
             select(Product)
             .where(Product.bar_id == bar_id, Product.id == source.product_id)
@@ -162,18 +175,27 @@ class StockService:
         )
         if not product or not balance:
             raise LookupError("NOT_FOUND")
-        delta = -source.quantity_delta
-        new_quantity = balance.quantity + delta
+
+        new_quantity = balance.quantity - source.quantity_delta
         if new_quantity < 0:
             raise StockError("INSUFFICIENT_STOCK")
+        try:
+            new_valuation = remove_receipt_cost(
+                balance.quantity,
+                product.valuation_unit_cost,
+                source.quantity_delta,
+                source.unit_cost_snapshot,
+            )
+        except ValueError as exc:
+            raise StockError(str(exc)) from exc
 
         reversal = StockMovement(
             bar_id=bar_id,
             product_id=source.product_id,
             movement_type="ADJUSTMENT",
-            quantity_delta=delta,
+            quantity_delta=-source.quantity_delta,
             unit_snapshot=source.unit_snapshot,
-            unit_cost_snapshot=product.valuation_unit_cost,
+            unit_cost_snapshot=source.unit_cost_snapshot,
             reversal_of_id=source.id,
             manual_kind=None,
             reason=reason.strip(),
@@ -183,12 +205,7 @@ class StockService:
         db.session.add(reversal)
         balance.quantity = new_quantity
         balance.version += 1
-        product.valuation_unit_cost = moving_average_cost(
-            balance.quantity - delta,
-            product.valuation_unit_cost,
-            delta,
-            product.valuation_unit_cost,
-        )
+        product.valuation_unit_cost = new_valuation
         return reversal
 
 
