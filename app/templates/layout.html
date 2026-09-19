@@ -9,6 +9,7 @@
   <link href="{{ url_for('static', filename='dashboard.css') }}" rel="stylesheet">
   <link href="{{ url_for('static', filename='dashboard_charts.css') }}" rel="stylesheet">
   <link href="{{ url_for('static', filename='dashboard_inventory.css') }}" rel="stylesheet">
+  <link href="{{ url_for('static', filename='dashboard_activity.css') }}" rel="stylesheet">
   <link href="{{ url_for('static', filename='bars.css') }}" rel="stylesheet">
   <link href="{{ url_for('static', filename='staff.css') }}" rel="stylesheet">
   <link href="{{ url_for('static', filename='catalog.css') }}" rel="stylesheet">
@@ -68,7 +69,10 @@
 
     <main id="main" class="content-area">
       {% block content %}{% endblock %}
-      {% if request.endpoint == 'web.dashboard' and dashboard_data %}{% include 'dashboard_inventory_control.html' %}{% endif %}
+      {% if request.endpoint == 'web.dashboard' and dashboard_data %}
+        {% include 'dashboard_inventory_control.html' %}
+        {% include 'dashboard_activity.html' %}
+      {% endif %}
     </main>
   </div>
 </div>
