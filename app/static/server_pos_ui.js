@@ -199,7 +199,7 @@
 
         const textarea = sourceTextarea.cloneNode(true);
         textarea.classList.add('server-order-inline-textarea');
-        textarea.rows = action === 'cancel' ? 2 : 2;
+        textarea.rows = 2;
         textarea.setAttribute('aria-label', action === 'cancel' ? 'Motif de l’annulation' : 'Note à la caisse');
         form.appendChild(textarea);
 
@@ -260,6 +260,68 @@
     });
   }
 
+  function setupSectionNavigation() {
+    if (!orderForm || !orderPanel) return;
+
+    const stats = document.querySelector('.server-pos-stats');
+    const switcher = document.createElement('nav');
+    switcher.className = 'server-section-switcher';
+    switcher.setAttribute('aria-label', 'Navigation rapide du service');
+    switcher.innerHTML = `
+      <a href="#posForm" data-server-section-link="new"><span>＋</span><strong>Nouvelle commande</strong></a>
+      <a href="#mes-commandes" data-server-section-link="orders"><span>▤</span><strong>Mes commandes</strong></a>
+    `;
+    if (stats) stats.insertAdjacentElement('afterend', switcher);
+    else orderForm.insertAdjacentElement('beforebegin', switcher);
+
+    const sectionLinks = Array.from(document.querySelectorAll('[data-server-section-link], [data-server-bottom-link]'));
+    if (!sectionLinks.length) return;
+
+    function activate(section) {
+      sectionLinks.forEach((link) => {
+        const linkSection = link.dataset.serverSectionLink || link.dataset.serverBottomLink;
+        const active = linkSection === section;
+        link.classList.toggle('active', active);
+        if (active) link.setAttribute('aria-current', 'page');
+        else link.removeAttribute('aria-current');
+      });
+    }
+
+    function targetFor(section) {
+      return section === 'orders' ? orderPanel : orderForm;
+    }
+
+    sectionLinks.forEach((link) => {
+      const section = link.dataset.serverSectionLink || link.dataset.serverBottomLink;
+      if (!section) return;
+      link.addEventListener('click', (event) => {
+        const target = targetFor(section);
+        if (!target) return;
+        event.preventDefault();
+        target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        const hash = section === 'orders' ? '#mes-commandes' : '#posForm';
+        try { window.history.replaceState(null, '', hash); } catch (error) {}
+        activate(section);
+      });
+    });
+
+    let scheduled = false;
+    function syncFromScroll() {
+      scheduled = false;
+      const threshold = Math.min(window.innerHeight * 0.48, 420);
+      activate(orderPanel.getBoundingClientRect().top <= threshold ? 'orders' : 'new');
+    }
+    window.addEventListener('scroll', () => {
+      if (scheduled) return;
+      scheduled = true;
+      window.requestAnimationFrame(syncFromScroll);
+    }, { passive: true });
+
+    const initialSection = window.location.hash === '#mes-commandes' ? 'orders' : 'new';
+    activate(initialSection);
+    window.setTimeout(syncFromScroll, 80);
+  }
+
   const returnFilter = consumeOrdersReturn();
   const observer = new MutationObserver(sync);
   observer.observe(cartLines, { childList: true, subtree: true });
@@ -286,6 +348,7 @@
   orderForm?.addEventListener('submit', () => rememberOrdersReturn('active'));
   setupInlineOrderActions();
   setupOrderFilters(returnFilter || 'active');
+  setupSectionNavigation();
   sync();
 
   if (returnFilter && orderPanel) {
