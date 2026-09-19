@@ -96,7 +96,6 @@ class ExpenseService:
         if method == "CASH":
             if cash_session_id is None:
                 raise ValueError("CASH_SESSION_REQUIRED")
-            # Validate the session before creating the immutable expense journal row.
             session = cash_service.session(bar_id, cash_session_id)
             if session.currency != bar.currency:
                 raise ValueError("CURRENCY_MISMATCH")
@@ -133,7 +132,7 @@ class ExpenseService:
                 expense_id=item.id,
             )
 
-        record(actor, bar_id, "expense.create", "expenses", item.id, item.description)
+        record(actor, bar_id, "expenses.record", "expenses", item.id, item.description)
         return item
 
     def reverse(
@@ -201,7 +200,7 @@ class ExpenseService:
                 expense_id=item.id,
             )
 
-        record(actor, bar_id, "expense.reverse", "expenses", item.id, cleaned_reason)
+        record(actor, bar_id, "expenses.reverse", "expenses", item.id, cleaned_reason)
         return item
 
 
