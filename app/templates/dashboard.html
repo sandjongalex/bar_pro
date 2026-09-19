@@ -76,8 +76,118 @@
 </section>
 {% endif %}
 
+{% if operational_alerts %}
+<section class="dashboard-section mt-4" aria-labelledby="dashboard-alerts-title">
+  <div class="dashboard-section-heading">
+    <div>
+      <p class="eyebrow mb-1">Contrôle</p>
+      <h2 id="dashboard-alerts-title">Alertes opérationnelles</h2>
+    </div>
+    <small class="text-secondary">Les éléments les plus urgents du bar sélectionné</small>
+  </div>
+
+  <div class="dashboard-alert-summary">
+    <a class="dashboard-alert-counter" href="{{ url_for('stock.history', bar_id=active_bar.id) }}">
+      <span class="alert-counter-icon">▤</span><strong>{{ operational_alerts.counts.low_stock }}</strong><small>Stocks faibles</small>
+    </a>
+    <a class="dashboard-alert-counter" href="{{ url_for('checkout_web.checkout', bar_id=active_bar.id) }}">
+      <span class="alert-counter-icon">⌛</span><strong>{{ operational_alerts.counts.pending_orders }}</strong><small>Commandes à traiter</small>
+    </a>
+    <a class="dashboard-alert-counter" href="{{ url_for('supplier_debts_web.manage', bar_id=active_bar.id) }}">
+      <span class="alert-counter-icon">₣</span><strong>{{ operational_alerts.counts.supplier_debts }}</strong><small>Achats à régler</small>
+    </a>
+    <a class="dashboard-alert-counter" href="{{ url_for('inventories.listing', bar_id=active_bar.id) }}">
+      <span class="alert-counter-icon">≣</span><strong>{{ operational_alerts.counts.inventory_drafts }}</strong><small>Inventaires brouillons</small>
+    </a>
+    <a class="dashboard-alert-counter" href="{{ url_for('finance_web.desk', bar_id=active_bar.id) }}">
+      <span class="alert-counter-icon">±</span><strong>{{ operational_alerts.counts.cash_differences }}</strong><small>Écarts de caisse</small>
+    </a>
+    <a class="dashboard-alert-counter" href="#dashboard-notifications">
+      <span class="alert-counter-icon">●</span><strong>{{ operational_alerts.counts.unread_notifications }}</strong><small>Notifications non lues</small>
+    </a>
+  </div>
+
+  <div class="dashboard-alert-grid mt-3">
+    <article class="dashboard-alert-panel">
+      <div class="dashboard-alert-panel-head">
+        <div><span class="alert-kicker">Stock</span><h3>Produits à surveiller</h3></div>
+        <a href="{{ url_for('stock.history', bar_id=active_bar.id) }}">Voir le stock</a>
+      </div>
+      <div class="dashboard-alert-list">
+        {% for item in operational_alerts.low_stock %}
+          <div class="dashboard-alert-row">
+            <div><strong>{{ item.name }}</strong><small>{{ item.unit }}</small></div>
+            <div class="text-end"><span class="alert-value {% if item.quantity <= 0 %}is-danger{% else %}is-warning{% endif %}">{{ "{:,.0f}".format(item.quantity) }}</span><small>Seuil {{ "{:,.0f}".format(item.threshold) }}</small></div>
+          </div>
+        {% else %}
+          <div class="dashboard-alert-empty">Aucun produit sous son seuil d'alerte.</div>
+        {% endfor %}
+      </div>
+    </article>
+
+    <article class="dashboard-alert-panel">
+      <div class="dashboard-alert-panel-head">
+        <div><span class="alert-kicker">Ventes</span><h3>Commandes à traiter</h3></div>
+        <a href="{{ url_for('checkout_web.checkout', bar_id=active_bar.id) }}">Ouvrir la caisse</a>
+      </div>
+      <div class="dashboard-alert-list">
+        {% for item in operational_alerts.pending_orders %}
+          <div class="dashboard-alert-row">
+            <div><strong>{{ item.reference }}</strong><small>{{ item.label }} · {{ item.action }}</small></div>
+            <div class="text-end"><span class="alert-value">{{ "{:,.0f}".format(item.total) }}</span><small>{{ dashboard_data.currency }}</small></div>
+          </div>
+        {% else %}
+          <div class="dashboard-alert-empty">Aucune commande en attente.</div>
+        {% endfor %}
+      </div>
+    </article>
+
+    <article class="dashboard-alert-panel">
+      <div class="dashboard-alert-panel-head">
+        <div><span class="alert-kicker">Fournisseurs</span><h3>Dettes principales</h3></div>
+        <a href="{{ url_for('supplier_debts_web.manage', bar_id=active_bar.id) }}">Voir les dettes</a>
+      </div>
+      <div class="dashboard-alert-list">
+        {% for item in operational_alerts.supplier_debts %}
+          <div class="dashboard-alert-row">
+            <div><strong>{{ item.supplier }}</strong><small>{{ item.reference }}</small></div>
+            <div class="text-end"><span class="alert-value is-warning">{{ "{:,.0f}".format(item.due) }}</span><small>{{ dashboard_data.currency }} dus</small></div>
+          </div>
+        {% else %}
+          <div class="dashboard-alert-empty">Aucune dette fournisseur en cours.</div>
+        {% endfor %}
+      </div>
+    </article>
+
+    <article class="dashboard-alert-panel">
+      <div class="dashboard-alert-panel-head">
+        <div><span class="alert-kicker">Contrôles</span><h3>Inventaires et caisse</h3></div>
+        <a href="{{ url_for('inventories.listing', bar_id=active_bar.id) }}">Inventaires</a>
+      </div>
+      <div class="dashboard-alert-list">
+        {% for item in operational_alerts.inventory_drafts %}
+          <div class="dashboard-alert-row">
+            <div><strong>{{ item.reference }}</strong><small>Inventaire non validé</small></div>
+            <a class="alert-action-link" href="{{ url_for('inventories.detail', bar_id=active_bar.id, inventory_id=item.inventory_id) }}">Contrôler</a>
+          </div>
+        {% endfor %}
+        {% for item in operational_alerts.cash_differences %}
+          <div class="dashboard-alert-row">
+            <div><strong>{{ item.reference }}</strong><small>Caisse clôturée avec écart</small></div>
+            <div class="text-end"><span class="alert-value {% if item.difference < 0 %}is-danger{% else %}is-warning{% endif %}">{{ "+" if item.difference > 0 else "" }}{{ "{:,.0f}".format(item.difference) }}</span><small>{{ dashboard_data.currency }}</small></div>
+          </div>
+        {% endfor %}
+        {% if not operational_alerts.inventory_drafts and not operational_alerts.cash_differences %}
+          <div class="dashboard-alert-empty">Aucun inventaire en attente ni écart de caisse à signaler.</div>
+        {% endif %}
+      </div>
+    </article>
+  </div>
+</section>
+{% endif %}
+
 {% if notifications %}
-<section class="panel-card mt-4">
+<section class="panel-card mt-4" id="dashboard-notifications">
   <div class="panel-header"><div><p class="eyebrow mb-1">Notifications</p><h2>À consulter</h2></div><span class="badge text-bg-primary">{{ notifications|length }}</span></div>
   <div class="p-3 d-grid gap-2">
     {% for notification in notifications %}
