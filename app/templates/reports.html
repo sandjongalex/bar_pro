@@ -1,0 +1,149 @@
+{% extends 'layout.html' %}
+{% block title %}Rapports · {{ bar.name }}{% endblock %}
+{% block header %}Rapports · {{ bar.name }}{% endblock %}
+{% block content %}
+<section class="reports-hero">
+  <div>
+    <p class="eyebrow mb-2">Pilotage</p>
+    <h1>Rapports opérationnels</h1>
+    <p>Analysez les ventes, encaissements, dépenses, crédits, fournisseurs, stock et performances de {{ bar.name }} sur une période précise.</p>
+  </div>
+  <a class="btn btn-outline-secondary" href="{{ url_for('web.dashboard', bar_id=bar.id) }}">← Tableau de bord</a>
+</section>
+
+<section class="panel-card reports-filter-card mt-4">
+  <form method="get" class="reports-filter-form">
+    <div>
+      <label class="form-label" for="report-start">Date de début</label>
+      <input class="form-control" id="report-start" type="date" name="start" value="{{ start }}" required>
+    </div>
+    <div>
+      <label class="form-label" for="report-end">Date de fin</label>
+      <input class="form-control" id="report-end" type="date" name="end" value="{{ end }}" required>
+    </div>
+    <div class="reports-filter-actions">
+      <button class="btn btn-primary" type="submit">Actualiser</button>
+      <a class="btn btn-outline-primary" href="{{ url_for('reports_web.export_csv', bar_id=bar.id, start=start, end=end) }}">Exporter CSV</a>
+      <a class="btn btn-outline-dark" target="_blank" rel="noopener" href="{{ url_for('reports_web.printable', bar_id=bar.id, start=start, end=end) }}">Imprimer</a>
+    </div>
+  </form>
+  <small class="text-secondary">Période du {{ start }} au {{ end }} inclus · Fuseau {{ report.period.timezone }}</small>
+</section>
+
+<section class="reports-kpi-grid mt-4" aria-label="Indicateurs du rapport">
+  <article class="reports-kpi"><span>Ventes nettes</span><strong>{{ "{:,.0f}".format(report.sales.revenue|float) }} <small>{{ report.currency }}</small></strong><small>{{ report.sales.orders }} commande{{ 's' if report.sales.orders != 1 else '' }} soldée{{ 's' if report.sales.orders != 1 else '' }}</small></article>
+  <article class="reports-kpi"><span>Encaissements nets</span><strong>{{ "{:,.0f}".format(report.payments.net_received|float) }} <small>{{ report.currency }}</small></strong><small>Argent réellement reçu, remboursements déduits</small></article>
+  <article class="reports-kpi"><span>Dépenses nettes</span><strong>{{ "{:,.0f}".format(report.expenses.total|float) }} <small>{{ report.currency }}</small></strong><small>Dépenses moins annulations</small></article>
+  <article class="reports-kpi"><span>Bénéfice estimé</span><strong>{{ "{:,.0f}".format(report.sales.estimated_profit_after_expenses|float) }} <small>{{ report.currency }}</small></strong><small>Marge brute estimée − dépenses</small></article>
+  <article class="reports-kpi"><span>Créances clients</span><strong>{{ "{:,.0f}".format(report.receivables.customer_credit_total|float) }} <small>{{ report.currency }}</small></strong><small>Solde actuel des comptes clients</small></article>
+  <article class="reports-kpi"><span>Dettes fournisseurs</span><strong>{{ "{:,.0f}".format(report.supplier_payables.total_due|float) }} <small>{{ report.currency }}</small></strong><small>Solde fournisseur actuel</small></article>
+  <article class="reports-kpi"><span>Stock total</span><strong>{{ "{:,.0f}".format(report.stock.quantity|float) }}</strong><small>Bouteilles / unités actuellement disponibles</small></article>
+  <article class="reports-kpi"><span>Valeur stock vente</span><strong>{{ "{:,.0f}".format(report.stock.sale_value|float) }} <small>{{ report.currency }}</small></strong><small>Valeur potentielle au prix de vente</small></article>
+</section>
+
+<div class="reports-grid mt-4">
+  <section class="panel-card reports-panel">
+    <div class="panel-header"><div><p class="eyebrow mb-1">Ventes</p><h2>Ventes & marge</h2></div></div>
+    <div class="reports-metric-list">
+      <div><span>Ventes brutes</span><strong>{{ "{:,.0f}".format(report.sales.gross_revenue|float) }} {{ report.currency }}</strong></div>
+      <div><span>Retours clients</span><strong>{{ "{:,.0f}".format(report.sales.returns|float) }} {{ report.currency }}</strong></div>
+      <div><span>Ventes nettes</span><strong>{{ "{:,.0f}".format(report.sales.revenue|float) }} {{ report.currency }}</strong></div>
+      <div><span>Marge brute estimée</span><strong>{{ "{:,.0f}".format(report.sales.gross_margin_estimate|float) }} {{ report.currency }}</strong></div>
+      <div><span>Bénéfice estimé après dépenses</span><strong>{{ "{:,.0f}".format(report.sales.estimated_profit_after_expenses|float) }} {{ report.currency }}</strong></div>
+    </div>
+    <p class="reports-note">{{ report.sales.margin_note }}</p>
+  </section>
+
+  <section class="panel-card reports-panel">
+    <div class="panel-header"><div><p class="eyebrow mb-1">Trésorerie</p><h2>Encaissements</h2></div></div>
+    <div class="reports-metric-list">
+      <div><span>Paiements directs</span><strong>{{ "{:,.0f}".format(report.payments.direct_received|float) }} {{ report.currency }}</strong></div>
+      <div><span>Règlements de crédits clients</span><strong>{{ "{:,.0f}".format(report.payments.customer_credit_collections|float) }} {{ report.currency }}</strong></div>
+      <div><span>Remboursements</span><strong>{{ "{:,.0f}".format(report.payments.refunded|float) }} {{ report.currency }}</strong></div>
+      <div><span>Net encaissé</span><strong>{{ "{:,.0f}".format(report.payments.net_received|float) }} {{ report.currency }}</strong></div>
+      <div><span>Écart caisse cumulé</span><strong>{{ "+" if report.cash.closing_difference_total|float > 0 else "" }}{{ "{:,.0f}".format(report.cash.closing_difference_total|float) }} {{ report.currency }}</strong></div>
+    </div>
+    {% if report.payments.by_method %}
+    <div class="reports-subtable">
+      <h3>Par mode de règlement</h3>
+      <table class="table align-middle mb-0"><tbody>
+        {% for method, amount in report.payments.by_method.items() %}<tr><td>{{ method_labels.get(method, method) }}</td><td class="text-end fw-bold">{{ "{:,.0f}".format(amount|float) }} {{ report.currency }}</td></tr>{% endfor %}
+      </tbody></table>
+    </div>
+    {% endif %}
+  </section>
+</div>
+
+<div class="reports-grid mt-4">
+  <section class="panel-card reports-panel">
+    <div class="panel-header"><div><p class="eyebrow mb-1">Produits</p><h2>Produits les plus vendus</h2></div><span class="badge text-bg-light">Top 10</span></div>
+    <div class="table-responsive">
+      <table class="table reports-table align-middle mb-0">
+        <thead><tr><th>Produit</th><th class="text-end">Quantité nette</th></tr></thead>
+        <tbody>
+          {% for item in report.top_products %}<tr><td><strong>{{ item.name }}</strong></td><td class="text-end">{{ "{:,.0f}".format(item.quantity|float) }}</td></tr>
+          {% else %}<tr><td colspan="2" class="text-center text-secondary py-4">Aucune vente soldée sur cette période.</td></tr>{% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="panel-card reports-panel">
+    <div class="panel-header"><div><p class="eyebrow mb-1">Équipe</p><h2>Performance des serveuses</h2></div></div>
+    <div class="table-responsive">
+      <table class="table reports-table align-middle mb-0">
+        <thead><tr><th>Serveuse</th><th class="text-end">Cmd.</th><th class="text-end">Ventes</th><th class="text-end">Crédit</th></tr></thead>
+        <tbody>
+          {% for item in report.servers %}<tr><td><strong>{{ item.name }}</strong></td><td class="text-end">{{ item.orders }}</td><td class="text-end">{{ "{:,.0f}".format(item.sales|float) }}</td><td class="text-end">{{ "{:,.0f}".format(item.credit_sales|float) }}</td></tr>
+          {% else %}<tr><td colspan="4" class="text-center text-secondary py-4">Aucune commande soldée attribuée sur la période.</td></tr>{% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>
+
+<div class="reports-grid mt-4">
+  <section class="panel-card reports-panel">
+    <div class="panel-header"><div><p class="eyebrow mb-1">Clients</p><h2>Créances clients actuelles</h2></div><strong>{{ "{:,.0f}".format(report.receivables.customer_credit_total|float) }} {{ report.currency }}</strong></div>
+    <div class="table-responsive">
+      <table class="table reports-table align-middle mb-0">
+        <thead><tr><th>Client</th><th class="text-end">Montant dû</th></tr></thead>
+        <tbody>
+          {% for item in report.receivables.customer_accounts %}<tr><td>{{ item.customer }}</td><td class="text-end fw-bold">{{ "{:,.0f}".format(item.amount_due|float) }} {{ report.currency }}</td></tr>
+          {% else %}<tr><td colspan="2" class="text-center text-secondary py-4">Aucune créance client en cours.</td></tr>{% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% if report.receivables.orders_total_due|float > 0 %}<p class="reports-note">Commandes livrées restant à solder : {{ "{:,.0f}".format(report.receivables.orders_total_due|float) }} {{ report.currency }}.</p>{% endif %}
+  </section>
+
+  <section class="panel-card reports-panel">
+    <div class="panel-header"><div><p class="eyebrow mb-1">Stock</p><h2>Situation du stock</h2></div></div>
+    <div class="reports-metric-list reports-metric-list-compact">
+      <div><span>Quantité totale</span><strong>{{ "{:,.0f}".format(report.stock.quantity|float) }}</strong></div>
+      <div><span>Valeur au coût d'achat</span><strong>{{ "{:,.0f}".format(report.stock.purchase_value|float) }} {{ report.currency }}</strong></div>
+      <div><span>Valeur au prix de vente</span><strong>{{ "{:,.0f}".format(report.stock.sale_value|float) }} {{ report.currency }}</strong></div>
+      <div><span>Pertes de la période</span><strong>{{ "{:,.0f}".format(report.stock.losses|float) }}</strong></div>
+      <div><span>Écart inventaire cumulé</span><strong>{{ "+" if report.inventories.difference_total|float > 0 else "" }}{{ "{:,.0f}".format(report.inventories.difference_total|float) }}</strong></div>
+    </div>
+  </section>
+</div>
+
+<section class="panel-card reports-panel mt-4">
+  <div class="panel-header"><div><p class="eyebrow mb-1">Alerte stock</p><h2>Produits au seuil ou en dessous</h2></div><span class="badge text-bg-warning">{{ report.stock.low|length }}</span></div>
+  <div class="table-responsive">
+    <table class="table reports-table align-middle mb-0">
+      <thead><tr><th>Produit</th><th>Catégorie</th><th class="text-end">Stock</th><th class="text-end">Seuil</th><th class="text-end">Écart</th></tr></thead>
+      <tbody>
+        {% for item in report.stock.low %}<tr><td><strong>{{ item.product }}</strong></td><td>{{ item.category or '—' }}</td><td class="text-end">{{ "{:,.0f}".format(item.quantity|float) }}</td><td class="text-end">{{ "{:,.0f}".format(item.threshold|float) }}</td><td class="text-end {% if item.difference|float < 0 %}text-danger{% endif %}">{{ "+" if item.difference|float > 0 else "" }}{{ "{:,.0f}".format(item.difference|float) }}</td></tr>
+        {% else %}<tr><td colspan="5" class="text-center text-secondary py-4">Aucun produit n'est actuellement sous son seuil d'alerte.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<div class="dashboard-definition-note mt-3">
+  <strong>Important :</strong>
+  <span>Les ventes et performances sont rattachées à la période où les commandes ont été entièrement soldées. Les créances clients, dettes fournisseurs et valeurs de stock représentent leur situation actuelle au moment de génération du rapport.</span>
+</div>
+{% endblock %}
