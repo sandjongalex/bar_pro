@@ -1,0 +1,144 @@
+{% if nav_bar_id and endpoint != 'web.dashboard' and endpoint != 'cashier_workspace_web.workspace' %}
+  {% set context_section = 'Accueil' %}
+  {% set context_title = 'Page' %}
+  {% set context_parent_label = 'Accueil' %}
+  {% set context_parent_url = url_for('web.dashboard', bar_id=nav_bar_id) %}
+
+  {% if endpoint == 'bars.web_detail' %}
+    {% set context_section = 'Établissements' %}
+    {% set context_title = 'Paramètres de l’établissement' %}
+    {% set context_parent_label = 'Établissements' %}
+    {% set context_parent_url = url_for('bars.web_list') %}
+
+  {% elif endpoint.startswith('orders_web.') %}
+    {% if nav_effective_role == 'SERVER' %}
+      {% set context_section = 'Service' %}
+      {% set context_title = 'Nouvelle commande' %}
+      {% set context_parent_label = 'Mes commandes' %}
+      {% set context_parent_url = url_for('orders_web.quick', bar_id=nav_bar_id) ~ '#mes-commandes' %}
+    {% else %}
+      {% set context_section = 'Ventes' %}
+      {% set context_title = 'Commandes' %}
+      {% set context_parent_label = 'Accueil' %}
+    {% endif %}
+
+  {% elif endpoint.startswith('checkout_web.') %}
+    {% set context_section = 'Ventes' %}
+    {% set context_title = 'Caisse' %}
+    {% if nav_effective_role == 'CASHIER' %}
+      {% set context_parent_label = 'Poste de caisse' %}
+      {% set context_parent_url = url_for('checkout_web.checkout', bar_id=nav_bar_id) %}
+    {% endif %}
+
+  {% elif endpoint.startswith('catalog.') %}
+    {% set context_section = 'Stock' %}
+    {% set context_title = 'Produits & catégories' %}
+    {% if nav_can('inventory.read', nav_bar_id) %}
+      {% set context_parent_label = 'État du stock' %}
+      {% set context_parent_url = url_for('stock.history', bar_id=nav_bar_id) %}
+    {% endif %}
+
+  {% elif endpoint.startswith('stock.') %}
+    {% set context_section = 'Stock' %}
+    {% set context_title = 'État du stock' %}
+
+  {% elif endpoint.startswith('inventories.') %}
+    {% set context_section = 'Stock' %}
+    {% if endpoint == 'inventories.listing' %}
+      {% set context_title = 'Inventaires' %}
+      {% set context_parent_label = 'État du stock' %}
+      {% set context_parent_url = url_for('stock.history', bar_id=nav_bar_id) %}
+    {% else %}
+      {% set context_title = 'Inventaire' %}
+      {% set context_parent_label = 'Inventaires' %}
+      {% set context_parent_url = url_for('inventories.listing', bar_id=nav_bar_id) %}
+    {% endif %}
+
+  {% elif endpoint.startswith('purchases_web.') %}
+    {% set context_section = 'Achats' %}
+    {% if endpoint == 'purchases_web.suppliers' %}
+      {% set context_title = 'Fournisseurs' %}
+      {% set context_parent_label = 'Achats' %}
+      {% set context_parent_url = url_for('purchases_web.manage', bar_id=nav_bar_id) %}
+    {% else %}
+      {% set context_title = 'Achats fournisseurs' %}
+    {% endif %}
+
+  {% elif endpoint.startswith('supplier_debts_web.') %}
+    {% set context_section = 'Achats' %}
+    {% set context_title = 'Dettes fournisseurs' %}
+    {% set context_parent_label = 'Achats' %}
+    {% set context_parent_url = url_for('purchases_web.manage', bar_id=nav_bar_id) %}
+
+  {% elif endpoint.startswith('cashier_handovers_web.') %}
+    {% set context_section = 'Caisse' %}
+    {% set context_title = 'Remises' %}
+    {% set context_parent_label = 'Caisse' %}
+    {% set context_parent_url = url_for('checkout_web.checkout', bar_id=nav_bar_id) %}
+
+  {% elif endpoint.startswith('cashier_returns_web.') %}
+    {% set context_section = 'Caisse' %}
+    {% set context_title = 'Retours' %}
+    {% set context_parent_label = 'Caisse' %}
+    {% set context_parent_url = url_for('checkout_web.checkout', bar_id=nav_bar_id) %}
+
+  {% elif endpoint.startswith('cashier_history_web.') %}
+    {% set context_section = 'Caisse' %}
+    {% set context_title = 'Historique' %}
+    {% set context_parent_label = 'Caisse' %}
+    {% set context_parent_url = url_for('checkout_web.checkout', bar_id=nav_bar_id) %}
+
+  {% elif endpoint.startswith('cashier_web.') %}
+    {% set context_section = 'Caisse' %}
+    {% set context_title = 'Session de caisse' %}
+    {% set context_parent_label = 'Caisse' %}
+    {% set context_parent_url = url_for('checkout_web.checkout', bar_id=nav_bar_id) %}
+
+  {% elif endpoint.startswith('customers_web.') %}
+    {% set context_section = 'Finances' %}
+    {% set context_title = 'Clients & crédits' %}
+    {% if nav_effective_role == 'CASHIER' %}
+      {% set context_parent_label = 'Caisse' %}
+      {% set context_parent_url = url_for('checkout_web.checkout', bar_id=nav_bar_id) %}
+    {% elif nav_can('payments.read', nav_bar_id) %}
+      {% set context_parent_label = 'Finances' %}
+      {% set context_parent_url = url_for('finance_web.desk', bar_id=nav_bar_id) %}
+    {% endif %}
+
+  {% elif endpoint.startswith('expenses_web.') %}
+    {% set context_section = 'Finances' %}
+    {% set context_title = 'Dépenses' %}
+    {% if nav_can('payments.read', nav_bar_id) %}
+      {% set context_parent_label = 'Finances' %}
+      {% set context_parent_url = url_for('finance_web.desk', bar_id=nav_bar_id) %}
+    {% endif %}
+
+  {% elif endpoint.startswith('reports_web.') %}
+    {% set context_section = 'Finances' %}
+    {% set context_title = 'Rapports' %}
+    {% if nav_can('payments.read', nav_bar_id) %}
+      {% set context_parent_label = 'Finances' %}
+      {% set context_parent_url = url_for('finance_web.desk', bar_id=nav_bar_id) %}
+    {% endif %}
+
+  {% elif endpoint.startswith('finance_web.') %}
+    {% set context_section = 'Finances' %}
+    {% set context_title = 'Finance détaillée' %}
+
+  {% elif endpoint.startswith('staff_web.') %}
+    {% set context_section = 'Équipe' %}
+    {% set context_title = 'Personnel' %}
+
+  {% endif %}
+
+  <nav class="context-nav" aria-label="Navigation contextuelle" data-context-nav>
+    <a class="context-back" href="{{ context_parent_url }}" aria-label="Retour vers {{ context_parent_label }}">
+      <span aria-hidden="true">←</span><span>{{ context_parent_label }}</span>
+    </a>
+    <ol class="context-breadcrumb">
+      <li><a href="{{ url_for('web.dashboard', bar_id=nav_bar_id) }}">{{ nav_bar_name }}</a></li>
+      <li><span>{{ context_section }}</span></li>
+      <li aria-current="page"><strong>{{ context_title }}</strong></li>
+    </ol>
+  </nav>
+{% endif %}
