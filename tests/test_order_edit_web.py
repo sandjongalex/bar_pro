@@ -228,3 +228,44 @@ def test_stale_second_editor_cannot_overwrite_first_edit(env):
     assert len(lines) == 1
     assert lines[0].product_id == product.id
     assert lines[0].quantity == 3
+
+
+def test_stale_server_edit_cannot_overwrite_cashier_delivery(env):
+    app, owner, bar, _, product, server, _, _ = env
+    second = _second_product(env)
+    order = order_service.create(
+        server,
+        bar.id,
+        "SERVER-WEB-DELIVERY-RACE",
+        [{"product_id": product.id, "quantity": 2}],
+    )
+    db.session.commit()
+
+    client = app.test_client()
+    assert _login(client, server.email).status_code == 302
+    page = client.get(f"/bars/{bar.id}/orders/new")
+    stale_state = client.get(f"/bars/{bar.id}/order-edits/{order.id}").get_json()
+
+    # La caisse livre après l'ouverture de l'éditeur serveuse.
+    order_service.confirm(owner, bar.id, order.id)
+    db.session.commit()
+
+    response = client.post(
+        f"/bars/{bar.id}/order-edits/{order.id}",
+        data={
+            "csrf_token": _csrf(page),
+            "order_revision": stale_state["order"]["revision"],
+            "product_id": str(second.id),
+            "quantity": "1",
+        },
+        follow_redirects=True,
+    )
+    assert response.status_code == 200
+    assert "Cette commande a changé sur un autre appareil" in response.text
+
+    db.session.refresh(order)
+    assert order.status == "CONFIRMED"
+    lines = list(db.session.scalars(select(OrderLine).where(OrderLine.order_id == order.id)))
+    assert len(lines) == 1
+    assert lines[0].product_id == product.id
+    assert lines[0].quantity == 2
