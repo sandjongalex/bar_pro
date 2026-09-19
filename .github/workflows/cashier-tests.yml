@@ -5,7 +5,9 @@ on:
     paths:
       - 'app/cashier_web.py'
       - 'app/checkout_web.py'
+      - 'app/finance_web.py'
       - 'app/templates/cashier_session.html'
+      - 'app/templates/cashier_daily.html'
       - 'app/templates/checkout.html'
       - 'app/static/checkout.css'
       - 'app/__init__.py'
@@ -17,7 +19,9 @@ on:
     paths:
       - 'app/cashier_web.py'
       - 'app/checkout_web.py'
+      - 'app/finance_web.py'
       - 'app/templates/cashier_session.html'
+      - 'app/templates/cashier_daily.html'
       - 'app/templates/checkout.html'
       - 'app/static/checkout.css'
       - 'app/__init__.py'
