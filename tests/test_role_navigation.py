@@ -86,6 +86,14 @@ def test_server_navigation_is_focused_on_orders_and_notifications(env):
     assert '>＋ Nouvelle commande</a>' in page.text
     assert '>Mes commandes</a>' in page.text
 
+    # Serveuse: le flux opérationnel commence par le lieu/table avant les produits.
+    assert 'data-server-table-step' in page.text
+    assert 'id="serverTableGrid"' in page.text
+    assert 'data-table-label="Sans table"' in page.text
+    assert 'id="serverTableCurrent">Sans table' in page.text
+    assert '3. Envoyer à la caisse' in page.text
+    assert 'À traiter par la caisse' in page.text
+
 
 def test_owner_keeps_full_grouped_navigation(env):
     app, owner, bar, _, _, _, _, _ = env
