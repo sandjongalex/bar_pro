@@ -6,7 +6,7 @@ from sqlalchemy import select
 from app.extensions import db
 from app.models import Product, Purchase, StockBalance, Supplier
 from app.purchase_services import purchase_service, supplier_service
-from app.stock_service import StockError
+from app.stock_service import StockError, stock_service
 from app.stock_valuation import rebuild_bar_valuations, replay_product_valuation
 from test_workflows import env, order
 
@@ -70,6 +70,36 @@ def test_stock_outflow_keeps_current_moving_average(env):
     ) == Decimal("17")
 
 
+def test_zero_cost_opening_stock_uses_first_real_receipt_as_legacy_proxy(env):
+    _, owner, bar, _, product, _, _, _ = env
+    legacy = Product(
+        bar_id=bar.id,
+        category_id=product.category_id,
+        sku="LEGACY-ZERO",
+        name="Legacy Zero",
+        base_unit="bottle",
+        sale_price=Decimal("100"),
+        valuation_unit_cost=Decimal("0"),
+        stock_alert_threshold=0,
+        is_active=True,
+    )
+    db.session.add(legacy)
+    db.session.flush()
+    stock_service.move(owner, bar.id, legacy.id, "INITIAL", 10, "Legacy opening stock")
+    supplier = _supplier(owner, bar)
+
+    _receive(owner, bar, legacy, supplier, "VAL-LEGACY", 10, 60)
+    db.session.flush()
+
+    # Unknown opening stock must not dilute the first known purchase to 30.
+    assert legacy.valuation_unit_cost == Decimal("60.0000")
+    preview = replay_product_valuation(bar.id, legacy.id)
+    assert preview["quantity_matches"] is True
+    assert preview["new_unit_cost"] == Decimal("60.0000")
+    assert preview["valuation_basis"] == "ESTIMATED_LEGACY"
+    assert "OPENING_COST_INFERRED" in preview["estimate_reasons"]
+
+
 def test_immediate_purchase_correction_restores_previous_valuation(env):
     _, owner, bar, _, product, _, _, _ = env
     supplier = _supplier(owner, bar)
@@ -119,10 +149,42 @@ def test_legacy_valuation_can_be_previewed_and_rebuilt(env):
     assert preview["quantity_matches"] is True
     assert preview["balance_quantity"] == Decimal("30")
     assert preview["new_unit_cost"] == Decimal("60.0000")
+    assert preview["valuation_basis"] == "EXACT_HISTORY"
 
     result = rebuild_bar_valuations(bar.id, apply=True)
     db.session.commit()
     db.session.refresh(product)
 
     assert result["changed"] >= 1
+    assert result["applied_count"] >= 1
     assert product.valuation_unit_cost == Decimal("60.0000")
+
+
+def test_estimated_legacy_repair_requires_explicit_opt_in(env):
+    _, owner, bar, _, product, _, _, _ = env
+    legacy = Product(
+        bar_id=bar.id,
+        category_id=product.category_id,
+        sku="LEGACY-APPLY",
+        name="Legacy Apply",
+        base_unit="bottle",
+        sale_price=Decimal("100"),
+        valuation_unit_cost=Decimal("0"),
+        stock_alert_threshold=0,
+        is_active=True,
+    )
+    db.session.add(legacy)
+    db.session.flush()
+    stock_service.move(owner, bar.id, legacy.id, "INITIAL", 10, "Legacy opening stock")
+    supplier = _supplier(owner, bar)
+    _receive(owner, bar, legacy, supplier, "VAL-LEGACY-APPLY", 10, 60)
+    legacy.valuation_unit_cost = Decimal("0")
+    db.session.flush()
+
+    result = rebuild_bar_valuations(bar.id, apply=True, include_estimates=False)
+    assert result["estimated_changed"] >= 1
+    assert legacy.valuation_unit_cost == Decimal("0")
+
+    result = rebuild_bar_valuations(bar.id, apply=True, include_estimates=True)
+    assert result["applied_count"] >= 1
+    assert legacy.valuation_unit_cost == Decimal("60.0000")
