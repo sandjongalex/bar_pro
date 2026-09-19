@@ -16,9 +16,15 @@
   if (!grid || !cartLines || !cartPanel || !totalNode || !countNode) return;
 
   const RETURN_KEY = 'bar-pro:server-orders-return';
+  const pathMatch = window.location.pathname.match(/\/bars\/(\d+)\//);
+  const liveEndpoint = pathMatch ? `/bars/${pathMatch[1]}/live/orders` : '';
   const grandTotal = cartPanel.querySelector('.pos-grand-total strong');
   const initialTotal = totalNode.textContent || '0';
   const currency = (grandTotal?.textContent || '').replace(initialTotal, '').trim();
+  let refreshOrderFilters = function () {};
+  let currentOrderFilter = 'active';
+  let liveTimer = null;
+  let liveInFlight = false;
 
   const dock = document.createElement('div');
   dock.className = 'server-cart-dock';
@@ -111,12 +117,12 @@
 
   function setupOrderFilters(initialFilter) {
     const filters = Array.from(document.querySelectorAll('[data-server-order-filter]'));
-    const cards = Array.from(document.querySelectorAll('[data-server-order-card]'));
     const empty = document.querySelector('[data-server-orders-empty]');
-    if (!filters.length || !cards.length) return;
+    if (!filters.length) return;
 
     function applyFilter(filter) {
       let visible = 0;
+      const cards = Array.from(document.querySelectorAll('[data-server-order-card]'));
       cards.forEach((card) => {
         const state = card.dataset.orderState || 'other';
         const matches = filter === 'all'
@@ -135,18 +141,20 @@
 
     function selectFilter(filter) {
       const requested = filters.find((item) => item.dataset.serverOrderFilter === filter) || filters[0];
+      currentOrderFilter = requested?.dataset.serverOrderFilter || 'active';
       filters.forEach((item) => {
         const active = item === requested;
         item.classList.toggle('active', active);
         item.setAttribute('aria-pressed', active ? 'true' : 'false');
       });
-      applyFilter(requested?.dataset.serverOrderFilter || 'active');
+      applyFilter(currentOrderFilter);
     }
 
     filters.forEach((button) => {
       button.addEventListener('click', () => selectFilter(button.dataset.serverOrderFilter || 'active'));
     });
 
+    refreshOrderFilters = () => selectFilter(currentOrderFilter);
     selectFilter(initialFilter || 'active');
   }
 
@@ -322,6 +330,125 @@
     window.setTimeout(syncFromScroll, 80);
   }
 
+  function syncLiveStock(stock) {
+    const activeCategory = document.querySelector('#categoryTabs .pos-category.active')?.dataset.category || 'all';
+    const query = (search?.value || '').trim().toLocaleLowerCase('fr');
+    grid.querySelectorAll('.pos-product[data-product-id]').forEach((card) => {
+      const quantity = Number(stock?.[String(card.dataset.productId)] || 0);
+      const available = Number.isFinite(quantity) && quantity > 0;
+      card.dataset.stock = String(quantity);
+      card.classList.toggle('out-of-stock', !available);
+      card.disabled = !available;
+      const stockBadge = card.querySelector('.pos-stock');
+      if (stockBadge) {
+        stockBadge.textContent = available ? `Stock ${formatQuantity(quantity)}` : 'Rupture';
+        stockBadge.classList.toggle('danger', !available);
+      }
+      const categoryOk = activeCategory === 'all' || card.dataset.category === activeCategory;
+      const searchOk = !query || (card.dataset.name || '').toLocaleLowerCase('fr').includes(query);
+      card.hidden = !(available && categoryOk && searchOk);
+    });
+  }
+
+  function syncLiveOrders(payload) {
+    if (!payload || payload.mode !== 'SERVER') return;
+    const orders = Array.isArray(payload.orders) ? payload.orders : [];
+    const byReference = new Map(orders.map((order) => [String(order.reference), order]));
+
+    document.querySelectorAll('[data-server-order-card]').forEach((card) => {
+      const reference = card.querySelector('.server-order-reference')?.textContent?.trim() || '';
+      const order = byReference.get(reference);
+      if (!order) return;
+
+      const state = order.state || 'other';
+      card.dataset.orderState = state;
+      ['waiting', 'to_pay', 'paid', 'cancelled', 'other'].forEach((value) => {
+        card.classList.remove(`server-order-card-${value}`);
+      });
+      card.classList.add(`server-order-card-${state}`);
+
+      const stateNode = card.querySelector('.server-order-state');
+      if (stateNode) {
+        stateNode.className = `server-order-state ${state === 'to_pay' ? 'to-pay' : state}`;
+        if (state === 'waiting') stateNode.textContent = '● En attente caisse';
+        else if (state === 'to_pay') stateNode.textContent = '✓ Livrée · à payer';
+        else if (state === 'paid') stateNode.textContent = '✓ Payée';
+        else if (state === 'cancelled') stateNode.textContent = 'Annulée';
+        else stateNode.textContent = order.status || 'Mise à jour';
+      }
+
+      const amountNode = card.querySelector('.server-order-amount');
+      if (amountNode) {
+        const amount = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0 }).format(Number(order.total_amount || 0));
+        amountNode.innerHTML = `${amount} <small>${escapeHtml(order.currency || '')}</small>`;
+      }
+
+      const productsNode = card.querySelector('.server-order-products');
+      if (productsNode && Array.isArray(order.lines)) {
+        const visibleLines = order.lines.slice(0, 4).map((line) => `<div><strong>${escapeHtml(line.quantity)}×</strong><span>${escapeHtml(line.name)}</span></div>`).join('');
+        const extra = order.lines.length > 4 ? `<small>+ ${order.lines.length - 4} autre${order.lines.length - 4 > 1 ? 's' : ''}</small>` : '';
+        productsNode.innerHTML = visibleLines + extra;
+      }
+
+      if (state !== 'waiting') {
+        card.querySelector('.server-order-actions .btn-outline-danger')?.remove();
+        card.querySelector('.server-order-inline-cancel')?.remove();
+      }
+      if (state === 'paid' || state === 'cancelled') {
+        card.querySelector('.server-order-actions')?.remove();
+        card.querySelectorAll('.server-order-inline-editor').forEach((editor) => editor.remove());
+        card.classList.remove('is-editing');
+      }
+    });
+
+    const statNodes = document.querySelectorAll('.server-pos-stats article strong');
+    if (statNodes[0]) statNodes[0].textContent = String(payload.stats?.waiting ?? 0);
+    if (statNodes[1]) statNodes[1].textContent = String(payload.stats?.to_pay ?? 0);
+    if (statNodes[2]) statNodes[2].textContent = String(payload.stats?.paid ?? 0);
+
+    document.querySelectorAll('[data-server-order-filter]').forEach((button) => {
+      const filter = button.dataset.serverOrderFilter;
+      const count = button.querySelector('span');
+      if (!count) return;
+      if (filter === 'active') count.textContent = String((payload.stats?.waiting || 0) + (payload.stats?.to_pay || 0));
+      else if (filter === 'waiting') count.textContent = String(payload.stats?.waiting || 0);
+      else if (filter === 'to_pay') count.textContent = String(payload.stats?.to_pay || 0);
+      else if (filter === 'paid') count.textContent = String(payload.stats?.paid || 0);
+    });
+
+    refreshOrderFilters();
+  }
+
+  async function pollLiveState() {
+    if (!liveEndpoint || liveInFlight || document.hidden) return;
+    liveInFlight = true;
+    try {
+      const response = await fetch(liveEndpoint, {
+        credentials: 'same-origin',
+        headers: { 'Accept': 'application/json' },
+        cache: 'no-store',
+      });
+      if (!response.ok) return;
+      const payload = await response.json();
+      syncLiveStock(payload.stock || {});
+      syncLiveOrders(payload);
+    } catch (error) {
+      // Temporary network errors are ignored; the next poll retries automatically.
+    } finally {
+      liveInFlight = false;
+    }
+  }
+
+  function startLiveSync() {
+    if (!liveEndpoint) return;
+    window.clearInterval(liveTimer);
+    liveTimer = window.setInterval(pollLiveState, 4000);
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden) pollLiveState();
+    });
+    pollLiveState();
+  }
+
   const returnFilter = consumeOrdersReturn();
   const observer = new MutationObserver(sync);
   observer.observe(cartLines, { childList: true, subtree: true });
@@ -350,6 +477,7 @@
   setupOrderFilters(returnFilter || 'active');
   setupSectionNavigation();
   sync();
+  startLiveSync();
 
   if (returnFilter && orderPanel) {
     window.setTimeout(() => orderPanel.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80);
