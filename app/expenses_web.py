@@ -74,6 +74,13 @@ def _parse_local_datetime(bar: Bar, raw: str | None):
     return local.astimezone(timezone.utc).replace(tzinfo=None)
 
 
+def _local_display(value, timezone_name: str):
+    if value is None:
+        return "—"
+    aware = value if value.tzinfo is not None else value.replace(tzinfo=timezone.utc)
+    return aware.astimezone(ZoneInfo(timezone_name)).strftime("%d/%m/%Y %H:%M")
+
+
 def _message(exc):
     code = str(exc)
     messages = {
@@ -198,28 +205,28 @@ def manage(bar_id: int):
         pattern = f"%{search_text}%"
         filters.append(or_(Expense.reference.ilike(pattern), Expense.description.ilike(pattern)))
 
-    rows = list(
+    period_rows = list(
         db.session.scalars(
             select(Expense)
             .where(*filters)
             .order_by(Expense.incurred_at.desc(), Expense.id.desc())
-            .limit(300)
         )
     )
+    rows = period_rows[:300]
 
     reversal_source_ids = {
-        item.reversal_of_id for item in rows if item.entry_kind == "REVERSAL" and item.reversal_of_id is not None
+        item.reversal_of_id for item in period_rows if item.entry_kind == "REVERSAL" and item.reversal_of_id is not None
     }
     source_ids = [item.id for item in rows if item.entry_kind == "EXPENSE"]
     if source_ids:
         reversal_source_ids.update(
-            db.session.scalars(
+            value for value in db.session.scalars(
                 select(Expense.reversal_of_id).where(
                     Expense.bar_id == bar_id,
                     Expense.entry_kind == "REVERSAL",
                     Expense.reversal_of_id.in_(source_ids),
                 )
-            )
+            ) if value is not None
         )
 
     recorder_ids = {item.recorded_by_id for item in rows}
@@ -228,12 +235,12 @@ def manage(bar_id: int):
         for item in db.session.scalars(select(User).where(User.id.in_(recorder_ids)))
     } if recorder_ids else {}
 
-    gross = sum((Decimal(item.amount or 0) for item in rows if item.entry_kind == "EXPENSE"), Decimal("0"))
-    reversed_total = sum((Decimal(item.amount or 0) for item in rows if item.entry_kind == "REVERSAL"), Decimal("0"))
+    gross = sum((Decimal(item.amount or 0) for item in period_rows if item.entry_kind == "EXPENSE"), Decimal("0"))
+    reversed_total = sum((Decimal(item.amount or 0) for item in period_rows if item.entry_kind == "REVERSAL"), Decimal("0"))
     net = gross - reversed_total
 
     by_category = defaultdict(lambda: {"gross": Decimal("0"), "reversed": Decimal("0"), "net": Decimal("0"), "count": 0})
-    for item in rows:
+    for item in period_rows:
         bucket = by_category[item.category_name_snapshot]
         amount = Decimal(item.amount or 0)
         if item.entry_kind == "EXPENSE":
@@ -275,6 +282,7 @@ def manage(bar_id: int):
             .order_by(CashSession.id.desc())
         )
     )
+    display_times = {item.id: _local_display(item.incurred_at, bar.timezone) for item in rows}
 
     return render_template(
         "expenses.html",
@@ -288,12 +296,14 @@ def manage(bar_id: int):
         category_summary=category_summary,
         open_sessions=open_sessions,
         method_labels=METHOD_LABELS,
+        display_times=display_times,
+        history_truncated=len(period_rows) > len(rows),
         stats={
             "gross": gross,
             "reversed": reversed_total,
             "net": net,
             "today_net": today_net,
-            "count": sum(1 for item in rows if item.entry_kind == "EXPENSE"),
+            "count": sum(1 for item in period_rows if item.entry_kind == "EXPENSE"),
         },
         filters={
             "start": start,
