@@ -142,6 +142,12 @@
         {% endif %}
       </div>
 
+      {% if selected_order.status != 'DRAFT' and (b.net_paid > 0 or b.customer_credit > 0) %}
+      <div class="px-3 pb-3">
+        <a class="btn btn-outline-dark w-100" target="_blank" rel="noopener" href="{{ url_for('checkout_web.receipt', bar_id=bar.id, order_id=selected_order.id) }}">🧾 {{ 'Imprimer le reçu' if b.amount_due == 0 else 'Imprimer le reçu partiel' }}</a>
+      </div>
+      {% endif %}
+
       {% if selected_order.payment_status == 'PAID' %}
         <div class="checkout-paid-state">
           <div class="checkout-paid-icon">✓</div>
@@ -223,8 +229,11 @@
 <section class="panel-card mt-4">
   <div class="panel-header"><div><p class="eyebrow mb-1">Traçabilité</p><h2>Historique des encaissements réels</h2><p class="small text-muted mb-0">Les ventes à crédit apparaissent dans les commandes payées ci-dessus, mais ne sont pas comptées comme encaissement réel.</p></div><a class="btn btn-sm btn-light border" href="{{ url_for('finance_web.desk', bar_id=bar.id) }}">Historique complet</a></div>
   {% if recent_payments %}
-  <div class="table-responsive"><table class="table checkout-history align-middle mb-0"><thead><tr><th>Référence</th><th>Commande</th><th>Mode</th><th>Montant</th><th>Monnaie rendue</th><th>Date</th></tr></thead><tbody>
-    {% for payment in recent_payments %}<tr><td><strong>{{ payment.reference }}</strong></td><td>{{ order_by_id.get(payment.order_id).reference if order_by_id.get(payment.order_id) else payment.order_id }}</td><td>{{ payment_labels.get(payment.method, payment.method) }}</td><td><strong>{{ "{:,.0f}".format(payment.amount_applied) }} {{ payment.currency }}</strong></td><td>{{ "{:,.0f}".format(payment.change_given) }} {{ payment.currency }}</td><td>{{ payment.received_at }}</td></tr>{% endfor %}
+  <div class="table-responsive"><table class="table checkout-history align-middle mb-0"><thead><tr><th>Référence</th><th>Commande</th><th>Mode</th><th>Montant</th><th>Monnaie rendue</th><th>Date</th><th class="text-end">Reçu</th></tr></thead><tbody>
+    {% for payment in recent_payments %}
+    {% set receipt_order = order_by_id.get(payment.order_id) %}
+    <tr><td><strong>{{ payment.reference }}</strong></td><td>{{ receipt_order.reference if receipt_order else payment.order_id }}</td><td>{{ payment_labels.get(payment.method, payment.method) }}</td><td><strong>{{ "{:,.0f}".format(payment.amount_applied) }} {{ payment.currency }}</strong></td><td>{{ "{:,.0f}".format(payment.change_given) }} {{ payment.currency }}</td><td>{{ payment.received_at }}</td><td class="text-end">{% if receipt_order %}<a class="btn btn-sm btn-outline-dark" target="_blank" rel="noopener" href="{{ url_for('checkout_web.receipt', bar_id=bar.id, order_id=receipt_order.id) }}">Imprimer</a>{% else %}—{% endif %}</td></tr>
+    {% endfor %}
   </tbody></table></div>
   {% else %}<div class="p-4 text-secondary">Aucun paiement réel enregistré pour le moment.</div>{% endif %}
 </section>
