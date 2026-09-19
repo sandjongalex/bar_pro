@@ -24,12 +24,12 @@
 <section class="panel-card mt-4 p-3">
   <form method="get" class="row g-3 align-items-end">
     <div class="col-md-2">
-      <label class="form-label" for="from">Du</label>
-      <input class="form-control" id="from" name="from" type="date" value="{{ filters['from'] }}">
+      <label class="form-label" for="date_from">Du</label>
+      <input class="form-control" id="date_from" name="date_from" type="date" value="{{ filters['date_from'] }}">
     </div>
     <div class="col-md-2">
-      <label class="form-label" for="to">Au</label>
-      <input class="form-control" id="to" name="to" type="date" value="{{ filters['to'] }}">
+      <label class="form-label" for="date_to">Au</label>
+      <input class="form-control" id="date_to" name="date_to" type="date" value="{{ filters['date_to'] }}">
     </div>
     <div class="col-md-2">
       <label class="form-label" for="type">Type</label>
@@ -65,9 +65,9 @@
     </div>
   </form>
   <div class="d-flex flex-wrap gap-2 mt-3">
-    <a class="btn btn-sm btn-light border" href="{{ url_for('cashier_history_web.history', bar_id=bar.id, **{'from': today, 'to': today}) }}">Aujourd'hui</a>
-    <a class="btn btn-sm btn-light border" href="{{ url_for('cashier_history_web.history', bar_id=bar.id, **{'from': seven_days, 'to': today}) }}">7 derniers jours</a>
-    <a class="btn btn-sm btn-light border" href="{{ url_for('cashier_history_web.history', bar_id=bar.id, **{'from': month_start, 'to': today}) }}">Ce mois</a>
+    <a class="btn btn-sm btn-light border" href="{{ url_for('cashier_history_web.history', bar_id=bar.id, date_from=today, date_to=today) }}">Aujourd'hui</a>
+    <a class="btn btn-sm btn-light border" href="{{ url_for('cashier_history_web.history', bar_id=bar.id, date_from=seven_days, date_to=today) }}">7 derniers jours</a>
+    <a class="btn btn-sm btn-light border" href="{{ url_for('cashier_history_web.history', bar_id=bar.id, date_from=month_start, date_to=today) }}">Ce mois</a>
   </div>
 </section>
 
