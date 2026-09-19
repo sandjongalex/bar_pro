@@ -1,0 +1,46 @@
+{% if activity_data %}
+<section class="dashboard-section mt-4" aria-labelledby="dashboard-activity-title">
+  <div class="dashboard-section-heading">
+    <div>
+      <p class="eyebrow mb-1">Traçabilité</p>
+      <h2 id="dashboard-activity-title">Dernières actions</h2>
+      <small class="text-secondary">{{ activity_data.today_count }} action{{ 's' if activity_data.today_count != 1 else '' }} enregistrée{{ 's' if activity_data.today_count != 1 else '' }} aujourd'hui</small>
+    </div>
+    <span class="dashboard-chart-badge">{{ activity_data.shown_count }} récentes</span>
+  </div>
+
+  <article class="dashboard-activity-card">
+    {% if activity_data.items %}
+      <div class="dashboard-activity-list">
+        {% for item in activity_data.items %}
+        <div class="dashboard-activity-row">
+          <div class="dashboard-activity-time">
+            <strong>{{ item.occurred_local.strftime('%H:%M') if item.occurred_local else '—' }}</strong>
+            <small>{{ item.occurred_local.strftime('%d/%m') if item.occurred_local else '' }}</small>
+          </div>
+          <div class="dashboard-activity-dot {% if item.outcome != 'SUCCESS' %}is-danger{% endif %}" aria-hidden="true"></div>
+          <div class="dashboard-activity-main">
+            <div class="dashboard-activity-titleline">
+              <strong>{{ item.label }}</strong>
+              <span class="dashboard-activity-status {% if item.outcome != 'SUCCESS' %}is-danger{% endif %}">{{ 'Réussie' if item.outcome == 'SUCCESS' else 'Refusée' }}</span>
+            </div>
+            <div class="dashboard-activity-meta">
+              <span>{{ item.actor }}</span>
+              {% if item.target_table %}<span>{{ item.target_table }}{% if item.target_id %} #{{ item.target_id }}{% endif %}</span>{% endif %}
+            </div>
+            {% if item.reason %}<p>{{ item.reason }}</p>{% endif %}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="dashboard-alert-empty">Aucune action auditée n'a encore été enregistrée pour cet établissement.</div>
+    {% endif %}
+  </article>
+
+  <div class="dashboard-definition-note mt-3">
+    <strong>Traçabilité :</strong>
+    <span>Cette liste provient du journal d'audit de l'application. Elle permet d'identifier l'utilisateur, l'heure et l'opération réalisée sans créer un second historique parallèle.</span>
+  </div>
+</section>
+{% endif %}
