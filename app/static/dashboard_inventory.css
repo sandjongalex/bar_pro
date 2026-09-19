@@ -1,0 +1,164 @@
+.inventory-control-grid {
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:12px;
+}
+
+.inventory-control-card {
+  min-height:132px;
+  padding:17px;
+  display:flex;
+  flex-direction:column;
+  justify-content:space-between;
+  gap:.4rem;
+  border:1px solid var(--line);
+  border-radius:16px;
+  background:#fff;
+  box-shadow:0 8px 24px rgba(25,46,39,.035);
+}
+
+.inventory-control-card > span {
+  color:#687670;
+  font-size:.74rem;
+  font-weight:800;
+  text-transform:uppercase;
+  letter-spacing:.055em;
+}
+
+.inventory-control-card > strong {
+  font-size:1.55rem;
+  line-height:1.05;
+  letter-spacing:-.04em;
+}
+
+.inventory-control-card > strong small {
+  color:#87938f;
+  font-size:.65rem;
+  letter-spacing:.02em;
+}
+
+.inventory-control-card > small {
+  color:#97a19d;
+  font-size:.72rem;
+  line-height:1.35;
+}
+
+.inventory-control-card.is-primary { border-color:#cfe5df; background:#f5faf8; }
+.inventory-control-card.is-danger { border-color:#f0caca; background:#fff8f8; }
+.inventory-control-card.is-warning { border-color:#ead9b4; background:#fffbf2; }
+.inventory-control-card.is-success { border-color:#cce4d6; background:#f5fbf7; }
+.inventory-control-card.is-danger > strong { color:#b33e3e; }
+.inventory-control-card.is-warning > strong { color:#a87010; }
+.inventory-control-card.is-success > strong { color:#27794c; }
+
+.inventory-stock-control {
+  display:grid;
+  grid-template-columns:minmax(280px,.7fr) minmax(0,1.3fr);
+  gap:14px;
+}
+
+.inventory-stock-summary {
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:10px;
+}
+
+.inventory-stock-summary > div {
+  min-height:118px;
+  padding:16px;
+  display:flex;
+  flex-direction:column;
+  justify-content:center;
+  border:1px solid var(--line);
+  border-radius:16px;
+  background:#fff;
+}
+
+.inventory-stock-summary span,
+.inventory-stock-summary strong,
+.inventory-stock-summary small {
+  display:block;
+}
+
+.inventory-stock-summary span {
+  color:#71807b;
+  font-size:.7rem;
+  font-weight:800;
+  text-transform:uppercase;
+  letter-spacing:.055em;
+}
+
+.inventory-stock-summary strong {
+  margin:.25rem 0 .15rem;
+  font-size:1.65rem;
+  letter-spacing:-.04em;
+}
+
+.inventory-stock-summary small { color:#97a19d; font-size:.7rem; }
+.inventory-stock-summary .is-danger strong { color:#b33e3e; }
+.inventory-stock-summary .is-warning strong { color:#a87010; }
+
+.inventory-control-table-wrap {
+  overflow:hidden;
+  border:1px solid var(--line);
+  border-radius:18px;
+  background:#fff;
+}
+
+.inventory-control-table-head {
+  min-height:72px;
+  padding:15px 17px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:1rem;
+  border-bottom:1px solid var(--line);
+  background:#fbfcfb;
+}
+
+.inventory-control-table-head h3 {
+  margin:.1rem 0 0;
+  font-size:1rem;
+  font-weight:800;
+}
+
+.inventory-control-table thead th {
+  padding:10px 12px;
+  background:#fafbfa;
+  color:#7a8782;
+  font-size:.66rem;
+  font-weight:800;
+  text-transform:uppercase;
+  letter-spacing:.05em;
+  border-bottom-color:var(--line);
+}
+
+.inventory-control-table td {
+  padding:11px 12px;
+  font-size:.78rem;
+  border-bottom-color:#eef2f0;
+}
+
+.inventory-control-table td strong,
+.inventory-control-table td small { display:block; }
+.inventory-control-table td small { color:#8b9792; font-size:.68rem; margin-top:.1rem; }
+.inventory-control-table tbody tr:last-child td { border-bottom:0; }
+
+.inventory-diff { font-weight:900; white-space:nowrap; }
+.inventory-diff.is-danger { color:#b33e3e; }
+.inventory-diff.is-warning { color:#a87010; }
+
+@media (max-width: 1200px) {
+  .inventory-control-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .inventory-stock-control { grid-template-columns:1fr; }
+}
+
+@media (max-width: 620px) {
+  .inventory-control-grid { grid-template-columns:1fr; }
+  .inventory-stock-summary { grid-template-columns:1fr 1fr; }
+  .inventory-control-card { min-height:118px; }
+}
+
+@media (max-width: 420px) {
+  .inventory-stock-summary { grid-template-columns:1fr; }
+}
