@@ -67,6 +67,7 @@
     host.innerHTML = `
       <form method="post" action="${stateEndpoint(order.id)}" data-order-edit-form>
         <input type="hidden" name="csrf_token" value="${escapeHtml(csrf)}">
+        <input type="hidden" name="order_revision" value="${escapeHtml(order.revision || '')}">
         <div class="order-edit-head">
           <div>
             <strong>Modifier ${escapeHtml(order.reference || 'la commande')}</strong>
