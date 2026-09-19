@@ -4,11 +4,11 @@ Positive stock entries are folded into the current weighted-average unit cost.
 Negative operational movements consume inventory at the current average cost.
 
 Legacy installations can contain opening stock with a zero cost because valuation
-was not maintained historically. A zero cost in that situation means "unknown",
-not necessarily "free". The first later non-zero receipt therefore becomes a
-proxy for the unknown opening stock cost instead of diluting the average toward
-zero. Replays mark such results as estimated so production repairs remain
-explicit and auditable.
+was not maintained historically. They can also contain purchases entered before
+CASE/BOTTLE metadata existed: the quantity was stored as bottles while the unit
+cost actually held the configured case price. Replay repairs recognise only the
+known configured case-price signature, convert it to a base-unit cost, and mark
+the result as estimated so production application remains explicit.
 """
 from __future__ import annotations
 
@@ -17,7 +17,8 @@ from decimal import Decimal, ROUND_HALF_UP
 from sqlalchemy import select
 
 from app.extensions import db
-from app.models import Product, StockBalance, StockMovement
+from app.models import Bar, Product, PurchaseLine, StockBalance, StockMovement
+from app.purchase_defaults import default_purchase_price, default_units_per_case
 
 COST_QUANT = Decimal("0.0001")
 ZERO = Decimal("0")
@@ -57,12 +58,9 @@ def moving_average_cost(quantity_before, cost_before, quantity_delta, movement_c
 
     incoming_cost = _cost(movement_cost)
 
-    # A positive zero-cost legacy movement is unknown-cost stock, not free stock.
     if incoming_cost == 0 and cost_before > 0:
         incoming_cost = cost_before
 
-    # Legacy opening stock may have quantity but no valuation. Once an actual
-    # acquisition cost is known, use it as the proxy for the unknown opening lot.
     if quantity_before > 0 and cost_before == 0 and incoming_cost > 0:
         return incoming_cost
 
@@ -93,17 +91,71 @@ def remove_receipt_cost(quantity_before, cost_before, receipt_quantity, receipt_
     return (remaining_value / quantity_after).quantize(COST_QUANT, rounding=ROUND_HALF_UP)
 
 
+def _legacy_purchase_cost(product: Product, movement: StockMovement, currency: str):
+    """Return a replay cost and optional legacy-normalisation reason.
+
+    Old rows migrated before purchase-unit metadata was trustworthy can look like
+    ``BOTTLE @ 7800`` for a product whose configured supplier case price is 7800
+    and case size is 12. We normalise only an exact configured case-price match;
+    arbitrary expensive bottle purchases are never guessed.
+    """
+    raw_cost = _cost(movement.unit_cost_snapshot)
+    if movement.movement_type != "PURCHASE" or movement.purchase_line_id is None:
+        return raw_cost, None
+
+    line = db.session.get(PurchaseLine, movement.purchase_line_id)
+    if not line or line.bar_id != movement.bar_id or line.product_id != movement.product_id:
+        return raw_cost, None
+
+    if str(getattr(line, "purchase_unit", "") or "").upper() != "BOTTLE":
+        return raw_cost, None
+    if getattr(line, "units_per_case_snapshot", None) not in (None, 0):
+        return raw_cost, None
+
+    case_size = default_units_per_case(product.name, product.units_per_case)
+    if not case_size or int(case_size) <= 1:
+        return raw_cost, None
+
+    configured_case_price = default_purchase_price(
+        product.name,
+        currency,
+        Decimal("-1"),
+    )
+    if configured_case_price <= 0:
+        return raw_cost, None
+
+    configured_case_price = _cost(configured_case_price)
+    line_purchase_price = _cost(getattr(line, "purchase_unit_price_snapshot", raw_cost))
+    line_unit_cost = _cost(getattr(line, "unit_cost_snapshot", raw_cost))
+
+    if not (
+        raw_cost == configured_case_price
+        and line_purchase_price == configured_case_price
+        and line_unit_cost == configured_case_price
+    ):
+        return raw_cost, None
+
+    base_cost = (configured_case_price / Decimal(int(case_size))).quantize(
+        COST_QUANT,
+        rounding=ROUND_HALF_UP,
+    )
+    return base_cost, "LEGACY_CASE_PRICE_NORMALIZED"
+
+
 def replay_product_valuation(bar_id: int, product_id: int) -> dict:
     """Rebuild one product valuation from immutable stock movement history.
 
     ``valuation_basis`` is ``EXACT_HISTORY`` when every required cost was present,
-    ``ESTIMATED_LEGACY`` when at least one unknown zero-cost legacy quantity had to
-    inherit a known cost, and ``NO_COST_HISTORY`` when no usable cost exists.
+    ``ESTIMATED_LEGACY`` when legacy data required a conservative inference, and
+    ``NO_COST_HISTORY`` when no usable acquisition cost exists.
     """
     product = db.session.scalar(
         select(Product).where(Product.bar_id == bar_id, Product.id == product_id)
     )
     if not product:
+        raise LookupError("NOT_FOUND")
+    bar = db.session.get(Bar, bar_id)
+    if not bar:
         raise LookupError("NOT_FOUND")
 
     movements = list(
@@ -140,26 +192,30 @@ def replay_product_valuation(bar_id: int, product_id: int) -> dict:
                     quantity += delta
                     continue
 
-            raw_cost = _cost(movement.unit_cost_snapshot)
+            replay_cost, normalization_reason = _legacy_purchase_cost(product, movement, bar.currency)
+            if normalization_reason:
+                estimated = True
+                estimate_reasons.add(normalization_reason)
+
             if delta > 0:
-                if raw_cost == 0 and unit_cost > 0:
+                if replay_cost == 0 and unit_cost > 0:
                     estimated = True
                     estimate_reasons.add("ZERO_COST_INFLOW_INHERITED")
-                elif quantity > 0 and unit_cost == 0 and raw_cost > 0:
+                elif quantity > 0 and unit_cost == 0 and replay_cost > 0:
                     estimated = True
                     estimate_reasons.add("OPENING_COST_INFERRED")
 
-            effective_cost = raw_cost
-            if delta > 0 and raw_cost == 0 and unit_cost > 0:
+            effective_cost = replay_cost
+            if delta > 0 and replay_cost == 0 and unit_cost > 0:
                 effective_cost = unit_cost
-            elif delta > 0 and quantity > 0 and unit_cost == 0 and raw_cost > 0:
-                effective_cost = raw_cost
+            elif delta > 0 and quantity > 0 and unit_cost == 0 and replay_cost > 0:
+                effective_cost = replay_cost
 
             next_cost = moving_average_cost(
                 quantity,
                 unit_cost,
                 delta,
-                raw_cost,
+                replay_cost,
             )
             quantity += delta
             unit_cost = next_cost
