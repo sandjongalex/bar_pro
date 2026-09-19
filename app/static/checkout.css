@@ -117,3 +117,30 @@ body .cashier-mobile-bar a,body .cashier-mobile-bar button{touch-action:manipula
   body .cashier-order-link{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px}
   body .cashier-order-money{font-size:.82rem}
 }
+
+/* Cashier focus mode: maximize workspace on desktop, tablet and phone. */
+body:has(.cashier-workspace-head) .sidebar{display:none!important}
+body:has(.cashier-workspace-head) .mobile-nav{display:none!important}
+body:has(.cashier-workspace-head) .app-main{width:100%;flex:1 1 100%;min-width:0}
+body:has(.cashier-workspace-head) .content-area{width:100%;max-width:none;margin:0;padding:18px 20px 28px}
+body:has(.cashier-workspace-head) .topbar{height:60px;padding:0 20px}
+body:has(.cashier-workspace-head) .topbar-kicker{font-size:.58rem}
+body:has(.cashier-workspace-head) .topbar .brand-mark-sm{width:32px;height:32px;border-radius:9px}
+
+@media(min-width:1200px){
+  body:has(.cashier-workspace-head) .content-area{padding:18px 24px 30px}
+  body:has(.cashier-workspace-head) .cashier-main-grid{grid-template-columns:minmax(520px,1fr) minmax(420px,480px)}
+  body:has(.cashier-workspace-head) .cashier-sale-layout{grid-template-columns:minmax(0,1fr) 390px}
+}
+
+@media(min-width:700px) and (max-width:1199px){
+  body:has(.cashier-workspace-head) .content-area{padding:14px 16px 26px}
+  body:has(.cashier-workspace-head) .topbar{height:56px;padding:0 16px}
+}
+
+@media(max-width:699px){
+  body:has(.cashier-workspace-head) .topbar{height:54px;padding:0 10px}
+  body:has(.cashier-workspace-head) .topbar .topbar-kicker{display:none}
+  body:has(.cashier-workspace-head) .topbar strong{font-size:.86rem}
+  body:has(.cashier-workspace-head) .topbar .btn{min-height:38px}
+}
