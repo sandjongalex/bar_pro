@@ -30,6 +30,13 @@ def _assignment(bar_id: int):
     )
 
 
+def _decimal_text(value) -> str:
+    number = Decimal(value or 0)
+    if not number.is_finite():
+        return str(number)
+    return format(number.normalize(), "f")
+
+
 def _message(code) -> str:
     messages = {
         "INVALID_LINES": "La commande doit garder au moins un produit avec une quantité valide.",
@@ -124,9 +131,9 @@ def state(bar_id: int, order_id: int):
             {
                 "product_id": line["product_id"],
                 "name": line["product_name_snapshot"],
-                "quantity": str(quantity.normalize()),
-                "stock": str(available.normalize()),
-                "max_quantity": str(maximum.normalize()),
+                "quantity": _decimal_text(quantity),
+                "stock": _decimal_text(available),
+                "max_quantity": _decimal_text(maximum),
             }
         )
 
@@ -146,7 +153,7 @@ def state(bar_id: int, order_id: int):
             {
                 "id": product.id,
                 "name": product.name,
-                "stock": str(available.normalize()),
+                "stock": _decimal_text(available),
                 "unit": product.base_unit,
             }
         )
