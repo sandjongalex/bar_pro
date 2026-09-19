@@ -74,6 +74,31 @@ def _cash_session_open(bar_id):
     )
 
 
+def _cash_location_from_form(bar_id: int, order: Order):
+    """Resolve where physical cash is currently held: drawer or assigned server."""
+    mode = (request.form.get("cash_holder_mode") or "DRAWER").strip().upper()
+    if mode == "STAFF":
+        raw = (request.form.get("staff_assignment_id") or "").strip()
+        if not raw:
+            raise ValueError("INVALID_STAFF_CASH_HOLDER")
+        staff_id = int(raw)
+        staff = db.session.scalar(
+            select(StaffAssignment).where(
+                StaffAssignment.id == staff_id,
+                StaffAssignment.bar_id == bar_id,
+                StaffAssignment.role == "SERVER",
+                StaffAssignment.ended_at.is_(None),
+            )
+        )
+        if not staff or order.assigned_staff_id != staff.id:
+            raise ValueError("INVALID_STAFF_CASH_HOLDER")
+        return None, staff.id
+    if mode != "DRAWER":
+        raise ValueError("INVALID_CASH_HOLDER_MODE")
+    raw = (request.form.get("cash_session_id") or "").strip()
+    return (int(raw) if raw else None), None
+
+
 def _local_display(value, timezone_name: str) -> str:
     if value is None:
         return "—"
@@ -93,7 +118,9 @@ def _message(code) -> str:
         "INVALID_PAYMENT_AMOUNTS": "Vérifiez le montant encaissé et le montant reçu.",
         "INVALID_MIXED_PAYMENT": "Le paiement mixte doit répartir exactement le reste entre espèces et Mobile Money.",
         "INVALID_METHOD": "Le mode de paiement sélectionné est invalide.",
-        "CASH_LOCATION_REQUIRED": "Sélectionnez une caisse ouverte pour un paiement en espèces.",
+        "CASH_LOCATION_REQUIRED": "Sélectionnez où se trouvent réellement les espèces.",
+        "INVALID_CASH_HOLDER_MODE": "Le détenteur des espèces sélectionné est invalide.",
+        "INVALID_STAFF_CASH_HOLDER": "Les espèces ne peuvent être attribuées qu'à la serveuse affectée à cette commande.",
         "CASH_SESSION_REQUIRED": "Ouvrez d'abord une session de caisse avant de traiter les commandes.",
         "CASH_SESSION_NOT_OPEN": "La caisse sélectionnée n'est plus ouverte.",
         "CURRENCY_MISMATCH": "La devise de la caisse ne correspond pas à celle de la commande.",
@@ -116,9 +143,7 @@ def receipt(bar_id: int, order_id: int):
     if not bar:
         raise LookupError("NOT_FOUND")
 
-    order = db.session.scalar(
-        select(Order).where(Order.bar_id == bar_id, Order.id == order_id)
-    )
+    order = db.session.scalar(select(Order).where(Order.bar_id == bar_id, Order.id == order_id))
     if not order or order.status == "DRAFT":
         raise LookupError("NOT_FOUND")
 
@@ -267,8 +292,7 @@ def checkout(bar_id):
                 presented = _positive_decimal(request.form.get("amount_presented"))
                 if presented < cash_part:
                     raise ValueError("INVALID_PAYMENT_AMOUNTS")
-                cash_session_raw = request.form.get("cash_session_id", "").strip()
-                cash_session_id = int(cash_session_raw) if cash_session_raw else None
+                cash_session_id, staff_assignment_id = _cash_location_from_form(bar_id, order)
                 if not provider_code or not provider_transaction_id:
                     raise ValueError("PROVIDER_REFERENCE_REQUIRED")
 
@@ -282,6 +306,7 @@ def checkout(bar_id):
                     cash_part,
                     presented - cash_part,
                     cash_session_id=cash_session_id,
+                    staff_assignment_id=staff_assignment_id,
                 )
                 payment_service.record(
                     current_user,
@@ -306,13 +331,13 @@ def checkout(bar_id):
             if method == "MOBILE_MONEY" and (not provider_code or not provider_transaction_id):
                 raise ValueError("PROVIDER_REFERENCE_REQUIRED")
 
+            staff_assignment_id = None
             if method == "CASH":
                 presented = _positive_decimal(request.form.get("amount_presented"))
                 if presented < applied:
                     raise ValueError("INVALID_PAYMENT_AMOUNTS")
                 change = presented - applied
-                cash_session_raw = request.form.get("cash_session_id", "").strip()
-                cash_session_id = int(cash_session_raw) if cash_session_raw else None
+                cash_session_id, staff_assignment_id = _cash_location_from_form(bar_id, order)
                 provider_code = None
                 provider_transaction_id = None
             else:
@@ -330,6 +355,7 @@ def checkout(bar_id):
                 applied,
                 change,
                 cash_session_id=cash_session_id,
+                staff_assignment_id=staff_assignment_id,
                 provider_code=provider_code,
                 provider_transaction_id=provider_transaction_id,
             )
@@ -422,6 +448,13 @@ def checkout(bar_id):
     if selected_order is None and paid_orders:
         selected_order = paid_orders[0]
 
+    selected_server_assignment = assignments.get(selected_order.assigned_staff_id) if selected_order else None
+    selected_server_user = users.get(selected_server_assignment.user_id) if selected_server_assignment else None
+    selected_server_custody = (
+        Decimal(cash_service.custody(bar_id, selected_server_assignment.id) or 0)
+        if selected_server_assignment else Decimal("0")
+    )
+
     open_sessions = list(
         db.session.scalars(
             select(CashSession)
@@ -479,6 +512,9 @@ def checkout(bar_id):
         lines_by_order=lines_by_order,
         selected_order=selected_order,
         server_name_by_order=server_name_by_order,
+        selected_server_assignment=selected_server_assignment,
+        selected_server_user=selected_server_user,
+        selected_server_custody=selected_server_custody,
         open_sessions=open_sessions,
         cash_expected=cash_expected,
         customers=customers,
