@@ -8,6 +8,7 @@
   <link href="{{ url_for('static', filename='app.css') }}" rel="stylesheet">
   <link href="{{ url_for('static', filename='dashboard.css') }}" rel="stylesheet">
   <link href="{{ url_for('static', filename='dashboard_charts.css') }}" rel="stylesheet">
+  <link href="{{ url_for('static', filename='dashboard_inventory.css') }}" rel="stylesheet">
   <link href="{{ url_for('static', filename='bars.css') }}" rel="stylesheet">
   <link href="{{ url_for('static', filename='staff.css') }}" rel="stylesheet">
   <link href="{{ url_for('static', filename='catalog.css') }}" rel="stylesheet">
@@ -65,7 +66,10 @@
       <a class="{% if request.endpoint and (request.endpoint.startswith('bars.') or request.endpoint.startswith('staff_web.') or request.endpoint.startswith('catalog.') or request.endpoint.startswith('stock.') or request.endpoint.startswith('inventories.') or request.endpoint.startswith('purchases_web.') or request.endpoint.startswith('supplier_debts_web.') or request.endpoint.startswith('orders_web.') or request.endpoint.startswith('checkout_web.') or request.endpoint.startswith('customers_web.')) %}active{% endif %}" href="{{ url_for('bars.web_list') }}">Établissements</a>
     </nav>
 
-    <main id="main" class="content-area">{% block content %}{% endblock %}</main>
+    <main id="main" class="content-area">
+      {% block content %}{% endblock %}
+      {% if inventory_control %}{% include 'dashboard_inventory_control.html' %}{% endif %}
+    </main>
   </div>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
