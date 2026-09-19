@@ -1,0 +1,159 @@
+{% extends 'layout.html' %}
+{% block title %}Remises serveuses · {{ bar.name }}{% endblock %}
+{% block header %}Remises serveuses · {{ bar.name }}{% endblock %}
+{% block content %}
+<section class="checkout-hero">
+  <div>
+    <a class="bar-back" href="{{ url_for('cashier_web.daily', bar_id=bar.id) }}">← Retour à la gestion de caisse</a>
+    <p class="eyebrow mt-3 mb-2">Espèces détenues par l'équipe</p>
+    <h1>Remises des serveuses</h1>
+    <p>Préparez une remise à partir des espèces réellement attribuées à une serveuse, comptez le montant remis, puis confirmez la réception pour transférer l'argent dans la caisse.</p>
+  </div>
+  <div class="d-flex gap-2 flex-wrap">
+    <a class="btn btn-outline-primary" href="{{ url_for('checkout_web.checkout', bar_id=bar.id) }}">Commandes</a>
+    <a class="btn btn-primary" href="{{ url_for('cashier_web.session', bar_id=bar.id) }}">Contrôler la caisse</a>
+  </div>
+</section>
+
+{% for category, message in get_flashed_messages(with_categories=true) %}
+<div class="alert alert-{{ category }} mt-3" role="status">{{ message }}</div>
+{% endfor %}
+
+<section class="checkout-stats mt-4" aria-label="Résumé des remises">
+  <article><span>Chez les serveuses</span><strong>{{ "{:,.0f}".format(total_custody) }} {{ bar.currency }}</strong><small>Espèces encore sous garde employé</small></article>
+  <article><span>Remises en attente</span><strong>{{ pending_count }}</strong><small>{{ "{:,.0f}".format(pending_amount) }} {{ bar.currency }} à confirmer</small></article>
+  <article><span>Reçues ce service</span><strong>{{ "{:,.0f}".format(posted_total) }} {{ bar.currency }}</strong><small>Transférées dans la caisse ouverte</small></article>
+  <article><span>Caisse attendue</span><strong>{{ "{:,.0f}".format(drawer_expected) }} {{ bar.currency }}</strong><small>Après remises déjà confirmées</small></article>
+</section>
+
+<div class="row g-4 mt-1">
+  <div class="col-xl-7">
+    <section class="panel-card h-100">
+      <div class="panel-header">
+        <div><p class="eyebrow mb-1">Garde d'espèces</p><h2>Serveuses actives</h2></div>
+        <span class="badge text-bg-light">{{ server_rows|length }}</span>
+      </div>
+      {% if server_rows %}
+      <div class="table-responsive">
+        <table class="table align-middle mb-0">
+          <thead><tr><th>Serveuse</th><th class="text-end">Espèces attribuées</th><th style="min-width:280px">Préparer une remise</th></tr></thead>
+          <tbody>
+          {% for row in server_rows %}
+          <tr>
+            <td><strong>{{ row.name }}</strong><small class="d-block text-secondary">Affectation #{{ row.assignment_id }}</small></td>
+            <td class="text-end"><strong>{{ "{:,.0f}".format(row.custody) }} {{ bar.currency }}</strong></td>
+            <td>
+              {% if row.custody > 0 %}
+              <form method="post" class="d-flex gap-2 align-items-center flex-wrap">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="action" value="create">
+                <input type="hidden" name="staff_assignment_id" value="{{ row.assignment_id }}">
+                <div class="input-group input-group-sm" style="max-width:180px">
+                  <input class="form-control" name="amount" type="number" min="1" step="1" max="{{ row.custody }}" value="{{ row.custody }}" required>
+                  <span class="input-group-text">{{ bar.currency }}</span>
+                </div>
+                <button class="btn btn-sm btn-outline-primary" type="submit">Préparer</button>
+              </form>
+              {% else %}
+              <span class="text-secondary small">Aucune espèce à remettre</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="p-4 text-secondary">Aucune serveuse active dans cet établissement.</div>
+      {% endif %}
+    </section>
+  </div>
+
+  <div class="col-xl-5">
+    <section class="panel-card p-4 h-100">
+      <p class="eyebrow mb-1">Procédure</p>
+      <h2 class="h4">Comment valider une remise</h2>
+      <div class="info-list mt-3">
+        <div><span>1</span><strong>Préparez le montant annoncé</strong></div>
+        <div><span>2</span><strong>Comptez physiquement les espèces reçues</strong></div>
+        <div><span>3</span><strong>Confirmez uniquement si le montant est exact</strong></div>
+      </div>
+      <div class="checkout-warning mt-4">
+        <strong>Important :</strong> préparer une remise ne modifie aucun solde. Le transfert n'a lieu qu'au clic sur « Confirmer la réception ».
+      </div>
+    </section>
+  </div>
+</div>
+
+<section class="panel-card mt-4">
+  <div class="panel-header">
+    <div><p class="eyebrow mb-1">À traiter</p><h2>Remises en attente de confirmation</h2></div>
+    <span class="badge text-bg-warning">{{ pending_count }}</span>
+  </div>
+  {% set pending_items = handovers|selectattr('status', 'equalto', 'DRAFT')|list %}
+  {% if pending_items %}
+  <div class="p-3 d-grid gap-3">
+    {% for item in pending_items %}
+    <article class="border rounded-4 p-3">
+      <div class="d-flex justify-content-between gap-3 flex-wrap align-items-center">
+        <div>
+          <strong>{{ name_by_assignment.get(item.staff_assignment_id, 'Serveuse') }}</strong>
+          <small class="d-block text-secondary">{{ item.reference }} · demandé par {{ user_name_by_id.get(item.requested_by_id, 'Utilisateur') }}</small>
+        </div>
+        <div class="text-end"><strong>{{ "{:,.0f}".format(item.amount) }} {{ item.currency }}</strong><small class="d-block text-warning">À compter</small></div>
+      </div>
+      <div class="d-flex gap-2 mt-3 flex-wrap">
+        <form method="post" class="flex-grow-1">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="action" value="post">
+          <input type="hidden" name="handover_id" value="{{ item.id }}">
+          <button class="btn btn-success w-100" type="submit">Confirmer la réception</button>
+        </form>
+        <form method="post">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="action" value="cancel">
+          <input type="hidden" name="handover_id" value="{{ item.id }}">
+          <button class="btn btn-outline-secondary" type="submit">Annuler</button>
+        </form>
+      </div>
+    </article>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="p-4 text-secondary">Aucune remise en attente.</div>
+  {% endif %}
+</section>
+
+<section class="panel-card mt-4">
+  <div class="panel-header"><div><p class="eyebrow mb-1">Traçabilité</p><h2>Historique du service</h2></div></div>
+  {% if handovers %}
+  <div class="table-responsive">
+    <table class="table align-middle mb-0">
+      <thead><tr><th>Référence</th><th>Serveuse</th><th>État</th><th>Date</th><th class="text-end">Montant</th></tr></thead>
+      <tbody>
+      {% for item in handovers %}
+      <tr>
+        <td><strong>{{ item.reference }}</strong></td>
+        <td>{{ name_by_assignment.get(item.staff_assignment_id, 'Serveuse') }}</td>
+        <td>
+          {% if item.status == 'POSTED' %}<span class="badge text-bg-success">Reçue</span>
+          {% elif item.status == 'CANCELLED' %}<span class="badge text-bg-secondary">Annulée</span>
+          {% else %}<span class="badge text-bg-warning">En attente</span>{% endif %}
+        </td>
+        <td>{{ handover_times.get(item.id, '—') }}</td>
+        <td class="text-end"><strong>{{ "{:,.0f}".format(item.amount) }} {{ item.currency }}</strong></td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="p-4 text-secondary">Aucune remise enregistrée pendant ce service.</div>
+  {% endif %}
+</section>
+
+<div class="dashboard-definition-note mt-3">
+  <strong>Règle de caisse :</strong>
+  <span>une remise confirmée diminue la garde d'espèces de la serveuse et augmente exactement du même montant la caisse ouverte. Aucune vente ni aucun encaissement n'est créé une seconde fois.</span>
+</div>
+{% endblock %}
