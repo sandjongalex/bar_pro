@@ -36,6 +36,14 @@
 /* Shared grouped navigation */
 .app-nav { display:grid; gap:.28rem; }
 .nav-direct { display:grid; gap:.18rem; margin-bottom:.28rem; }
+.nav-role-label {
+  padding:.35rem .78rem .2rem;
+  color:#789087;
+  font-size:.62rem;
+  font-weight:900;
+  letter-spacing:.09em;
+  text-transform:uppercase;
+}
 .app-nav .nav-link {
   min-height:42px;
   padding:.62rem .78rem;
@@ -110,6 +118,7 @@
 .sidebar .nav-sublink:hover { color:#fff; background:rgba(255,255,255,.055); }
 .sidebar .nav-sublink.active { color:#fff; background:rgba(255,255,255,.09); }
 .sidebar .app-nav .nav-link.active { background:rgba(255,255,255,.105); }
+.sidebar .nav-role-label { color:#6f9186; }
 .sidebar-footer { margin-top:1rem; }
 
 /* Tablet / phone navigation drawer */
@@ -164,6 +173,7 @@
 }
 .app-nav-drawer .nav-sublink:hover { color:var(--brand); background:#eef5f2; }
 .app-nav-drawer .nav-sublink.active { color:var(--brand); background:#e7f2ee; }
+.app-nav-drawer .nav-role-label { padding-top:.5rem; color:#60736c; }
 .drawer-user-card {
   display:flex;
   align-items:center;
