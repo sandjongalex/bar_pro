@@ -108,6 +108,7 @@
     </header>
 
     <main id="main" class="content-area">
+      {% include '_context_navigation.html' %}
       {% block content %}{% endblock %}
       {% if request.endpoint == 'web.dashboard' and dashboard_data %}
         {% if inventory_control %}
