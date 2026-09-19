@@ -15,6 +15,8 @@
   const ink = styles.getPropertyValue('--ink').trim() || '#17231f';
   const muted = styles.getPropertyValue('--muted').trim() || '#6f7d78';
   const line = styles.getPropertyValue('--line').trim() || '#e5ebe8';
+  const receiptsColor = '#3478c7';
+  const expensesColor = '#c94d4d';
   const currency = data.currency || 'XAF';
 
   const money = new Intl.NumberFormat('fr-FR', {
@@ -139,6 +141,74 @@
             position: 'right',
             grid: { drawOnChartArea: false },
             ticks: { precision: 0 },
+          },
+        },
+      },
+    });
+  }
+
+  const trendCanvas = document.getElementById('salesTrendChart');
+  if (trendCanvas && data.trend_7d?.labels?.length) {
+    new Chart(trendCanvas, {
+      type: 'line',
+      data: {
+        labels: data.trend_7d.labels,
+        datasets: [
+          {
+            label: 'Ventes',
+            data: data.trend_7d.sales,
+            borderColor: brand,
+            backgroundColor: brand,
+            pointRadius: 4,
+            pointHoverRadius: 6,
+            tension: 0.28,
+          },
+          {
+            label: 'Encaissements',
+            data: data.trend_7d.receipts,
+            borderColor: receiptsColor,
+            backgroundColor: receiptsColor,
+            pointRadius: 4,
+            pointHoverRadius: 6,
+            tension: 0.28,
+          },
+          {
+            label: 'Dépenses',
+            data: data.trend_7d.expenses,
+            borderColor: expensesColor,
+            backgroundColor: expensesColor,
+            pointRadius: 4,
+            pointHoverRadius: 6,
+            tension: 0.28,
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+          legend: {
+            position: 'bottom',
+            labels: { usePointStyle: true, boxWidth: 8 },
+          },
+          tooltip: {
+            callbacks: {
+              label: (context) => `${context.dataset.label}: ${money.format(context.raw)} ${currency}`,
+            },
+          },
+        },
+        scales: {
+          x: {
+            grid: { display: false },
+            ticks: { color: ink, font: { weight: '600' } },
+          },
+          y: {
+            beginAtZero: true,
+            grid: { color: line },
+            ticks: {
+              callback: (value) => money.format(value),
+            },
           },
         },
       },
