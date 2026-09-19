@@ -117,8 +117,6 @@ def test_legacy_case_price_is_normalized_to_bottle_cost_during_replay(env):
     db.session.flush()
     supplier = _supplier(owner, bar)
 
-    # Mimic the historical defect: quantity was stored as bottles while 7800,
-    # the configured 12-bottle case price, was stored as the unit cost.
     _receive(owner, bar, legacy, supplier, "LEGACY-CASE", 2, 7800)
     stock_service.move(
         owner,
@@ -155,6 +153,63 @@ def test_legacy_case_price_is_normalized_to_bottle_cost_during_replay(env):
     assert preview["new_unit_cost"] == Decimal("650.0000")
     assert preview["valuation_basis"] == "ESTIMATED_LEGACY"
     assert "LEGACY_CASE_PRICE_NORMALIZED" in preview["estimate_reasons"]
+
+
+def test_legacy_case_price_can_match_received_case_history_when_default_changed(env):
+    _, owner, bar, _, product, _, _, _ = env
+    legacy = Product(
+        bar_id=bar.id,
+        category_id=product.category_id,
+        sku="LEGACY-BEAUFORT",
+        name="Beaufort",
+        base_unit="bottle",
+        sale_price=Decimal("800"),
+        valuation_unit_cost=Decimal("0"),
+        stock_alert_threshold=0,
+        units_per_case=12,
+        is_active=True,
+    )
+    db.session.add(legacy)
+    db.session.flush()
+    supplier = _supplier(owner, bar)
+
+    # Historical row contains a case price in a BOTTLE line. The configured
+    # default is 7800, but this bar actually bought the case at 7500.
+    _receive(owner, bar, legacy, supplier, "LEGACY-BEAUFORT", 1, 7500)
+    stock_service.move(
+        owner,
+        bar.id,
+        legacy.id,
+        "INVENTORY_ADJUSTMENT",
+        29,
+        "Legacy physical count",
+        unit_cost_snapshot=0,
+    )
+    proper = purchase_service.create(
+        owner,
+        bar.id,
+        supplier.id,
+        "PROPER-BEAUFORT",
+        [
+            {
+                "product_id": legacy.id,
+                "purchase_unit": "CASE",
+                "purchase_quantity": 2,
+                "purchase_unit_price": 7500,
+                "units_per_case": 12,
+            }
+        ],
+    )
+    purchase_service.receive(owner, bar.id, proper.id)
+    legacy.valuation_unit_cost = Decimal("0")
+    db.session.flush()
+
+    preview = replay_product_valuation(bar.id, legacy.id)
+    assert preview["quantity_matches"] is True
+    assert preview["balance_quantity"] == Decimal("54")
+    assert preview["new_unit_cost"] == Decimal("625.0000")
+    assert preview["valuation_basis"] == "ESTIMATED_LEGACY"
+    assert "LEGACY_CASE_PRICE_MATCHED_TO_CASE_HISTORY" in preview["estimate_reasons"]
 
 
 def test_immediate_purchase_correction_restores_previous_valuation(env):
