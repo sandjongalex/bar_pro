@@ -89,12 +89,14 @@ def test_server_web_editor_can_replace_own_waiting_order(env):
     assert payload["order"]["editable"] is True
     assert payload["order"]["delivered"] is False
     assert payload["order"]["lines"][0]["quantity"] == "2"
+    assert len(payload["order"]["revision"]) == 64
     assert any(item["id"] == second.id for item in payload["products"])
 
     response = client.post(
         f"/bars/{bar.id}/order-edits/{order.id}",
         data={
             "csrf_token": _csrf(page),
+            "order_revision": payload["order"]["revision"],
             "product_id": str(second.id),
             "quantity": "1",
         },
@@ -158,6 +160,7 @@ def test_cashier_web_editor_updates_delivered_unpaid_order(env):
         f"/bars/{bar.id}/order-edits/{order.id}",
         data={
             "csrf_token": _csrf(workspace),
+            "order_revision": payload["order"]["revision"],
             "product_id": str(second.id),
             "quantity": "1",
             "reason": "Client change sa commande",
@@ -172,3 +175,56 @@ def test_cashier_web_editor_updates_delivered_unpaid_order(env):
     assert len(effective) == 1
     assert effective[0]["product_id"] == second.id
     assert effective[0]["quantity"] == 1
+
+
+def test_stale_second_editor_cannot_overwrite_first_edit(env):
+    app, _, bar, _, product, server, _, _ = env
+    second = _second_product(env)
+    order = order_service.create(
+        server,
+        bar.id,
+        "SERVER-WEB-CONFLICT",
+        [{"product_id": product.id, "quantity": 2}],
+    )
+    db.session.commit()
+
+    first = app.test_client()
+    second_client = app.test_client()
+    assert _login(first, server.email).status_code == 302
+    assert _login(second_client, server.email).status_code == 302
+
+    first_page = first.get(f"/bars/{bar.id}/orders/new")
+    second_page = second_client.get(f"/bars/{bar.id}/orders/new")
+    first_state = first.get(f"/bars/{bar.id}/order-edits/{order.id}").get_json()
+    second_state = second_client.get(f"/bars/{bar.id}/order-edits/{order.id}").get_json()
+    assert first_state["order"]["revision"] == second_state["order"]["revision"]
+
+    first_response = first.post(
+        f"/bars/{bar.id}/order-edits/{order.id}",
+        data={
+            "csrf_token": _csrf(first_page),
+            "order_revision": first_state["order"]["revision"],
+            "product_id": str(product.id),
+            "quantity": "3",
+        },
+        follow_redirects=False,
+    )
+    assert first_response.status_code == 302
+
+    stale_response = second_client.post(
+        f"/bars/{bar.id}/order-edits/{order.id}",
+        data={
+            "csrf_token": _csrf(second_page),
+            "order_revision": second_state["order"]["revision"],
+            "product_id": str(second.id),
+            "quantity": "1",
+        },
+        follow_redirects=True,
+    )
+    assert stale_response.status_code == 200
+    assert "Cette commande a changé sur un autre appareil" in stale_response.text
+
+    lines = list(db.session.scalars(select(OrderLine).where(OrderLine.order_id == order.id)))
+    assert len(lines) == 1
+    assert lines[0].product_id == product.id
+    assert lines[0].quantity == 3
