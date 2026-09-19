@@ -227,9 +227,9 @@ def detail(bar_id, inventory_id):
         try:
             if action in {"counts", "post"}:
                 quantities = {
-                    key[9:]: value
+                    key[9:]: (value.strip() or "0")
                     for key, value in request.form.items()
-                    if key.startswith("quantity_") and value.strip()
+                    if key.startswith("quantity_")
                 }
                 notes = {
                     key[5:]: value
