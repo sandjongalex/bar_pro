@@ -7,9 +7,15 @@ from app.models import CashSession, StaffAssignment, User, utcnow
 from test_workflows import env
 
 
+def _csrf_from(page):
+    match = re.search(r'name=["\']csrf_token["\']\s+value=["\']([^"\']+)["\']', page.text)
+    assert match is not None, page.text
+    return match.group(1)
+
+
 def _login(client, email, password="test-password"):
     page = client.get("/login")
-    csrf = re.search("name='csrf_token' value='([^']+)'", page.text).group(1)
+    csrf = _csrf_from(page)
     return client.post(
         "/login",
         data={"email": email, "password": password, "csrf_token": csrf},
@@ -46,7 +52,7 @@ def test_cashier_must_open_session_before_checkout(env):
     assert "Ouvrir ma caisse" in opening.text
     assert "Esther" in opening.text
 
-    csrf = re.search('name="csrf_token" value="([^"]+)"', opening.text).group(1)
+    csrf = _csrf_from(opening)
     response = client.post(
         f"/bars/{bar.id}/cashier-session",
         data={"opening_amount": "25000", "csrf_token": csrf},
