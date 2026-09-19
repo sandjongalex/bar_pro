@@ -27,7 +27,12 @@
       <a class="btn btn-outline-dark" target="_blank" rel="noopener" href="{{ url_for('reports_web.printable', bar_id=bar.id, start=start, end=end) }}">Imprimer</a>
     </div>
   </form>
-  <small class="text-secondary">Période du {{ start }} au {{ end }} inclus · Fuseau {{ report.period.timezone }}</small>
+  <div class="reports-presets" aria-label="Périodes rapides">
+    {% for preset in presets %}
+      <a class="reports-preset {% if preset.start == start and preset.end == end %}active{% endif %}" href="{{ url_for('reports_web.desk', bar_id=bar.id, start=preset.start, end=preset.end) }}">{{ preset.label }}</a>
+    {% endfor %}
+  </div>
+  <small class="text-secondary d-block mt-2">Période du {{ start }} au {{ end }} inclus · Fuseau {{ report.period.timezone }}</small>
 </section>
 
 <section class="reports-kpi-grid mt-4" aria-label="Indicateurs du rapport">
@@ -39,6 +44,71 @@
   <article class="reports-kpi"><span>Dettes fournisseurs</span><strong>{{ "{:,.0f}".format(report.supplier_payables.total_due|float) }} <small>{{ report.currency }}</small></strong><small>Solde fournisseur actuel</small></article>
   <article class="reports-kpi"><span>Stock total</span><strong>{{ "{:,.0f}".format(report.stock.quantity|float) }}</strong><small>Bouteilles / unités actuellement disponibles</small></article>
   <article class="reports-kpi"><span>Valeur stock vente</span><strong>{{ "{:,.0f}".format(report.stock.sale_value|float) }} <small>{{ report.currency }}</small></strong><small>Valeur potentielle au prix de vente</small></article>
+</section>
+
+<section class="panel-card reports-comparison mt-4" aria-labelledby="comparison-title">
+  <div class="panel-header">
+    <div>
+      <p class="eyebrow mb-1">Comparaison</p>
+      <h2 id="comparison-title">Période sélectionnée vs période précédente</h2>
+      <small class="text-secondary">{{ comparison.current.start }} → {{ comparison.current.end }} comparé à {{ comparison.previous.start }} → {{ comparison.previous.end }}</small>
+    </div>
+  </div>
+  {% set compare_cards = [
+    ('Ventes nettes', comparison.metrics.sales, 'money'),
+    ('Encaissements nets', comparison.metrics.receipts, 'money'),
+    ('Dépenses nettes', comparison.metrics.expenses, 'money'),
+    ('Bénéfice estimé', comparison.metrics.profit, 'money'),
+    ('Commandes soldées', comparison.metrics.orders, 'count')
+  ] %}
+  <div class="reports-comparison-grid">
+    {% for label, metric, kind in compare_cards %}
+    <article class="reports-comparison-card">
+      <span>{{ label }}</span>
+      <strong>
+        {{ "{:,.0f}".format(metric.current|float) }}{% if kind == 'money' %} <small>{{ report.currency }}</small>{% endif %}
+      </strong>
+      <div class="reports-comparison-foot">
+        <small>Avant : {{ "{:,.0f}".format(metric.previous|float) }}{% if kind == 'money' %} {{ report.currency }}{% endif %}</small>
+        {% if metric.percent is not none %}
+          <span class="comparison-delta {{ metric.direction }}">{{ '+' if metric.delta|float > 0 else '' }}{{ "{:.1f}".format(metric.percent) }}%</span>
+        {% else %}
+          <span class="comparison-delta flat">Nouvelle base</span>
+        {% endif %}
+      </div>
+    </article>
+    {% endfor %}
+  </div>
+  <p class="reports-note mt-3 mb-0">La variation indique uniquement l'écart entre les deux périodes de même durée. Elle ne qualifie pas cet écart comme favorable ou défavorable.</p>
+</section>
+
+<section class="mt-4" aria-labelledby="report-charts-title">
+  <div class="dashboard-section-heading">
+    <div><p class="eyebrow mb-1">Graphiques</p><h2 id="report-charts-title">Lecture visuelle de la période</h2></div>
+    <small class="text-secondary">Ventes, encaissements, dépenses, produits et équipe</small>
+  </div>
+  <div class="reports-chart-grid">
+    <article class="panel-card reports-chart-card reports-chart-wide">
+      <div class="panel-header"><div><p class="eyebrow mb-1">Évolution</p><h2>Activité jour par jour</h2></div></div>
+      {% if chart_data.trend.available %}
+        <div class="reports-chart-canvas reports-chart-trend"><canvas id="reportTrendChart"></canvas></div>
+      {% else %}
+        <div class="reports-chart-empty">{{ chart_data.trend.reason }}</div>
+      {% endif %}
+    </article>
+    <article class="panel-card reports-chart-card">
+      <div class="panel-header"><div><p class="eyebrow mb-1">Produits</p><h2>Top produits</h2></div></div>
+      {% if chart_data.top_products.labels %}<div class="reports-chart-canvas"><canvas id="reportTopProductsChart"></canvas></div>{% else %}<div class="reports-chart-empty">Aucune vente sur la période.</div>{% endif %}
+    </article>
+    <article class="panel-card reports-chart-card">
+      <div class="panel-header"><div><p class="eyebrow mb-1">Encaissements</p><h2>Modes de règlement</h2></div></div>
+      {% if chart_data.payment_methods.labels %}<div class="reports-chart-canvas"><canvas id="reportPaymentMethodsChart"></canvas></div>{% else %}<div class="reports-chart-empty">Aucun encaissement sur la période.</div>{% endif %}
+    </article>
+    <article class="panel-card reports-chart-card reports-chart-wide">
+      <div class="panel-header"><div><p class="eyebrow mb-1">Équipe</p><h2>Ventes par serveuse</h2></div></div>
+      {% if chart_data.servers.labels %}<div class="reports-chart-canvas"><canvas id="reportServersChart"></canvas></div>{% else %}<div class="reports-chart-empty">Aucune commande soldée attribuée sur la période.</div>{% endif %}
+    </article>
+  </div>
 </section>
 
 <div class="reports-grid mt-4">
@@ -146,4 +216,10 @@
   <strong>Important :</strong>
   <span>Les ventes et performances sont rattachées à la période où les commandes ont été entièrement soldées. Les créances clients, dettes fournisseurs et valeurs de stock représentent leur situation actuelle au moment de génération du rapport.</span>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<script id="reportChartData" type="application/json">{{ chart_data|tojson }}</script>
+<script src="{{ url_for('static', filename='reports_charts.js') }}" defer></script>
 {% endblock %}
