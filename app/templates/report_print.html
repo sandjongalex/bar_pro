@@ -1,6 +1,94 @@
-<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>Rapport {{ bar_id }}</title><link rel="stylesheet" href="{{ url_for('static', filename='reports.css') }}"></head>
-<body><main class="report"><button class="no-print" onclick="window.print()">Imprimer</button><h1>Rapport opérationnel</h1><p>Établissement : {{ bar_id }}<br>Période : {{ report.period.start or 'Toutes' }} → {{ report.period.end or 'Toutes' }}<br>Généré le : {{ generated_at }}</p>
-<h2>Ventes</h2><table><tr><th>Indicateur</th><th>Valeur</th></tr>{% for k,v in report.sales.items() if k != 'margin_note' %}<tr><td>{{ k }}</td><td>{{ v }}</td></tr>{% endfor %}</table>
-<h2>Paiements et créances</h2><table><tr><th>Indicateur</th><th>Valeur</th></tr>{% for k,v in report.payments.items() if k != 'by_method' %}<tr><td>{{ k }}</td><td>{{ v }}</td></tr>{% endfor %}<tr><td>total_due</td><td>{{ report.receivables.total_due }}</td></tr></table>
-<h2>Stocks faibles et pertes</h2><table><tr><th>Produit</th><th>Quantité</th><th>Seuil</th><th>Différence</th></tr>{% for x in report.stock.low %}<tr><td>{{ x.product }}</td><td>{{ x.quantity }}</td><td>{{ x.threshold }}</td><td>{{ x.difference }}</td></tr>{% endfor %}</table><p>Pertes : {{ report.stock.losses }}</p>
-</main></body></html>
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Rapport · {{ bar.name }}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='reports.css') }}">
+</head>
+<body class="report-print-body">
+<main class="report">
+  <div class="report-print-actions no-print"><button type="button" onclick="window.print()">Imprimer le rapport</button></div>
+  <header class="report-header">
+    <div>
+      <h1>Rapport opérationnel</h1>
+      <p><strong>{{ bar.name }}</strong><br>{{ bar.address or '' }}</p>
+    </div>
+    <p>Période : {{ start }} → {{ end }}<br>Généré le : {{ generated_at.strftime('%d/%m/%Y %H:%M') }}<br>Devise : {{ report.currency }}</p>
+  </header>
+
+  <section class="report-summary-grid">
+    <div class="report-summary-card"><span>Ventes nettes</span><strong>{{ "{:,.0f}".format(report.sales.revenue|float) }} {{ report.currency }}</strong></div>
+    <div class="report-summary-card"><span>Encaissements nets</span><strong>{{ "{:,.0f}".format(report.payments.net_received|float) }} {{ report.currency }}</strong></div>
+    <div class="report-summary-card"><span>Dépenses nettes</span><strong>{{ "{:,.0f}".format(report.expenses.total|float) }} {{ report.currency }}</strong></div>
+    <div class="report-summary-card"><span>Bénéfice estimé</span><strong>{{ "{:,.0f}".format(report.sales.estimated_profit_after_expenses|float) }} {{ report.currency }}</strong></div>
+    <div class="report-summary-card"><span>Créances clients</span><strong>{{ "{:,.0f}".format(report.receivables.customer_credit_total|float) }} {{ report.currency }}</strong></div>
+    <div class="report-summary-card"><span>Dettes fournisseurs</span><strong>{{ "{:,.0f}".format(report.supplier_payables.total_due|float) }} {{ report.currency }}</strong></div>
+    <div class="report-summary-card"><span>Stock total</span><strong>{{ "{:,.0f}".format(report.stock.quantity|float) }}</strong></div>
+    <div class="report-summary-card"><span>Valeur stock vente</span><strong>{{ "{:,.0f}".format(report.stock.sale_value|float) }} {{ report.currency }}</strong></div>
+  </section>
+
+  <h2>Ventes et marge</h2>
+  <table><tbody>
+    <tr><th>Ventes brutes</th><td class="text-end">{{ "{:,.0f}".format(report.sales.gross_revenue|float) }} {{ report.currency }}</td></tr>
+    <tr><th>Retours</th><td class="text-end">{{ "{:,.0f}".format(report.sales.returns|float) }} {{ report.currency }}</td></tr>
+    <tr><th>Ventes nettes</th><td class="text-end">{{ "{:,.0f}".format(report.sales.revenue|float) }} {{ report.currency }}</td></tr>
+    <tr><th>Commandes soldées</th><td class="text-end">{{ report.sales.orders }}</td></tr>
+    <tr><th>Marge brute estimée</th><td class="text-end">{{ "{:,.0f}".format(report.sales.gross_margin_estimate|float) }} {{ report.currency }}</td></tr>
+    <tr><th>Bénéfice estimé après dépenses</th><td class="text-end">{{ "{:,.0f}".format(report.sales.estimated_profit_after_expenses|float) }} {{ report.currency }}</td></tr>
+  </tbody></table>
+  <p class="report-note">{{ report.sales.margin_note }}</p>
+
+  <h2>Encaissements</h2>
+  <table>
+    <thead><tr><th>Indicateur</th><th class="text-end">Montant</th></tr></thead>
+    <tbody>
+      <tr><td>Paiements directs</td><td class="text-end">{{ "{:,.0f}".format(report.payments.direct_received|float) }} {{ report.currency }}</td></tr>
+      <tr><td>Règlements de crédits clients</td><td class="text-end">{{ "{:,.0f}".format(report.payments.customer_credit_collections|float) }} {{ report.currency }}</td></tr>
+      <tr><td>Remboursements</td><td class="text-end">{{ "{:,.0f}".format(report.payments.refunded|float) }} {{ report.currency }}</td></tr>
+      <tr><td><strong>Net encaissé</strong></td><td class="text-end"><strong>{{ "{:,.0f}".format(report.payments.net_received|float) }} {{ report.currency }}</strong></td></tr>
+    </tbody>
+  </table>
+
+  {% if report.payments.by_method %}
+  <table>
+    <thead><tr><th>Mode de règlement</th><th class="text-end">Net</th></tr></thead>
+    <tbody>{% for method, amount in report.payments.by_method.items() %}<tr><td>{{ method_labels.get(method, method) }}</td><td class="text-end">{{ "{:,.0f}".format(amount|float) }} {{ report.currency }}</td></tr>{% endfor %}</tbody>
+  </table>
+  {% endif %}
+
+  <h2>Produits les plus vendus</h2>
+  <table><thead><tr><th>Produit</th><th class="text-end">Quantité nette</th></tr></thead><tbody>
+    {% for item in report.top_products %}<tr><td>{{ item.name }}</td><td class="text-end">{{ "{:,.0f}".format(item.quantity|float) }}</td></tr>{% else %}<tr><td colspan="2">Aucune vente sur la période.</td></tr>{% endfor %}
+  </tbody></table>
+
+  <h2>Performance des serveuses</h2>
+  <table><thead><tr><th>Serveuse</th><th class="text-end">Commandes</th><th class="text-end">Ventes</th><th class="text-end">Crédit</th></tr></thead><tbody>
+    {% for item in report.servers %}<tr><td>{{ item.name }}</td><td class="text-end">{{ item.orders }}</td><td class="text-end">{{ "{:,.0f}".format(item.sales|float) }}</td><td class="text-end">{{ "{:,.0f}".format(item.credit_sales|float) }}</td></tr>{% else %}<tr><td colspan="4">Aucune performance disponible sur la période.</td></tr>{% endfor %}
+  </tbody></table>
+
+  <h2>Créances clients actuelles</h2>
+  <table><thead><tr><th>Client</th><th class="text-end">Montant dû</th></tr></thead><tbody>
+    {% for item in report.receivables.customer_accounts %}<tr><td>{{ item.customer }}</td><td class="text-end">{{ "{:,.0f}".format(item.amount_due|float) }} {{ report.currency }}</td></tr>{% else %}<tr><td colspan="2">Aucune créance client.</td></tr>{% endfor %}
+  </tbody></table>
+
+  <h2>Stock et contrôles</h2>
+  <table><tbody>
+    <tr><th>Stock total</th><td class="text-end">{{ "{:,.0f}".format(report.stock.quantity|float) }}</td></tr>
+    <tr><th>Valeur au coût d'achat</th><td class="text-end">{{ "{:,.0f}".format(report.stock.purchase_value|float) }} {{ report.currency }}</td></tr>
+    <tr><th>Valeur au prix de vente</th><td class="text-end">{{ "{:,.0f}".format(report.stock.sale_value|float) }} {{ report.currency }}</td></tr>
+    <tr><th>Pertes de stock sur la période</th><td class="text-end">{{ "{:,.0f}".format(report.stock.losses|float) }}</td></tr>
+    <tr><th>Écart caisse cumulé</th><td class="text-end">{{ "{:,.0f}".format(report.cash.closing_difference_total|float) }} {{ report.currency }}</td></tr>
+    <tr><th>Écart inventaire cumulé</th><td class="text-end">{{ "{:,.0f}".format(report.inventories.difference_total|float) }}</td></tr>
+    <tr><th>Dettes fournisseurs actuelles</th><td class="text-end">{{ "{:,.0f}".format(report.supplier_payables.total_due|float) }} {{ report.currency }}</td></tr>
+  </tbody></table>
+
+  <h2>Stocks faibles</h2>
+  <table><thead><tr><th>Produit</th><th>Catégorie</th><th class="text-end">Stock</th><th class="text-end">Seuil</th><th class="text-end">Écart</th></tr></thead><tbody>
+    {% for item in report.stock.low %}<tr><td>{{ item.product }}</td><td>{{ item.category or '—' }}</td><td class="text-end">{{ "{:,.0f}".format(item.quantity|float) }}</td><td class="text-end">{{ "{:,.0f}".format(item.threshold|float) }}</td><td class="text-end">{{ "{:,.0f}".format(item.difference|float) }}</td></tr>{% else %}<tr><td colspan="5">Aucun stock faible.</td></tr>{% endfor %}
+  </tbody></table>
+
+  <p class="report-note">Les créances clients, dettes fournisseurs et valeurs de stock représentent la situation actuelle au moment de la génération. Les ventes sont rattachées à la date de règlement complet de la commande.</p>
+</main>
+</body>
+</html>
