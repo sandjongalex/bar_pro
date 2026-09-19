@@ -87,99 +87,52 @@
   </div>
 
   <div class="dashboard-alert-summary">
-    <a class="dashboard-alert-counter" href="{{ url_for('stock.history', bar_id=active_bar.id) }}">
-      <span class="alert-counter-icon">▤</span><strong>{{ operational_alerts.counts.low_stock }}</strong><small>Stocks faibles</small>
-    </a>
-    <a class="dashboard-alert-counter" href="{{ url_for('checkout_web.checkout', bar_id=active_bar.id) }}">
-      <span class="alert-counter-icon">⌛</span><strong>{{ operational_alerts.counts.pending_orders }}</strong><small>Commandes à traiter</small>
-    </a>
-    <a class="dashboard-alert-counter" href="{{ url_for('supplier_debts_web.manage', bar_id=active_bar.id) }}">
-      <span class="alert-counter-icon">₣</span><strong>{{ operational_alerts.counts.supplier_debts }}</strong><small>Achats à régler</small>
-    </a>
-    <a class="dashboard-alert-counter" href="{{ url_for('inventories.listing', bar_id=active_bar.id) }}">
-      <span class="alert-counter-icon">≣</span><strong>{{ operational_alerts.counts.inventory_drafts }}</strong><small>Inventaires brouillons</small>
-    </a>
-    <a class="dashboard-alert-counter" href="{{ url_for('finance_web.desk', bar_id=active_bar.id) }}">
-      <span class="alert-counter-icon">±</span><strong>{{ operational_alerts.counts.cash_differences }}</strong><small>Écarts de caisse</small>
-    </a>
-    <a class="dashboard-alert-counter" href="#dashboard-notifications">
-      <span class="alert-counter-icon">●</span><strong>{{ operational_alerts.counts.unread_notifications }}</strong><small>Notifications non lues</small>
-    </a>
+    <a class="dashboard-alert-counter" href="{{ url_for('stock.history', bar_id=active_bar.id) }}"><span class="alert-counter-icon">▤</span><strong>{{ operational_alerts.counts.low_stock }}</strong><small>Stocks faibles</small></a>
+    <a class="dashboard-alert-counter" href="{{ url_for('checkout_web.checkout', bar_id=active_bar.id) }}"><span class="alert-counter-icon">⌛</span><strong>{{ operational_alerts.counts.pending_orders }}</strong><small>Commandes à traiter</small></a>
+    <a class="dashboard-alert-counter" href="{{ url_for('supplier_debts_web.manage', bar_id=active_bar.id) }}"><span class="alert-counter-icon">₣</span><strong>{{ operational_alerts.counts.supplier_debts }}</strong><small>Achats à régler</small></a>
+    <a class="dashboard-alert-counter" href="{{ url_for('inventories.listing', bar_id=active_bar.id) }}"><span class="alert-counter-icon">≣</span><strong>{{ operational_alerts.counts.inventory_drafts }}</strong><small>Inventaires brouillons</small></a>
+    <a class="dashboard-alert-counter" href="{{ url_for('finance_web.desk', bar_id=active_bar.id) }}"><span class="alert-counter-icon">±</span><strong>{{ operational_alerts.counts.cash_differences }}</strong><small>Écarts de caisse</small></a>
+    <a class="dashboard-alert-counter" href="#dashboard-notifications"><span class="alert-counter-icon">●</span><strong>{{ operational_alerts.counts.unread_notifications }}</strong><small>Notifications non lues</small></a>
   </div>
 
   <div class="dashboard-alert-grid mt-3">
     <article class="dashboard-alert-panel">
-      <div class="dashboard-alert-panel-head">
-        <div><span class="alert-kicker">Stock</span><h3>Produits à surveiller</h3></div>
-        <a href="{{ url_for('stock.history', bar_id=active_bar.id) }}">Voir le stock</a>
-      </div>
+      <div class="dashboard-alert-panel-head"><div><span class="alert-kicker">Stock</span><h3>Produits à surveiller</h3></div><a href="{{ url_for('stock.history', bar_id=active_bar.id) }}">Voir le stock</a></div>
       <div class="dashboard-alert-list">
         {% for item in operational_alerts.low_stock %}
-          <div class="dashboard-alert-row">
-            <div><strong>{{ item.name }}</strong><small>{{ item.unit }}</small></div>
-            <div class="text-end"><span class="alert-value {% if item.quantity <= 0 %}is-danger{% else %}is-warning{% endif %}">{{ "{:,.0f}".format(item.quantity) }}</span><small>Seuil {{ "{:,.0f}".format(item.threshold) }}</small></div>
-          </div>
-        {% else %}
-          <div class="dashboard-alert-empty">Aucun produit sous son seuil d'alerte.</div>
-        {% endfor %}
+          <div class="dashboard-alert-row"><div><strong>{{ item.name }}</strong><small>{{ item.unit }}</small></div><div class="text-end"><span class="alert-value {% if item.quantity <= 0 %}is-danger{% else %}is-warning{% endif %}">{{ "{:,.0f}".format(item.quantity) }}</span><small>Seuil {{ "{:,.0f}".format(item.threshold) }}</small></div></div>
+        {% else %}<div class="dashboard-alert-empty">Aucun produit sous son seuil d'alerte.</div>{% endfor %}
       </div>
     </article>
 
     <article class="dashboard-alert-panel">
-      <div class="dashboard-alert-panel-head">
-        <div><span class="alert-kicker">Ventes</span><h3>Commandes à traiter</h3></div>
-        <a href="{{ url_for('checkout_web.checkout', bar_id=active_bar.id) }}">Ouvrir la caisse</a>
-      </div>
+      <div class="dashboard-alert-panel-head"><div><span class="alert-kicker">Ventes</span><h3>Commandes à traiter</h3></div><a href="{{ url_for('checkout_web.checkout', bar_id=active_bar.id) }}">Ouvrir la caisse</a></div>
       <div class="dashboard-alert-list">
         {% for item in operational_alerts.pending_orders %}
-          <div class="dashboard-alert-row">
-            <div><strong>{{ item.reference }}</strong><small>{{ item.label }} · {{ item.action }}</small></div>
-            <div class="text-end"><span class="alert-value">{{ "{:,.0f}".format(item.total) }}</span><small>{{ dashboard_data.currency }}</small></div>
-          </div>
-        {% else %}
-          <div class="dashboard-alert-empty">Aucune commande en attente.</div>
-        {% endfor %}
+          <div class="dashboard-alert-row"><div><strong>{{ item.reference }}</strong><small>{{ item.label }} · {{ item.action }}</small></div><div class="text-end"><span class="alert-value">{{ "{:,.0f}".format(item.total) }}</span><small>{{ dashboard_data.currency }}</small></div></div>
+        {% else %}<div class="dashboard-alert-empty">Aucune commande en attente.</div>{% endfor %}
       </div>
     </article>
 
     <article class="dashboard-alert-panel">
-      <div class="dashboard-alert-panel-head">
-        <div><span class="alert-kicker">Fournisseurs</span><h3>Dettes principales</h3></div>
-        <a href="{{ url_for('supplier_debts_web.manage', bar_id=active_bar.id) }}">Voir les dettes</a>
-      </div>
+      <div class="dashboard-alert-panel-head"><div><span class="alert-kicker">Fournisseurs</span><h3>Dettes principales</h3></div><a href="{{ url_for('supplier_debts_web.manage', bar_id=active_bar.id) }}">Voir les dettes</a></div>
       <div class="dashboard-alert-list">
         {% for item in operational_alerts.supplier_debts %}
-          <div class="dashboard-alert-row">
-            <div><strong>{{ item.supplier }}</strong><small>{{ item.reference }}</small></div>
-            <div class="text-end"><span class="alert-value is-warning">{{ "{:,.0f}".format(item.due) }}</span><small>{{ dashboard_data.currency }} dus</small></div>
-          </div>
-        {% else %}
-          <div class="dashboard-alert-empty">Aucune dette fournisseur en cours.</div>
-        {% endfor %}
+          <div class="dashboard-alert-row"><div><strong>{{ item.supplier }}</strong><small>{{ item.reference }}</small></div><div class="text-end"><span class="alert-value is-warning">{{ "{:,.0f}".format(item.due) }}</span><small>{{ dashboard_data.currency }} dus</small></div></div>
+        {% else %}<div class="dashboard-alert-empty">Aucune dette fournisseur en cours.</div>{% endfor %}
       </div>
     </article>
 
     <article class="dashboard-alert-panel">
-      <div class="dashboard-alert-panel-head">
-        <div><span class="alert-kicker">Contrôles</span><h3>Inventaires et caisse</h3></div>
-        <a href="{{ url_for('inventories.listing', bar_id=active_bar.id) }}">Inventaires</a>
-      </div>
+      <div class="dashboard-alert-panel-head"><div><span class="alert-kicker">Contrôles</span><h3>Inventaires et caisse</h3></div><a href="{{ url_for('inventories.listing', bar_id=active_bar.id) }}">Inventaires</a></div>
       <div class="dashboard-alert-list">
         {% for item in operational_alerts.inventory_drafts %}
-          <div class="dashboard-alert-row">
-            <div><strong>{{ item.reference }}</strong><small>Inventaire non validé</small></div>
-            <a class="alert-action-link" href="{{ url_for('inventories.detail', bar_id=active_bar.id, inventory_id=item.inventory_id) }}">Contrôler</a>
-          </div>
+          <div class="dashboard-alert-row"><div><strong>{{ item.reference }}</strong><small>Inventaire non validé</small></div><a class="alert-action-link" href="{{ url_for('inventories.detail', bar_id=active_bar.id, inventory_id=item.inventory_id) }}">Contrôler</a></div>
         {% endfor %}
         {% for item in operational_alerts.cash_differences %}
-          <div class="dashboard-alert-row">
-            <div><strong>{{ item.reference }}</strong><small>Caisse clôturée avec écart</small></div>
-            <div class="text-end"><span class="alert-value {% if item.difference < 0 %}is-danger{% else %}is-warning{% endif %}">{{ "+" if item.difference > 0 else "" }}{{ "{:,.0f}".format(item.difference) }}</span><small>{{ dashboard_data.currency }}</small></div>
-          </div>
+          <div class="dashboard-alert-row"><div><strong>{{ item.reference }}</strong><small>Caisse clôturée avec écart</small></div><div class="text-end"><span class="alert-value {% if item.difference < 0 %}is-danger{% else %}is-warning{% endif %}">{{ "+" if item.difference > 0 else "" }}{{ "{:,.0f}".format(item.difference) }}</span><small>{{ dashboard_data.currency }}</small></div></div>
         {% endfor %}
-        {% if not operational_alerts.inventory_drafts and not operational_alerts.cash_differences %}
-          <div class="dashboard-alert-empty">Aucun inventaire en attente ni écart de caisse à signaler.</div>
-        {% endif %}
+        {% if not operational_alerts.inventory_drafts and not operational_alerts.cash_differences %}<div class="dashboard-alert-empty">Aucun inventaire en attente ni écart de caisse à signaler.</div>{% endif %}
       </div>
     </article>
   </div>
@@ -189,57 +142,38 @@
 {% if chart_data %}
 <section class="dashboard-section mt-4" aria-labelledby="dashboard-charts-title">
   <div class="dashboard-section-heading">
-    <div>
-      <p class="eyebrow mb-1">Analyse</p>
-      <h2 id="dashboard-charts-title">Ventes et performance du jour</h2>
-    </div>
-    <small class="text-secondary">Basé sur les commandes soldées aujourd'hui</small>
+    <div><p class="eyebrow mb-1">Analyse</p><h2 id="dashboard-charts-title">Ventes et performance</h2></div>
+    <small class="text-secondary">Aujourd'hui et tendance des 7 derniers jours</small>
   </div>
 
   <div class="dashboard-chart-grid">
     <article class="dashboard-chart-card">
-      <div class="dashboard-chart-head">
-        <div><span class="alert-kicker">Produits</span><h3>Produits les plus vendus</h3></div>
-        <span class="dashboard-chart-badge">Top 5</span>
-      </div>
-      {% if chart_data.top_products.labels %}
-        <div class="dashboard-chart-canvas dashboard-chart-canvas-products"><canvas id="topProductsChart" aria-label="Graphique des produits les plus vendus"></canvas></div>
-      {% else %}
-        <div class="dashboard-chart-empty">Aucune vente soldée aujourd'hui pour établir le classement.</div>
-      {% endif %}
+      <div class="dashboard-chart-head"><div><span class="alert-kicker">Produits</span><h3>Produits les plus vendus</h3></div><span class="dashboard-chart-badge">Top 5</span></div>
+      {% if chart_data.top_products.labels %}<div class="dashboard-chart-canvas dashboard-chart-canvas-products"><canvas id="topProductsChart" aria-label="Graphique des produits les plus vendus"></canvas></div>{% else %}<div class="dashboard-chart-empty">Aucune vente soldée aujourd'hui pour établir le classement.</div>{% endif %}
     </article>
 
     <article class="dashboard-chart-card">
-      <div class="dashboard-chart-head">
-        <div><span class="alert-kicker">Équipe</span><h3>Performance des serveuses</h3></div>
-        <span class="dashboard-chart-badge">Jour</span>
-      </div>
+      <div class="dashboard-chart-head"><div><span class="alert-kicker">Équipe</span><h3>Performance des serveuses</h3></div><span class="dashboard-chart-badge">Jour</span></div>
       {% if chart_data.servers.labels %}
         <div class="dashboard-chart-canvas"><canvas id="waitressChart" aria-label="Graphique des performances des serveuses"></canvas></div>
         <div class="table-responsive dashboard-performance-table-wrap">
           <table class="table dashboard-performance-table align-middle mb-0">
             <thead><tr><th>Serveuse</th><th class="text-end">Commandes</th><th class="text-end">Ventes</th><th class="text-end">Crédit</th></tr></thead>
-            <tbody>
-              {% for row in chart_data.servers.rows %}
-              <tr>
-                <td><strong>{{ row.name }}</strong></td>
-                <td class="text-end">{{ row.orders }}</td>
-                <td class="text-end">{{ "{:,.0f}".format(row.sales) }} {{ chart_data.currency }}</td>
-                <td class="text-end">{{ "{:,.0f}".format(row.credit_sales) }} {{ chart_data.currency }}</td>
-              </tr>
-              {% endfor %}
-            </tbody>
+            <tbody>{% for row in chart_data.servers.rows %}<tr><td><strong>{{ row.name }}</strong></td><td class="text-end">{{ row.orders }}</td><td class="text-end">{{ "{:,.0f}".format(row.sales) }} {{ chart_data.currency }}</td><td class="text-end">{{ "{:,.0f}".format(row.credit_sales) }} {{ chart_data.currency }}</td></tr>{% endfor %}</tbody>
           </table>
         </div>
-      {% else %}
-        <div class="dashboard-chart-empty">Aucune commande soldée et attribuée pour aujourd'hui.</div>
-      {% endif %}
+      {% else %}<div class="dashboard-chart-empty">Aucune commande soldée et attribuée pour aujourd'hui.</div>{% endif %}
+    </article>
+
+    <article class="dashboard-chart-card dashboard-chart-card-wide">
+      <div class="dashboard-chart-head"><div><span class="alert-kicker">Tendance</span><h3>Évolution sur 7 jours</h3></div><span class="dashboard-chart-badge">7 jours</span></div>
+      <div class="dashboard-chart-canvas dashboard-chart-canvas-trend"><canvas id="salesTrendChart" aria-label="Évolution des ventes, encaissements et dépenses sur sept jours"></canvas></div>
     </article>
   </div>
 
   <div class="dashboard-definition-note mt-3">
     <strong>Lecture des graphiques :</strong>
-    <span>Le classement produits utilise les quantités nettes après retours. La performance serveuse distingue la part réglée hors crédit de la part enregistrée en crédit client.</span>
+    <span>Le classement produits utilise les quantités nettes après retours. La performance serveuse distingue le crédit client. La courbe 7 jours compare les ventes soldées, l'argent réellement encaissé et les dépenses nettes.</span>
   </div>
 </section>
 {% endif %}
@@ -288,11 +222,7 @@
 {% endif %}
 
 <section class="panel-card mt-4">
-  <div class="panel-header">
-    <div><p class="eyebrow mb-1">Gestion</p><h2>Mes établissements</h2></div>
-    <a class="btn btn-outline-primary btn-sm" href="{{ url_for('bars.web_list') }}">Voir tous</a>
-  </div>
-
+  <div class="panel-header"><div><p class="eyebrow mb-1">Gestion</p><h2>Mes établissements</h2></div><a class="btn btn-outline-primary btn-sm" href="{{ url_for('bars.web_list') }}">Voir tous</a></div>
   {% if bars %}
   <div class="table-responsive">
     <table class="table dashboard-table align-middle mb-0">
@@ -302,8 +232,7 @@
       {% for bar in bars %}
         <tr {% if active_bar and active_bar.id == bar.id %}class="table-active"{% endif %}>
           <td><div class="bar-cell"><span class="bar-avatar">{{ bar.name[0]|upper }}</span><div><strong>{{ bar.name }}</strong><small>{{ bar.address or 'Adresse non renseignée' }}</small></div></div></td>
-          <td>{{ bar.timezone }}</td>
-          <td>{{ bar.currency }}</td>
+          <td>{{ bar.timezone }}</td><td>{{ bar.currency }}</td>
           <td><span class="status-pill {% if bar.status == 'ACTIVE' %}status-active{% else %}status-suspended{% endif %}">{{ 'Actif' if bar.status == 'ACTIVE' else 'Suspendu' }}</span></td>
           <td class="text-end">
             {% set assignment = assignment_by_bar.get(bar.id) %}
@@ -319,9 +248,7 @@
   </div>
   {% else %}
   <div class="empty-state">
-    <div class="empty-icon">＋</div>
-    <h3>Aucun établissement pour le moment</h3>
-    <p>Votre tableau de bord est prêt. Ajoutez votre premier établissement pour commencer à exploiter Bar Manager Pro.</p>
+    <div class="empty-icon">＋</div><h3>Aucun établissement pour le moment</h3><p>Votre tableau de bord est prêt. Ajoutez votre premier établissement pour commencer à exploiter Bar Manager Pro.</p>
     {% if current_user.category == 'SUPER_ADMIN' %}<a class="btn btn-primary" href="{{ url_for('bars.web_create') }}">Créer le premier bar</a>{% endif %}
   </div>
   {% endif %}
@@ -329,7 +256,7 @@
 {% endblock %}
 
 {% block scripts %}
-{% if chart_data and (chart_data.top_products.labels or chart_data.servers.labels) %}
+{% if chart_data %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 <script id="dashboard-chart-data" type="application/json">{{ chart_data|tojson }}</script>
 <script src="{{ url_for('static', filename='dashboard_charts.js') }}" defer></script>
