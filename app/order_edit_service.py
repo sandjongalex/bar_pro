@@ -15,6 +15,7 @@ from app.audit import record
 from app.extensions import db
 from app.finance_totals import order_balance
 from app.models import Order, OrderLine, OrderReturn, OrderReturnLine, Product, StaffAssignment
+from app.order_concurrency import revision_matches
 from app.order_services import order_service
 from app.permissions import permissions
 from app.stock_service import stock_service
@@ -63,11 +64,24 @@ class OrderEditService:
         ).all()
         return {line_id: Decimal(quantity or 0) for line_id, quantity in rows}
 
-    def edit(self, actor, bar_id: int, order_id: int, lines, reason: str | None = None):
+    def edit(
+        self,
+        actor,
+        bar_id: int,
+        order_id: int,
+        lines,
+        reason: str | None = None,
+        expected_revision: str | None = None,
+    ):
         """Replace the *effective* product list of an editable order.
 
         Omit a product from ``lines`` to remove it. Quantities must stay positive
         for products that remain on the order.
+
+        ``expected_revision`` is optional for internal/backward-compatible callers,
+        but the web editor always supplies it.  When present, the order row is
+        locked first and the current fingerprint is checked before any mutation so
+        a stale form cannot overwrite a newer edit, delivery or payment state.
         """
         permissions.require(actor, "orders.edit", bar_id)
         order = db.session.scalar(
@@ -75,6 +89,8 @@ class OrderEditService:
         )
         if not order:
             raise LookupError("NOT_FOUND")
+        if expected_revision is not None and not revision_matches(order, expected_revision):
+            raise ValueError("ORDER_CONFLICT")
         if order.payment_status == "PAID":
             raise ValueError("ORDER_PAID")
         if order.status not in {"DRAFT", "CONFIRMED", "SERVED"}:
