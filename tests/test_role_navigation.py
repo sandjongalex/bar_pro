@@ -145,6 +145,18 @@ def test_server_navigation_is_focused_on_orders_and_notifications(env):
     assert 'data-server-section-link="orders"' in ui_script.text
     assert '.server-section-switcher' in server_css.text
 
+    # Temps réel: statut caisse + stock sont récupérés sans rechargement complet.
+    live = client.get(f"/bars/{bar.id}/live/orders")
+    assert live.status_code == 200
+    payload = live.get_json()
+    assert payload["mode"] == "SERVER"
+    assert any(item["reference"] == "SERVER-NAV-ORDER" and item["state"] == "waiting" for item in payload["orders"])
+    assert str(product.id) in payload["stock"]
+    assert 'pollLiveState' in ui_script.text
+    assert '/live/orders' in ui_script.text
+    assert '.server-pos-layout .pos-product.out-of-stock' in server_css.text
+    assert '.cashier-sale-catalog .pos-product.out-of-stock' in server_css.text
+
 
 def test_owner_keeps_full_grouped_navigation(env):
     app, owner, bar, _, _, _, _, _ = env
