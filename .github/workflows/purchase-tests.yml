@@ -20,6 +20,8 @@ jobs:
       - run: pip install -r requirements.txt
       - name: Run purchase enhancements
         run: pytest -q tests/test_purchase_enhancements.py
+      - name: Validate product display order
+        run: pytest -q tests/test_product_display_order.py
       - name: Run existing purchase and supplier workflows
         run: pytest -q tests/test_workflows.py -k 'purchase or supplier'
       - name: Validate schema table count
