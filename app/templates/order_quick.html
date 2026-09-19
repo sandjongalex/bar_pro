@@ -1,13 +1,20 @@
 {% extends 'layout.html' %}
 {% block title %}Commandes · {{ bar.name }} · Bar Manager Pro{% endblock %}
-{% block header %}Commandes · {{ bar.name }}{% endblock %}
+{% block header %}{% if is_server %}Service · {{ bar.name }}{% else %}Commandes · {{ bar.name }}{% endif %}{% endblock %}
 {% block content %}
-<section class="pos-hero">
+<section class="pos-hero {% if is_server %}server-pos-hero{% endif %}">
   <div>
     <a class="bar-back" href="{{ url_for('bars.web_detail', bar_id=bar.id) }}">← Retour à {{ bar.name }}</a>
     <p class="eyebrow mt-3 mb-2">{% if is_server %}Espace serveuse{% else %}Commandes{% endif %}</p>
-    <h1>{% if is_server %}Nouvelle commande{% else %}Point de vente{% endif %}</h1>
-    <p>Sélectionnez la table, les produits et les quantités puis envoyez la commande à la caisse. Le stock ne sera déduit que lorsque la caissière confirmera « Livrée ».</p>
+    <h1>{% if is_server %}Prendre une commande{% else %}Point de vente{% endif %}</h1>
+    {% if is_server %}
+      <p>Choisissez la table, ajoutez les produits puis envoyez la commande. La caisse prend ensuite le relais pour la livraison et l'encaissement.</p>
+      <div class="server-flow-hint" aria-label="Parcours de prise de commande">
+        <span><strong>1</strong> Table</span><span aria-hidden="true">→</span><span><strong>2</strong> Produits</span><span aria-hidden="true">→</span><span><strong>3</strong> Envoyer</span>
+      </div>
+    {% else %}
+      <p>Sélectionnez la table, les produits et les quantités puis envoyez la commande à la caisse. Le stock ne sera déduit que lorsque la caissière confirmera « Livrée ».</p>
+    {% endif %}
   </div>
   {% if can_pay %}<a class="btn btn-outline-primary" href="{{ url_for('checkout_web.checkout', bar_id=bar.id) }}">Caisse commandes →</a>{% endif %}
 </section>
@@ -23,19 +30,50 @@
 </div>
 {% endif %}
 
+{% if is_server %}
+<section class="pos-stats server-pos-stats mt-4" aria-label="Résumé de mes commandes">
+  <article><span>En attente</span><strong>{{ stats.waiting }}</strong><small>À traiter par la caisse</small></article>
+  <article><span>À payer</span><strong>{{ stats.to_pay }}</strong><small>Déjà livrées</small></article>
+  <article><span>Payées</span><strong>{{ stats.paid }}</strong><small>Terminées</small></article>
+</section>
+{% else %}
 <section class="pos-stats mt-4">
   <article><span>Produits actifs</span><strong>{{ stats.products }}</strong><small>Dans le catalogue</small></article>
   <article><span>Disponibles</span><strong>{{ stats.available }}</strong><small>Avec stock positif</small></article>
   <article><span>En attente</span><strong>{{ stats.waiting }}</strong><small>Envoyées à la caisse</small></article>
   <article><span>Payées</span><strong>{{ stats.paid }}</strong><small>Paiement validé</small></article>
 </section>
+{% endif %}
 
-<form method="post" id="posForm" class="pos-layout mt-4">
+<form method="post" id="posForm" class="pos-layout mt-4 {% if is_server %}server-pos-layout{% endif %}">
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   <input type="hidden" name="action" value="create">
 
+  {% if is_server %}
+  <section class="panel-card server-table-step" data-server-table-step aria-labelledby="serverTableHeading">
+    <div class="server-step-head">
+      <span class="server-step-number">1</span>
+      <div>
+        <p class="eyebrow mb-1">Avant les produits</p>
+        <h2 id="serverTableHeading">Où est le client ?</h2>
+        <p>Choisissez la table en un toucher. « Sans table » reste disponible pour le comptoir ou un emplacement libre.</p>
+      </div>
+    </div>
+    <input type="hidden" name="table_id" id="table_id" value="">
+    <div class="server-table-grid" id="serverTableGrid" role="group" aria-label="Choisir la table">
+      <button class="server-table-chip active" type="button" data-table-id="" data-table-label="Sans table" aria-pressed="true">Sans table</button>
+      {% for table in tables %}
+      <button class="server-table-chip" type="button" data-table-id="{{ table.id }}" data-table-label="{{ table.label }}" aria-pressed="false">
+        <strong>{{ table.label }}</strong>{% if table.capacity %}<small>{{ table.capacity }} places</small>{% endif %}
+      </button>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+
   <section class="panel-card pos-catalog">
     <div class="pos-toolbar">
+      {% if is_server %}<div class="server-section-label"><span>2</span><strong>Ajouter les produits</strong></div>{% endif %}
       <div class="pos-search"><span>⌕</span><input id="posSearch" class="form-control" type="search" placeholder="Rechercher 33 Export, Guinness, Coca..."></div>
       <div class="pos-category-tabs" id="categoryTabs">
         <button class="pos-category active" type="button" data-category="all">Tous</button>
@@ -63,16 +101,20 @@
   </section>
 
   <aside class="panel-card pos-cart-panel">
-    <div class="pos-cart-header"><div><p class="eyebrow mb-1">Commande en cours</p><h2>Panier</h2></div><button class="btn btn-sm btn-light border" id="clearCart" type="button">Vider</button></div>
+    <div class="pos-cart-header"><div><p class="eyebrow mb-1">{% if is_server %}Étape 3{% else %}Commande en cours{% endif %}</p><h2>Panier</h2></div><button class="btn btn-sm btn-light border" id="clearCart" type="button">Vider</button></div>
     <div class="pos-cart-empty" id="cartEmpty"><div>🧾</div><strong>Le panier est vide</strong><small>Touchez un produit pour l'ajouter.</small></div>
     <div class="pos-cart-lines" id="cartLines"></div>
     <div class="pos-order-meta">
-      {% if tables %}<div><label class="form-label" for="table_id">Table</label><select class="form-select" name="table_id" id="table_id"><option value="">Sans table / libellé dans la note</option>{% for table in tables %}<option value="{{ table.id }}">{{ table.label }}{% if table.capacity %} · {{ table.capacity }} places{% endif %}</option>{% endfor %}</select></div>{% endif %}
+      {% if is_server %}
+      <div class="server-table-summary"><span>Table sélectionnée</span><strong id="serverTableCurrent">Sans table</strong><button type="button" id="changeTableButton">Changer</button></div>
+      {% elif tables %}
+      <div><label class="form-label" for="table_id">Table</label><select class="form-select" name="table_id" id="table_id"><option value="">Sans table / libellé dans la note</option>{% for table in tables %}<option value="{{ table.id }}">{{ table.label }}{% if table.capacity %} · {{ table.capacity }} places{% endif %}</option>{% endfor %}</select></div>
+      {% endif %}
       <div><label class="form-label" for="notes">Note ou libellé</label><textarea class="form-control" name="notes" id="notes" rows="2" maxlength="500" placeholder="Ex. Terrasse gauche, table VIP, sans glaçons..."></textarea></div>
       <details class="pos-reference"><summary>Référence personnalisée</summary><input class="form-control mt-2" name="reference" maxlength="64" placeholder="Automatique si vide"></details>
     </div>
     <div class="pos-total-box"><div><span>Articles</span><strong id="cartCount">0</strong></div><div class="pos-grand-total"><span>Total</span><strong><span id="cartTotal">0</span> {{ bar.currency }}</strong></div></div>
-    <button class="btn btn-primary btn-lg w-100 pos-confirm" id="confirmOrder" type="submit" disabled>Envoyer à la caisse</button>
+    <button class="btn btn-primary btn-lg w-100 pos-confirm" id="confirmOrder" type="submit" disabled>{% if is_server %}3. Envoyer à la caisse{% else %}Envoyer à la caisse{% endif %}</button>
     <p class="pos-stock-note">Statut après envoi : « En attente / À livrer ». Aucun stock n'est encore déduit.</p>
   </aside>
 </form>
@@ -134,6 +176,8 @@
   const countNode = document.getElementById('cartCount');
   const confirmButton = document.getElementById('confirmOrder');
   const search = document.getElementById('posSearch');
+  const tableInput = document.getElementById('table_id');
+  const tableCurrent = document.getElementById('serverTableCurrent');
   let activeCategory = 'all';
   const formatMoney = value => new Intl.NumberFormat('fr-FR', {maximumFractionDigits: 0}).format(value);
   const escapeHtml = value => String(value).replace(/[&<>'"]/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
@@ -161,10 +205,19 @@
   function changeQty(id, quantity) { const item = cart.get(id); if (!item) return; quantity = Number(quantity); if (!Number.isFinite(quantity) || quantity <= 0) cart.delete(id); else item.quantity = Math.min(quantity, item.stock); renderCart(); }
   function addProduct(button) { const id = button.dataset.productId; const stock = Number(button.dataset.stock); if (stock <= 0) return; const existing = cart.get(id); if (existing) existing.quantity = Math.min(existing.quantity + 1, stock); else cart.set(id, {id, name: button.dataset.name, price: Number(button.dataset.price), stock, quantity: 1}); renderCart(); }
   function filterProducts() { const term = (search.value || '').trim().toLocaleLowerCase('fr'); document.querySelectorAll('.pos-product').forEach(card => { const categoryOk = activeCategory === 'all' || card.dataset.category === activeCategory; const searchOk = !term || card.dataset.name.toLocaleLowerCase('fr').includes(term); card.hidden = !(categoryOk && searchOk); }); }
+  function chooseTable(button) {
+    document.querySelectorAll('.server-table-chip').forEach(chip => { chip.classList.remove('active'); chip.setAttribute('aria-pressed', 'false'); });
+    button.classList.add('active');
+    button.setAttribute('aria-pressed', 'true');
+    if (tableInput) tableInput.value = button.dataset.tableId || '';
+    if (tableCurrent) tableCurrent.textContent = button.dataset.tableLabel || 'Sans table';
+  }
   grid?.querySelectorAll('.pos-product').forEach(button => button.addEventListener('click', () => addProduct(button)));
   document.getElementById('clearCart')?.addEventListener('click', () => { cart.clear(); renderCart(); });
   search?.addEventListener('input', filterProducts);
   document.querySelectorAll('.pos-category').forEach(button => button.addEventListener('click', () => { document.querySelectorAll('.pos-category').forEach(x => x.classList.remove('active')); button.classList.add('active'); activeCategory = button.dataset.category; filterProducts(); }));
+  document.querySelectorAll('.server-table-chip').forEach(button => button.addEventListener('click', () => chooseTable(button)));
+  document.getElementById('changeTableButton')?.addEventListener('click', () => document.querySelector('[data-server-table-step]')?.scrollIntoView({behavior:'smooth', block:'center'}));
   document.getElementById('posForm')?.addEventListener('submit', event => { if (!cart.size) event.preventDefault(); else confirmButton.disabled = true; });
   renderCart();
 })();
