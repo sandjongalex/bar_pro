@@ -1,0 +1,186 @@
+{% extends 'layout.html' %}
+{% block title %}Dépenses · {{ bar.name }}{% endblock %}
+{% block header %}Dépenses · {{ bar.name }}{% endblock %}
+{% block content %}
+<section class="expenses-hero">
+  <div>
+    <p class="eyebrow mb-2">Trésorerie</p>
+    <h1>Dépenses</h1>
+    <p>Enregistrez les sorties d'argent, classez-les par catégorie et conservez un historique d'annulation traçable.</p>
+  </div>
+  <a class="btn btn-outline-secondary" href="{{ url_for('reports_web.desk', bar_id=bar.id) }}">Voir les rapports</a>
+</section>
+
+<section class="expenses-kpi-grid mt-4" aria-label="Indicateurs dépenses">
+  <article class="expenses-kpi"><span>Dépenses nettes période</span><strong>{{ "{:,.0f}".format(stats.net) }} <small>{{ bar.currency }}</small></strong><small>{{ stats.count }} écriture{{ 's' if stats.count != 1 else '' }} de dépense</small></article>
+  <article class="expenses-kpi"><span>Dépenses brutes</span><strong>{{ "{:,.0f}".format(stats.gross) }} <small>{{ bar.currency }}</small></strong><small>Avant contrepassations</small></article>
+  <article class="expenses-kpi"><span>Annulations</span><strong>{{ "{:,.0f}".format(stats.reversed) }} <small>{{ bar.currency }}</small></strong><small>Écritures de correction sur la période</small></article>
+  <article class="expenses-kpi"><span>Aujourd'hui</span><strong>{{ "{:,.0f}".format(stats.today_net) }} <small>{{ bar.currency }}</small></strong><small>Dépenses nettes du jour</small></article>
+</section>
+
+{% if can_manage %}
+<div class="expenses-grid mt-4">
+  <section class="panel-card expenses-panel">
+    <div class="panel-header"><div><p class="eyebrow mb-1">Nouvelle écriture</p><h2>Enregistrer une dépense</h2></div></div>
+    {% if active_categories %}
+    <form method="post" class="expenses-form p-4">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="action" value="expense_create">
+      <div class="row g-3">
+        <div class="col-md-6">
+          <label class="form-label" for="expense-category">Catégorie</label>
+          <select class="form-select" id="expense-category" name="expense_category_id" required>
+            <option value="">Choisir…</option>
+            {% for category in active_categories %}<option value="{{ category.id }}">{{ category.name }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label" for="expense-amount">Montant</label>
+          <div class="input-group"><input class="form-control" id="expense-amount" type="number" name="amount" min="0.01" step="0.01" required><span class="input-group-text">{{ bar.currency }}</span></div>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label" for="expense-method">Mode de paiement</label>
+          <select class="form-select" id="expense-method" name="method" required>
+            {% for code, label in method_labels.items() %}<option value="{{ code }}">{{ label }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label" for="expense-date">Date et heure</label>
+          <input class="form-control" id="expense-date" type="datetime-local" name="incurred_at" value="{{ now_local }}" required>
+        </div>
+        <div class="col-12">
+          <label class="form-label" for="expense-description">Description</label>
+          <textarea class="form-control" id="expense-description" name="description" rows="2" maxlength="500" placeholder="Ex. achat de glaçons, transport, réparation, nettoyage…" required></textarea>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label" for="expense-session">Caisse ouverte <span class="text-secondary">(obligatoire si espèces)</span></label>
+          <select class="form-select" id="expense-session" name="cash_session_id">
+            <option value="">Aucune</option>
+            {% for session in open_sessions %}<option value="{{ session.id }}">{{ session.reference }}</option>{% endfor %}
+          </select>
+          {% if not open_sessions %}<small class="text-warning d-block mt-1">Aucune caisse ouverte : une dépense en espèces sera refusée.</small>{% endif %}
+        </div>
+        <div class="col-md-3">
+          <label class="form-label" for="expense-provider">Prestataire</label>
+          <input class="form-control" id="expense-provider" name="provider_code" maxlength="32" placeholder="MTN, Orange…">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label" for="expense-transaction">Réf. transaction</label>
+          <input class="form-control" id="expense-transaction" name="provider_transaction_id" maxlength="128">
+        </div>
+      </div>
+      <div class="expenses-form-note mt-3">Pour Mobile Money, carte ou virement, renseignez le prestataire et la référence ensemble si vous souhaitez conserver cette trace.</div>
+      <button class="btn btn-primary mt-3" type="submit">Enregistrer la dépense</button>
+    </form>
+    {% else %}
+    <div class="expenses-empty p-4">Créez d'abord au moins une catégorie de dépense active.</div>
+    {% endif %}
+  </section>
+
+  <section class="panel-card expenses-panel">
+    <div class="panel-header"><div><p class="eyebrow mb-1">Paramétrage</p><h2>Catégories</h2></div></div>
+    <form method="post" class="d-flex gap-2 p-3 border-bottom">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="action" value="category_create">
+      <input class="form-control" name="name" maxlength="100" placeholder="Nouvelle catégorie" required>
+      <button class="btn btn-outline-primary" type="submit">Ajouter</button>
+    </form>
+    <div class="expenses-category-list">
+      {% for category in categories %}
+      <div class="expenses-category-row">
+        <div><strong>{{ category.name }}</strong><small>{{ 'Active' if category.is_active else 'Inactive' }}</small></div>
+        <form method="post">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="category_id" value="{{ category.id }}">
+          <input type="hidden" name="action" value="{{ 'category_disable' if category.is_active else 'category_enable' }}">
+          <button class="btn btn-sm {{ 'btn-outline-secondary' if category.is_active else 'btn-outline-primary' }}" type="submit">{{ 'Désactiver' if category.is_active else 'Réactiver' }}</button>
+        </form>
+      </div>
+      {% else %}<div class="expenses-empty">Aucune catégorie créée.</div>{% endfor %}
+    </div>
+  </section>
+</div>
+{% endif %}
+
+<section class="panel-card expenses-filter-card mt-4">
+  <form method="get" class="expenses-filter-form">
+    <div><label class="form-label" for="exp-start">Début</label><input class="form-control" id="exp-start" type="date" name="start" value="{{ filters.start }}" required></div>
+    <div><label class="form-label" for="exp-end">Fin</label><input class="form-control" id="exp-end" type="date" name="end" value="{{ filters.end }}" required></div>
+    <div><label class="form-label" for="exp-cat">Catégorie</label><select class="form-select" id="exp-cat" name="category_id"><option value="">Toutes</option>{% for category in categories %}<option value="{{ category.id }}" {% if filters.category_id == category.id %}selected{% endif %}>{{ category.name }}</option>{% endfor %}</select></div>
+    <div><label class="form-label" for="exp-method-filter">Paiement</label><select class="form-select" id="exp-method-filter" name="method"><option value="">Tous</option>{% for code, label in method_labels.items() %}<option value="{{ code }}" {% if filters.method == code %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></div>
+    <div class="expenses-search"><label class="form-label" for="exp-q">Recherche</label><input class="form-control" id="exp-q" name="q" value="{{ filters.q }}" placeholder="Référence ou description"></div>
+    <div class="expenses-filter-actions"><button class="btn btn-primary" type="submit">Filtrer</button><a class="btn btn-outline-secondary" href="{{ url_for('expenses_web.manage', bar_id=bar.id) }}">Réinitialiser</a></div>
+  </form>
+</section>
+
+<div class="expenses-grid mt-4">
+  <section class="panel-card expenses-panel">
+    <div class="panel-header"><div><p class="eyebrow mb-1">Analyse</p><h2>Répartition par catégorie</h2></div><strong>{{ "{:,.0f}".format(stats.net) }} {{ bar.currency }}</strong></div>
+    <div class="expenses-category-summary">
+      {% for item in category_summary %}
+      <div class="expenses-summary-row">
+        <div><strong>{{ item.name }}</strong><small>{{ item.count }} dépense{{ 's' if item.count != 1 else '' }}</small></div>
+        <div class="text-end"><strong>{{ "{:,.0f}".format(item.net) }} {{ bar.currency }}</strong>{% if item.reversed > 0 %}<small>{{ "{:,.0f}".format(item.reversed) }} annulés</small>{% endif %}</div>
+      </div>
+      {% else %}<div class="expenses-empty">Aucune dépense sur la période sélectionnée.</div>{% endfor %}
+    </div>
+  </section>
+
+  <section class="panel-card expenses-panel expenses-guide">
+    <div class="panel-header"><div><p class="eyebrow mb-1">Contrôle</p><h2>Règles de gestion</h2></div></div>
+    <div class="p-4">
+      <p><strong>Espèces :</strong> la dépense diminue automatiquement la caisse théorique ouverte.</p>
+      <p><strong>Autres modes :</strong> l'écriture affecte les rapports de dépenses sans modifier le tiroir-caisse.</p>
+      <p><strong>Annulation :</strong> une dépense n'est jamais supprimée. Une contrepassation est créée pour conserver la traçabilité.</p>
+    </div>
+  </section>
+</div>
+
+<section class="panel-card expenses-panel mt-4">
+  <div class="panel-header"><div><p class="eyebrow mb-1">Historique</p><h2>Écritures de dépenses</h2></div><span class="badge text-bg-light">{{ rows|length }}</span></div>
+  <div class="table-responsive">
+    <table class="table expenses-table align-middle mb-0">
+      <thead><tr><th>Date</th><th>Référence</th><th>Catégorie</th><th>Description</th><th>Paiement</th><th>Saisi par</th><th class="text-end">Montant</th><th class="text-end">Action</th></tr></thead>
+      <tbody>
+        {% for item in rows %}
+        <tr class="{% if item.entry_kind == 'REVERSAL' %}expense-reversal-row{% endif %}">
+          <td>{{ item.incurred_at.strftime('%d/%m/%Y %H:%M') if item.incurred_at else '—' }}</td>
+          <td><strong>{{ item.reference }}</strong>{% if item.entry_kind == 'REVERSAL' %}<small class="d-block text-secondary">Annulation #{{ item.reversal_of_id }}</small>{% elif item.id in reversal_source_ids %}<small class="d-block text-danger">Annulée</small>{% endif %}</td>
+          <td>{{ item.category_name_snapshot }}</td>
+          <td class="expense-description-cell">{{ item.description }}</td>
+          <td>{{ method_labels.get(item.method, item.method) }}{% if item.provider_transaction_id %}<small class="d-block text-secondary">{{ item.provider_code }} · {{ item.provider_transaction_id }}</small>{% endif %}</td>
+          <td>{{ recorders.get(item.recorded_by_id).display_name if recorders.get(item.recorded_by_id) else 'Utilisateur #' ~ item.recorded_by_id }}</td>
+          <td class="text-end fw-bold {% if item.entry_kind == 'REVERSAL' %}text-success{% endif %}">{{ '-' if item.entry_kind == 'EXPENSE' else '+' }}{{ "{:,.0f}".format(item.amount) }} {{ item.currency }}</td>
+          <td class="text-end">
+            {% if can_manage and item.entry_kind == 'EXPENSE' and item.id not in reversal_source_ids %}
+            <details class="expense-reverse-details">
+              <summary class="btn btn-sm btn-outline-danger">Annuler</summary>
+              <form method="post" class="expense-reverse-form">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="action" value="expense_reverse">
+                <input type="hidden" name="expense_id" value="{{ item.id }}">
+                <textarea class="form-control form-control-sm" name="reason" rows="2" maxlength="500" placeholder="Motif obligatoire" required></textarea>
+                {% if item.method == 'CASH' %}
+                <select class="form-select form-select-sm" name="cash_session_id" required>
+                  <option value="">Caisse de restitution…</option>
+                  {% for session in open_sessions %}<option value="{{ session.id }}">{{ session.reference }}</option>{% endfor %}
+                </select>
+                {% if not open_sessions %}<small class="text-danger">Ouvrez une caisse avant d'annuler cette dépense espèces.</small>{% endif %}
+                {% endif %}
+                <button class="btn btn-sm btn-danger" type="submit">Confirmer l'annulation</button>
+              </form>
+            </details>
+            {% else %}<span class="text-secondary">—</span>{% endif %}
+          </td>
+        </tr>
+        {% else %}<tr><td colspan="8" class="text-center text-secondary py-5">Aucune écriture sur cette période.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<div class="dashboard-definition-note mt-3">
+  <strong>Traçabilité :</strong>
+  <span>les écritures de dépenses et leurs annulations sont conservées séparément. Les rapports utilisent le montant net : dépenses − contrepassations.</span>
+</div>
+{% endblock %}
