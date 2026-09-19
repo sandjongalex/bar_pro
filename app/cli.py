@@ -74,13 +74,25 @@ def register_cli(app: Flask) -> None:
     @app.cli.command("rebuild-stock-valuations")
     @click.option("--bar-id", type=int, help="Identifiant d'un établissement existant.")
     @click.option("--all-bars", is_flag=True, help="Analyser tous les établissements.")
-    @click.option("--apply", is_flag=True, help="Appliquer les nouveaux coûts moyens. Sans cette option, aucune écriture.")
-    def rebuild_stock_valuations_command(bar_id: int | None, all_bars: bool, apply: bool) -> None:
+    @click.option("--apply", is_flag=True, help="Appliquer les corrections fiables. Sans cette option, aucune écriture.")
+    @click.option(
+        "--include-estimates",
+        is_flag=True,
+        help="Avec --apply, autoriser aussi les estimations de coût héritées d'un historique ancien incomplet.",
+    )
+    def rebuild_stock_valuations_command(
+        bar_id: int | None,
+        all_bars: bool,
+        apply: bool,
+        include_estimates: bool,
+    ) -> None:
         """Preview or repair moving weighted-average product valuations."""
         from app.stock_valuation import rebuild_bar_valuations
 
         if (bar_id is None) == (not all_bars):
             raise click.ClickException("Utilisez soit --bar-id ID, soit --all-bars.")
+        if include_estimates and not apply:
+            raise click.ClickException("--include-estimates doit être utilisé avec --apply.")
 
         if all_bars:
             bars = list(db.session.scalars(select(Bar).order_by(Bar.id)))
@@ -91,15 +103,28 @@ def register_cli(app: Flask) -> None:
             bars = [bar]
 
         grand_changed = 0
+        grand_estimated = 0
+        grand_applied = 0
         grand_skipped = 0
         try:
             for bar in bars:
-                result = rebuild_bar_valuations(bar.id, apply=apply)
+                result = rebuild_bar_valuations(
+                    bar.id,
+                    apply=apply,
+                    include_estimates=include_estimates,
+                )
                 grand_changed += result["changed"]
+                grand_estimated += result["estimated_changed"]
+                grand_applied += result["applied_count"]
                 grand_skipped += result["skipped"]
                 click.echo(f"\n{bar.id} - {bar.name}")
                 for row in result["rows"]:
-                    if row["status"] not in {"CHANGED", "QUANTITY_MISMATCH"}:
+                    if row["status"] not in {
+                        "CHANGED",
+                        "ESTIMATED_CHANGE",
+                        "QUANTITY_MISMATCH",
+                        "NO_COST_HISTORY",
+                    }:
                         continue
                     product = row["product"]
                     click.echo(
@@ -107,24 +132,36 @@ def register_cli(app: Flask) -> None:
                         f"stock={row['balance_quantity']} | "
                         f"ancien={row['old_unit_cost']} | nouveau={row['new_unit_cost']}"
                     )
+                    if row["valuation_basis"] == "ESTIMATED_LEGACY":
+                        reasons = ", ".join(row["estimate_reasons"]) or "historique ancien incomplet"
+                        click.echo(f"    estimation: {reasons}")
                     if row["anomaly"]:
                         click.echo(f"    anomalie: {row['anomaly']}")
                 click.echo(
                     f"  Résumé: {result['products']} produit(s), "
-                    f"{result['changed']} coût(s) à corriger, {result['skipped']} ignoré(s)."
+                    f"{result['changed']} coût(s) à corriger dont "
+                    f"{result['estimated_changed']} estimation(s), "
+                    f"{result['applied_count']} appliqué(s), "
+                    f"{result['skipped']} ignoré(s)."
                 )
 
             if apply:
                 db.session.commit()
                 click.echo(
-                    f"\nApplication terminée : {grand_changed} coût(s) mis à jour, "
-                    f"{grand_skipped} produit(s) ignoré(s)."
+                    f"\nApplication terminée : {grand_applied} coût(s) mis à jour sur "
+                    f"{grand_changed} correction(s) proposée(s), "
+                    f"{grand_estimated} estimation(s), {grand_skipped} produit(s) ignoré(s)."
                 )
+                if grand_estimated and not include_estimates:
+                    click.echo(
+                        "Les estimations legacy n'ont pas été écrites. "
+                        "Après vérification, utilisez aussi --include-estimates si vous souhaitez les appliquer."
+                    )
             else:
                 db.session.rollback()
                 click.echo(
-                    f"\nAPERÇU UNIQUEMENT : {grand_changed} coût(s) seraient mis à jour. "
-                    "Relancez avec --apply après vérification."
+                    f"\nAPERÇU UNIQUEMENT : {grand_changed} coût(s) seraient à corriger, "
+                    f"dont {grand_estimated} estimation(s) legacy. Aucune donnée n'a été modifiée."
                 )
         except Exception:
             db.session.rollback()
