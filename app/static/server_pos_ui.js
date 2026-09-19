@@ -90,6 +90,45 @@
     document.body.classList.toggle('server-cart-active', hasCart);
   }
 
+  function setupOrderFilters() {
+    const filters = Array.from(document.querySelectorAll('[data-server-order-filter]'));
+    const cards = Array.from(document.querySelectorAll('[data-server-order-card]'));
+    const empty = document.querySelector('[data-server-orders-empty]');
+    if (!filters.length || !cards.length) return;
+
+    function applyFilter(filter) {
+      let visible = 0;
+      cards.forEach((card) => {
+        const state = card.dataset.orderState || 'other';
+        const matches = filter === 'all'
+          || (filter === 'active' && (state === 'waiting' || state === 'to_pay'))
+          || state === filter;
+        card.hidden = !matches;
+        if (matches) visible += 1;
+      });
+      if (empty) {
+        empty.hidden = visible !== 0;
+        empty.textContent = filter === 'active'
+          ? 'Aucune commande active. Touchez « Toutes » pour voir l’historique récent.'
+          : 'Aucune commande dans ce filtre.';
+      }
+    }
+
+    filters.forEach((button) => {
+      button.addEventListener('click', () => {
+        filters.forEach((item) => {
+          item.classList.remove('active');
+          item.setAttribute('aria-pressed', 'false');
+        });
+        button.classList.add('active');
+        button.setAttribute('aria-pressed', 'true');
+        applyFilter(button.dataset.serverOrderFilter || 'active');
+      });
+    });
+
+    applyFilter('active');
+  }
+
   const observer = new MutationObserver(sync);
   observer.observe(cartLines, { childList: true, subtree: true });
 
@@ -112,5 +151,6 @@
     });
   });
 
+  setupOrderFilters();
   sync();
 })();
