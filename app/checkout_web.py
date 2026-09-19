@@ -168,7 +168,7 @@ def checkout(bar_id):
                     f"Commande {order.reference} portée au compte client pour {entry.amount_delta:,.0f} {entry.currency}.",
                     "success",
                 )
-                return redirect(url_for("checkout_web.checkout", bar_id=bar_id))
+                return redirect(url_for("checkout_web.checkout", bar_id=bar_id, order_id=order_id))
 
             if method == "MIXED":
                 cash_part = _decimal(request.form.get("mixed_cash"), allow_zero=True)
@@ -211,7 +211,7 @@ def checkout(bar_id):
                     f"Paiement mixte validé : {cash_part:,.0f} espèces + {mobile_part:,.0f} Mobile Money.",
                     "success",
                 )
-                return redirect(url_for("checkout_web.checkout", bar_id=bar_id))
+                return redirect(url_for("checkout_web.checkout", bar_id=bar_id, order_id=order_id))
 
             applied = _positive_decimal(request.form.get("amount_applied"))
             if method == "MOBILE_MONEY" and (not provider_code or not provider_transaction_id):
@@ -259,7 +259,7 @@ def checkout(bar_id):
                 f"Commande {order.reference if order else order_id} payée. La serveuse peut maintenant voir la validation du paiement.",
                 "success",
             )
-            return redirect(url_for("checkout_web.checkout", bar_id=bar_id))
+            return redirect(url_for("checkout_web.checkout", bar_id=bar_id, order_id=order_id))
 
         except (PermissionError, LookupError, ValueError, TypeError, IntegrityError) as exc:
             db.session.rollback()
@@ -269,7 +269,7 @@ def checkout(bar_id):
                 flash(_message(exc), "danger")
             return redirect(url_for("checkout_web.checkout", bar_id=bar_id, order_id=order_id))
 
-    orders = list(
+    active_orders = list(
         db.session.scalars(
             select(Order)
             .where(
@@ -281,9 +281,24 @@ def checkout(bar_id):
             .limit(100)
         )
     )
-    balances = {order.id: order_balance(order) for order in orders}
+    waiting_orders = [order for order in active_orders if order.status == "DRAFT"]
+    payable_orders = [order for order in active_orders if order.status in {"CONFIRMED", "SERVED"}]
+    paid_orders = list(
+        db.session.scalars(
+            select(Order)
+            .where(
+                Order.bar_id == bar_id,
+                Order.status.in_(["CONFIRMED", "SERVED"]),
+                Order.payment_status == "PAID",
+            )
+            .order_by(Order.updated_at.desc(), Order.id.desc())
+            .limit(20)
+        )
+    )
+    display_orders = [*active_orders, *paid_orders]
+    balances = {order.id: order_balance(order) for order in display_orders}
 
-    order_ids = [order.id for order in orders]
+    order_ids = [order.id for order in display_orders]
     lines_by_order = {order_id: [] for order_id in order_ids}
     if order_ids:
         for line in db.session.scalars(
@@ -293,7 +308,7 @@ def checkout(bar_id):
         ):
             lines_by_order.setdefault(line.order_id, []).append(line)
 
-    assignment_ids = {order.assigned_staff_id for order in orders if order.assigned_staff_id is not None}
+    assignment_ids = {order.assigned_staff_id for order in display_orders if order.assigned_staff_id is not None}
     assignments = {
         item.id: item
         for item in db.session.scalars(select(StaffAssignment).where(StaffAssignment.id.in_(assignment_ids)))
@@ -304,7 +319,7 @@ def checkout(bar_id):
         for item in db.session.scalars(select(User).where(User.id.in_(user_ids)))
     } if user_ids else {}
     server_name_by_order = {}
-    for order in orders:
+    for order in display_orders:
         staff = assignments.get(order.assigned_staff_id)
         user = users.get(staff.user_id) if staff else None
         server_name_by_order[order.id] = user.display_name if user else "Sans serveuse"
@@ -312,9 +327,11 @@ def checkout(bar_id):
     selected_order = None
     selected_id = request.args.get("order_id", type=int)
     if selected_id:
-        selected_order = next((order for order in orders if order.id == selected_id), None)
-    if selected_order is None and orders:
-        selected_order = orders[0]
+        selected_order = next((order for order in display_orders if order.id == selected_id), None)
+    if selected_order is None and active_orders:
+        selected_order = active_orders[0]
+    if selected_order is None and paid_orders:
+        selected_order = paid_orders[0]
 
     open_sessions = list(
         db.session.scalars(
@@ -352,19 +369,23 @@ def checkout(bar_id):
         )
     }
 
-    total_due = sum((balances[order.id]["amount_due"] for order in orders if order.status != "DRAFT"), Decimal("0"))
+    total_due = sum((balances[order.id]["amount_due"] for order in payable_orders), Decimal("0"))
     stats = {
-        "waiting": sum(1 for order in orders if order.status == "DRAFT"),
-        "to_pay": sum(1 for order in orders if order.status in {"CONFIRMED", "SERVED"}),
+        "waiting": len(waiting_orders),
+        "to_pay": len(payable_orders),
+        "paid_recent": len(paid_orders),
         "due": total_due,
         "open_cash": len(open_sessions),
-        "partial": sum(1 for order in orders if order.payment_status == "PARTIAL"),
+        "partial": sum(1 for order in payable_orders if order.payment_status == "PARTIAL"),
     }
 
     return render_template(
         "checkout.html",
         bar=bar,
-        orders=orders,
+        orders=active_orders,
+        waiting_orders=waiting_orders,
+        payable_orders=payable_orders,
+        paid_orders=paid_orders,
         balances=balances,
         lines_by_order=lines_by_order,
         selected_order=selected_order,
