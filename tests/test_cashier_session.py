@@ -23,9 +23,8 @@ def _login(client, email, password="test-password"):
     )
 
 
-def test_cashier_must_open_session_before_checkout(env):
-    app, _, bar, _, _, _, _, _ = env
-    cashier = User(email="cashier@example.invalid", display_name="Esther", category="EMPLOYEE")
+def _cashier(bar, email, name):
+    cashier = User(email=email, display_name=name, category="EMPLOYEE")
     cashier.set_password("test-password")
     db.session.add(cashier)
     db.session.flush()
@@ -38,6 +37,12 @@ def test_cashier_must_open_session_before_checkout(env):
         )
     )
     db.session.commit()
+    return cashier
+
+
+def test_cashier_must_open_session_before_checkout(env):
+    app, _, bar, _, _, _, _, _ = env
+    cashier = _cashier(bar, "cashier@example.invalid", "Esther")
 
     client = app.test_client()
     assert _login(client, cashier.email).status_code == 302
@@ -76,18 +81,7 @@ def test_cashier_must_open_session_before_checkout(env):
 
 def test_cashier_session_page_reuses_existing_open_session(env):
     app, owner, bar, _, _, _, _, _ = env
-    cashier = User(email="cashier2@example.invalid", display_name="Nancy", category="EMPLOYEE")
-    cashier.set_password("test-password")
-    db.session.add(cashier)
-    db.session.flush()
-    db.session.add(
-        StaffAssignment(
-            bar_id=bar.id,
-            user_id=cashier.id,
-            role="CASHIER",
-            started_at=utcnow(),
-        )
-    )
+    cashier = _cashier(bar, "cashier2@example.invalid", "Nancy")
     from app.cash_services import cash_service
 
     cash_service.open(owner, bar.id, "EXISTING", 5000)
@@ -100,3 +94,89 @@ def test_cashier_session_page_reuses_existing_open_session(env):
     assert "Caisse ouverte" in page.text
     assert "5,000" in page.text
     assert "Voir les commandes" in page.text
+    assert "Clôturer ma caisse" in page.text
+    assert "Montant réellement compté" in page.text
+
+
+def test_cashier_closes_balanced_session_and_sees_summary(env):
+    app, owner, bar, _, _, _, _, _ = env
+    cashier = _cashier(bar, "cashier-close@example.invalid", "Esther Close")
+    from app.cash_services import cash_service
+
+    session = cash_service.open(owner, bar.id, "CLOSE-OK", 5000)
+    db.session.commit()
+
+    client = app.test_client()
+    _login(client, cashier.email)
+    page = client.get(f"/bars/{bar.id}/cashier-session")
+    csrf = _csrf_from(page)
+    response = client.post(
+        f"/bars/{bar.id}/cashier-session",
+        data={
+            "action": "close",
+            "counted_closing_amount": "5000",
+            "reason": "",
+            "csrf_token": csrf,
+        },
+        follow_redirects=False,
+    )
+    assert response.status_code == 302
+    assert f"closed_id={session.id}" in response.headers["Location"]
+
+    db.session.refresh(session)
+    assert session.status == "CLOSED"
+    assert session.expected_closing_amount == 5000
+    assert session.counted_closing_amount == 5000
+    assert session.closing_difference == 0
+
+    summary = client.get(response.headers["Location"])
+    assert summary.status_code == 200
+    assert "Caisse clôturée" in summary.text
+    assert "Caisse équilibrée" in summary.text
+    assert "Ouvrir une nouvelle caisse" in summary.text
+
+
+def test_cashier_variance_requires_reason_and_records_shortage(env):
+    app, owner, bar, _, _, _, _, _ = env
+    cashier = _cashier(bar, "cashier-gap@example.invalid", "Nancy Gap")
+    from app.cash_services import cash_service
+
+    session = cash_service.open(owner, bar.id, "CLOSE-GAP", 7000)
+    db.session.commit()
+
+    client = app.test_client()
+    _login(client, cashier.email)
+    page = client.get(f"/bars/{bar.id}/cashier-session")
+    response = client.post(
+        f"/bars/{bar.id}/cashier-session",
+        data={
+            "action": "close",
+            "counted_closing_amount": "6500",
+            "reason": "",
+            "csrf_token": _csrf_from(page),
+        },
+    )
+    assert response.status_code == 200
+    assert "Un motif est obligatoire" in response.text
+    db.session.refresh(session)
+    assert session.status == "OPEN"
+
+    page = client.get(f"/bars/{bar.id}/cashier-session")
+    response = client.post(
+        f"/bars/{bar.id}/cashier-session",
+        data={
+            "action": "close",
+            "counted_closing_amount": "6500",
+            "reason": "Écart constaté au comptage",
+            "csrf_token": _csrf_from(page),
+        },
+        follow_redirects=False,
+    )
+    assert response.status_code == 302
+    db.session.refresh(session)
+    assert session.status == "CLOSED"
+    assert session.closing_difference == -500
+
+    summary = client.get(response.headers["Location"])
+    assert "Manque" in summary.text
+    assert "-500" in summary.text
