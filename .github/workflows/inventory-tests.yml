@@ -1,0 +1,33 @@
+name: Inventory workflow tests
+
+on:
+  push:
+    paths:
+      - 'app/inventories.py'
+      - 'app/inventory_services.py'
+      - 'app/templates/inventory_detail.html'
+      - 'tests/test_inventory_blank_zero.py'
+      - 'tests/test_inventories.py'
+      - '.github/workflows/inventory-tests.yml'
+  pull_request:
+    paths:
+      - 'app/inventories.py'
+      - 'app/inventory_services.py'
+      - 'app/templates/inventory_detail.html'
+      - 'tests/test_inventory_blank_zero.py'
+      - 'tests/test_inventories.py'
+      - '.github/workflows/inventory-tests.yml'
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r requirements.txt
+      - name: Blank physical stock is zero
+        run: pytest -q tests/test_inventory_blank_zero.py
+      - name: Inventory regressions
+        run: pytest -q tests/test_inventories.py
