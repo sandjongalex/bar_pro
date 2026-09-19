@@ -186,6 +186,64 @@
 </section>
 {% endif %}
 
+{% if chart_data %}
+<section class="dashboard-section mt-4" aria-labelledby="dashboard-charts-title">
+  <div class="dashboard-section-heading">
+    <div>
+      <p class="eyebrow mb-1">Analyse</p>
+      <h2 id="dashboard-charts-title">Ventes et performance du jour</h2>
+    </div>
+    <small class="text-secondary">Basé sur les commandes soldées aujourd'hui</small>
+  </div>
+
+  <div class="dashboard-chart-grid">
+    <article class="dashboard-chart-card">
+      <div class="dashboard-chart-head">
+        <div><span class="alert-kicker">Produits</span><h3>Produits les plus vendus</h3></div>
+        <span class="dashboard-chart-badge">Top 5</span>
+      </div>
+      {% if chart_data.top_products.labels %}
+        <div class="dashboard-chart-canvas dashboard-chart-canvas-products"><canvas id="topProductsChart" aria-label="Graphique des produits les plus vendus"></canvas></div>
+      {% else %}
+        <div class="dashboard-chart-empty">Aucune vente soldée aujourd'hui pour établir le classement.</div>
+      {% endif %}
+    </article>
+
+    <article class="dashboard-chart-card">
+      <div class="dashboard-chart-head">
+        <div><span class="alert-kicker">Équipe</span><h3>Performance des serveuses</h3></div>
+        <span class="dashboard-chart-badge">Jour</span>
+      </div>
+      {% if chart_data.servers.labels %}
+        <div class="dashboard-chart-canvas"><canvas id="waitressChart" aria-label="Graphique des performances des serveuses"></canvas></div>
+        <div class="table-responsive dashboard-performance-table-wrap">
+          <table class="table dashboard-performance-table align-middle mb-0">
+            <thead><tr><th>Serveuse</th><th class="text-end">Commandes</th><th class="text-end">Ventes</th><th class="text-end">Crédit</th></tr></thead>
+            <tbody>
+              {% for row in chart_data.servers.rows %}
+              <tr>
+                <td><strong>{{ row.name }}</strong></td>
+                <td class="text-end">{{ row.orders }}</td>
+                <td class="text-end">{{ "{:,.0f}".format(row.sales) }} {{ chart_data.currency }}</td>
+                <td class="text-end">{{ "{:,.0f}".format(row.credit_sales) }} {{ chart_data.currency }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <div class="dashboard-chart-empty">Aucune commande soldée et attribuée pour aujourd'hui.</div>
+      {% endif %}
+    </article>
+  </div>
+
+  <div class="dashboard-definition-note mt-3">
+    <strong>Lecture des graphiques :</strong>
+    <span>Le classement produits utilise les quantités nettes après retours. La performance serveuse distingue la part réglée hors crédit de la part enregistrée en crédit client.</span>
+  </div>
+</section>
+{% endif %}
+
 {% if notifications %}
 <section class="panel-card mt-4" id="dashboard-notifications">
   <div class="panel-header"><div><p class="eyebrow mb-1">Notifications</p><h2>À consulter</h2></div><span class="badge text-bg-primary">{{ notifications|length }}</span></div>
@@ -268,4 +326,12 @@
   </div>
   {% endif %}
 </section>
+{% endblock %}
+
+{% block scripts %}
+{% if chart_data and (chart_data.top_products.labels or chart_data.servers.labels) %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<script id="dashboard-chart-data" type="application/json">{{ chart_data|tojson }}</script>
+<script src="{{ url_for('static', filename='dashboard_charts.js') }}" defer></script>
+{% endif %}
 {% endblock %}
