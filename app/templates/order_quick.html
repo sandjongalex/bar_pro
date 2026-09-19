@@ -77,7 +77,7 @@
   </aside>
 </form>
 
-<section class="panel-card mt-4">
+<section class="panel-card mt-4" id="mes-commandes">
   <div class="panel-header pos-recent-head"><div><p class="eyebrow mb-1">{% if is_server %}Suivi personnel{% else %}Suivi{% endif %}</p><h2>{% if is_server %}Mes commandes{% else %}Commandes récentes{% endif %}</h2></div>{% if can_pay %}<a class="btn btn-sm btn-light border" href="{{ url_for('checkout_web.checkout', bar_id=bar.id) }}">Caisse commandes</a>{% endif %}</div>
   {% if recent_orders %}
   <div class="table-responsive"><table class="table pos-order-table align-middle mb-0"><thead><tr><th>Commande</th><th>Table / note</th><th>Produits</th><th>Total</th><th>Paiement</th><th>État</th><th class="text-end">Action</th></tr></thead><tbody>
