@@ -139,8 +139,9 @@
         <button type="button" data-bs-toggle="offcanvas" data-bs-target="#appNavDrawer" aria-controls="appNavDrawer"><span>•••</span><strong>Plus</strong></button>
 
       {% elif nav_effective_role == 'SERVER' %}
-        <a class="{% if endpoint.startswith('orders_web.') %}active{% endif %}" href="{{ url_for('orders_web.quick', bar_id=nav_bar_id) }}"><span>＋</span><strong>Commande</strong></a>
-        <a href="{{ url_for('web.dashboard', bar_id=nav_bar_id) ~ '#dashboard-notifications' }}"><span>●</span><strong>Notifs</strong></a>
+        <a class="{% if endpoint.startswith('orders_web.') %}active{% endif %}" data-server-bottom-link="new" href="{{ url_for('orders_web.quick', bar_id=nav_bar_id) ~ '#posForm' }}"><span>＋</span><strong>Commande</strong></a>
+        <a data-server-bottom-link="orders" href="{{ url_for('orders_web.quick', bar_id=nav_bar_id) ~ '#mes-commandes' }}"><span>▤</span><strong>Mes commandes</strong></a>
+        <a class="{% if endpoint == 'web.dashboard' %}active{% endif %}" href="{{ url_for('web.dashboard', bar_id=nav_bar_id) ~ '#dashboard-notifications' }}"><span>●</span><strong>Notifs</strong></a>
         <button type="button" data-bs-toggle="offcanvas" data-bs-target="#appNavDrawer" aria-controls="appNavDrawer"><span>•••</span><strong>Plus</strong></button>
 
       {% else %}
