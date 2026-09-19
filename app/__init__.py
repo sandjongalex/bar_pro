@@ -26,6 +26,7 @@ from app.cashier_workspace_web import bp as cashier_workspace_web_bp
 from app.customers_web import bp as customers_web_bp
 from app.expenses_web import bp as expenses_web_bp
 from app.inventories import api_inventories_bp, inventories_bp
+from app.live_orders_web import bp as live_orders_web_bp
 from app.orders import bp as orders_bp, web_bp as orders_web_bp
 from app.staff import bp as staff_web_bp
 from app.reports_web import bp as reports_web_bp
@@ -130,6 +131,7 @@ def _register_blueprints(app: Flask) -> None:
     app.register_blueprint(supplier_payments_bp)
     app.register_blueprint(inventories_bp)
     app.register_blueprint(api_inventories_bp)
+    app.register_blueprint(live_orders_web_bp)
     app.register_blueprint(orders_bp)
     app.register_blueprint(orders_web_bp)
 
