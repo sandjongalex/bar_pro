@@ -1,6 +1,6 @@
 """Minimal non-business HTTP blueprints."""
 
-from flask import Blueprint, abort, jsonify, redirect, render_template, url_for
+from flask import Blueprint, abort, jsonify, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
 from sqlalchemy import select
 from flask_limiter.util import get_remote_address
@@ -22,6 +22,7 @@ def index():
 @login_required
 def dashboard():
     from app.customer_models import UserNotification
+    from app.dashboard_service import dashboard_summary
     from app.models import Bar, StaffAssignment
     from app.permissions import permissions
 
@@ -39,6 +40,21 @@ def dashboard():
         )
     )
     assignment_by_bar = {assignment.bar_id: assignment for assignment in assignments}
+
+    reportable_bars = [
+        bar for bar in bars if permissions.evaluate(current_user, "reports.read", bar.id).allowed
+    ]
+    requested_bar_id = request.args.get("bar_id", type=int)
+    active_bar = None
+    if requested_bar_id is not None:
+        active_bar = next((bar for bar in reportable_bars if bar.id == requested_bar_id), None)
+        if active_bar is None and reportable_bars:
+            abort(404)
+    elif reportable_bars:
+        active_bar = next((bar for bar in reportable_bars if bar.status == "ACTIVE"), reportable_bars[0])
+
+    dashboard_data = dashboard_summary(current_user, active_bar.id) if active_bar else None
+
     notifications = list(
         db.session.scalars(
             select(UserNotification)
@@ -50,6 +66,9 @@ def dashboard():
     return render_template(
         "dashboard.html",
         bars=bars,
+        reportable_bars=reportable_bars,
+        active_bar=active_bar,
+        dashboard_data=dashboard_data,
         assignments=assignments,
         assignment_by_bar=assignment_by_bar,
         notifications=notifications,
