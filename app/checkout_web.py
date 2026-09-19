@@ -4,6 +4,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
 import secrets
+from zoneinfo import ZoneInfo
 
 from flask import Blueprint, flash, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
@@ -14,7 +15,7 @@ from app.cash_services import cash_service
 from app.customer_services import customer_service
 from app.extensions import db
 from app.finance_totals import order_balance
-from app.models import Bar, CashSession, Customer, Order, OrderLine, Payment, StaffAssignment, User
+from app.models import Bar, CashSession, Customer, Order, OrderLine, Payment, Refund, StaffAssignment, User
 from app.order_services import order_service
 from app.payment_services import payment_service
 from app.permissions import permissions
@@ -73,6 +74,13 @@ def _cash_session_open(bar_id):
     )
 
 
+def _local_display(value, timezone_name: str) -> str:
+    if value is None:
+        return "—"
+    aware = value if value.tzinfo is not None else value.replace(tzinfo=timezone.utc)
+    return aware.astimezone(ZoneInfo(timezone_name)).strftime("%d/%m/%Y %H:%M")
+
+
 def _message(code) -> str:
     messages = {
         "NOT_FOUND": "Commande introuvable.",
@@ -97,6 +105,87 @@ def _message(code) -> str:
         "CUSTOMER_MISMATCH": "La commande est déjà rattachée à un autre client.",
     }
     return messages.get(str(code), "Opération refusée. Vérifiez les informations saisies.")
+
+
+@bp.get("/orders/<int:order_id>/receipt")
+@login_required
+def receipt(bar_id: int, order_id: int):
+    """Printable receipt for a delivered order, including partial payments and credit."""
+    permissions.require(current_user, "payments.read", bar_id)
+    bar = db.session.get(Bar, bar_id)
+    if not bar:
+        raise LookupError("NOT_FOUND")
+
+    order = db.session.scalar(
+        select(Order).where(Order.bar_id == bar_id, Order.id == order_id)
+    )
+    if not order or order.status == "DRAFT":
+        raise LookupError("NOT_FOUND")
+
+    lines = list(
+        db.session.scalars(
+            select(OrderLine)
+            .where(OrderLine.bar_id == bar_id, OrderLine.order_id == order_id)
+            .order_by(OrderLine.line_no, OrderLine.id)
+        )
+    )
+    payments = list(
+        db.session.scalars(
+            select(Payment)
+            .where(Payment.bar_id == bar_id, Payment.order_id == order_id)
+            .order_by(Payment.received_at, Payment.id)
+        )
+    )
+    refunds = list(
+        db.session.scalars(
+            select(Refund)
+            .where(Refund.bar_id == bar_id, Refund.order_id == order_id)
+            .order_by(Refund.refunded_at, Refund.id)
+        )
+    )
+    balance = order_balance(order)
+
+    server_name = "Sans serveuse"
+    if order.assigned_staff_id is not None:
+        assignment = db.session.scalar(
+            select(StaffAssignment).where(
+                StaffAssignment.bar_id == bar_id,
+                StaffAssignment.id == order.assigned_staff_id,
+            )
+        )
+        if assignment:
+            server = db.session.get(User, assignment.user_id)
+            if server:
+                server_name = server.display_name
+
+    customer_name = order.customer_name_snapshot
+    if not customer_name and order.customer_id is not None:
+        customer = db.session.scalar(
+            select(Customer).where(Customer.bar_id == bar_id, Customer.id == order.customer_id)
+        )
+        customer_name = customer.display_name if customer else None
+
+    payment_times = {item.id: _local_display(item.received_at, bar.timezone) for item in payments}
+    refund_times = {item.id: _local_display(item.refunded_at, bar.timezone) for item in refunds}
+    sale_time = _local_display(order.closed_at or order.updated_at or order.posted_at, bar.timezone)
+    issued_at = datetime.now(ZoneInfo(bar.timezone)).strftime("%d/%m/%Y %H:%M")
+
+    return render_template(
+        "checkout_receipt.html",
+        bar=bar,
+        order=order,
+        lines=lines,
+        payments=payments,
+        refunds=refunds,
+        balance=balance,
+        server_name=server_name,
+        customer_name=customer_name,
+        payment_times=payment_times,
+        refund_times=refund_times,
+        payment_labels=PAYMENT_LABELS,
+        sale_time=sale_time,
+        issued_at=issued_at,
+    )
 
 
 @bp.route("", methods=["GET", "POST"])
