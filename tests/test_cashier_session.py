@@ -3,8 +3,8 @@ import re
 from sqlalchemy import select
 
 from app.extensions import db
-from app.models import CashSession, StaffAssignment, User, utcnow
-from test_workflows import env
+from app.models import CashMovement, CashSession, StaffAssignment, User, utcnow
+from test_workflows import env, order
 
 
 def _csrf_from(page):
@@ -180,3 +180,94 @@ def test_cashier_variance_requires_reason_and_records_shortage(env):
     summary = client.get(response.headers["Location"])
     assert "Manque" in summary.text
     assert "-500" in summary.text
+
+
+def test_cashier_daily_dashboard_tracks_receipts_and_manual_cash(env):
+    app, owner, bar, _, _, _, _, _ = env
+    cashier = _cashier(bar, "cashier-daily@example.invalid", "Esther Daily")
+    from app.cash_services import cash_service
+    from app.payment_services import payment_service
+
+    session = cash_service.open(owner, bar.id, "DAILY", 5000)
+    value = order(env)
+    payment_service.record(
+        owner,
+        bar.id,
+        value.id,
+        "DAILY-CASH",
+        "CASH",
+        80,
+        80,
+        0,
+        cash_session_id=session.id,
+    )
+    payment_service.record(
+        owner,
+        bar.id,
+        value.id,
+        "DAILY-MOMO",
+        "MOBILE_MONEY",
+        120,
+        120,
+        0,
+        provider_code="MTN",
+        provider_transaction_id="DAILY-TXN",
+    )
+    cash_service.movement(owner, bar.id, session.id, "DEPOSIT", 1000, "Apport monnaie")
+    cash_service.movement(owner, bar.id, session.id, "WITHDRAWAL", 500, "Achat urgent")
+    db.session.commit()
+
+    client = app.test_client()
+    _login(client, cashier.email)
+
+    finance = client.get(f"/bars/{bar.id}/finance", follow_redirects=False)
+    assert finance.status_code == 302
+    assert finance.headers["Location"].endswith(f"/bars/{bar.id}/cashier-session/daily")
+
+    page = client.get(finance.headers["Location"])
+    assert page.status_code == 200
+    assert "Situation de caisse" in page.text
+    assert "Encaissement net" in page.text
+    assert "Mobile Money net" in page.text
+    assert "Versement de caisse" in page.text
+    assert "Apport monnaie" in page.text
+    assert "5,580" in page.text
+
+    response = client.post(
+        f"/bars/{bar.id}/cashier-session/daily",
+        data={
+            "action": "movement",
+            "kind": "DEPOSIT",
+            "amount": "200",
+            "reason": "Complément monnaie",
+            "csrf_token": _csrf_from(page),
+        },
+        follow_redirects=False,
+    )
+    assert response.status_code == 302
+    assert cash_service.expected(session) == 5780
+
+    page = client.get(f"/bars/{bar.id}/cashier-session/daily")
+    response = client.post(
+        f"/bars/{bar.id}/cashier-session/daily",
+        data={
+            "action": "send_receipt",
+            "amount": "300",
+            "reason": "Remise au gérant",
+            "csrf_token": _csrf_from(page),
+        },
+        follow_redirects=False,
+    )
+    assert response.status_code == 302
+    assert cash_service.expected(session) == 5480
+    versement = db.session.scalar(
+        select(CashMovement)
+        .where(
+            CashMovement.bar_id == bar.id,
+            CashMovement.cash_session_id == session.id,
+            CashMovement.reason.like("Versement recette du service%"),
+        )
+        .order_by(CashMovement.id.desc())
+    )
+    assert versement is not None
+    assert versement.amount_delta == -300
