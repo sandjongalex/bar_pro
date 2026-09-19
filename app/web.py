@@ -22,6 +22,7 @@ def index():
 @login_required
 def dashboard():
     from app.customer_models import UserNotification
+    from app.dashboard_activity import dashboard_activity
     from app.dashboard_alerts import dashboard_alerts
     from app.dashboard_charts import dashboard_charts
     from app.dashboard_inventory_control import dashboard_inventory_control
@@ -60,6 +61,7 @@ def dashboard():
     operational_alerts = dashboard_alerts(current_user, active_bar.id) if active_bar else None
     chart_data = dashboard_charts(current_user, active_bar.id) if active_bar else None
     inventory_control = dashboard_inventory_control(current_user, active_bar.id) if active_bar else None
+    activity_data = dashboard_activity(current_user, active_bar.id) if active_bar else None
 
     notifications = list(
         db.session.scalars(
@@ -78,6 +80,7 @@ def dashboard():
         operational_alerts=operational_alerts,
         chart_data=chart_data,
         inventory_control=inventory_control,
+        activity_data=activity_data,
         assignments=assignments,
         assignment_by_bar=assignment_by_bar,
         notifications=notifications,
