@@ -62,6 +62,7 @@ def test_cashier_workspace_counter_sale_and_exact_cash(env):
     assert workspace.status_code == 200
     assert "Poste de caisse" in workspace.text
     assert "Valider &amp; encaisser" in workspace.text or "Valider & encaisser" in workspace.text
+    assert "cashier_live_ui.js" in workspace.text
 
     response = client.post(
         f"/bars/{bar.id}/cashier/workspace",
@@ -85,6 +86,18 @@ def test_cashier_workspace_counter_sale_and_exact_cash(env):
     assert order.status == "CONFIRMED"
     assert order.payment_status == "UNPAID"
     assert order.assigned_staff_id is None
+
+    live = client.get(f"/bars/{bar.id}/live/orders")
+    assert live.status_code == 200
+    payload = live.get_json()
+    assert payload["mode"] == "CASHIER"
+    assert any(item["id"] == order.id and item["state"] == "to_pay" for item in payload["orders"])
+    assert str(product.id) in payload["stock"]
+
+    live_script = client.get("/static/cashier_live_ui.js")
+    assert live_script.status_code == 200
+    assert "setInterval(poll, 4000)" in live_script.text
+    assert "Nouvelle commande reçue" in live_script.text
 
     pay_page = client.get(response.headers["Location"])
     assert pay_page.status_code == 200
