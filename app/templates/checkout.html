@@ -6,10 +6,11 @@
   <div>
     <a class="bar-back" href="{{ url_for('bars.web_detail', bar_id=bar.id) }}">← Retour à {{ bar.name }}</a>
     <p class="eyebrow mt-3 mb-2">Caisse</p>
-    <h1>Commandes reçues</h1>
-    <p>Confirmez d'abord la livraison. Le stock est alors déduit et la commande devient disponible pour l'encaissement.</p>
+    <h1>Suivi des commandes</h1>
+    <p>Chaque commande suit le même circuit : <strong>À livrer → À payer → Payée</strong>. Sélectionnez une commande pour afficher ses détails et l'action disponible.</p>
   </div>
-  <div class="d-flex gap-2 flex-wrap">
+  <div class="d-flex gap-2 flex-wrap align-items-center">
+    {% if open_sessions %}<span class="checkout-session-status">● Caisse ouverte</span>{% endif %}
     {% if can_credit %}<a class="btn btn-outline-primary" href="{{ url_for('customers_web.manage', bar_id=bar.id) }}">Clients & crédits</a>{% endif %}
     <a class="btn btn-outline-primary" href="{{ url_for('finance_web.desk', bar_id=bar.id) }}">Gestion de la caisse</a>
   </div>
@@ -23,44 +24,98 @@
 <div class="checkout-warning mt-4">
   <strong>Session de caisse requise.</strong>
   Ouvrez votre caisse avant de traiter les commandes ou d'encaisser.
-  <a href="{{ url_for('finance_web.desk', bar_id=bar.id) }}">Ouvrir la caisse →</a>
+  <a href="{{ url_for('cashier_web.session', bar_id=bar.id) }}">Ouvrir ma caisse →</a>
 </div>
 {% endif %}
 
 <section class="checkout-stats mt-4">
   <article><span>À livrer</span><strong>{{ stats.waiting }}</strong><small>Commandes reçues des serveuses</small></article>
-  <article><span>À payer</span><strong>{{ stats.to_pay }}</strong><small>Livrées et non soldées</small></article>
-  <article><span>Reste à encaisser</span><strong>{{ "{:,.0f}".format(stats.due) }} {{ bar.currency }}</strong><small>Solde cumulé des commandes livrées</small></article>
-  <article><span>Caisses ouvertes</span><strong>{{ stats.open_cash }}</strong><small>Sessions disponibles</small></article>
+  <article><span>À payer</span><strong>{{ stats.to_pay }}</strong><small>Livrées et encore non soldées</small></article>
+  <article><span>Payées récemment</span><strong>{{ stats.paid_recent }}</strong><small>Historique rapide des 20 dernières</small></article>
+  <article><span>Reste à encaisser</span><strong>{{ "{:,.0f}".format(stats.due) }} {{ bar.currency }}</strong><small>Solde cumulé des commandes à payer</small></article>
 </section>
 
 <div class="checkout-layout mt-4">
   <section class="panel-card checkout-orders-panel">
-    <div class="panel-header"><div><p class="eyebrow mb-1">File de caisse</p><h2>Commandes</h2></div></div>
-    {% if orders %}
-    <div class="checkout-order-list">
-      {% for order in orders %}
-        {% set b = balances[order.id] %}
-        {% set lines = lines_by_order.get(order.id, []) %}
-        <a class="checkout-order-card {% if selected_order and selected_order.id == order.id %}active{% endif %}" href="{{ url_for('checkout_web.checkout', bar_id=bar.id, order_id=order.id) }}">
-          <div class="checkout-order-main">
-            <div class="checkout-order-icon">{{ loop.index }}</div>
-            <div>
-              <strong>{{ order.reference }}</strong>
-              <small>{{ server_name_by_order.get(order.id, 'Sans serveuse') }} · {{ order.table_label_snapshot or 'Sans table' }}</small>
-              {% if lines %}<span>{{ lines[0].product_name_snapshot }}{% if lines|length > 1 %} + {{ lines|length - 1 }} autre{{ 's' if lines|length > 2 else '' }}{% endif %}</span>{% endif %}
+    <div class="panel-header"><div><p class="eyebrow mb-1">File de caisse</p><h2>À livrer → À payer → Payée</h2></div></div>
+
+    <section class="checkout-queue-section">
+      <div class="checkout-queue-head">
+        <div><span class="checkout-stage checkout-stage-waiting">1</span><div><strong>À livrer</strong><small>Le stock n'est pas encore déduit.</small></div></div>
+        <span class="checkout-queue-count">{{ waiting_orders|length }}</span>
+      </div>
+      {% if waiting_orders %}
+      <div class="checkout-order-list">
+        {% for order in waiting_orders %}
+          {% set b = balances[order.id] %}
+          {% set lines = lines_by_order.get(order.id, []) %}
+          <a class="checkout-order-card {% if selected_order and selected_order.id == order.id %}active{% endif %}" href="{{ url_for('checkout_web.checkout', bar_id=bar.id, order_id=order.id) }}">
+            <div class="checkout-order-main">
+              <div class="checkout-order-icon">L</div>
+              <div>
+                <strong>{{ order.reference }}</strong>
+                <small>{{ server_name_by_order.get(order.id, 'Sans serveuse') }} · {{ order.table_label_snapshot or 'Sans table' }}</small>
+                {% if lines %}<span>{{ lines[0].product_name_snapshot }}{% if lines|length > 1 %} + {{ lines|length - 1 }} autre{{ 's' if lines|length > 2 else '' }}{% endif %}</span>{% endif %}
+              </div>
             </div>
-          </div>
-          <div class="checkout-order-amount">
-            {% if order.status == 'DRAFT' %}<small>Statut</small><strong>À livrer</strong>
-            {% else %}<small>Reste</small><strong>{{ "{:,.0f}".format(b.amount_due) }} {{ order.currency }}</strong>{% if order.payment_status == 'PARTIAL' %}<span class="checkout-partial">Paiement partiel</span>{% else %}<span class="checkout-partial">À payer</span>{% endif %}{% endif %}
-          </div>
-        </a>
-      {% endfor %}
-    </div>
-    {% else %}
-    <div class="empty-state"><div class="empty-icon">✓</div><h3>Aucune commande à traiter</h3><p>Les nouvelles commandes envoyées par les serveuses apparaîtront ici.</p></div>
-    {% endif %}
+            <div class="checkout-order-amount"><small>Total</small><strong>{{ "{:,.0f}".format(b.net_sale) }} {{ order.currency }}</strong><span class="checkout-state-chip state-waiting">À livrer</span></div>
+          </a>
+        {% endfor %}
+      </div>
+      {% else %}<div class="checkout-queue-empty">Aucune commande en attente de livraison.</div>{% endif %}
+    </section>
+
+    <section class="checkout-queue-section">
+      <div class="checkout-queue-head">
+        <div><span class="checkout-stage checkout-stage-payable">2</span><div><strong>À payer</strong><small>Livraison confirmée, encaissement en attente.</small></div></div>
+        <span class="checkout-queue-count">{{ payable_orders|length }}</span>
+      </div>
+      {% if payable_orders %}
+      <div class="checkout-order-list">
+        {% for order in payable_orders %}
+          {% set b = balances[order.id] %}
+          {% set lines = lines_by_order.get(order.id, []) %}
+          <a class="checkout-order-card {% if selected_order and selected_order.id == order.id %}active{% endif %}" href="{{ url_for('checkout_web.checkout', bar_id=bar.id, order_id=order.id) }}">
+            <div class="checkout-order-main">
+              <div class="checkout-order-icon">P</div>
+              <div>
+                <strong>{{ order.reference }}</strong>
+                <small>{{ server_name_by_order.get(order.id, 'Sans serveuse') }} · {{ order.table_label_snapshot or 'Sans table' }}</small>
+                {% if lines %}<span>{{ lines[0].product_name_snapshot }}{% if lines|length > 1 %} + {{ lines|length - 1 }} autre{{ 's' if lines|length > 2 else '' }}{% endif %}</span>{% endif %}
+              </div>
+            </div>
+            <div class="checkout-order-amount"><small>Reste</small><strong>{{ "{:,.0f}".format(b.amount_due) }} {{ order.currency }}</strong><span class="checkout-state-chip state-payable">{{ 'Partiel' if order.payment_status == 'PARTIAL' else 'À payer' }}</span></div>
+          </a>
+        {% endfor %}
+      </div>
+      {% else %}<div class="checkout-queue-empty">Aucune commande livrée en attente d'encaissement.</div>{% endif %}
+    </section>
+
+    <section class="checkout-queue-section checkout-paid-history">
+      <div class="checkout-queue-head">
+        <div><span class="checkout-stage checkout-stage-paid">3</span><div><strong>Payées récemment</strong><small>Historique des commandes soldées.</small></div></div>
+        <span class="checkout-queue-count">{{ paid_orders|length }}</span>
+      </div>
+      {% if paid_orders %}
+      <div class="checkout-order-list">
+        {% for order in paid_orders %}
+          {% set b = balances[order.id] %}
+          {% set lines = lines_by_order.get(order.id, []) %}
+          <a class="checkout-order-card checkout-order-paid {% if selected_order and selected_order.id == order.id %}active{% endif %}" href="{{ url_for('checkout_web.checkout', bar_id=bar.id, order_id=order.id) }}">
+            <div class="checkout-order-main">
+              <div class="checkout-order-icon">✓</div>
+              <div>
+                <strong>{{ order.reference }}</strong>
+                <small>{{ server_name_by_order.get(order.id, 'Sans serveuse') }} · {{ order.table_label_snapshot or 'Sans table' }}</small>
+                {% if lines %}<span>{{ lines[0].product_name_snapshot }}{% if lines|length > 1 %} + {{ lines|length - 1 }} autre{{ 's' if lines|length > 2 else '' }}{% endif %}</span>{% endif %}
+              </div>
+            </div>
+            <div class="checkout-order-amount"><small>Soldée</small><strong>{{ "{:,.0f}".format(b.net_sale) }} {{ order.currency }}</strong><span class="checkout-state-chip state-paid">Payée</span></div>
+          </a>
+        {% endfor %}
+      </div>
+      {% else %}<div class="checkout-queue-empty">Aucune commande payée dans l'historique récent.</div>{% endif %}
+    </section>
   </section>
 
   <aside class="panel-card checkout-pay-panel">
@@ -81,12 +136,19 @@
         <hr>
         <div><span>Total vente</span><strong>{{ "{:,.0f}".format(b.net_sale) }} {{ selected_order.currency }}</strong></div>
         {% if selected_order.status != 'DRAFT' %}
-        <div><span>Déjà encaissé</span><strong>{{ "{:,.0f}".format(b.net_paid) }} {{ selected_order.currency }}</strong></div>
+        <div><span>Encaissements réels</span><strong>{{ "{:,.0f}".format(b.net_paid) }} {{ selected_order.currency }}</strong></div>
+        {% if b.customer_credit > 0 %}<div><span>Crédit client</span><strong>{{ "{:,.0f}".format(b.customer_credit) }} {{ selected_order.currency }}</strong></div>{% endif %}
         <div class="checkout-receipt-due"><span>Reste à payer</span><strong>{{ "{:,.0f}".format(b.amount_due) }} {{ selected_order.currency }}</strong></div>
         {% endif %}
       </div>
 
-      {% if selected_order.status == 'DRAFT' %}
+      {% if selected_order.payment_status == 'PAID' %}
+        <div class="checkout-paid-state">
+          <div class="checkout-paid-icon">✓</div>
+          <div><strong>Commande soldée</strong><p>Cette commande est terminée. Elle reste consultable ici pour la traçabilité de la caisse.</p></div>
+        </div>
+        {% if orders %}<a class="btn btn-outline-primary w-100" href="{{ url_for('checkout_web.checkout', bar_id=bar.id) }}">Revenir aux commandes à traiter</a>{% endif %}
+      {% elif selected_order.status == 'DRAFT' %}
         <div class="p-3">
           <div class="checkout-warning mb-3"><strong>En attente de livraison.</strong> Le stock n'a pas encore été déduit.</div>
           {% if can_deliver %}
@@ -94,7 +156,7 @@
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="deliver"><input type="hidden" name="order_id" value="{{ selected_order.id }}">
             <button class="btn btn-primary btn-lg w-100" type="submit" {% if is_cashier and not open_sessions %}disabled{% endif %}>Livrée</button>
           </form>
-          <p class="checkout-help">« Livrée » déduit le stock et place la commande dans la file « À payer ».</p>
+          <p class="checkout-help">« Livrée » déduit le stock et déplace la commande vers « À payer ».</p>
           {% endif %}
         </div>
       {% elif can_record %}
@@ -139,7 +201,7 @@
         <div id="cashLocationGroup" class="mt-3">
           <label class="form-label" for="cash_session_id">Session de caisse</label>
           <select class="form-select form-select-lg" id="cash_session_id" name="cash_session_id"><option value="">Sélectionner une caisse ouverte...</option>{% for session in open_sessions %}<option value="{{ session.id }}">{{ session.reference }} · solde {{ "{:,.0f}".format(cash_expected[session.id]) }} {{ session.currency }}</option>{% endfor %}</select>
-          {% if not open_sessions %}<div class="checkout-warning mt-2">Aucune caisse ouverte. <a href="{{ url_for('finance_web.desk', bar_id=bar.id) }}">Ouvrir une caisse</a>.</div>{% endif %}
+          {% if not open_sessions %}<div class="checkout-warning mt-2">Aucune caisse ouverte. <a href="{{ url_for('cashier_web.session', bar_id=bar.id) if is_cashier else url_for('finance_web.desk', bar_id=bar.id) }}">Ouvrir une caisse</a>.</div>{% endif %}
         </div>
 
         <div id="providerGroup" class="row g-3 mt-1" hidden>
@@ -153,13 +215,13 @@
       </form>
       {% endif %}
     {% else %}
-      <div class="empty-state checkout-empty-selection"><div class="empty-icon">₣</div><h3>Sélectionnez une commande</h3><p>Choisissez une commande reçue pour confirmer sa livraison ou l'encaisser.</p></div>
+      <div class="empty-state checkout-empty-selection"><div class="empty-icon">₣</div><h3>Aucune commande</h3><p>Les nouvelles commandes envoyées par les serveuses apparaîtront ici.</p></div>
     {% endif %}
   </aside>
 </div>
 
 <section class="panel-card mt-4">
-  <div class="panel-header"><div><p class="eyebrow mb-1">Traçabilité</p><h2>Derniers paiements réels</h2></div><a class="btn btn-sm btn-light border" href="{{ url_for('finance_web.desk', bar_id=bar.id) }}">Historique complet</a></div>
+  <div class="panel-header"><div><p class="eyebrow mb-1">Traçabilité</p><h2>Historique des encaissements réels</h2><p class="small text-muted mb-0">Les ventes à crédit apparaissent dans les commandes payées ci-dessus, mais ne sont pas comptées comme encaissement réel.</p></div><a class="btn btn-sm btn-light border" href="{{ url_for('finance_web.desk', bar_id=bar.id) }}">Historique complet</a></div>
   {% if recent_payments %}
   <div class="table-responsive"><table class="table checkout-history align-middle mb-0"><thead><tr><th>Référence</th><th>Commande</th><th>Mode</th><th>Montant</th><th>Monnaie rendue</th><th>Date</th></tr></thead><tbody>
     {% for payment in recent_payments %}<tr><td><strong>{{ payment.reference }}</strong></td><td>{{ order_by_id.get(payment.order_id).reference if order_by_id.get(payment.order_id) else payment.order_id }}</td><td>{{ payment_labels.get(payment.method, payment.method) }}</td><td><strong>{{ "{:,.0f}".format(payment.amount_applied) }} {{ payment.currency }}</strong></td><td>{{ "{:,.0f}".format(payment.change_given) }} {{ payment.currency }}</td><td>{{ payment.received_at }}</td></tr>{% endfor %}
