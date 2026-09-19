@@ -17,10 +17,18 @@ def optional_id(data,key):
  return int(data[key]) if data.get(key) else None
 
 
+def _is_cashier(bar_id):
+ if current_user.category!='EMPLOYEE': return False
+ assignment=db.session.scalar(select(StaffAssignment).where(StaffAssignment.bar_id==bar_id,StaffAssignment.user_id==current_user.id,StaffAssignment.ended_at.is_(None)))
+ return bool(assignment and assignment.role=='CASHIER')
+
+
 @bp.route('',methods=['GET','POST'])
 @login_required
 def desk(bar_id):
  permissions.require(current_user,'payments.read',bar_id)
+ if request.method=='GET' and _is_cashier(bar_id):
+  return redirect(url_for('cashier_web.daily',bar_id=bar_id))
  if request.method=='POST':
   data=request.form
   try:
