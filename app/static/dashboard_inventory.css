@@ -148,6 +148,19 @@
 .inventory-diff.is-danger { color:#b33e3e; }
 .inventory-diff.is-warning { color:#a87010; }
 
+.inventory-control-empty {
+  padding:28px;
+  border:1px dashed #cbd8d4;
+  border-radius:18px;
+  background:#fbfdfc;
+  text-align:center;
+}
+
+.inventory-control-empty strong,
+.inventory-control-empty span { display:block; }
+.inventory-control-empty strong { color:var(--brand-dark); }
+.inventory-control-empty span { max-width:760px; margin:.4rem auto 0; color:var(--muted); font-size:.84rem; }
+
 @media (max-width: 1200px) {
   .inventory-control-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
   .inventory-stock-control { grid-template-columns:1fr; }
