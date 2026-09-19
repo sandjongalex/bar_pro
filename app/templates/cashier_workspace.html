@@ -1,0 +1,265 @@
+{% extends 'layout.html' %}
+{% block title %}Caisse rapide · {{ bar.name }} · Bar Manager Pro{% endblock %}
+{% block header %}Caisse rapide · {{ bar.name }}{% endblock %}
+{% block content %}
+<style>
+.cashier-workspace-head{display:flex;justify-content:space-between;align-items:center;gap:1rem;padding:14px 16px;background:#fff;border:1px solid var(--line);border-radius:16px;box-shadow:0 8px 24px rgba(25,46,39,.04)}
+.cashier-workspace-head h1{font-size:1.45rem;margin:0;font-weight:850}.cashier-workspace-head p{margin:2px 0 0;color:var(--muted);font-size:.78rem}.cashier-head-actions{display:flex;gap:.55rem;flex-wrap:wrap;align-items:center}.cashier-open-pill{display:inline-flex;align-items:center;gap:.4rem;padding:.5rem .7rem;border-radius:999px;background:#eaf7ee;color:#176b36;font-weight:800;font-size:.75rem}.cashier-open-pill::before{content:'';width:8px;height:8px;border-radius:50%;background:currentColor}
+.cashier-kpis{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:12px}.cashier-kpis a,.cashier-kpis article{display:block;text-decoration:none;color:inherit;background:#fff;border:1px solid var(--line);border-radius:14px;padding:13px 15px}.cashier-kpis span,.cashier-kpis strong,.cashier-kpis small{display:block}.cashier-kpis span{font-size:.72rem;color:var(--muted);font-weight:750}.cashier-kpis strong{font-size:1.25rem;line-height:1.2;margin:.15rem 0}.cashier-kpis small{font-size:.68rem;color:#8c9793}
+.cashier-sale-panel{margin-top:14px;overflow:hidden}.cashier-sale-panel[hidden]{display:none!important}.cashier-sale-head{display:flex;justify-content:space-between;align-items:center;gap:1rem;padding:14px 16px;border-bottom:1px solid var(--line)}.cashier-sale-head h2{font-size:1.15rem;margin:0}.cashier-sale-layout{display:grid;grid-template-columns:minmax(0,1fr) 350px}.cashier-sale-catalog{border-right:1px solid var(--line)}.cashier-sale-cart{background:#fcfdfc}.cashier-sale-actions{padding:14px;border-top:1px solid var(--line)}
+.cashier-main-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(360px,430px);gap:16px;margin-top:14px;align-items:start}.cashier-queue{overflow:hidden}.cashier-queue-top{padding:14px 16px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center}.cashier-queue-top h2{font-size:1.05rem;margin:0}.cashier-queue-section+.cashier-queue-section{border-top:1px solid var(--line)}.cashier-queue-label{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:#fafcfb;font-size:.76rem;font-weight:850}.cashier-order-link{display:flex;justify-content:space-between;gap:1rem;padding:12px 14px;border-top:1px solid #edf2ef;text-decoration:none;color:inherit}.cashier-order-link:hover{background:#fafcfb}.cashier-order-link.active{background:var(--brand-soft);box-shadow:inset 4px 0 0 var(--brand)}.cashier-order-copy strong,.cashier-order-copy small{display:block}.cashier-order-copy small{color:var(--muted);font-size:.7rem;margin-top:2px}.cashier-order-money{text-align:right;white-space:nowrap}.cashier-order-money strong,.cashier-order-money small{display:block}.cashier-order-money small{font-size:.68rem;color:var(--muted)}
+.cashier-pay-panel{position:sticky;top:92px;padding:16px}.cashier-pay-title{display:flex;justify-content:space-between;gap:.8rem;align-items:flex-start}.cashier-pay-title h2{font-size:1.12rem;margin:0}.cashier-pay-total{font-size:1rem;font-weight:900;color:var(--brand);white-space:nowrap}.cashier-order-summary{margin:12px 0;padding:12px;border-radius:12px;background:#f8faf9}.cashier-order-summary>div{display:flex;justify-content:space-between;gap:1rem;padding:3px 0;font-size:.8rem}.cashier-order-summary span{color:var(--muted)}.cashier-line-list{border-top:1px dashed #dce5e1;border-bottom:1px dashed #dce5e1;margin:8px 0;padding:6px 0}.cashier-line-list>div{display:flex;justify-content:space-between;gap:.8rem;padding:4px 0;font-size:.78rem}
+.cashier-fast-cash{border:1px solid #cfe1d8;background:#eef7f2;border-radius:12px;padding:12px;margin:12px 0}.cashier-fast-cash strong,.cashier-fast-cash small{display:block}.cashier-fast-cash small{font-size:.7rem;color:#4e695a;margin-top:2px}.cashier-fast-cash .btn{margin-top:10px}
+.cashier-methods{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}.cashier-method{border:1px solid #dce5e1;border-radius:10px;padding:9px 6px;text-align:center;cursor:pointer;position:relative;background:#fff}.cashier-method input{position:absolute;opacity:0}.cashier-method span,.cashier-method strong{display:block}.cashier-method span{font-size:1rem;font-weight:900;color:var(--brand)}.cashier-method strong{font-size:.67rem;margin-top:2px}.cashier-method.active{border-color:var(--brand);background:var(--brand-soft);box-shadow:0 0 0 1px var(--brand)}
+.cashier-advanced{margin-top:10px;border-top:1px solid var(--line);padding-top:9px}.cashier-advanced summary{cursor:pointer;font-size:.73rem;font-weight:800;color:var(--brand)}.cashier-empty{padding:34px 18px;text-align:center}.cashier-empty h3{font-size:1.05rem}.cashier-empty p{font-size:.78rem;color:var(--muted)}
+.cashier-mobile-bar{display:none}
+@media(max-width:1050px){.cashier-main-grid{grid-template-columns:1fr}.cashier-pay-panel{position:static}.cashier-sale-layout{grid-template-columns:1fr}.cashier-sale-catalog{border-right:0;border-bottom:1px solid var(--line)}}
+@media(max-width:760px){.cashier-workspace-head{display:block}.cashier-head-actions{margin-top:10px}.cashier-head-actions .btn{flex:1 1 45%;min-height:44px}.cashier-kpis{grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}.cashier-kpis a,.cashier-kpis article{padding:10px}.cashier-kpis strong{font-size:1.05rem}.cashier-kpis small{display:none}.cashier-sale-panel{border-radius:12px}.cashier-pay-panel{padding:13px}.cashier-methods{grid-template-columns:repeat(3,minmax(0,1fr))}.cashier-mobile-bar{display:grid;position:fixed;left:10px;right:10px;bottom:10px;z-index:1030;grid-template-columns:repeat(4,1fr);gap:4px;background:#fff;border:1px solid var(--line);border-radius:14px;padding:6px;box-shadow:0 12px 34px rgba(20,40,33,.18)}.cashier-mobile-bar a,.cashier-mobile-bar button{border:0;background:transparent;text-decoration:none;color:#5f6d67;font-size:.68rem;font-weight:800;padding:8px 4px;border-radius:9px;text-align:center}.cashier-mobile-bar .primary{background:var(--brand);color:#fff}.content-area{padding-bottom:92px!important}}
+@media(max-width:480px){.cashier-workspace-head h1{font-size:1.25rem}.cashier-kpis{grid-template-columns:1fr 1fr 1fr}.cashier-order-link{padding:11px}.cashier-methods{grid-template-columns:1fr 1fr}.cashier-sale-head{align-items:flex-start}.cashier-sale-layout .pos-products{grid-template-columns:1fr 1fr}.cashier-sale-layout .pos-product{min-height:128px}.cashier-sale-layout .pos-cart-line{grid-template-columns:minmax(0,1fr) auto}.cashier-sale-layout .pos-line-total{grid-column:2}}
+</style>
+
+<section class="cashier-workspace-head">
+  <div>
+    <div class="d-flex align-items-center gap-2 flex-wrap"><span class="cashier-open-pill">Caisse ouverte</span><span class="small text-secondary">{{ session.reference }}</span></div>
+    <h1 class="mt-2">Poste de caisse</h1>
+    <p>Traitez les commandes et ventes comptoir sans changer d'écran.</p>
+  </div>
+  <div class="cashier-head-actions">
+    <button class="btn btn-primary" id="openQuickSale" type="button">＋ Vente comptoir</button>
+    <a class="btn btn-outline-primary" href="{{ url_for('cashier_handovers_web.manage', bar_id=bar.id) }}">Remises</a>
+    <a class="btn btn-light border" href="{{ url_for('cashier_returns_web.manage', bar_id=bar.id) }}">Retours</a>
+    <a class="btn btn-light border" href="{{ url_for('cashier_web.session', bar_id=bar.id) }}">Clôture</a>
+  </div>
+</section>
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% for category, message in messages %}<div class="alert alert-{{ category }} mt-2 mb-0 py-2" role="alert">{{ message }}</div>{% endfor %}
+{% endwith %}
+
+<section class="cashier-kpis">
+  <a href="#queueWaiting"><span>À livrer</span><strong>{{ stats.waiting }}</strong><small>Commandes reçues</small></a>
+  <a href="#queuePayable"><span>À encaisser</span><strong>{{ stats.to_pay }}</strong><small>Commandes prêtes</small></a>
+  <article><span>Reste à encaisser</span><strong>{{ "{:,.0f}".format(stats.due) }}</strong><small>{{ bar.currency }} · caisse {{ "{:,.0f}".format(stats.expected) }}</small></article>
+</section>
+
+<section class="panel-card cashier-sale-panel" id="quickSalePanel" {% if not sale_mode %}hidden{% endif %}>
+  <div class="cashier-sale-head">
+    <div><p class="eyebrow mb-1">Vente comptoir</p><h2>Sélection rapide des produits</h2></div>
+    <button class="btn btn-sm btn-light border" id="closeQuickSale" type="button">Fermer</button>
+  </div>
+  <form method="post" id="quickSaleForm">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="action" value="create_sale">
+    <div class="cashier-sale-layout">
+      <div class="cashier-sale-catalog">
+        <div class="pos-toolbar">
+          <div class="pos-search"><span>⌕</span><input id="cashierProductSearch" class="form-control" type="search" placeholder="Rechercher un produit..." autocomplete="off"></div>
+          <div class="pos-category-tabs" id="cashierCategoryTabs">
+            <button class="pos-category active" type="button" data-category="all">Tous</button>
+            {% for category in categories %}<button class="pos-category" type="button" data-category="{{ category.id }}">{{ category.name }}</button>{% endfor %}
+          </div>
+        </div>
+        <div class="pos-products" id="cashierProductGrid">
+          {% for product in products %}
+            {% set stock = stock_balances.get(product.id, 0) %}
+            {% set category = categories_by_id.get(product.category_id) %}
+            <button class="pos-product {% if stock <= 0 %}out-of-stock{% endif %}" type="button" data-product-id="{{ product.id }}" data-name="{{ product.name }}" data-price="{{ product.sale_price }}" data-stock="{{ stock }}" data-category="{{ product.category_id }}" {% if stock <= 0 %}disabled{% endif %}>
+              <div class="pos-product-top"><span class="pos-product-avatar">{{ product.name[0]|upper }}</span><span class="pos-stock {% if stock <= 0 %}danger{% elif stock <= product.stock_alert_threshold %}warning{% endif %}">{% if stock <= 0 %}Rupture{% else %}{{ stock }}{% endif %}</span></div>
+              <strong>{{ product.name }}</strong><small>{{ category.name if category else 'Produit' }}</small><span class="pos-product-price">{{ "{:,.0f}".format(product.sale_price) }} {{ bar.currency }}</span>
+            </button>
+          {% endfor %}
+        </div>
+      </div>
+      <aside class="cashier-sale-cart">
+        <div class="pos-cart-header"><div><p class="eyebrow mb-1">Panier</p><h2>Vente en cours</h2></div><button class="btn btn-sm btn-light border" id="cashierClearCart" type="button">Vider</button></div>
+        <div class="pos-cart-empty" id="cashierCartEmpty"><div>🧾</div><strong>Panier vide</strong><small>Touchez un produit.</small></div>
+        <div class="pos-cart-lines" id="cashierCartLines"></div>
+        <div class="pos-order-meta">
+          <div><label class="form-label" for="counterNotes">Note facultative</label><input class="form-control" id="counterNotes" name="notes" maxlength="500" placeholder="Ex. à emporter"></div>
+        </div>
+        <div class="pos-total-box"><div><span>Articles</span><strong id="cashierCartCount">0</strong></div><div class="pos-grand-total"><span>Total</span><strong><span id="cashierCartTotal">0</span> {{ bar.currency }}</strong></div></div>
+        <div class="cashier-sale-actions"><button class="btn btn-primary btn-lg w-100" id="cashierCreateSale" type="submit" disabled>Valider & encaisser</button><div class="form-text text-center mt-2">Le stock est déduit immédiatement puis le paiement s'affiche.</div></div>
+      </aside>
+    </div>
+  </form>
+</section>
+
+<div class="cashier-main-grid">
+  <section class="panel-card cashier-queue" id="queue">
+    <div class="cashier-queue-top"><div><p class="eyebrow mb-1">File active</p><h2>Commandes à traiter</h2></div><a class="btn btn-sm btn-light border" href="{{ url_for('cashier_history_web.history', bar_id=bar.id) }}">Historique</a></div>
+
+    <div class="cashier-queue-section" id="queuePayable">
+      <div class="cashier-queue-label"><span>À ENCAISSER</span><span>{{ payable_orders|length }}</span></div>
+      {% for order in payable_orders %}
+        {% set b = balances[order.id] %}
+        {% set lines = lines_by_order.get(order.id, []) %}
+        <a class="cashier-order-link {% if selected_order and selected_order.id == order.id %}active{% endif %}" href="{{ url_for('cashier_workspace_web.workspace', bar_id=bar.id, order_id=order.id) }}#paymentPanel">
+          <div class="cashier-order-copy"><strong>{{ order.reference }}</strong><small>{{ server_name_by_order.get(order.id, 'Comptoir') }} · {{ order.table_label_snapshot or 'Sans table' }}{% if lines %} · {{ lines[0].product_name_snapshot }}{% if lines|length > 1 %} +{{ lines|length - 1 }}{% endif %}{% endif %}</small></div>
+          <div class="cashier-order-money"><strong>{{ "{:,.0f}".format(b.amount_due) }} {{ order.currency }}</strong><small>{{ 'Partiel' if order.payment_status == 'PARTIAL' else 'À payer' }}</small></div>
+        </a>
+      {% else %}<div class="p-3 text-secondary small">Aucune commande à encaisser.</div>{% endfor %}
+    </div>
+
+    <div class="cashier-queue-section" id="queueWaiting">
+      <div class="cashier-queue-label"><span>À LIVRER</span><span>{{ waiting_orders|length }}</span></div>
+      {% for order in waiting_orders %}
+        {% set b = balances[order.id] %}
+        {% set lines = lines_by_order.get(order.id, []) %}
+        <a class="cashier-order-link {% if selected_order and selected_order.id == order.id %}active{% endif %}" href="{{ url_for('cashier_workspace_web.workspace', bar_id=bar.id, order_id=order.id) }}#paymentPanel">
+          <div class="cashier-order-copy"><strong>{{ order.reference }}</strong><small>{{ server_name_by_order.get(order.id, 'Comptoir') }} · {{ order.table_label_snapshot or 'Sans table' }}{% if lines %} · {{ lines[0].product_name_snapshot }}{% if lines|length > 1 %} +{{ lines|length - 1 }}{% endif %}{% endif %}</small></div>
+          <div class="cashier-order-money"><strong>{{ "{:,.0f}".format(b.net_sale) }} {{ order.currency }}</strong><small>À livrer</small></div>
+        </a>
+      {% else %}<div class="p-3 text-secondary small">Aucune commande à livrer.</div>{% endfor %}
+    </div>
+  </section>
+
+  <aside class="panel-card cashier-pay-panel" id="paymentPanel">
+    {% if selected_order %}
+      {% set b = balances[selected_order.id] %}
+      {% set selected_lines = lines_by_order.get(selected_order.id, []) %}
+      <div class="cashier-pay-title"><div><p class="eyebrow mb-1">Commande</p><h2>{{ selected_order.reference }}</h2></div><span class="cashier-pay-total">{{ "{:,.0f}".format(b.amount_due if selected_order.status != 'DRAFT' else b.net_sale) }} {{ selected_order.currency }}</span></div>
+      <div class="cashier-order-summary">
+        <div><span>Origine</span><strong>{{ server_name_by_order.get(selected_order.id, 'Comptoir') }}</strong></div>
+        {% if selected_order.table_label_snapshot %}<div><span>Table</span><strong>{{ selected_order.table_label_snapshot }}</strong></div>{% endif %}
+        <div class="cashier-line-list">
+          {% for line in selected_lines %}<div><span>{{ line.quantity }} × {{ line.product_name_snapshot }}</span><strong>{{ "{:,.0f}".format(line.total_amount) }}</strong></div>{% endfor %}
+        </div>
+        {% if selected_order.notes %}<div><span>Note</span><strong>{{ selected_order.notes }}</strong></div>{% endif %}
+      </div>
+
+      {% if selected_order.status == 'DRAFT' %}
+        <form method="post">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="deliver"><input type="hidden" name="order_id" value="{{ selected_order.id }}">
+          <button class="btn btn-primary btn-lg w-100" type="submit">Livrer & encaisser</button>
+          <div class="form-text text-center mt-2">Un clic déduit le stock et ouvre immédiatement le paiement.</div>
+        </form>
+      {% else %}
+        <div class="cashier-fast-cash">
+          <strong>Paiement espèces exact</strong><small>Si le client donne exactement {{ "{:,.0f}".format(b.amount_due) }} {{ selected_order.currency }}, encaissez en un clic.</small>
+          <form method="post">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="cash_exact"><input type="hidden" name="order_id" value="{{ selected_order.id }}">
+            <button class="btn btn-success btn-lg w-100" type="submit">⚡ Encaisser {{ "{:,.0f}".format(b.amount_due) }} {{ selected_order.currency }}</button>
+          </form>
+        </div>
+
+        <form method="post" id="cashierPaymentForm">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="payment"><input type="hidden" name="order_id" value="{{ selected_order.id }}"><input type="hidden" id="cashierDue" value="{{ b.amount_due }}">
+          <label class="form-label fw-bold">Autre paiement</label>
+          <div class="cashier-methods">
+            {% for code, label in payment_labels.items() %}
+              {% if code != 'CREDIT' or bar.credit_sales_enabled %}
+              <label class="cashier-method {% if code == 'CASH' %}active{% endif %}"><input type="radio" name="method" value="{{ code }}" {% if code == 'CASH' %}checked{% endif %}><span>{{ {'CASH':'₣','MOBILE_MONEY':'M','MIXED':'±','CREDIT':'Cr','CARD':'C','BANK_TRANSFER':'V'}.get(code,'•') }}</span><strong>{{ label }}</strong></label>
+              {% endif %}
+            {% endfor %}
+          </div>
+
+          <div id="cashierSingleAmount" class="mt-3">
+            <label class="form-label" for="cashierApplied">Montant à encaisser</label>
+            <div class="input-group input-group-lg"><input class="form-control" id="cashierApplied" name="amount_applied" type="number" min="1" step="1" max="{{ b.amount_due }}" value="{{ b.amount_due }}" inputmode="numeric"><span class="input-group-text">{{ bar.currency }}</span></div>
+          </div>
+
+          <div id="cashierPresented" class="mt-3">
+            <label class="form-label" for="cashierPresentedInput">Montant remis</label>
+            <div class="input-group input-group-lg"><input class="form-control" id="cashierPresentedInput" name="amount_presented" type="number" min="1" step="1" value="{{ b.amount_due }}" inputmode="numeric"><span class="input-group-text">{{ bar.currency }}</span></div>
+            <div class="cashier-order-summary mt-2 mb-0"><div><span>Monnaie à rendre</span><strong id="cashierChange">0 {{ bar.currency }}</strong></div></div>
+          </div>
+
+          <div id="cashierMixed" class="mt-3" hidden>
+            <div class="row g-2"><div class="col-6"><label class="form-label">Espèces</label><input class="form-control form-control-lg" name="mixed_cash" id="cashierMixedCash" type="number" min="0" step="1" value="0"></div><div class="col-6"><label class="form-label">Mobile Money</label><input class="form-control form-control-lg" name="mixed_mobile" id="cashierMixedMobile" type="number" min="0" step="1" value="{{ b.amount_due }}"></div></div>
+          </div>
+
+          <div id="cashierProvider" class="mt-3" hidden>
+            <div class="row g-2"><div class="col-5"><label class="form-label">Réseau</label><input class="form-control" name="provider_code" maxlength="32" placeholder="MTN / Orange"></div><div class="col-7"><label class="form-label">Référence transaction</label><input class="form-control" name="provider_transaction_id" maxlength="128" placeholder="ID transaction"></div></div>
+          </div>
+
+          <div id="cashierCredit" class="mt-3" hidden>
+            <label class="form-label">Client</label><select class="form-select form-select-lg" name="customer_id"><option value="">Sélectionner...</option>{% for customer in customers %}<option value="{{ customer.id }}">{{ customer.display_name }}{% if customer.phone %} · {{ customer.phone }}{% endif %}</option>{% endfor %}</select>
+          </div>
+
+          {% if selected_server_assignment %}
+          <details class="cashier-advanced">
+            <summary>Espèces déjà encaissées par la serveuse ?</summary>
+            <div class="mt-2 d-grid gap-2">
+              <label class="border rounded-3 p-2"><input class="form-check-input me-2" type="radio" name="cash_holder_mode" value="DRAWER" checked> Argent remis à ma caisse</label>
+              <label class="border rounded-3 p-2"><input class="form-check-input me-2" type="radio" name="cash_holder_mode" value="STAFF"> Argent encore chez {{ server_name_by_order.get(selected_order.id, 'la serveuse') }}</label>
+            </div>
+          </details>
+          {% endif %}
+
+          <details class="cashier-advanced"><summary>Référence personnalisée</summary><input class="form-control mt-2" name="reference" maxlength="64" placeholder="Automatique si vide"></details>
+          <button class="btn btn-primary btn-lg w-100 mt-3" id="cashierPaymentSubmit" type="submit">Encaisser {{ "{:,.0f}".format(b.amount_due) }} {{ selected_order.currency }}</button>
+        </form>
+      {% endif %}
+    {% else %}
+      <div class="cashier-empty"><div class="empty-icon">✓</div><h3>Aucune commande à traiter</h3><p>La caisse est prête pour une nouvelle vente comptoir.</p><button class="btn btn-primary" id="emptyQuickSale" type="button">＋ Nouvelle vente</button></div>
+    {% endif %}
+  </aside>
+</div>
+
+<nav class="cashier-mobile-bar" aria-label="Actions rapides caissière">
+  <button class="primary" id="mobileQuickSale" type="button">＋<br>Vente</button>
+  <a href="#queue">☰<br>File</a>
+  <a href="{{ url_for('cashier_handovers_web.manage', bar_id=bar.id) }}">⇄<br>Remises</a>
+  <a href="{{ url_for('cashier_web.daily', bar_id=bar.id) }}">•••<br>Plus</a>
+</nav>
+
+<script>
+(() => {
+  const salePanel = document.getElementById('quickSalePanel');
+  const search = document.getElementById('cashierProductSearch');
+  const openers = [document.getElementById('openQuickSale'), document.getElementById('emptyQuickSale'), document.getElementById('mobileQuickSale')].filter(Boolean);
+  const closer = document.getElementById('closeQuickSale');
+  function openSale(){ salePanel.hidden = false; salePanel.scrollIntoView({behavior:'smooth', block:'start'}); setTimeout(() => search && search.focus(), 250); }
+  function closeSale(){ salePanel.hidden = true; }
+  openers.forEach(x => x.addEventListener('click', openSale));
+  if (closer) closer.addEventListener('click', closeSale);
+
+  const currency = {{ bar.currency|tojson }};
+  const cart = new Map();
+  const grid = document.getElementById('cashierProductGrid');
+  const cartLines = document.getElementById('cashierCartLines');
+  const cartEmpty = document.getElementById('cashierCartEmpty');
+  const cartTotal = document.getElementById('cashierCartTotal');
+  const cartCount = document.getElementById('cashierCartCount');
+  const saleSubmit = document.getElementById('cashierCreateSale');
+  let activeCategory = 'all';
+  const money = n => new Intl.NumberFormat('fr-FR',{maximumFractionDigits:0}).format(n);
+  const esc = v => String(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  function renderCart(){
+    cartLines.innerHTML=''; let total=0,count=0;
+    for(const item of cart.values()){
+      total += item.price*item.quantity; count += item.quantity;
+      const row=document.createElement('div'); row.className='pos-cart-line';
+      row.innerHTML=`<input type="hidden" name="product_id" value="${item.id}"><div class="pos-cart-copy"><strong>${esc(item.name)}</strong><small>${money(item.price)} ${esc(currency)} · stock ${item.stock}</small></div><div class="pos-qty-control"><button type="button" class="minus">−</button><input name="quantity" type="number" min="1" max="${item.stock}" step="1" value="${item.quantity}"><button type="button" class="plus">+</button></div><strong class="pos-line-total">${money(item.price*item.quantity)}</strong>`;
+      row.querySelector('.minus').onclick=()=>changeQty(item.id,item.quantity-1); row.querySelector('.plus').onclick=()=>changeQty(item.id,item.quantity+1); row.querySelector('input[name="quantity"]').onchange=e=>changeQty(item.id,Number(e.target.value)); cartLines.appendChild(row);
+    }
+    cartEmpty.hidden=cart.size>0; cartTotal.textContent=money(total); cartCount.textContent=count; saleSubmit.disabled=cart.size===0;
+  }
+  function changeQty(id,qty){ const item=cart.get(id); if(!item)return; if(!Number.isFinite(qty)||qty<=0)cart.delete(id); else item.quantity=Math.min(qty,item.stock); renderCart(); }
+  if(grid) grid.querySelectorAll('.pos-product').forEach(btn=>btn.addEventListener('click',()=>{ const id=btn.dataset.productId,stock=Number(btn.dataset.stock); if(stock<=0)return; const existing=cart.get(id); if(existing) existing.quantity=Math.min(existing.quantity+1,stock); else cart.set(id,{id,name:btn.dataset.name,price:Number(btn.dataset.price),stock,quantity:1}); renderCart(); }));
+  const clear=document.getElementById('cashierClearCart'); if(clear)clear.onclick=()=>{cart.clear();renderCart();};
+  if(search) search.addEventListener('input',filterProducts);
+  document.querySelectorAll('#cashierCategoryTabs .pos-category').forEach(btn=>btn.addEventListener('click',()=>{document.querySelectorAll('#cashierCategoryTabs .pos-category').forEach(x=>x.classList.remove('active'));btn.classList.add('active');activeCategory=btn.dataset.category;filterProducts();}));
+  function filterProducts(){ const q=(search?.value||'').trim().toLowerCase(); grid?.querySelectorAll('.pos-product').forEach(btn=>{const matchCategory=activeCategory==='all'||btn.dataset.category===activeCategory;const matchText=!q||btn.dataset.name.toLowerCase().includes(q);btn.hidden=!(matchCategory&&matchText);}); }
+
+  const paymentForm=document.getElementById('cashierPaymentForm');
+  if(paymentForm){
+    const due=Number(document.getElementById('cashierDue').value||0), applied=document.getElementById('cashierApplied'), presented=document.getElementById('cashierPresentedInput'), single=document.getElementById('cashierSingleAmount'), presentedBox=document.getElementById('cashierPresented'), mixed=document.getElementById('cashierMixed'), provider=document.getElementById('cashierProvider'), credit=document.getElementById('cashierCredit'), change=document.getElementById('cashierChange'), submit=document.getElementById('cashierPaymentSubmit');
+    function method(){ return paymentForm.querySelector('input[name="method"]:checked')?.value||'CASH'; }
+    function refresh(){
+      const m=method(); document.querySelectorAll('.cashier-method').forEach(x=>x.classList.toggle('active',x.querySelector('input').checked));
+      const isMixed=m==='MIXED',isCredit=m==='CREDIT',isCash=m==='CASH';
+      single.hidden=isMixed||isCredit; presentedBox.hidden=!(isCash||isMixed); mixed.hidden=!isMixed; provider.hidden=!(m==='MOBILE_MONEY'||isMixed); credit.hidden=!isCredit;
+      if(isCredit) submit.textContent=`Mettre ${money(due)} {{ bar.currency }} à crédit`; else submit.textContent=`Encaisser ${money(Number(applied?.value||due))} {{ bar.currency }}`;
+      refreshChange();
+    }
+    function refreshChange(){ const m=method(); const target=m==='MIXED'?Number(document.getElementById('cashierMixedCash')?.value||0):Number(applied?.value||0); const received=Number(presented?.value||0); change.textContent=`${money(Math.max(0,received-target))} {{ bar.currency }}`; }
+    paymentForm.querySelectorAll('input[name="method"]').forEach(x=>x.addEventListener('change',refresh)); [applied,presented,document.getElementById('cashierMixedCash')].filter(Boolean).forEach(x=>x.addEventListener('input',()=>{refreshChange(); if(applied&&method()!=='CREDIT'&&method()!=='MIXED')submit.textContent=`Encaisser ${money(Number(applied.value||0))} {{ bar.currency }}`;})); refresh();
+  }
+
+  {% if sale_mode %}setTimeout(() => search && search.focus(), 150);{% endif %}
+  {% if focus_payment %}setTimeout(() => document.getElementById('paymentPanel')?.scrollIntoView({behavior:'smooth',block:'start'}), 150);{% endif %}
+  document.addEventListener('keydown', e=>{ if(e.key==='F2'){e.preventDefault();openSale();} });
+})();
+</script>
+{% endblock %}
