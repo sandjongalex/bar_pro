@@ -1,0 +1,138 @@
+.sidebar {
+  width: 286px;
+  flex-basis: 286px;
+  height: 100vh;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,.18) transparent;
+}
+
+.sidebar-main {
+  min-height: 0;
+}
+
+.sidebar-context {
+  margin: 1.1rem .45rem .65rem;
+  padding: .8rem .85rem;
+  border: 1px solid rgba(255,255,255,.08);
+  border-radius: 13px;
+  background: rgba(255,255,255,.045);
+}
+
+.sidebar-context span,
+.sidebar-context strong {
+  display: block;
+}
+
+.sidebar-context span {
+  color: #86a49a;
+  font-size: .62rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .1em;
+}
+
+.sidebar-context strong {
+  margin-top: .18rem;
+  color: #fff;
+  font-size: .84rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.nav-section {
+  margin-top: .85rem;
+}
+
+.nav-section:first-child {
+  margin-top: 0;
+}
+
+.nav-section-label {
+  display: block;
+  padding: .35rem .9rem .25rem;
+  color: #68877d;
+  font-size: .58rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: .13em;
+}
+
+.app-nav .nav-link {
+  min-height: 42px;
+  padding: .62rem .78rem;
+  font-size: .84rem;
+}
+
+.app-nav .nav-link.active {
+  background: rgba(255,255,255,.105);
+}
+
+.nav-icon {
+  width: 22px;
+  flex: 0 0 22px;
+  font-size: .92rem;
+}
+
+.nav-link-text {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nav-link-badge {
+  margin-left: auto;
+  padding: .16rem .38rem;
+  border-radius: 999px;
+  background: rgba(242,181,68,.15);
+  color: #f5c86f;
+  font-size: .55rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+
+.nav-link-muted {
+  opacity: .48;
+  cursor: default;
+  pointer-events: none;
+}
+
+.sidebar-footer {
+  margin-top: 1rem;
+}
+
+.mobile-nav {
+  scrollbar-width: none;
+}
+
+.mobile-nav::-webkit-scrollbar {
+  display: none;
+}
+
+.mobile-nav a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+}
+
+@media (max-height: 760px) and (min-width: 992px) {
+  .sidebar {
+    padding-top: 16px;
+    padding-bottom: 16px;
+  }
+  .sidebar-context {
+    margin-top: .75rem;
+  }
+  .nav-section {
+    margin-top: .55rem;
+  }
+  .app-nav .nav-link {
+    min-height: 38px;
+    padding-top: .5rem;
+    padding-bottom: .5rem;
+  }
+}
