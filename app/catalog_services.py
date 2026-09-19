@@ -2,6 +2,7 @@
 from app.extensions import db
 from app.models import Product, ProductCategory, StockBalance
 from app.permissions import permissions
+from app.product_display_order import product_order_expression
 
 IMAGE_EXTENSIONS = {"jpg", "jpeg", "png", "webp"}
 
@@ -153,7 +154,7 @@ def list_products(actor, bar_id, q=None, category_id=None, active=None, page=1, 
         query = query.filter_by(category_id=category_id)
     if active is not None:
         query = query.filter_by(is_active=active)
-    return query.order_by(Product.name, Product.id).paginate(
+    return query.order_by(product_order_expression(Product.name), Product.name, Product.id).paginate(
         page=page,
         per_page=min(per_page, 100),
         error_out=False,
