@@ -1,0 +1,101 @@
+.dashboard-chart-grid {
+  display:grid;
+  grid-template-columns:minmax(0,.9fr) minmax(0,1.1fr);
+  gap:14px;
+}
+
+.dashboard-chart-card {
+  overflow:hidden;
+  border:1px solid var(--line);
+  border-radius:18px;
+  background:#fff;
+  box-shadow:0 10px 28px rgba(25,46,39,.04);
+}
+
+.dashboard-chart-head {
+  min-height:76px;
+  padding:16px 18px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:1rem;
+  border-bottom:1px solid var(--line);
+  background:#fbfcfb;
+}
+
+.dashboard-chart-head h3 {
+  margin:.1rem 0 0;
+  font-size:1rem;
+  font-weight:800;
+}
+
+.dashboard-chart-badge {
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  min-width:54px;
+  padding:.35rem .6rem;
+  border-radius:999px;
+  background:var(--brand-soft);
+  color:var(--brand);
+  font-size:.68rem;
+  font-weight:900;
+  text-transform:uppercase;
+  letter-spacing:.05em;
+}
+
+.dashboard-chart-canvas {
+  position:relative;
+  min-height:330px;
+  padding:18px;
+}
+
+.dashboard-chart-canvas-products {
+  min-height:360px;
+}
+
+.dashboard-chart-empty {
+  min-height:210px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:28px;
+  text-align:center;
+  color:#8b9792;
+  font-size:.85rem;
+}
+
+.dashboard-performance-table-wrap {
+  border-top:1px solid var(--line);
+}
+
+.dashboard-performance-table thead th {
+  background:#fafbfa;
+  color:#7a8782;
+  font-size:.68rem;
+  text-transform:uppercase;
+  letter-spacing:.06em;
+  font-weight:800;
+  border-bottom-color:var(--line);
+  padding:10px 14px;
+}
+
+.dashboard-performance-table td {
+  padding:11px 14px;
+  border-bottom-color:#eef2f0;
+  font-size:.79rem;
+}
+
+.dashboard-performance-table tbody tr:last-child td {
+  border-bottom:0;
+}
+
+@media (max-width: 1050px) {
+  .dashboard-chart-grid { grid-template-columns:1fr; }
+}
+
+@media (max-width: 560px) {
+  .dashboard-chart-canvas,
+  .dashboard-chart-canvas-products { min-height:290px; padding:12px; }
+  .dashboard-chart-head { align-items:flex-start; }
+}
