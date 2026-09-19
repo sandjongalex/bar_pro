@@ -1,0 +1,47 @@
+/* Fast product selection and cart access for SERVER role. */
+.server-fast-product{position:relative}.server-fast-product.is-selected{border-color:var(--brand)!important;background:#f2f8f5;box-shadow:0 0 0 2px rgba(37,112,87,.09)}.server-product-qty{position:absolute;right:9px;bottom:9px;min-width:28px;height:28px;display:inline-flex;align-items:center;justify-content:center;padding:0 7px;border-radius:999px;background:var(--brand);color:#fff;font-size:.73rem;font-weight:900;box-shadow:0 6px 14px rgba(25,78,61,.2)}.server-product-qty[hidden]{display:none!important}
+
+.server-cart-dock{display:none}.server-cart-dock-button{width:100%;min-height:58px;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 12px 8px 15px;border:0;border-radius:16px;background:var(--brand);color:#fff;box-shadow:0 14px 34px rgba(25,61,49,.25);text-align:left}.server-cart-dock-copy{min-width:0;display:grid}.server-cart-dock-copy small{font-size:.64rem;line-height:1.1;color:rgba(255,255,255,.78);font-weight:750}.server-cart-dock-copy strong{margin-top:2px;font-size:.88rem;line-height:1.15;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.server-cart-dock-action{flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;min-height:38px;padding:0 11px;border-radius:11px;background:#fff;color:var(--brand);font-size:.72rem;font-weight:900;white-space:nowrap}
+
+@media(max-width:980px){
+  .server-pos-layout .pos-products{grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;padding:11px}
+  .server-pos-layout .pos-product{min-height:125px;padding:11px;padding-bottom:39px;gap:.28rem}
+  .server-pos-layout .pos-product-avatar{width:30px;height:30px;border-radius:9px;font-size:.78rem}
+  .server-pos-layout .pos-product>small{display:none}
+  .server-pos-layout .pos-product>strong{font-size:.84rem;line-height:1.18}
+  .server-pos-layout .pos-product-price{font-size:.84rem}
+  .server-pos-layout .pos-stock{font-size:.58rem;padding:.22rem .38rem}
+  .server-pos-layout .pos-category{min-height:39px;padding:.5rem .8rem;touch-action:manipulation}
+  .server-pos-layout .pos-search input{font-size:16px}
+  .server-pos-layout .pos-qty-control{grid-template-columns:38px 48px 38px;border-radius:11px}
+  .server-pos-layout .pos-qty-control button{height:40px;font-size:1rem;touch-action:manipulation}
+  .server-pos-layout .pos-qty-control input{width:48px;height:40px;font-size:.88rem}
+  .server-pos-layout .pos-cart-line{padding:12px 13px;gap:.55rem}
+  .server-pos-layout .pos-cart-copy strong{font-size:.84rem}
+  .server-pos-layout .pos-cart-copy small{font-size:.64rem}
+  .server-cart-dock:not([hidden]){position:fixed;z-index:1035;left:14px;right:14px;bottom:max(14px,env(safe-area-inset-bottom));display:block;max-width:620px;margin:0 auto}
+  body.server-cart-active .content-area{padding-bottom:92px}
+}
+
+@media(max-width:767px){
+  .server-pos-layout .pos-products{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;padding:9px}
+  .server-pos-layout .pos-product{min-height:116px;padding:10px;padding-bottom:38px;border-radius:13px}
+  .server-pos-layout .pos-product-top{margin-bottom:0}
+  .server-pos-layout .pos-product-avatar{width:27px;height:27px}
+  .server-pos-layout .pos-product>strong{font-size:.82rem}
+  .server-pos-layout .pos-product-price{font-size:.8rem}
+  .server-product-qty{right:8px;bottom:8px;min-width:27px;height:27px;font-size:.7rem}
+  .server-pos-layout .pos-cart-line{grid-template-columns:minmax(0,1fr) auto}
+  .server-pos-layout .pos-line-total{grid-column:1/-1;text-align:right;margin-top:-4px}
+  .server-cart-dock:not([hidden]){left:8px;right:8px;bottom:calc(78px + env(safe-area-inset-bottom));max-width:none}
+  .server-cart-dock-button{min-height:60px;border-radius:15px}
+  .server-cart-dock-action{min-height:40px}
+  body.server-cart-active .content-area{padding-bottom:calc(164px + env(safe-area-inset-bottom))!important}
+}
+
+@media(max-width:380px){
+  .server-pos-layout .pos-products{gap:7px;padding:8px}
+  .server-pos-layout .pos-product{min-height:112px;padding:9px;padding-bottom:37px}
+  .server-pos-layout .pos-stock{max-width:64px;overflow:hidden;text-overflow:ellipsis}
+  .server-cart-dock-copy strong{font-size:.8rem}.server-cart-dock-action{padding:0 9px;font-size:.68rem}
+}
