@@ -83,8 +83,8 @@ def history(bar_id: int):
     tz = ZoneInfo(bar.timezone)
     today = datetime.now(tz).date()
     default_start = today - timedelta(days=6)
-    start_date = _parse_date(request.args.get("from"), default_start)
-    end_date = _parse_date(request.args.get("to"), today)
+    start_date = _parse_date(request.args.get("date_from"), default_start)
+    end_date = _parse_date(request.args.get("date_to"), today)
     if end_date < start_date:
         start_date, end_date = end_date, start_date
 
@@ -234,8 +234,8 @@ def history(bar_id: int):
         payment_labels=PAYMENT_LABELS,
         staff_rows=staff_rows,
         filters={
-            "from": start_date.isoformat(),
-            "to": end_date.isoformat(),
+            "date_from": start_date.isoformat(),
+            "date_to": end_date.isoformat(),
             "q": q,
             "method": method,
             "type": entry_type,
