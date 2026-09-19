@@ -6,8 +6,8 @@
   <div>
     <a class="bar-back" href="{{ url_for('bars.web_detail', bar_id=bar.id) }}">← Retour à {{ bar.name }}</a>
     <p class="eyebrow mt-3 mb-2">Session de caisse</p>
-    <h1>{{ 'Caisse ouverte' if session else 'Ouvrir ma caisse' }}</h1>
-    <p>{% if session %}Votre session est active. Vous pouvez maintenant traiter les commandes et enregistrer les encaissements.{% else %}Saisissez le fonds de caisse disponible au début du service avant de traiter une commande.{% endif %}</p>
+    <h1>{% if session %}Caisse ouverte{% elif closed_session %}Caisse clôturée{% else %}Ouvrir ma caisse{% endif %}</h1>
+    <p>{% if session %}Contrôlez la caisse attendue, comptez les espèces réellement présentes puis clôturez votre service.{% elif closed_session %}La clôture est enregistrée. Le récapitulatif ci-dessous reste la référence de ce service.{% else %}Saisissez le fonds de caisse disponible au début du service avant de traiter une commande.{% endif %}</p>
   </div>
   {% if session %}<a class="btn btn-primary" href="{{ url_for('checkout_web.checkout', bar_id=bar.id) }}">Voir les commandes →</a>{% endif %}
 </section>
@@ -16,17 +16,33 @@
   {% for category, message in messages %}<div class="alert alert-{{ category }} mt-3" role="alert">{{ message }}</div>{% endfor %}
 {% endwith %}
 
+{% if closed_session %}
+<section class="cash-close-result mt-4" aria-label="Récapitulatif de clôture">
+  <div class="cash-close-result-head">
+    <div><p class="eyebrow mb-1">Service terminé</p><h2>{{ closed_session.reference }}</h2></div>
+    {% if closed_session.closing_difference == 0 %}<span class="cash-variance-badge balanced">Caisse équilibrée</span>{% elif closed_session.closing_difference < 0 %}<span class="cash-variance-badge shortage">Manque</span>{% else %}<span class="cash-variance-badge excess">Excédent</span>{% endif %}
+  </div>
+  <div class="cash-close-result-grid">
+    <div><span>Caisse attendue</span><strong>{{ "{:,.0f}".format(closed_session.expected_closing_amount) }} {{ closed_session.currency }}</strong></div>
+    <div><span>Montant compté</span><strong>{{ "{:,.0f}".format(closed_session.counted_closing_amount) }} {{ closed_session.currency }}</strong></div>
+    <div><span>Écart</span><strong>{{ "{:+,.0f}".format(closed_session.closing_difference) }} {{ closed_session.currency }}</strong></div>
+    <div><span>Clôture</span><strong>{{ closed_session.closed_at.strftime('%d/%m/%Y %H:%M') if closed_session.closed_at else '—' }}</strong></div>
+  </div>
+</section>
+{% endif %}
+
 {% if not session %}
 <div class="row justify-content-center mt-4">
   <div class="col-xl-6 col-lg-7">
     <section class="panel-card p-4 p-md-5">
       <div class="mb-4">
         <p class="eyebrow mb-1">Début de service</p>
-        <h2 class="h4 mb-2">Session de caisse</h2>
+        <h2 class="h4 mb-2">{{ 'Ouvrir une nouvelle caisse' if closed_session else 'Session de caisse' }}</h2>
         <p class="text-secondary mb-0">Caissière : <strong>{{ current_user.display_name }}</strong></p>
       </div>
       <form method="post">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="action" value="open">
         <label class="form-label" for="opening_amount">Fonds de caisse initial</label>
         <div class="input-group input-group-lg">
           <input class="form-control" id="opening_amount" name="opening_amount" type="number" min="0" step="1" value="0" inputmode="numeric" required autofocus>
@@ -42,34 +58,134 @@
 {% else %}
 <section class="checkout-stats mt-4" aria-label="Situation de la caisse">
   <article><span>Fonds initial</span><strong>{{ "{:,.0f}".format(session.opening_amount) }} {{ session.currency }}</strong><small>Montant déclaré à l'ouverture</small></article>
-  <article><span>Caisse attendue</span><strong>{{ "{:,.0f}".format(expected) }} {{ session.currency }}</strong><small>Fonds initial + mouvements espèces</small></article>
+  <article><span>Caisse attendue</span><strong>{{ "{:,.0f}".format(expected) }} {{ session.currency }}</strong><small>Espèces théoriquement présentes</small></article>
   <article><span>À livrer</span><strong>{{ waiting }}</strong><small>Commandes reçues des serveuses</small></article>
-  <article><span>À payer</span><strong>{{ to_pay }}</strong><small>{{ "{:,.0f}".format(amount_due) }} {{ bar.currency }} à encaisser</small></article>
+  <article><span>À payer</span><strong>{{ to_pay }}</strong><small>{{ "{:,.0f}".format(amount_due) }} {{ bar.currency }} encore à encaisser</small></article>
 </section>
 
 <div class="row g-4 mt-1">
   <div class="col-lg-7">
     <section class="panel-card p-4 h-100">
-      <p class="eyebrow mb-1">Session active</p>
-      <h2 class="h4">{{ session.reference }}</h2>
+      <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap">
+        <div><p class="eyebrow mb-1">Contrôle de caisse</p><h2 class="h4 mb-0">{{ session.reference }}</h2></div>
+        <span class="badge text-bg-success">OUVERTE</span>
+      </div>
+      <div class="cash-breakdown mt-4">
+        <div><span>Fonds initial</span><strong>{{ "{:,.0f}".format(session.opening_amount) }} {{ session.currency }}</strong></div>
+        <div><span>Ventes espèces</span><strong>+ {{ "{:,.0f}".format(movement_breakdown.cash_sales) }} {{ session.currency }}</strong></div>
+        <div><span>Remboursements espèces</span><strong>- {{ "{:,.0f}".format(movement_breakdown.cash_refunds) }} {{ session.currency }}</strong></div>
+        <div><span>Remises reçues</span><strong>+ {{ "{:,.0f}".format(movement_breakdown.handovers) }} {{ session.currency }}</strong></div>
+        <div><span>Dépôts manuels</span><strong>+ {{ "{:,.0f}".format(movement_breakdown.deposits) }} {{ session.currency }}</strong></div>
+        <div><span>Retraits manuels</span><strong>- {{ "{:,.0f}".format(movement_breakdown.withdrawals) }} {{ session.currency }}</strong></div>
+        {% if movement_breakdown.other != 0 %}<div><span>Autres mouvements (net)</span><strong>{{ "{:+,.0f}".format(movement_breakdown.other) }} {{ session.currency }}</strong></div>{% endif %}
+        <div class="cash-breakdown-total"><span>Caisse attendue</span><strong>{{ "{:,.0f}".format(expected) }} {{ session.currency }}</strong></div>
+      </div>
       <div class="info-list mt-4">
         <div><span>Ouverte par</span><strong>{{ opened_by.display_name if opened_by else current_user.display_name }}</strong></div>
         <div><span>Ouverture</span><strong>{{ session.opened_at.strftime('%d/%m/%Y %H:%M') if session.opened_at else '—' }}</strong></div>
-        <div><span>Devise</span><strong>{{ session.currency }}</strong></div>
-        <div><span>État</span><strong class="text-success">OUVERTE</strong></div>
       </div>
     </section>
   </div>
+
   <div class="col-lg-5">
-    <section class="panel-card p-4 h-100 d-flex flex-column justify-content-between">
-      <div>
-        <p class="eyebrow mb-1">Prochaine action</p>
-        <h2 class="h4">Traiter les commandes</h2>
-        <p class="text-secondary">La caisse est prête. Les commandes peuvent maintenant être livrées puis encaissées.</p>
+    <section class="panel-card p-4 cash-closing-card">
+      <p class="eyebrow mb-1">Fin de service</p>
+      <h2 class="h4">Clôturer ma caisse</h2>
+      <p class="text-secondary">Comptez physiquement toutes les espèces présentes dans le tiroir avant de valider.</p>
+
+      <div class="cash-expected-box">
+        <span>Montant attendu</span>
+        <strong>{{ "{:,.0f}".format(expected) }} {{ session.currency }}</strong>
       </div>
-      <a class="btn btn-primary btn-lg w-100 mt-3" href="{{ url_for('checkout_web.checkout', bar_id=bar.id) }}">Voir les commandes</a>
+
+      <form method="post" id="cashCloseForm" class="mt-3" data-expected="{{ expected }}" data-currency="{{ session.currency }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="action" value="close">
+        <label class="form-label" for="counted_closing_amount">Montant réellement compté</label>
+        <div class="input-group input-group-lg">
+          <input class="form-control" id="counted_closing_amount" name="counted_closing_amount" type="number" min="0" step="1" inputmode="numeric" required>
+          <span class="input-group-text">{{ session.currency }}</span>
+        </div>
+
+        <div class="cash-variance-preview mt-3" id="cashVariancePreview" aria-live="polite">
+          <span>Écart de caisse</span>
+          <strong id="cashVarianceValue">Saisissez le montant compté</strong>
+          <small id="cashVarianceLabel">Le système comparera automatiquement le réel avec l'attendu.</small>
+        </div>
+
+        <div class="mt-3" id="cashVarianceReasonGroup">
+          <label class="form-label" for="reason">Motif de l'écart <span class="text-danger" id="cashReasonRequired" hidden>*</span></label>
+          <textarea class="form-control" id="reason" name="reason" rows="3" maxlength="500" placeholder="Ex. erreur de monnaie, casse, sortie non enregistrée..."></textarea>
+          <div class="form-text">Obligatoire uniquement s'il existe un manque ou un excédent.</div>
+        </div>
+
+        {% if waiting or to_pay %}
+        <div class="checkout-warning mt-3"><strong>Attention :</strong> il reste {{ waiting }} commande(s) à livrer et {{ to_pay }} commande(s) à payer. Elles ne sont pas supprimées, mais une caisse devra être ouverte pour poursuivre leur traitement.</div>
+        {% endif %}
+
+        <button class="btn btn-danger btn-lg w-100 mt-4" id="cashCloseSubmit" type="submit">Clôturer la caisse</button>
+        <p class="checkout-help">La clôture enregistre définitivement le montant attendu, le montant compté et l'écart.</p>
+      </form>
     </section>
   </div>
 </div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+{% if session %}
+<script>
+(() => {
+  const form = document.getElementById('cashCloseForm');
+  if (!form) return;
+  const counted = document.getElementById('counted_closing_amount');
+  const reason = document.getElementById('reason');
+  const requiredMark = document.getElementById('cashReasonRequired');
+  const box = document.getElementById('cashVariancePreview');
+  const value = document.getElementById('cashVarianceValue');
+  const label = document.getElementById('cashVarianceLabel');
+  const expected = Number(form.dataset.expected || 0);
+  const currency = form.dataset.currency || '';
+  const formatter = new Intl.NumberFormat('fr-FR', {maximumFractionDigits: 0});
+
+  function updateVariance() {
+    if (counted.value === '') {
+      reason.required = false;
+      requiredMark.hidden = true;
+      box.className = 'cash-variance-preview mt-3';
+      value.textContent = 'Saisissez le montant compté';
+      label.textContent = "Le système comparera automatiquement le réel avec l'attendu.";
+      return;
+    }
+    const actual = Number(counted.value);
+    const difference = actual - expected;
+    const hasVariance = Math.abs(difference) > 0.000001;
+    reason.required = hasVariance;
+    requiredMark.hidden = !hasVariance;
+    if (difference < 0) {
+      box.className = 'cash-variance-preview mt-3 shortage';
+      value.textContent = `${formatter.format(Math.abs(difference))} ${currency}`;
+      label.textContent = 'Manque de caisse';
+    } else if (difference > 0) {
+      box.className = 'cash-variance-preview mt-3 excess';
+      value.textContent = `+${formatter.format(difference)} ${currency}`;
+      label.textContent = 'Excédent de caisse';
+    } else {
+      box.className = 'cash-variance-preview mt-3 balanced';
+      value.textContent = `0 ${currency}`;
+      label.textContent = 'Caisse équilibrée';
+    }
+  }
+
+  counted.addEventListener('input', updateVariance);
+  form.addEventListener('submit', event => {
+    updateVariance();
+    if (reason.required && !reason.value.trim()) {
+      event.preventDefault();
+      reason.focus();
+    }
+  });
+})();
+</script>
 {% endif %}
 {% endblock %}
