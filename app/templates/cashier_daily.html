@@ -10,11 +10,12 @@
     <p>Suivez les encaissements depuis l'ouverture de la session, les mouvements d'espèces et la recette disponible à remettre.</p>
   </div>
   <div class="d-flex gap-2 flex-wrap">
+    <a class="btn btn-primary" href="{{ url_for('orders_web.quick', bar_id=bar.id) }}">Nouvelle vente comptoir</a>
     <a class="btn btn-outline-primary" href="{{ url_for('cashier_returns_web.manage', bar_id=bar.id) }}">Retours / remboursements</a>
     <a class="btn btn-outline-primary" href="{{ url_for('cashier_handovers_web.manage', bar_id=bar.id) }}">Remises serveuses</a>
     <a class="btn btn-outline-primary" href="{{ url_for('cashier_history_web.history', bar_id=bar.id) }}">Historique</a>
     <a class="btn btn-outline-primary" href="{{ url_for('cashier_web.session', bar_id=bar.id) }}">Contrôler / clôturer</a>
-    <a class="btn btn-primary" href="{{ url_for('checkout_web.checkout', bar_id=bar.id) }}">Voir les commandes</a>
+    <a class="btn btn-outline-primary" href="{{ url_for('checkout_web.checkout', bar_id=bar.id) }}">Voir les commandes</a>
   </div>
 </section>
 
