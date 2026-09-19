@@ -294,7 +294,9 @@ class OrderService:
         order = db.session.scalar(
             select(Order).where(Order.id == order_id, Order.bar_id == bar_id).with_for_update()
         )
-        if not order or order.status != "SERVED":
+        # In the web cashier workflow, CONFIRMED already means physically delivered.
+        # SERVED is retained for legacy/API data, so both states are returnable.
+        if not order or order.status not in {"CONFIRMED", "SERVED"}:
             raise ValueError("ORDER_NOT_RETURNABLE")
         if not lines or len({x["order_line_id"] for x in lines}) != len(lines):
             raise ValueError("INVALID_RETURN")
