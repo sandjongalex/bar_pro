@@ -1,0 +1,75 @@
+{% extends 'layout.html' %}
+{% block title %}Ma caisse · {{ bar.name }} · Bar Manager Pro{% endblock %}
+{% block header %}Ma caisse · {{ bar.name }}{% endblock %}
+{% block content %}
+<section class="checkout-hero">
+  <div>
+    <a class="bar-back" href="{{ url_for('bars.web_detail', bar_id=bar.id) }}">← Retour à {{ bar.name }}</a>
+    <p class="eyebrow mt-3 mb-2">Session de caisse</p>
+    <h1>{{ 'Caisse ouverte' if session else 'Ouvrir ma caisse' }}</h1>
+    <p>{% if session %}Votre session est active. Vous pouvez maintenant traiter les commandes et enregistrer les encaissements.{% else %}Saisissez le fonds de caisse disponible au début du service avant de traiter une commande.{% endif %}</p>
+  </div>
+  {% if session %}<a class="btn btn-primary" href="{{ url_for('checkout_web.checkout', bar_id=bar.id) }}">Voir les commandes →</a>{% endif %}
+</section>
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% for category, message in messages %}<div class="alert alert-{{ category }} mt-3" role="alert">{{ message }}</div>{% endfor %}
+{% endwith %}
+
+{% if not session %}
+<div class="row justify-content-center mt-4">
+  <div class="col-xl-6 col-lg-7">
+    <section class="panel-card p-4 p-md-5">
+      <div class="mb-4">
+        <p class="eyebrow mb-1">Début de service</p>
+        <h2 class="h4 mb-2">Session de caisse</h2>
+        <p class="text-secondary mb-0">Caissière : <strong>{{ current_user.display_name }}</strong></p>
+      </div>
+      <form method="post">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <label class="form-label" for="opening_amount">Fonds de caisse initial</label>
+        <div class="input-group input-group-lg">
+          <input class="form-control" id="opening_amount" name="opening_amount" type="number" min="0" step="1" value="0" inputmode="numeric" required autofocus>
+          <span class="input-group-text">{{ bar.currency }}</span>
+        </div>
+        <div class="form-text mt-2">Indiquez uniquement l'argent réellement présent dans la caisse au début du service.</div>
+        <div class="checkout-warning mt-4"><strong>Important :</strong> tant que la caisse n'est pas ouverte, une caissière ne peut ni confirmer une livraison ni encaisser une commande.</div>
+        <button class="btn btn-primary btn-lg w-100 mt-4" type="submit">Ouvrir la caisse</button>
+      </form>
+    </section>
+  </div>
+</div>
+{% else %}
+<section class="checkout-stats mt-4" aria-label="Situation de la caisse">
+  <article><span>Fonds initial</span><strong>{{ "{:,.0f}".format(session.opening_amount) }} {{ session.currency }}</strong><small>Montant déclaré à l'ouverture</small></article>
+  <article><span>Caisse attendue</span><strong>{{ "{:,.0f}".format(expected) }} {{ session.currency }}</strong><small>Fonds initial + mouvements espèces</small></article>
+  <article><span>À livrer</span><strong>{{ waiting }}</strong><small>Commandes reçues des serveuses</small></article>
+  <article><span>À payer</span><strong>{{ to_pay }}</strong><small>{{ "{:,.0f}".format(amount_due) }} {{ bar.currency }} à encaisser</small></article>
+</section>
+
+<div class="row g-4 mt-1">
+  <div class="col-lg-7">
+    <section class="panel-card p-4 h-100">
+      <p class="eyebrow mb-1">Session active</p>
+      <h2 class="h4">{{ session.reference }}</h2>
+      <div class="info-list mt-4">
+        <div><span>Ouverte par</span><strong>{{ opened_by.display_name if opened_by else current_user.display_name }}</strong></div>
+        <div><span>Ouverture</span><strong>{{ session.opened_at.strftime('%d/%m/%Y %H:%M') if session.opened_at else '—' }}</strong></div>
+        <div><span>Devise</span><strong>{{ session.currency }}</strong></div>
+        <div><span>État</span><strong class="text-success">OUVERTE</strong></div>
+      </div>
+    </section>
+  </div>
+  <div class="col-lg-5">
+    <section class="panel-card p-4 h-100 d-flex flex-column justify-content-between">
+      <div>
+        <p class="eyebrow mb-1">Prochaine action</p>
+        <h2 class="h4">Traiter les commandes</h2>
+        <p class="text-secondary">La caisse est prête. Les commandes peuvent maintenant être livrées puis encaissées.</p>
+      </div>
+      <a class="btn btn-primary btn-lg w-100 mt-3" href="{{ url_for('checkout_web.checkout', bar_id=bar.id) }}">Voir les commandes</a>
+    </section>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
