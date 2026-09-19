@@ -25,8 +25,8 @@ ROLE_ACTIONS = {
  "customer_credit.manage":{"SUPER_ADMIN","OWNER","BAR_ADMIN","CASHIER"},
  "cases.manage":{"SUPER_ADMIN","OWNER","BAR_ADMIN","CASHIER"},
  "orders.read":{"SUPER_ADMIN","OWNER","BAR_ADMIN","CASHIER","SERVER"},
- # A cashier receives and settles orders; the server is the operational creator.
- "orders.create":{"SUPER_ADMIN","OWNER","BAR_ADMIN","SERVER"},
+ # Servers create table orders; cashiers may also create direct counter-sale orders.
+ "orders.create":{"SUPER_ADMIN","OWNER","BAR_ADMIN","CASHIER","SERVER"},
  "orders.edit":{"SUPER_ADMIN","OWNER","BAR_ADMIN","CASHIER","SERVER"},
  "orders.deliver":{"SUPER_ADMIN","OWNER","BAR_ADMIN","CASHIER"},
  "payments.read":{"SUPER_ADMIN","OWNER","BAR_ADMIN","CASHIER"},
