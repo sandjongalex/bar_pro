@@ -12,6 +12,7 @@
   <link href="{{ url_for('static', filename='dashboard_inventory.css') }}" rel="stylesheet">
   <link href="{{ url_for('static', filename='dashboard_activity.css') }}" rel="stylesheet">
   <link href="{{ url_for('static', filename='reports.css') }}" rel="stylesheet">
+  <link href="{{ url_for('static', filename='expenses.css') }}" rel="stylesheet">
   <link href="{{ url_for('static', filename='bars.css') }}" rel="stylesheet">
   <link href="{{ url_for('static', filename='staff.css') }}" rel="stylesheet">
   <link href="{{ url_for('static', filename='catalog.css') }}" rel="stylesheet">
@@ -116,7 +117,7 @@
         </div>
         {% endif %}
 
-        {% if nav_bar_id and (nav_can('cash.operate', nav_bar_id) or nav_can('payments.read', nav_bar_id) or nav_can('customers.read', nav_bar_id) or nav_can('reports.read', nav_bar_id)) %}
+        {% if nav_bar_id and (nav_can('cash.operate', nav_bar_id) or nav_can('payments.read', nav_bar_id) or nav_can('customers.read', nav_bar_id) or nav_can('expenses.read', nav_bar_id) or nav_can('reports.read', nav_bar_id)) %}
         <div class="nav-section">
           <span class="nav-section-label">Finances</span>
           {% if nav_can('cash.operate', nav_bar_id) %}
@@ -127,6 +128,11 @@
           {% if nav_can('payments.read', nav_bar_id) %}
           <a class="nav-link {% if endpoint.startswith('finance_web.') %}active{% endif %}" href="{{ url_for('finance_web.desk', bar_id=nav_bar_id) }}">
             <span class="nav-icon">∑</span><span class="nav-link-text">Finance détaillée</span>
+          </a>
+          {% endif %}
+          {% if nav_can('expenses.read', nav_bar_id) %}
+          <a class="nav-link {% if endpoint.startswith('expenses_web.') %}active{% endif %}" href="{{ url_for('expenses_web.manage', bar_id=nav_bar_id) }}">
+            <span class="nav-icon">E</span><span class="nav-link-text">Dépenses</span>
           </a>
           {% endif %}
           {% if nav_can('customers.read', nav_bar_id) %}
@@ -196,6 +202,7 @@
       {% if nav_bar_id and nav_can('orders.create', nav_bar_id) %}<a class="{% if endpoint.startswith('orders_web.') %}active{% endif %}" href="{{ url_for('orders_web.quick', bar_id=nav_bar_id) }}">Commandes</a>{% endif %}
       {% if nav_bar_id and nav_can('payments.read', nav_bar_id) %}<a class="{% if endpoint.startswith('checkout_web.') %}active{% endif %}" href="{{ url_for('checkout_web.checkout', bar_id=nav_bar_id) }}">Caisse</a>{% endif %}
       {% if nav_bar_id and nav_can('inventory.read', nav_bar_id) %}<a class="{% if endpoint.startswith('stock.') %}active{% endif %}" href="{{ url_for('stock.history', bar_id=nav_bar_id) }}">Stock</a>{% endif %}
+      {% if nav_bar_id and nav_can('expenses.read', nav_bar_id) %}<a class="{% if endpoint.startswith('expenses_web.') %}active{% endif %}" href="{{ url_for('expenses_web.manage', bar_id=nav_bar_id) }}">Dépenses</a>{% endif %}
       {% if nav_bar_id and nav_can('reports.read', nav_bar_id) %}<a class="{% if endpoint.startswith('reports_web.') %}active{% endif %}" href="{{ url_for('reports_web.desk', bar_id=nav_bar_id) }}">Rapports</a>{% endif %}
     </nav>
 
