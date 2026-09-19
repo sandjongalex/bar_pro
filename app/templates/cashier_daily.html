@@ -1,0 +1,209 @@
+{% extends 'layout.html' %}
+{% block title %}Gestion de caisse · {{ bar.name }} · Bar Manager Pro{% endblock %}
+{% block header %}Gestion de caisse · {{ bar.name }}{% endblock %}
+{% block content %}
+<section class="checkout-hero">
+  <div>
+    <a class="bar-back" href="{{ url_for('checkout_web.checkout', bar_id=bar.id) }}">← Retour aux commandes</a>
+    <p class="eyebrow mt-3 mb-2">Gestion du service</p>
+    <h1>Situation de caisse</h1>
+    <p>Suivez les encaissements depuis l'ouverture de la session, les mouvements d'espèces et la recette disponible à remettre.</p>
+  </div>
+  <div class="d-flex gap-2 flex-wrap">
+    <a class="btn btn-outline-primary" href="{{ url_for('cashier_web.session', bar_id=bar.id) }}">Contrôler / clôturer</a>
+    <a class="btn btn-primary" href="{{ url_for('checkout_web.checkout', bar_id=bar.id) }}">Voir les commandes</a>
+  </div>
+</section>
+
+{% for category, message in get_flashed_messages(with_categories=true) %}
+<div class="alert alert-{{ category }} mt-3" role="status">{{ message }}</div>
+{% endfor %}
+
+<section class="checkout-stats mt-4" aria-label="Résumé financier du service">
+  <article>
+    <span>Encaissement net</span>
+    <strong>{{ "{:,.0f}".format(summary.net_total) }} {{ bar.currency }}</strong>
+    <small>{{ summary.orders_touched }} commande(s) ayant reçu un paiement</small>
+  </article>
+  <article>
+    <span>Espèces nettes encaissées</span>
+    <strong>{{ "{:,.0f}".format(summary.net.CASH) }} {{ bar.currency }}</strong>
+    <small>Paiements espèces moins remboursements</small>
+  </article>
+  <article>
+    <span>Mobile Money net</span>
+    <strong>{{ "{:,.0f}".format(summary.net.MOBILE_MONEY) }} {{ bar.currency }}</strong>
+    <small>Paiements Mobile Money moins remboursements</small>
+  </article>
+  <article>
+    <span>Caisse attendue</span>
+    <strong>{{ "{:,.0f}".format(expected) }} {{ bar.currency }}</strong>
+    <small>Espèces théoriquement présentes dans le tiroir</small>
+  </article>
+</section>
+
+{% if waiting or to_pay %}
+<div class="checkout-warning mt-4">
+  <strong>Commandes encore ouvertes :</strong> {{ waiting }} à livrer, {{ to_pay }} à payer, pour {{ "{:,.0f}".format(amount_due) }} {{ bar.currency }} restant à encaisser.
+</div>
+{% endif %}
+
+<div class="row g-4 mt-1">
+  <div class="col-xl-7">
+    <section class="panel-card p-4 h-100">
+      <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap">
+        <div>
+          <p class="eyebrow mb-1">Encaissements du service</p>
+          <h2 class="h4 mb-1">Par mode de paiement</h2>
+          <p class="text-secondary mb-0">Période : depuis l'ouverture de {{ session.reference }}.</p>
+        </div>
+        <span class="badge text-bg-success">SESSION OUVERTE</span>
+      </div>
+
+      <div class="table-responsive mt-4">
+        <table class="table align-middle mb-0">
+          <thead>
+            <tr><th>Mode</th><th class="text-end">Encaissé</th><th class="text-end">Remboursé</th><th class="text-end">Net</th></tr>
+          </thead>
+          <tbody>
+            {% for code, label in summary.methods.items() %}
+            <tr>
+              <td><strong>{{ label }}</strong></td>
+              <td class="text-end">{{ "{:,.0f}".format(summary.gross[code]) }} {{ bar.currency }}</td>
+              <td class="text-end">{{ "{:,.0f}".format(summary.refunded[code]) }} {{ bar.currency }}</td>
+              <td class="text-end"><strong>{{ "{:,.0f}".format(summary.net[code]) }} {{ bar.currency }}</strong></td>
+            </tr>
+            {% endfor %}
+          </tbody>
+          <tfoot>
+            <tr>
+              <th>Total</th>
+              <th class="text-end">{{ "{:,.0f}".format(summary.gross_total) }} {{ bar.currency }}</th>
+              <th class="text-end">{{ "{:,.0f}".format(summary.refund_total) }} {{ bar.currency }}</th>
+              <th class="text-end">{{ "{:,.0f}".format(summary.net_total) }} {{ bar.currency }}</th>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+      <p class="form-text mt-3 mb-0">Les ventes à crédit client ne sont pas comptées comme encaissements tant qu'aucun règlement réel n'a été reçu.</p>
+    </section>
+  </div>
+
+  <div class="col-xl-5">
+    <section class="panel-card p-4 h-100">
+      <p class="eyebrow mb-1">Espèces du tiroir</p>
+      <h2 class="h4">Composition de la caisse</h2>
+      <div class="cash-breakdown mt-4">
+        <div><span>Fonds initial</span><strong>{{ "{:,.0f}".format(session.opening_amount) }} {{ bar.currency }}</strong></div>
+        <div><span>Ventes espèces</span><strong>+ {{ "{:,.0f}".format(breakdown.cash_sales) }} {{ bar.currency }}</strong></div>
+        <div><span>Remboursements espèces</span><strong>- {{ "{:,.0f}".format(breakdown.cash_refunds) }} {{ bar.currency }}</strong></div>
+        <div><span>Remises reçues</span><strong>+ {{ "{:,.0f}".format(breakdown.handovers) }} {{ bar.currency }}</strong></div>
+        <div><span>Dépôts</span><strong>+ {{ "{:,.0f}".format(breakdown.deposits) }} {{ bar.currency }}</strong></div>
+        <div><span>Retraits / versements</span><strong>- {{ "{:,.0f}".format(breakdown.withdrawals) }} {{ bar.currency }}</strong></div>
+        {% if breakdown.other != 0 %}<div><span>Autres mouvements (net)</span><strong>{{ "{:+,.0f}".format(breakdown.other) }} {{ bar.currency }}</strong></div>{% endif %}
+        <div class="cash-breakdown-total"><span>Caisse attendue</span><strong>{{ "{:,.0f}".format(expected) }} {{ bar.currency }}</strong></div>
+      </div>
+    </section>
+  </div>
+</div>
+
+<div class="row g-4 mt-1">
+  <div class="col-lg-6">
+    <section class="panel-card p-4 h-100">
+      <p class="eyebrow mb-1">Mouvement manuel</p>
+      <h2 class="h4">Dépôt ou retrait de caisse</h2>
+      <p class="text-secondary">À utiliser uniquement pour un mouvement réel d'espèces qui n'est pas un paiement de commande.</p>
+      <form method="post" class="mt-3">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="action" value="movement">
+        <label class="form-label" for="kind">Type de mouvement</label>
+        <select class="form-select" id="kind" name="kind" required>
+          <option value="DEPOSIT">Dépôt / apport d'espèces</option>
+          <option value="WITHDRAWAL">Retrait d'espèces</option>
+        </select>
+        <label class="form-label mt-3" for="movement_amount">Montant</label>
+        <div class="input-group">
+          <input class="form-control" id="movement_amount" name="amount" type="number" min="1" step="1" required>
+          <span class="input-group-text">{{ bar.currency }}</span>
+        </div>
+        <label class="form-label mt-3" for="movement_reason">Motif</label>
+        <input class="form-control" id="movement_reason" name="reason" maxlength="500" placeholder="Ex. apport de monnaie, achat urgent..." required>
+        <button class="btn btn-outline-primary w-100 mt-4" type="submit">Enregistrer le mouvement</button>
+      </form>
+    </section>
+  </div>
+
+  <div class="col-lg-6">
+    <section class="panel-card p-4 h-100">
+      <p class="eyebrow mb-1">Recette à remettre</p>
+      <h2 class="h4">Versement de caisse</h2>
+      <p class="text-secondary">Le versement retire physiquement des espèces du tiroir et diminue immédiatement la caisse attendue.</p>
+      <div class="cash-expected-box mt-3">
+        <span>Disponible hors fonds initial</span>
+        <strong>{{ "{:,.0f}".format(available_receipt) }} {{ bar.currency }}</strong>
+      </div>
+      <form method="post" class="mt-3">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="action" value="send_receipt">
+        <label class="form-label" for="receipt_amount">Montant versé</label>
+        <div class="input-group input-group-lg">
+          <input class="form-control" id="receipt_amount" name="amount" type="number" min="1" step="1" max="{{ expected }}" value="{{ available_receipt if available_receipt > 0 else '' }}" required>
+          <span class="input-group-text">{{ bar.currency }}</span>
+        </div>
+        <label class="form-label mt-3" for="receipt_reason">Note / destinataire</label>
+        <input class="form-control" id="receipt_reason" name="reason" maxlength="400" placeholder="Ex. remise au gérant, dépôt banque...">
+        <button class="btn btn-primary w-100 mt-4" type="submit" {% if expected <= 0 %}disabled{% endif %}>Enregistrer le versement</button>
+      </form>
+    </section>
+  </div>
+</div>
+
+<section class="panel-card mt-4">
+  <div class="panel-header">
+    <div><p class="eyebrow mb-1">Traçabilité</p><h2>Mouvements manuels du service</h2></div>
+  </div>
+  {% if manual_movements %}
+  <div class="table-responsive">
+    <table class="table align-middle mb-0">
+      <thead><tr><th>Date</th><th>Type</th><th>Motif</th><th class="text-end">Montant</th></tr></thead>
+      <tbody>
+        {% for movement in manual_movements %}
+        <tr>
+          <td>{{ movement.occurred_at.strftime('%d/%m/%Y %H:%M') if movement.occurred_at else '—' }}</td>
+          <td>{% if movement.reversal_of_id %}Correction{% elif movement.manual_kind == 'DEPOSIT' %}Dépôt{% else %}Retrait{% endif %}</td>
+          <td>{{ movement.reason }}</td>
+          <td class="text-end"><strong>{{ "{:+,.0f}".format(movement.amount_delta) }} {{ movement.currency }}</strong></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="p-4 text-secondary">Aucun dépôt ou retrait manuel pendant ce service.</div>
+  {% endif %}
+</section>
+
+<section class="panel-card mt-4">
+  <div class="panel-header"><div><p class="eyebrow mb-1">Historique</p><h2>Dernières clôtures</h2></div></div>
+  {% if closed_sessions %}
+  <div class="table-responsive">
+    <table class="table align-middle mb-0">
+      <thead><tr><th>Session</th><th>Clôture</th><th class="text-end">Attendu</th><th class="text-end">Compté</th><th class="text-end">Écart</th></tr></thead>
+      <tbody>
+        {% for item in closed_sessions %}
+        <tr>
+          <td><strong>{{ item.reference }}</strong></td>
+          <td>{{ item.closed_at.strftime('%d/%m/%Y %H:%M') if item.closed_at else '—' }}</td>
+          <td class="text-end">{{ "{:,.0f}".format(item.expected_closing_amount or 0) }} {{ item.currency }}</td>
+          <td class="text-end">{{ "{:,.0f}".format(item.counted_closing_amount or 0) }} {{ item.currency }}</td>
+          <td class="text-end"><strong>{{ "{:+,.0f}".format(item.closing_difference or 0) }} {{ item.currency }}</strong></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="p-4 text-secondary">Aucune session clôturée pour le moment.</div>
+  {% endif %}
+</section>
+{% endblock %}
