@@ -125,6 +125,16 @@ def test_server_navigation_is_focused_on_orders_and_notifications(env):
     assert 'Water' in page.text
     assert 'setupOrderFilters' in ui_script.text
 
+    # Étape 4 UI: Note / Annuler sont transformés en éditeurs inline côté serveuse.
+    assert 'setupInlineOrderActions' in ui_script.text
+    assert 'server-order-inline-editor' in ui_script.text
+    assert 'server-orders-return' in ui_script.text
+    assert 'Confirmer l’annulation' in ui_script.text
+    server_css = client.get('/static/server_pos.css')
+    assert server_css.status_code == 200
+    assert '.server-order-inline-editor' in server_css.text
+    assert '.server-order-inline-controls' in server_css.text
+
 
 def test_owner_keeps_full_grouped_navigation(env):
     app, owner, bar, _, _, _, _, _ = env
