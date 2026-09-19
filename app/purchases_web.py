@@ -16,6 +16,7 @@ from app.cash_services import cash_service
 from app.extensions import db
 from app.models import Bar, CashSession, Product, Purchase, PurchaseLine, Supplier, SupplierPayment
 from app.permissions import permissions
+from app.product_display_order import product_order_expression
 from app.purchase_defaults import default_purchase_price
 from app.purchase_services import purchase_service, supplier_service
 
@@ -166,7 +167,7 @@ def product_meta(bar_id):
         db.session.scalars(
             select(Product)
             .where(Product.bar_id == bar_id, Product.is_active.is_(True))
-            .order_by(Product.name, Product.id)
+            .order_by(product_order_expression(Product.name), Product.name, Product.id)
         )
     )
     return jsonify(
@@ -475,7 +476,7 @@ def manage(bar_id):
         db.session.scalars(
             select(Product)
             .where(Product.bar_id == bar_id, Product.is_active.is_(True))
-            .order_by(Product.name, Product.id)
+            .order_by(product_order_expression(Product.name), Product.name, Product.id)
         )
     )
     products = [
