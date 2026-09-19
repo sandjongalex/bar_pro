@@ -19,14 +19,14 @@
 
 <div class="inventory-warning mt-4">
   <div class="inventory-warning-icon">!</div>
-  <div><strong>Comptez les bouteilles, pas les casiers.</strong><p class="mb-0">Exemple : dans un casier prévu pour 12 bouteilles, s'il n'en reste que 8, saisissez <strong>8</strong>.</p></div>
+  <div><strong>Comptez les bouteilles, pas les casiers.</strong><p class="mb-0">Exemple : dans un casier prévu pour 12 bouteilles, s'il n'en reste que 8, saisissez <strong>8</strong>. Toute case <strong>Stock physique réel</strong> laissée vide sera considérée comme <strong>0 bouteille</strong>.</p></div>
 </div>
 
 <section class="inventory-stats mt-4">
   <article><span>Fin de période</span><strong>{{ inventory.period_end_at[:10] if inventory.period_end_at else 'Ancien inventaire' }}</strong><small>{% if inventory.period_start_at %}Depuis {{ inventory.period_start_at[:10] }}{% else %}Première période{% endif %}</small></article>
   <article><span>Produits</span><strong>{{ inventory.lines|length }}</strong><small>Références à compter</small></article>
   <article><span>Ventes théoriques</span><strong id="salesHeader">{{ "{:,.0f}".format(inventory.theoretical_sales_amount|float) }} {{ bar.currency }}</strong><small>Stock théorique − physique</small></article>
-  <article><span>Comptage</span><strong id="countProgress">{{ inventory.lines|selectattr('physical_quantity','ne',none)|list|length }}/{{ inventory.lines|length }}</strong><small>Bouteilles saisies par produit</small></article>
+  <article><span>Comptage</span><strong id="countProgress">{{ inventory.lines|selectattr('physical_quantity','ne',none)|list|length }}/{{ inventory.lines|length }}</strong><small>Vide = 0 bouteille</small></article>
 </section>
 
 {% if inventory.status == 'DRAFT' %}
@@ -48,7 +48,7 @@
             <td class="text-primary fw-semibold">+{{ line.purchase_quantity }}</td>
             <td><strong>{{ line.theoretical_quantity }}</strong></td>
             <td><span class="inventory-machine">{{ line.machine_quantity }}</span></td>
-            <td><input class="form-control inventory-count-input" aria-label="Stock physique {{ line.product_name }}" name="quantity_{{ line.product_id }}" type="number" min="0" step="0.000001" value="{{ line.physical_quantity if line.physical_quantity is not none else '' }}" required></td>
+            <td><input class="form-control inventory-count-input" aria-label="Stock physique {{ line.product_name }}" name="quantity_{{ line.product_id }}" type="number" min="0" step="0.000001" value="{{ line.physical_quantity if line.physical_quantity is not none else '' }}" placeholder="0"></td>
             <td><strong class="inventory-sold">{{ line.sold_quantity if line.sold_quantity is not none else '—' }}</strong></td>
             <td><strong class="inventory-sales">{% if line.theoretical_sales_amount is not none %}{{ "{:,.0f}".format(line.theoretical_sales_amount|float) }}{% else %}—{% endif %}</strong></td>
             <td><span class="inventory-gap {% if line.difference_quantity is not none and line.difference_quantity|float < 0 %}text-danger{% elif line.difference_quantity is not none and line.difference_quantity|float > 0 %}text-warning{% endif %}">{{ line.difference_quantity if line.difference_quantity is not none else '—' }}</span></td>
@@ -61,7 +61,7 @@
   </section>
 
   <div class="inventory-actions mt-4">
-    <div><strong id="inventoryReady">Complétez le comptage de tous les produits.</strong><small>Vous pouvez enregistrer un brouillon avant la validation définitive.</small></div>
+    <div><strong id="inventoryReady">Les cases vides seront enregistrées à 0 bouteille.</strong><small>Vous pouvez enregistrer un brouillon avant la validation définitive.</small></div>
     <div class="d-flex gap-2 flex-wrap">
       <button class="btn btn-light border" name="action" value="counts" type="submit">Enregistrer le comptage</button>
       <button class="btn btn-success" id="postInventory" name="action" value="post" type="submit">Valider inventaire et ajuster stock</button>
@@ -115,19 +115,12 @@
 
   function recalc() {
     let total = 0;
-    let complete = 0;
     rows.forEach(row => {
       const input = row.querySelector('.inventory-count-input');
       const soldNode = row.querySelector('.inventory-sold');
       const salesNode = row.querySelector('.inventory-sales');
       const gapNode = row.querySelector('.inventory-gap');
-      if (input.value === '') {
-        soldNode.textContent = '—'; salesNode.textContent = '—'; gapNode.textContent = '—';
-        gapNode.classList.remove('text-danger','text-warning','text-success');
-        return;
-      }
-      complete += 1;
-      const physical = Number(input.value || 0);
+      const physical = input.value.trim() === '' ? 0 : Number(input.value);
       const theoretical = Number(row.dataset.theoretical || 0);
       const machine = Number(row.dataset.machine || 0);
       const price = Number(row.dataset.price || 0);
@@ -144,12 +137,26 @@
       else gapNode.classList.add('text-success');
     });
     totalNode.textContent = `${money.format(total)} ${currency}`;
-    progressNode.textContent = `${complete}/${rows.length}`;
-    const done = complete === rows.length && rows.length > 0;
+    progressNode.textContent = `${rows.length}/${rows.length}`;
+    const done = rows.length > 0;
     postButton.disabled = !done;
-    readyNode.textContent = done ? 'Comptage complet : vous pouvez valider l’inventaire.' : `Il reste ${rows.length - complete} produit(s) à compter.`;
+    readyNode.textContent = done ? 'Prêt : toute case vide sera enregistrée à 0 bouteille.' : 'Aucun produit à inventorier.';
   }
+
   rows.forEach(row => row.querySelector('.inventory-count-input')?.addEventListener('input', recalc));
+  form.addEventListener('submit', event => {
+    const blankInputs = rows
+      .map(row => row.querySelector('.inventory-count-input'))
+      .filter(input => input && input.value.trim() === '');
+    if (event.submitter?.value === 'post' && blankInputs.length > 0) {
+      const confirmed = window.confirm(`${blankInputs.length} case(s) de stock physique sont vides. Elles seront enregistrées à 0 bouteille. Continuer ?`);
+      if (!confirmed) {
+        event.preventDefault();
+        return;
+      }
+    }
+    blankInputs.forEach(input => { input.value = '0'; });
+  });
   recalc();
 })();
 </script>
