@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from decimal import Decimal
 import logging
 from typing import Any
 
@@ -49,9 +50,24 @@ def create_app(config_name: str | None = None, test_config: dict[str, Any] | Non
     from app import inventory_period_models  # noqa: F401 - inventory period reconciliation metadata
     _register_blueprints(app)
     _register_template_context(app)
+    app.jinja_env.finalize = _template_finalize
     _register_error_handlers(app)
     _register_cli(app)
     return app
+
+
+def _template_finalize(value):
+    """Render Decimal values without database scale padding in HTML.
+
+    Quantities are stored with fixed precision, so a value such as Decimal('2.000000')
+    should be shown to users as ``2`` while a real fractional quantity keeps its
+    significant decimals (for example ``2.5``).
+    """
+    if isinstance(value, Decimal):
+        if not value.is_finite():
+            return str(value)
+        return format(value.normalize(), "f")
+    return value
 
 
 def _configure_logging(app: Flask) -> None:
