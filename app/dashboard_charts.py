@@ -1,17 +1,25 @@
 """Chart projections for the owner/admin dashboard.
 
-The chart layer deliberately reuses the same definition of a "sale today" as the
-main dashboard KPIs, so the visual totals never contradict the cards above them.
+The chart layer deliberately reuses the same definition of a sale as the main
+KPIs, so visual totals and cards stay aligned.
 """
 from __future__ import annotations
 
 from collections import defaultdict
+from datetime import datetime, time, timedelta, timezone
 from decimal import Decimal
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import func, select
 
 from app.customer_models import CustomerLedgerEntry
-from app.dashboard_service import _day_bounds, _settled_orders_today
+from app.dashboard_service import (
+    _day_bounds,
+    _sales_and_margin,
+    _settled_orders_today,
+    _today_expenses,
+    _today_receipts,
+)
 from app.extensions import db
 from app.models import Bar, Order, OrderLine, OrderReturn, OrderReturnLine, StaffAssignment, User
 from app.permissions import permissions
@@ -213,8 +221,47 @@ def _server_performance(bar_id: int, order_ids: list[int]):
     }
 
 
+def _bounds_for_local_day(bar: Bar, local_day):
+    tz = ZoneInfo(bar.timezone)
+    start_local = datetime.combine(local_day, time.min, tzinfo=tz)
+    end_local = datetime.combine(local_day, time.max, tzinfo=tz)
+    return (
+        start_local.astimezone(timezone.utc).replace(tzinfo=None),
+        end_local.astimezone(timezone.utc).replace(tzinfo=None),
+    )
+
+
+def _seven_day_trend(bar: Bar):
+    """Return sales, real receipts and expenses for the last seven local days."""
+    today = datetime.now(ZoneInfo(bar.timezone)).date()
+    rows = []
+    for offset in range(6, -1, -1):
+        local_day = today - timedelta(days=offset)
+        start_at, end_at = _bounds_for_local_day(bar, local_day)
+        sales, _margin = _sales_and_margin(bar.id, start_at, end_at)
+        receipts = _today_receipts(bar.id, start_at, end_at)
+        expenses = _today_expenses(bar.id, start_at, end_at)
+        rows.append(
+            {
+                "date": local_day.isoformat(),
+                "label": local_day.strftime("%d/%m"),
+                "sales": _number(sales),
+                "receipts": _number(receipts),
+                "expenses": _number(expenses),
+            }
+        )
+
+    return {
+        "labels": [row["label"] for row in rows],
+        "sales": [row["sales"] for row in rows],
+        "receipts": [row["receipts"] for row in rows],
+        "expenses": [row["expenses"] for row in rows],
+        "rows": rows,
+    }
+
+
 def dashboard_charts(actor, bar_id: int):
-    """Return Chart.js-ready data for the selected bar and local business day."""
+    """Return Chart.js-ready data for the selected bar."""
     permissions.require(actor, "reports.read", bar_id)
     bar = db.session.get(Bar, bar_id)
     if not bar:
@@ -229,4 +276,5 @@ def dashboard_charts(actor, bar_id: int):
         "local_date": local_date.isoformat(),
         "top_products": _top_products(bar_id, order_ids),
         "servers": _server_performance(bar_id, order_ids),
+        "trend_7d": _seven_day_trend(bar),
     }
