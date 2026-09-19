@@ -13,7 +13,7 @@ from flask import Blueprint, jsonify
 from flask_login import current_user, login_required
 from sqlalchemy import select
 
-from app.extensions import db
+from app.extensions import db, limiter
 from app.finance_totals import order_balance
 from app.models import Order, OrderLine, Product, StaffAssignment, StockBalance, User
 from app.permissions import permissions
@@ -102,6 +102,7 @@ def _server_names(orders: list[Order]) -> dict[int, str]:
 
 
 @bp.get("/orders")
+@limiter.exempt
 @login_required
 def orders(bar_id: int):
     permissions.require(current_user, "orders.create", bar_id)
