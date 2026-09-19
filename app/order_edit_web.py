@@ -10,6 +10,7 @@ from sqlalchemy.exc import IntegrityError
 
 from app.extensions import db
 from app.models import Order, Product, StaffAssignment, StockBalance
+from app.order_concurrency import order_revision
 from app.order_edit_service import order_edit_service
 from app.order_line_views import effective_lines_by_order
 from app.permissions import permissions
@@ -44,6 +45,8 @@ def _message(code) -> str:
         "ORDER_NOT_EDITABLE": "Cette commande ne peut plus être modifiée.",
         "ORDER_TOTAL_BELOW_SETTLED": "Le nouveau total ne peut pas être inférieur au montant déjà encaissé.",
         "ORDER_LINES_AMBIGUOUS": "Les lignes de cette commande ne peuvent pas être modifiées automatiquement.",
+        "ORDER_CONFLICT": "Cette commande a changé sur un autre appareil. Rouvrez « Modifier » pour charger la version actuelle.",
+        "ORDER_REVISION_REQUIRED": "Rechargez la commande avant de la modifier.",
         "INSUFFICIENT_STOCK": "Stock insuffisant pour ajouter cette quantité.",
         "NOT_FOUND": "Commande ou produit introuvable.",
         "FORBIDDEN": "Vous n'êtes pas autorisé à modifier cette commande.",
@@ -114,6 +117,7 @@ def state(bar_id: int, order_id: int):
         return jsonify({"success": False, "error": _message("FORBIDDEN")}), 403
 
     lines = effective_lines_by_order(bar_id, [order.id]).get(order.id, [])
+    revision = order_revision(order)
     stock = {
         item.product_id: Decimal(item.quantity or 0)
         for item in db.session.scalars(
@@ -168,6 +172,7 @@ def state(bar_id: int, order_id: int):
                 "payment_status": order.payment_status,
                 "delivered": delivered,
                 "editable": editable,
+                "revision": revision,
                 "lines": line_payload,
             },
             "products": product_payload,
@@ -180,12 +185,16 @@ def state(bar_id: int, order_id: int):
 def update(bar_id: int, order_id: int):
     assignment = _assignment(bar_id)
     try:
+        expected_revision = (request.form.get("order_revision") or "").strip()
+        if not expected_revision:
+            raise ValueError("ORDER_REVISION_REQUIRED")
         order = order_edit_service.edit(
             current_user,
             bar_id,
             order_id,
             _form_lines(),
             (request.form.get("reason") or "").strip() or None,
+            expected_revision=expected_revision,
         )
         db.session.commit()
         flash(f"Commande {order.reference} mise à jour.", "success")
