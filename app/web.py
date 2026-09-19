@@ -22,6 +22,7 @@ def index():
 @login_required
 def dashboard():
     from app.customer_models import UserNotification
+    from app.dashboard_alerts import dashboard_alerts
     from app.dashboard_service import dashboard_summary
     from app.models import Bar, StaffAssignment
     from app.permissions import permissions
@@ -54,6 +55,7 @@ def dashboard():
         active_bar = next((bar for bar in reportable_bars if bar.status == "ACTIVE"), reportable_bars[0])
 
     dashboard_data = dashboard_summary(current_user, active_bar.id) if active_bar else None
+    operational_alerts = dashboard_alerts(current_user, active_bar.id) if active_bar else None
 
     notifications = list(
         db.session.scalars(
@@ -69,6 +71,7 @@ def dashboard():
         reportable_bars=reportable_bars,
         active_bar=active_bar,
         dashboard_data=dashboard_data,
+        operational_alerts=operational_alerts,
         assignments=assignments,
         assignment_by_bar=assignment_by_bar,
         notifications=notifications,
