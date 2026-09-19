@@ -1,0 +1,188 @@
+{% extends 'layout.html' %}
+{% block title %}Retours & remboursements · {{ bar.name }}{% endblock %}
+{% block header %}Retours & remboursements · {{ bar.name }}{% endblock %}
+{% block content %}
+<section class="checkout-hero">
+  <div>
+    <a class="bar-back" href="{{ url_for('checkout_web.checkout', bar_id=bar.id) }}">← Retour à la caisse</a>
+    <p class="eyebrow mt-3 mb-2">Après-vente</p>
+    <h1>Retours & remboursements</h1>
+    <p>Enregistrez d'abord les produits retournés, choisissez s'ils reviennent au stock ou deviennent une perte, puis remboursez le crédit généré par le retour.</p>
+  </div>
+  <div class="d-flex gap-2 flex-wrap">
+    <a class="btn btn-outline-primary" href="{{ url_for('cashier_web.daily', bar_id=bar.id) }}">Situation de caisse</a>
+    <a class="btn btn-primary" href="{{ url_for('checkout_web.checkout', bar_id=bar.id) }}">Commandes</a>
+  </div>
+</section>
+
+{% for category, message in get_flashed_messages(with_categories=true) %}
+<div class="alert alert-{{ category }} mt-3" role="alert">{{ message }}</div>
+{% endfor %}
+
+<section class="panel-card mt-4 p-3">
+  <form method="get" class="row g-2 align-items-end">
+    <div class="col-md-8">
+      <label class="form-label" for="return-search">Rechercher une commande soldée</label>
+      <input class="form-control" id="return-search" name="q" value="{{ query_text }}" placeholder="Référence, client ou table">
+    </div>
+    <div class="col-md-4 d-flex gap-2">
+      <button class="btn btn-primary flex-grow-1" type="submit">Rechercher</button>
+      <a class="btn btn-outline-secondary" href="{{ url_for('cashier_returns_web.manage', bar_id=bar.id) }}">Effacer</a>
+    </div>
+  </form>
+</section>
+
+<div class="checkout-layout mt-4">
+  <section class="panel-card checkout-orders-panel">
+    <div class="panel-header"><div><p class="eyebrow mb-1">Commandes</p><h2>Commandes soldées récentes</h2></div><span class="badge text-bg-light">{{ orders|length }}</span></div>
+    {% if orders %}
+    <div class="checkout-order-list p-3">
+      {% for order in orders %}
+      <a class="checkout-order-card {% if selected_order and selected_order.id == order.id %}active{% endif %}" href="{{ url_for('cashier_returns_web.manage', bar_id=bar.id, order_id=order.id, q=query_text or none) }}">
+        <div class="checkout-order-main">
+          <div class="checkout-order-icon">↩</div>
+          <div>
+            <strong>{{ order.reference }}</strong>
+            <small>{{ order.customer_name_snapshot or 'Client comptoir' }} · {{ order.table_label_snapshot or 'Sans table' }}</small>
+          </div>
+        </div>
+        <div class="checkout-order-amount"><small>Total</small><strong>{{ "{:,.0f}".format(order.total_amount) }} {{ order.currency }}</strong></div>
+      </a>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="p-4 text-secondary">Aucune commande soldée ne correspond à la recherche.</div>
+    {% endif %}
+  </section>
+
+  <aside class="panel-card checkout-pay-panel">
+    {% if selected_order %}
+    <div class="checkout-pay-head">
+      <div><p class="eyebrow mb-1">Commande sélectionnée</p><h2>{{ selected_order.reference }}</h2></div>
+      <span class="checkout-due-badge">{{ "{:,.0f}".format(balance.net_sale) }} {{ selected_order.currency }}</span>
+    </div>
+
+    <div class="checkout-receipt">
+      <div><span>Vente nette actuelle</span><strong>{{ "{:,.0f}".format(balance.net_sale) }} {{ selected_order.currency }}</strong></div>
+      <div><span>Encaissements nets</span><strong>{{ "{:,.0f}".format(balance.net_paid) }} {{ selected_order.currency }}</strong></div>
+      <div><span>Déjà retourné</span><strong>{{ "{:,.0f}".format(balance.return_credit) }} {{ selected_order.currency }}</strong></div>
+      <div class="checkout-receipt-due"><span>À rembourser après retour</span><strong>{{ "{:,.0f}".format(balance.refundable_overpayment) }} {{ selected_order.currency }}</strong></div>
+    </div>
+
+    {% if balance.customer_credit > 0 %}
+    <div class="checkout-warning m-3">
+      <strong>Commande financée à crédit client.</strong> Le retour partiel d'une vente à crédit nécessite une correction du compte client avant remboursement. Cette opération reste bloquée ici pour éviter de créer une dette client incorrecte.
+      <a href="{{ url_for('customers_web.manage', bar_id=bar.id) }}">Ouvrir Clients & crédits →</a>
+    </div>
+    {% endif %}
+
+    {% if can_manage and balance.customer_credit == 0 %}
+    <form method="post" class="p-3 border-top">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="action" value="return_create">
+      <input type="hidden" name="order_id" value="{{ selected_order.id }}">
+      <h3 class="h5">1. Enregistrer le retour</h3>
+      <p class="text-secondary small">Saisissez uniquement les quantités réellement retournées.</p>
+      <div class="table-responsive">
+        <table class="table align-middle">
+          <thead><tr><th>Produit</th><th>Vendu</th><th>Déjà retourné</th><th style="min-width:110px">Retour</th><th style="min-width:150px">Disposition</th></tr></thead>
+          <tbody>
+          {% for line in lines %}
+          <tr>
+            <td><strong>{{ line.product_name_snapshot }}</strong><small class="d-block text-secondary">{{ "{:,.0f}".format(line.unit_sale_price_snapshot) }} {{ selected_order.currency }} / {{ line.unit_snapshot }}</small></td>
+            <td>{{ line.quantity }}</td>
+            <td>{{ line.returned_quantity }}</td>
+            <td>
+              <input type="hidden" name="order_line_id" value="{{ line.id }}">
+              <input class="form-control form-control-sm" name="quantity" type="number" min="0" step="0.001" max="{{ line.returnable_quantity }}" value="0" {% if line.returnable_quantity <= 0 %}disabled{% endif %}>
+            </td>
+            <td>
+              <select class="form-select form-select-sm" name="disposition" {% if line.returnable_quantity <= 0 %}disabled{% endif %}>
+                <option value="RESTOCK">Remettre en stock</option>
+                <option value="LOSS">Perte / non revendable</option>
+              </select>
+            </td>
+          </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <label class="form-label" for="return-reason">Motif du retour</label>
+      <textarea class="form-control" id="return-reason" name="reason" rows="2" maxlength="500" placeholder="Ex. erreur de commande, produit non consommé, bouteille défectueuse…" required></textarea>
+      <div class="checkout-warning mt-3"><strong>Attention :</strong> « Remettre en stock » augmente le stock physique. « Perte » réduit la vente sans remettre le produit en stock.</div>
+      <button class="btn btn-primary w-100 mt-3" type="submit">Valider le retour</button>
+    </form>
+    {% endif %}
+    {% else %}
+    <div class="empty-state checkout-empty-selection"><div class="empty-icon">↩</div><h3>Sélectionnez une commande</h3><p>Choisissez une commande soldée pour enregistrer un retour ou un remboursement.</p></div>
+    {% endif %}
+  </aside>
+</div>
+
+{% if selected_order and returns %}
+<section class="panel-card mt-4">
+  <div class="panel-header"><div><p class="eyebrow mb-1">Retours enregistrés</p><h2>2. Rembourser le client</h2><p class="small text-muted mb-0">Le remboursement doit être rattaché au paiement d'origine. Pour les espèces, une caisse ouverte est obligatoire.</p></div></div>
+  <div class="p-3 d-grid gap-3">
+    {% for item in returns %}
+    <article class="border rounded-4 p-3 {% if selected_return_id == item.id %}border-primary{% endif %}">
+      <div class="d-flex justify-content-between gap-3 flex-wrap">
+        <div><strong>{{ item.reference }}</strong><small class="d-block text-secondary">{{ return_times.get(item.id, '—') }} · {{ item.reason }}</small></div>
+        <div class="text-end"><strong>{{ "{:,.0f}".format(item.total_amount) }} {{ item.currency }}</strong><small class="d-block {% if item.refund_due > 0 %}text-warning{% else %}text-success{% endif %}">{{ "{:,.0f}".format(item.refunded_amount) }} remboursé · {{ "{:,.0f}".format(item.refund_due) }} restant</small></div>
+      </div>
+
+      {% if refunds_by_return.get(item.id) %}
+      <div class="table-responsive mt-3">
+        <table class="table table-sm align-middle mb-0">
+          <thead><tr><th>Remboursement</th><th>Mode</th><th>Date</th><th class="text-end">Montant</th></tr></thead>
+          <tbody>
+          {% for refund in refunds_by_return.get(item.id, []) %}
+          <tr><td>{{ refund.reference }}</td><td>{{ payment_labels.get(refund.method, refund.method) }}</td><td>{{ refund_times.get(refund.id, '—') }}</td><td class="text-end"><strong>{{ "{:,.0f}".format(refund.amount) }} {{ refund.currency }}</strong></td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% endif %}
+
+      {% if can_manage and item.refund_due > 0 %}
+      <div class="mt-3">
+        <p class="small text-secondary mb-2">Choisissez le paiement réellement utilisé pour rembourser le client :</p>
+        <div class="d-grid gap-2">
+          {% for payment in payments if payment.refundable_amount > 0 %}
+            {% set maximum = [item.refund_due, payment.refundable_amount, balance.refundable_overpayment]|min %}
+            {% if maximum > 0 %}
+            <form method="post" class="border rounded-3 p-3">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="action" value="refund_return">
+              <input type="hidden" name="order_id" value="{{ selected_order.id }}">
+              <input type="hidden" name="return_id" value="{{ item.id }}">
+              <input type="hidden" name="payment_id" value="{{ payment.id }}">
+              <div class="d-flex justify-content-between gap-3 flex-wrap mb-2">
+                <div><strong>{{ payment_labels.get(payment.method, payment.method) }}</strong><small class="d-block text-secondary">{{ payment.reference }} · disponible {{ "{:,.0f}".format(payment.refundable_amount) }} {{ payment.currency }}</small></div>
+                {% if payment.method == 'CASH' and not open_session %}<span class="badge text-bg-warning">Caisse fermée</span>{% endif %}
+              </div>
+              <div class="row g-2">
+                <div class="col-md-4"><label class="form-label small">Montant</label><input class="form-control" name="amount" type="number" min="1" step="1" max="{{ maximum }}" value="{{ maximum }}" required></div>
+                <div class="col-md-8"><label class="form-label small">Motif</label><input class="form-control" name="reason" maxlength="500" value="Remboursement retour {{ item.reference }}" required></div>
+              </div>
+              <button class="btn btn-outline-danger w-100 mt-2" type="submit" {% if payment.method == 'CASH' and not open_session %}disabled{% endif %}>Rembourser via {{ payment_labels.get(payment.method, payment.method) }}</button>
+            </form>
+            {% endif %}
+          {% else %}
+          <div class="checkout-warning">Aucun paiement réel n'est encore disponible pour couvrir ce remboursement.</div>
+          {% endfor %}
+        </div>
+      </div>
+      {% elif item.refund_due <= 0 %}
+      <div class="alert alert-success mt-3 mb-0">Retour entièrement remboursé.</div>
+      {% endif %}
+    </article>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+
+<div class="dashboard-definition-note mt-3">
+  <strong>Règle comptable :</strong>
+  <span>un retour réduit la vente. Le remboursement réduit ensuite l'encaissement réel. Une restitution au stock n'est créée que pour les produits marqués « Remettre en stock ».</span>
+</div>
+{% endblock %}
