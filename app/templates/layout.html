@@ -23,6 +23,7 @@
   <link href="{{ url_for('static', filename='pos.css') }}" rel="stylesheet">
   <link href="{{ url_for('static', filename='server_pos.css') }}" rel="stylesheet">
   <link href="{{ url_for('static', filename='order_edit.css') }}" rel="stylesheet">
+  <link href="{{ url_for('static', filename='unpaid_orders.css') }}" rel="stylesheet">
   <link href="{{ url_for('static', filename='checkout.css') }}" rel="stylesheet">
   <link href="{{ url_for('static', filename='customers.css') }}" rel="stylesheet">
 </head>
@@ -132,17 +133,15 @@
     <nav class="global-mobile-bottom d-md-none" aria-label="Navigation rapide">
       {% if nav_effective_role == 'CASHIER' %}
         <a class="{% if endpoint.startswith('checkout_web.') or endpoint.startswith('cashier_workspace_web.') %}active{% endif %}" href="{{ url_for('checkout_web.checkout', bar_id=nav_bar_id) }}"><span>₣</span><strong>Caisse</strong></a>
+        <a class="{% if endpoint.startswith('unpaid_orders_web.') %}active{% endif %}" href="{{ url_for('unpaid_orders_web.monitor', bar_id=nav_bar_id) }}"><span>!</span><strong>Impayées</strong></a>
         <a class="{% if endpoint.startswith('cashier_handovers_web.') %}active{% endif %}" href="{{ url_for('cashier_handovers_web.manage', bar_id=nav_bar_id) }}"><span>⇄</span><strong>Remises</strong></a>
         <a class="{% if endpoint.startswith('cashier_returns_web.') %}active{% endif %}" href="{{ url_for('cashier_returns_web.manage', bar_id=nav_bar_id) }}"><span>↩</span><strong>Retours</strong></a>
-        {% if nav_can('customers.read', nav_bar_id) %}
-        <a class="{% if endpoint.startswith('customers_web.') %}active{% endif %}" href="{{ url_for('customers_web.manage', bar_id=nav_bar_id) }}"><span>CL</span><strong>Clients</strong></a>
-        {% endif %}
         <button type="button" data-bs-toggle="offcanvas" data-bs-target="#appNavDrawer" aria-controls="appNavDrawer"><span>•••</span><strong>Plus</strong></button>
 
       {% elif nav_effective_role == 'SERVER' %}
         <a class="{% if endpoint.startswith('orders_web.') %}active{% endif %}" data-server-bottom-link="new" href="{{ url_for('orders_web.quick', bar_id=nav_bar_id) ~ '#posForm' }}"><span>＋</span><strong>Commande</strong></a>
         <a data-server-bottom-link="orders" href="{{ url_for('orders_web.quick', bar_id=nav_bar_id) ~ '#mes-commandes' }}"><span>▤</span><strong>Mes commandes</strong></a>
-        <a class="{% if endpoint == 'web.dashboard' %}active{% endif %}" href="{{ url_for('web.dashboard', bar_id=nav_bar_id) ~ '#dashboard-notifications' }}"><span>●</span><strong>Notifs</strong></a>
+        <a class="{% if endpoint.startswith('unpaid_orders_web.') %}active{% endif %}" href="{{ url_for('unpaid_orders_web.monitor', bar_id=nav_bar_id) }}"><span>!</span><strong>Impayées</strong></a>
         <button type="button" data-bs-toggle="offcanvas" data-bs-target="#appNavDrawer" aria-controls="appNavDrawer"><span>•••</span><strong>Plus</strong></button>
 
       {% else %}
