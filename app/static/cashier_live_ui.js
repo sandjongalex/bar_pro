@@ -8,11 +8,28 @@
   if (!match) return;
   const barId = match[1];
   const endpoint = `/bars/${barId}/live/orders`;
+  const unpaidUrl = `/bars/${barId}/unpaid-orders`;
   const waitingSection = document.getElementById('queueWaiting');
   const payableSection = document.getElementById('queuePayable');
   const productGrid = document.getElementById('cashierProductGrid');
   const productSearch = document.getElementById('cashierProductSearch');
   const money = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0 });
+
+  const mobileMore = document.querySelector('.cashier-mobile-bar a:last-child');
+  if (mobileMore) {
+    mobileMore.href = unpaidUrl;
+    mobileMore.innerHTML = '!<br>Impayées';
+    mobileMore.setAttribute('aria-label', 'Commandes impayées');
+  }
+  const headActions = document.querySelector('.cashier-head-actions');
+  if (headActions && !headActions.querySelector('[data-unpaid-shortcut]')) {
+    const link = document.createElement('a');
+    link.className = 'btn btn-warning';
+    link.href = unpaidUrl;
+    link.dataset.unpaidShortcut = '';
+    link.textContent = '! Impayées';
+    headActions.prepend(link);
+  }
 
   const kpiLinks = Array.from(document.querySelectorAll('.cashier-kpis > a'));
   const waitingKpi = kpiLinks[0]?.querySelector('strong');
