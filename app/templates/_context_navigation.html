@@ -26,6 +26,23 @@
       {% set context_scope = 'sales' %}
     {% endif %}
 
+  {% elif endpoint.startswith('unpaid_orders_web.') %}
+    {% set context_title = 'Commandes impayées' %}
+    {% if nav_effective_role == 'SERVER' %}
+      {% set context_section = 'Service' %}
+      {% set context_parent_label = 'Mes commandes' %}
+      {% set context_parent_url = url_for('orders_web.quick', bar_id=nav_bar_id) ~ '#mes-commandes' %}
+      {% set context_scope = 'service' %}
+    {% elif nav_effective_role == 'CASHIER' %}
+      {% set context_section = 'Caisse' %}
+      {% set context_parent_label = 'Caisse' %}
+      {% set context_parent_url = url_for('checkout_web.checkout', bar_id=nav_bar_id) %}
+      {% set context_scope = 'cashier' %}
+    {% else %}
+      {% set context_section = 'Ventes' %}
+      {% set context_scope = 'sales' %}
+    {% endif %}
+
   {% elif endpoint.startswith('checkout_web.') %}
     {% set context_section = 'Ventes' %}
     {% set context_title = 'Caisse' %}
@@ -164,13 +181,14 @@
 
     {% if context_scope == 'service' %}
       <nav class="context-shortcuts" aria-label="Raccourcis service" data-context-shortcuts>
-        <a class="active" href="{{ url_for('orders_web.quick', bar_id=nav_bar_id) }}">＋ Nouvelle commande</a>
+        <a class="{% if endpoint.startswith('orders_web.') %}active{% endif %}" href="{{ url_for('orders_web.quick', bar_id=nav_bar_id) }}">＋ Nouvelle commande</a>
         <a href="{{ url_for('orders_web.quick', bar_id=nav_bar_id) ~ '#mes-commandes' }}">Mes commandes</a>
+        <a class="{% if endpoint.startswith('unpaid_orders_web.') %}active{% endif %}" href="{{ url_for('unpaid_orders_web.monitor', bar_id=nav_bar_id) }}">Impayées</a>
       </nav>
 
     {% elif context_scope == 'sales' %}
       <nav class="context-shortcuts" aria-label="Raccourcis ventes" data-context-shortcuts>
-        {% if nav_can('orders.create', nav_bar_id) %}<a class="{% if endpoint.startswith('orders_web.') %}active{% endif %}" href="{{ url_for('orders_web.quick', bar_id=nav_bar_id) }}">Commandes</a>{% endif %}
+        {% if nav_can('orders.create', nav_bar_id) %}<a class="{% if endpoint.startswith('orders_web.') %}active{% endif %}" href="{{ url_for('orders_web.quick', bar_id=nav_bar_id) }}">Commandes</a><a class="{% if endpoint.startswith('unpaid_orders_web.') %}active{% endif %}" href="{{ url_for('unpaid_orders_web.monitor', bar_id=nav_bar_id) }}">Impayées</a>{% endif %}
         {% if nav_can('payments.read', nav_bar_id) %}<a class="{% if endpoint.startswith('checkout_web.') %}active{% endif %}" href="{{ url_for('checkout_web.checkout', bar_id=nav_bar_id) }}">Caisse</a>{% endif %}
       </nav>
 
@@ -190,6 +208,7 @@
     {% elif context_scope == 'cashier' %}
       <nav class="context-shortcuts" aria-label="Raccourcis caisse" data-context-shortcuts>
         <a class="{% if endpoint.startswith('checkout_web.') %}active{% endif %}" href="{{ url_for('checkout_web.checkout', bar_id=nav_bar_id) }}">Caisse</a>
+        <a class="{% if endpoint.startswith('unpaid_orders_web.') %}active{% endif %}" href="{{ url_for('unpaid_orders_web.monitor', bar_id=nav_bar_id) }}">Impayées</a>
         <a class="{% if endpoint.startswith('cashier_handovers_web.') %}active{% endif %}" href="{{ url_for('cashier_handovers_web.manage', bar_id=nav_bar_id) }}">Remises</a>
         <a class="{% if endpoint.startswith('cashier_returns_web.') %}active{% endif %}" href="{{ url_for('cashier_returns_web.manage', bar_id=nav_bar_id) }}">Retours</a>
         <a class="{% if endpoint.startswith('cashier_history_web.') %}active{% endif %}" href="{{ url_for('cashier_history_web.history', bar_id=nav_bar_id) }}">Historique</a>
