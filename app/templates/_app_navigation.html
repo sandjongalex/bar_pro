@@ -1,5 +1,5 @@
 {% set role = nav_role(nav_bar_id) if nav_bar_id else none %}
-{% set sales_active = endpoint.startswith('orders_web.') or endpoint.startswith('checkout_web.') or endpoint.startswith('cashier_workspace_web.') %}
+{% set sales_active = endpoint.startswith('orders_web.') or endpoint.startswith('checkout_web.') or endpoint.startswith('cashier_workspace_web.') or endpoint.startswith('unpaid_orders_web.') %}
 {% set stock_active = endpoint.startswith('catalog.') or endpoint.startswith('stock.') or endpoint.startswith('inventories.') %}
 {% set purchases_active = endpoint.startswith('purchases_web.') or endpoint.startswith('supplier_debts_web.') %}
 {% set finance_active = endpoint.startswith('cashier_web.') or endpoint.startswith('cashier_returns_web.') or endpoint.startswith('cashier_handovers_web.') or endpoint.startswith('cashier_history_web.') or endpoint.startswith('finance_web.') or endpoint.startswith('expenses_web.') or endpoint.startswith('customers_web.') or endpoint.startswith('reports_web.') %}
@@ -12,6 +12,9 @@
     <div class="nav-direct">
       <a class="nav-link {% if endpoint.startswith('checkout_web.') or endpoint.startswith('cashier_workspace_web.') %}active{% endif %}" href="{{ url_for('checkout_web.checkout', bar_id=nav_bar_id) }}">
         <span class="nav-icon">₣</span><span class="nav-link-text">Caisse</span>
+      </a>
+      <a class="nav-link {% if endpoint.startswith('unpaid_orders_web.') %}active{% endif %}" href="{{ url_for('unpaid_orders_web.monitor', bar_id=nav_bar_id) }}">
+        <span class="nav-icon">!</span><span class="nav-link-text">Commandes impayées</span>
       </a>
       <a class="nav-link {% if endpoint.startswith('cashier_handovers_web.') %}active{% endif %}" href="{{ url_for('cashier_handovers_web.manage', bar_id=nav_bar_id) }}">
         <span class="nav-icon">⇄</span><span class="nav-link-text">Remises</span>
@@ -41,8 +44,8 @@
       <a class="nav-link" href="{{ url_for('orders_web.quick', bar_id=nav_bar_id) }}#mes-commandes">
         <span class="nav-icon">C</span><span class="nav-link-text">Mes commandes</span>
       </a>
-      <a class="nav-link" href="{{ url_for('web.dashboard', bar_id=nav_bar_id) }}#dashboard-notifications">
-        <span class="nav-icon">●</span><span class="nav-link-text">Notifications</span>
+      <a class="nav-link {% if endpoint.startswith('unpaid_orders_web.') %}active{% endif %}" href="{{ url_for('unpaid_orders_web.monitor', bar_id=nav_bar_id) }}">
+        <span class="nav-icon">!</span><span class="nav-link-text">Commandes impayées</span>
       </a>
     </div>
 
@@ -64,6 +67,7 @@
       <div class="nav-group-links">
         {% if nav_can('orders.create', nav_bar_id) %}
         <a class="nav-sublink {% if endpoint.startswith('orders_web.') %}active{% endif %}" href="{{ url_for('orders_web.quick', bar_id=nav_bar_id) }}">Commandes</a>
+        <a class="nav-sublink {% if endpoint.startswith('unpaid_orders_web.') %}active{% endif %}" href="{{ url_for('unpaid_orders_web.monitor', bar_id=nav_bar_id) }}">Commandes impayées</a>
         {% endif %}
         {% if nav_can('payments.read', nav_bar_id) %}
         <a class="nav-sublink {% if endpoint.startswith('checkout_web.') or endpoint.startswith('cashier_workspace_web.') %}active{% endif %}" href="{{ url_for('checkout_web.checkout', bar_id=nav_bar_id) }}">Caisse</a>
