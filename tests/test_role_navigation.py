@@ -51,6 +51,8 @@ def test_cashier_navigation_only_surfaces_operational_destinations(env):
     page = client.get(f"/bars/{bar.id}/cashier-session")
     assert page.status_code == 200
     assert 'class="nav-role-label">Poste caissière' in page.text
+    assert "Commandes impayées" in page.text
+    assert f'/bars/{bar.id}/unpaid-orders' in page.text
     assert "Remises" in page.text
     assert "Retours" in page.text
     assert "Historique" in page.text
@@ -63,9 +65,10 @@ def test_cashier_navigation_only_surfaces_operational_destinations(env):
     assert '<strong>Session de caisse</strong>' in page.text
     assert 'aria-label="Raccourcis caisse"' in page.text
     assert 'data-context-shortcuts' in page.text
+    assert '>Impayées</a>' in page.text
 
 
-def test_server_navigation_is_focused_on_orders_and_notifications(env):
+def test_server_navigation_is_focused_on_orders_and_unpaid(env):
     app, _, bar, _, product, server_user, _, _ = env
     order_service.create(
         server_user,
@@ -84,7 +87,9 @@ def test_server_navigation_is_focused_on_orders_and_notifications(env):
     assert 'class="nav-role-label">Espace serveuse' in page.text
     assert '<span class="nav-link-text">Nouvelle commande</span>' in page.text
     assert '<span class="nav-link-text">Mes commandes</span>' in page.text
-    assert '<span class="nav-link-text">Notifications</span>' in page.text
+    assert '<span class="nav-link-text">Commandes impayées</span>' in page.text
+    assert f'/bars/{bar.id}/unpaid-orders' in page.text
+    assert '<strong>Impayées</strong>' in page.text
     assert "Dettes fournisseurs" not in page.text
     assert '<span class="nav-link-text">Stock</span>' not in page.text
 
@@ -95,6 +100,7 @@ def test_server_navigation_is_focused_on_orders_and_notifications(env):
     assert 'aria-label="Raccourcis service"' in page.text
     assert '>＋ Nouvelle commande</a>' in page.text
     assert '>Mes commandes</a>' in page.text
+    assert '>Impayées</a>' in page.text
 
     # Serveuse: le flux opérationnel commence par le lieu/table avant les produits.
     assert 'data-server-table-step' in page.text
@@ -172,6 +178,7 @@ def test_owner_keeps_full_grouped_navigation(env):
     assert 'class="nav-role-label">Poste caissière' not in page.text
     assert 'class="nav-role-label">Espace serveuse' not in page.text
     assert 'aria-label="Raccourcis ventes"' in page.text
+    assert '>Impayées</a>' in page.text
 
 
 def test_owner_catalog_context_goes_back_to_stock(env):
