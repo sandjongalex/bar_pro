@@ -2,7 +2,7 @@
 from datetime import datetime, timedelta
 import hashlib, secrets, uuid
 import jwt
-from flask import Blueprint, current_app, jsonify, request, render_template, session, g, url_for
+from flask import Blueprint, abort, current_app, jsonify, request, render_template, session, g, url_for
 from flask_login import current_user, login_required, login_user, logout_user
 from functools import wraps
 from sqlalchemy import select
@@ -36,6 +36,33 @@ def _bind_employee_session(context):
     session["current_bar_id"] = context.bar_id
     session["current_role"] = context.role
     session["current_assignment_id"] = context.assignment.id
+
+@auth_bp.before_app_request
+def bind_employee_web_context():
+    """Keep every authenticated EMPLOYEE request bound to its active assignment.
+
+    The browser/session is never the source of truth for the employee tenant.
+    The active StaffAssignment is re-resolved server-side. A URL targeting a
+    different bar returns 404 so an employee cannot distinguish another tenant
+    from a non-existent one.
+    """
+    if request.path.startswith("/api/") or not current_user.is_authenticated:
+        return None
+    if current_user.category != "EMPLOYEE":
+        return None
+    try:
+        context = get_current_employee_context(current_user)
+    except LookupError:
+        logout_user()
+        session.clear()
+        g.pop("csrf_token", None)
+        return "", 302, {"Location": url_for("auth.web_login")}
+
+    _bind_employee_session(context)
+    route_bar_id = (request.view_args or {}).get("bar_id")
+    if route_bar_id is not None and int(route_bar_id) != context.bar_id:
+        abort(404)
+    return None
 
 def api_required(view):
     """Authenticate bearer JWTs only; never accept a web cookie as API identity."""
