@@ -1,0 +1,44 @@
+{% extends 'cashier_workspace.html' %}
+{% block content %}
+{{ super() }}
+<style>
+.cashier-suborder-entry{display:inline-flex;align-items:center;gap:7px}.cashier-suborder-entry .cashier-suborder-dot{width:8px;height:8px;border-radius:50%;background:currentColor}.cashier-selected-suborder-cta{display:flex;align-items:center;justify-content:space-between;gap:12px;text-decoration:none;color:inherit;border:1px solid #cfe1d8;background:#f2faf6;border-radius:13px;padding:11px 12px;margin:10px 0}.cashier-selected-suborder-cta:hover{border-color:var(--brand);background:var(--brand-soft)}.cashier-selected-suborder-cta strong,.cashier-selected-suborder-cta small{display:block}.cashier-selected-suborder-cta strong{font-size:.79rem}.cashier-selected-suborder-cta small{font-size:.67rem;color:var(--muted);margin-top:2px}.cashier-selected-suborder-plus{width:36px;height:36px;border-radius:11px;background:var(--brand);color:#fff;display:grid;place-items:center;font-size:1.15rem;font-weight:900;flex:0 0 auto}@media(max-width:760px){.cashier-suborder-entry{min-height:44px;justify-content:center}.cashier-mobile-bar{grid-template-columns:repeat(5,1fr)!important}}
+</style>
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  const queueUrl = {{ url_for('suborders_web.cashier_queue', bar_id=bar.id)|tojson }};
+  const head = document.querySelector('.cashier-head-actions');
+  if (head && !head.querySelector('[data-cashier-suborders]')) {
+    const link = document.createElement('a');
+    link.href = queueUrl;
+    link.className = 'btn btn-outline-primary cashier-suborder-entry';
+    link.dataset.cashierSuborders = '1';
+    link.innerHTML = '<span class="cashier-suborder-dot"></span><span>Sous-commandes</span>';
+    head.insertBefore(link, head.children[1] || null);
+  }
+
+  const mobile = document.querySelector('.cashier-mobile-bar');
+  if (mobile && !mobile.querySelector('[data-cashier-suborders-mobile]')) {
+    const link = document.createElement('a');
+    link.href = queueUrl;
+    link.dataset.cashierSubordersMobile = '1';
+    link.innerHTML = '＋<br>Sous-cmd';
+    mobile.insertBefore(link, mobile.children[2] || null);
+  }
+
+  {% if selected_order and selected_server_assignment and selected_order.payment_status != 'PAID' %}
+  const addUrl = {{ url_for('suborders_web.new_suborder', bar_id=bar.id, order_id=selected_order.id)|tojson }};
+  const paymentPanel = document.getElementById('paymentPanel');
+  const summary = paymentPanel?.querySelector('.cashier-order-summary');
+  if (paymentPanel && summary && !paymentPanel.querySelector('[data-selected-suborder-add]')) {
+    const cta = document.createElement('a');
+    cta.href = addUrl;
+    cta.className = 'cashier-selected-suborder-cta';
+    cta.dataset.selectedSuborderAdd = '1';
+    cta.innerHTML = '<div><strong>Ajouter une sous-commande</strong><small>Servir un ajout maintenant sur cette facture, sans fusionner les lignes.</small></div><span class="cashier-selected-suborder-plus">＋</span>';
+    summary.insertAdjacentElement('beforebegin', cta);
+  }
+  {% endif %}
+});
+</script>
+{% endblock %}
