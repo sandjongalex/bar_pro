@@ -280,30 +280,18 @@ def test_cashier_cannot_modify_other_bar_order(env):
         total_amount=0,
         created_by_id=owner.id,
     )
-    own_order = Order(
-        bar_id=bar.id,
-        reference="OWN-CSRF",
-        status="DRAFT",
-        payment_status="UNPAID",
-        currency="XAF",
-        subtotal_amount=0,
-        discount_amount=0,
-        tax_amount=0,
-        total_amount=0,
-        created_by_id=owner.id,
-    )
-    db.session.add_all([foreign_order, own_order])
+    db.session.add(foreign_order)
     db.session.commit()
 
     client = app.test_client()
     assert _login(client, cashier.email).status_code == 302
-    checkout = client.get(f"/bars/{bar.id}/checkout?order_id={own_order.id}")
-    assert checkout.status_code == 200
+    csrf_page = client.get(f"/bars/{bar.id}/cashier-session")
+    assert csrf_page.status_code == 200
 
     response = client.post(
         f"/bars/{bar.id}/order-edits/{foreign_order.id}",
         data={
-            "csrf_token": _csrf(checkout),
+            "csrf_token": _csrf(csrf_page),
             "order_revision": "foreign-order-must-not-resolve",
             "reason": "cross tenant attempt",
         },
