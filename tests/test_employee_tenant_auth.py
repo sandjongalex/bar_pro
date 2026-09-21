@@ -1,7 +1,7 @@
 import re
 
 from app.extensions import db
-from app.models import Bar, StaffAssignment, User, utcnow
+from app.models import Bar, Order, StaffAssignment, User, utcnow
 from test_workflows import env
 
 
@@ -221,3 +221,37 @@ def test_employee_cannot_reach_second_bar_of_same_owner(env):
     assert bars.status_code == 200
     payload = bars.get_json()
     assert [item["id"] for item in payload["data"]] == [str(bar.id)]
+
+
+def test_cashier_cannot_read_other_bar_order(env):
+    app, owner, bar, _, _, _, _, _ = env
+    cashier, _ = _employee(bar, "CASHIER", "foreign-order-read")
+    second_bar = Bar(
+        owner_id=owner.id,
+        name="Hidden Orders Bar",
+        timezone="Africa/Douala",
+        currency="XAF",
+    )
+    db.session.add(second_bar)
+    db.session.flush()
+    foreign_order = Order(
+        bar_id=second_bar.id,
+        reference="HIDDEN-ORDER",
+        status="DRAFT",
+        payment_status="UNPAID",
+        currency="XAF",
+        subtotal_amount=0,
+        discount_amount=0,
+        tax_amount=0,
+        total_amount=0,
+        created_by_id=owner.id,
+    )
+    db.session.add(foreign_order)
+    db.session.commit()
+
+    client = app.test_client()
+    assert _login(client, cashier.email).status_code == 302
+
+    response = client.get(f"/bars/{bar.id}/order-edits/{foreign_order.id}")
+    assert response.status_code == 404
+    assert "HIDDEN-ORDER" not in response.text
