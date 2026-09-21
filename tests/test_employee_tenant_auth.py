@@ -128,3 +128,17 @@ def test_employee_session_is_bound_to_assigned_bar_and_other_bar_is_404(env):
 
     foreign_page = client.get(f"/bars/{foreign.id}/orders/new")
     assert foreign_page.status_code == 404
+
+
+def test_bar_admin_cannot_open_bar_list_or_see_bar_list_navigation(env):
+    app, _, bar, _, _, _, _, _ = env
+    admin, _ = _employee(bar, "BAR_ADMIN", "bar-list")
+    client = app.test_client()
+    assert _login(client, admin.email).status_code == 302
+
+    dashboard = client.get(f"/dashboard?bar_id={bar.id}")
+    assert dashboard.status_code == 200
+    assert '<span class="nav-link-text">Établissements</span>' not in dashboard.text
+
+    listing = client.get("/bars/")
+    assert listing.status_code == 404
