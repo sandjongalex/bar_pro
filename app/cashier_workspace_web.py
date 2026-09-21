@@ -439,7 +439,7 @@ def workspace(bar_id: int):
     }
 
     return render_template(
-        "cashier_workspace.html",
+        "cashier_workspace_v2.html",
         bar=bar,
         session=session,
         waiting_orders=waiting_orders,
