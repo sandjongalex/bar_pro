@@ -1,6 +1,6 @@
 {% if is_server %}
 <style>
-.server-suborder-tools{margin-top:1rem}.server-suborder-launcher{padding:14px 15px;border:1px solid #dce7e2;border-radius:16px;background:linear-gradient(135deg,#ffffff 0%,#f5fbf8 100%)}.server-suborder-launcher-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}.server-suborder-launcher-head h2{font-size:1.02rem;margin:0}.server-suborder-launcher-head p{font-size:.72rem;color:var(--muted);margin:3px 0 0}.server-suborder-order-strip{display:flex;gap:8px;overflow:auto;padding:10px 1px 1px;scroll-snap-type:x proximity}.server-suborder-order{flex:0 0 220px;scroll-snap-align:start;text-decoration:none;color:inherit;border:1px solid #dfe7e3;border-radius:13px;background:#fff;padding:11px 12px;display:flex;justify-content:space-between;gap:10px;align-items:center}.server-suborder-order:hover{border-color:var(--brand);background:var(--brand-soft)}.server-suborder-order strong,.server-suborder-order small{display:block}.server-suborder-order strong{font-size:.77rem}.server-suborder-order small{font-size:.64rem;color:var(--muted);margin-top:2px}.server-suborder-plus{width:34px;height:34px;border-radius:11px;background:var(--brand);color:#fff;display:grid;place-items:center;font-size:1.1rem;font-weight:900;flex:0 0 auto}.server-suborder-none{font-size:.72rem;color:var(--muted);padding-top:10px}.server-pending-card{border:1px solid #f0dfb5;border-radius:14px;padding:13px;background:#fffdf8}.server-pending-top{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}.server-pending-status{display:inline-flex;padding:4px 7px;border-radius:999px;background:#fff4dd;color:#946311;font-size:.62rem;font-weight:850;margin-top:4px}.server-pending-lines{margin-top:9px;border-top:1px dashed #e5ddd0;border-bottom:1px dashed #e5ddd0;padding:5px 0}.server-pending-line{display:flex;justify-content:space-between;gap:10px;padding:4px 0;font-size:.73rem}@media(max-width:680px){.server-suborder-launcher{border-radius:13px}.server-suborder-order{flex-basis:188px}.server-pending-top{display:block}.server-pending-top .text-end{text-align:left!important;margin-top:8px}}
+.server-suborder-tools{margin-top:1rem}.server-suborder-launcher{padding:14px 15px;border:1px solid #dce7e2;border-radius:16px;background:linear-gradient(135deg,#ffffff 0%,#f5fbf8 100%)}.server-suborder-launcher-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}.server-suborder-launcher-head h2{font-size:1.02rem;margin:0}.server-suborder-launcher-head p{font-size:.72rem;color:var(--muted);margin:3px 0 0}.server-suborder-order-strip{display:flex;gap:8px;overflow:auto;padding:10px 1px 1px;scroll-snap-type:x proximity}.server-suborder-order{flex:0 0 220px;scroll-snap-align:start;text-decoration:none;color:inherit;border:1px solid #dfe7e3;border-radius:13px;background:#fff;padding:11px 12px;display:flex;justify-content:space-between;gap:10px;align-items:center}.server-suborder-order:hover{border-color:var(--brand);background:var(--brand-soft)}.server-suborder-order strong,.server-suborder-order small{display:block}.server-suborder-order strong{font-size:.77rem}.server-suborder-order small{font-size:.64rem;color:var(--muted);margin-top:2px}.server-suborder-plus{width:34px;height:34px;border-radius:11px;background:var(--brand);color:#fff;display:grid;place-items:center;font-size:1.1rem;font-weight:900;flex:0 0 auto}.server-suborder-none{font-size:.72rem;color:var(--muted);padding-top:10px}.server-order-direct-suborder{display:inline-flex;align-items:center;justify-content:center;gap:5px;min-height:36px;font-weight:800}.server-pending-card{border:1px solid #f0dfb5;border-radius:14px;padding:13px;background:#fffdf8}.server-pending-top{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}.server-pending-status{display:inline-flex;padding:4px 7px;border-radius:999px;background:#fff4dd;color:#946311;font-size:.62rem;font-weight:850;margin-top:4px}.server-pending-lines{margin-top:9px;border-top:1px dashed #e5ddd0;border-bottom:1px dashed #e5ddd0;padding:5px 0}.server-pending-line{display:flex;justify-content:space-between;gap:10px;padding:4px 0;font-size:.73rem}@media(max-width:680px){.server-suborder-launcher{border-radius:13px}.server-suborder-order{flex-basis:188px}.server-order-direct-suborder{min-height:44px;padding-inline:12px}.server-pending-top{display:block}.server-pending-top .text-end{text-align:left!important;margin-top:8px}}
 </style>
 
 <section class="server-suborder-tools" id="sous-commandes">
@@ -68,4 +68,37 @@
   </div>
 </section>
 {% endif %}
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  const directSuborderUrls = [
+    {% for order in recent_orders %}
+      {% if order.status in ['DRAFT','CONFIRMED','SERVED'] and order.payment_status in ['UNPAID','PARTIAL'] %}
+      {{ url_for('suborders_web.new_suborder', bar_id=bar.id, order_id=order.id)|tojson }},
+      {% else %}
+      null,
+      {% endif %}
+    {% endfor %}
+  ];
+
+  document.querySelectorAll('[data-server-order-card]').forEach((card, index) => {
+    const addUrl = directSuborderUrls[index];
+    if (!addUrl || card.querySelector('[data-server-add-suborder]')) return;
+    const footer = card.querySelector('.server-order-footer');
+    if (!footer) return;
+    let actions = footer.querySelector('.server-order-actions');
+    if (!actions) {
+      actions = document.createElement('div');
+      actions.className = 'server-order-actions';
+      footer.appendChild(actions);
+    }
+    const link = document.createElement('a');
+    link.href = addUrl;
+    link.className = 'btn btn-sm btn-outline-primary server-order-direct-suborder';
+    link.dataset.serverAddSuborder = '1';
+    link.textContent = '＋ Ajouter des produits';
+    actions.prepend(link);
+  });
+});
+</script>
 {% endif %}
