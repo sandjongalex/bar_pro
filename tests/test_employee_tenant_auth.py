@@ -255,3 +255,65 @@ def test_cashier_cannot_read_other_bar_order(env):
     response = client.get(f"/bars/{bar.id}/order-edits/{foreign_order.id}")
     assert response.status_code == 404
     assert "HIDDEN-ORDER" not in response.text
+
+
+def test_cashier_cannot_modify_other_bar_order(env):
+    app, owner, bar, _, _, _, _, _ = env
+    cashier, _ = _employee(bar, "CASHIER", "foreign-order-write")
+    second_bar = Bar(
+        owner_id=owner.id,
+        name="Hidden Order Mutation Bar",
+        timezone="Africa/Douala",
+        currency="XAF",
+    )
+    db.session.add(second_bar)
+    db.session.flush()
+    foreign_order = Order(
+        bar_id=second_bar.id,
+        reference="HIDDEN-MUTATION",
+        status="DRAFT",
+        payment_status="UNPAID",
+        currency="XAF",
+        subtotal_amount=0,
+        discount_amount=0,
+        tax_amount=0,
+        total_amount=0,
+        created_by_id=owner.id,
+    )
+    own_order = Order(
+        bar_id=bar.id,
+        reference="OWN-CSRF",
+        status="DRAFT",
+        payment_status="UNPAID",
+        currency="XAF",
+        subtotal_amount=0,
+        discount_amount=0,
+        tax_amount=0,
+        total_amount=0,
+        created_by_id=owner.id,
+    )
+    db.session.add_all([foreign_order, own_order])
+    db.session.commit()
+
+    client = app.test_client()
+    assert _login(client, cashier.email).status_code == 302
+    checkout = client.get(f"/bars/{bar.id}/checkout?order_id={own_order.id}")
+    assert checkout.status_code == 200
+
+    response = client.post(
+        f"/bars/{bar.id}/order-edits/{foreign_order.id}",
+        data={
+            "csrf_token": _csrf(checkout),
+            "order_revision": "foreign-order-must-not-resolve",
+            "reason": "cross tenant attempt",
+        },
+        follow_redirects=False,
+    )
+    assert response.status_code == 404
+
+    db.session.expire_all()
+    unchanged = db.session.get(Order, foreign_order.id)
+    assert unchanged.bar_id == second_bar.id
+    assert unchanged.reference == "HIDDEN-MUTATION"
+    assert unchanged.status == "DRAFT"
+    assert unchanged.payment_status == "UNPAID"
