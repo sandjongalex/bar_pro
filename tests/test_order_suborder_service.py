@@ -87,16 +87,12 @@ def test_cashier_creates_delivered_pending_suborder_without_merging_parent_lines
     assert suborder.delivered_by_id == cashier.id
     assert suborder.total_amount == Decimal("200")
 
-    # The historical parent lines stay untouched: this is a real sub-order,
-    # not a quantity merge into the original invoice block.
     assert parent.total_amount == Decimal("200")
     assert original_line.quantity == Decimal("2")
     assert line.product_id == product.id
     assert line.quantity == Decimal("2")
     assert line.total_amount == Decimal("200")
 
-    # The cashier has physically served the addition, so stock moves now even
-    # though financial validation by the assigned server is still pending.
     assert db.session.scalar(
         select(StockBalance.quantity).where(
             StockBalance.bar_id == bar.id,
@@ -169,14 +165,11 @@ def test_assigned_server_validates_suborder_and_it_stays_separate(env):
     assert validated.validated_at is not None
     assert validated.delivery_status == "DELIVERED"
 
-    # The invoice total now includes the validated addition, while the historical
-    # product blocks stay separate instead of becoming quantity 4 on one line.
     assert parent.total_amount == Decimal("400")
     assert original_line.quantity == Decimal("2")
     assert suborder_line.quantity == Decimal("2")
     assert suborder_line.order_suborder_id == suborder.id
 
-    # Validation does not serve the products a second time.
     assert db.session.scalar(
         select(StockBalance.quantity).where(
             StockBalance.bar_id == bar.id,
@@ -281,14 +274,11 @@ def test_server_creates_multiple_suborders_that_wait_for_cashier_delivery(env):
     assert first.validated_at is not None
     assert second.validated_at is not None
 
-    # Each round remains a separate block; the original order line is untouched.
     assert original_line.quantity == Decimal("2")
     assert first_line.quantity == Decimal("1")
     assert second_line.quantity == Decimal("2")
     assert first_line.order_suborder_id != second_line.order_suborder_id
 
-    # The invoice records all ordered rounds immediately, but the cashier has not
-    # delivered these two additions yet, so their stock is still untouched.
     assert parent.total_amount == Decimal("500")
     assert db.session.scalar(
         select(StockBalance.quantity).where(
@@ -296,3 +286,108 @@ def test_server_creates_multiple_suborders_that_wait_for_cashier_delivery(env):
             StockBalance.product_id == product.id,
         )
     ) == Decimal("8")
+
+
+def test_cashier_delivers_server_suborders_and_deducts_stock_once(env):
+    _, _, bar, _, product, server, _, _ = env
+
+    cashier = User(
+        email="deliver-server-suborders@example.invalid",
+        display_name="Delivery Cashier",
+        category="EMPLOYEE",
+    )
+    cashier.set_password("test-password")
+    db.session.add(cashier)
+    db.session.flush()
+    db.session.add(
+        StaffAssignment(
+            bar_id=bar.id,
+            user_id=cashier.id,
+            role="CASHIER",
+            started_at=utcnow(),
+        )
+    )
+    db.session.flush()
+
+    parent = order_service.create(
+        server,
+        bar.id,
+        "SERVER-DELIVERY-PARENT",
+        [{"product_id": product.id, "quantity": 2}],
+    )
+    db.session.flush()
+    order_service.confirm(cashier, bar.id, parent.id)
+    db.session.commit()
+
+    first = order_suborder_service.create_server_addition(
+        server,
+        bar.id,
+        parent.id,
+        [{"product_id": product.id, "quantity": 1}],
+    )
+    second = order_suborder_service.create_server_addition(
+        server,
+        bar.id,
+        parent.id,
+        [{"product_id": product.id, "quantity": 2}],
+    )
+    db.session.commit()
+
+    assert first.delivery_status == second.delivery_status == "PENDING"
+    assert db.session.scalar(
+        select(StockBalance.quantity).where(
+            StockBalance.bar_id == bar.id,
+            StockBalance.product_id == product.id,
+        )
+    ) == Decimal("8")
+
+    delivered_first = order_suborder_service.deliver_by_cashier(
+        cashier,
+        bar.id,
+        parent.id,
+        first.id,
+    )
+    db.session.commit()
+    assert delivered_first.delivery_status == "DELIVERED"
+    assert delivered_first.delivered_by_id == cashier.id
+    assert delivered_first.delivered_at is not None
+    assert second.delivery_status == "PENDING"
+    assert db.session.scalar(
+        select(StockBalance.quantity).where(
+            StockBalance.bar_id == bar.id,
+            StockBalance.product_id == product.id,
+        )
+    ) == Decimal("7")
+
+    delivered_second = order_suborder_service.deliver_by_cashier(
+        cashier,
+        bar.id,
+        parent.id,
+        second.id,
+    )
+    db.session.commit()
+    assert delivered_second.delivery_status == "DELIVERED"
+    assert db.session.scalar(
+        select(StockBalance.quantity).where(
+            StockBalance.bar_id == bar.id,
+            StockBalance.product_id == product.id,
+        )
+    ) == Decimal("5")
+
+    db.session.refresh(parent)
+    assert parent.total_amount == Decimal("500")
+
+    with pytest.raises(ValueError, match="SUBORDER_ALREADY_DELIVERED"):
+        order_suborder_service.deliver_by_cashier(
+            cashier,
+            bar.id,
+            parent.id,
+            first.id,
+        )
+    db.session.rollback()
+    assert db.session.scalar(
+        select(StockBalance.quantity).where(
+            StockBalance.bar_id == bar.id,
+            StockBalance.product_id == product.id,
+        )
+    ) == Decimal("5")
