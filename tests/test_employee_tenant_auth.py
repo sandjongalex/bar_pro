@@ -158,3 +158,24 @@ def test_bar_admin_dashboard_is_bound_to_assigned_bar(env):
 
     foreign_dashboard = client.get(f"/dashboard?bar_id={foreign.id}")
     assert foreign_dashboard.status_code == 404
+
+
+def test_employee_api_login_resolves_bar_automatically(env):
+    app, _, bar, _, _, server, _, _ = env
+    client = app.test_client()
+
+    response = client.post(
+        "/api/v1/auth/tokens",
+        json={"email": server.email, "password": "test-password"},
+    )
+
+    assert response.status_code == 200
+    access_token = response.get_json()["data"]["access_token"]
+    bars = client.get(
+        "/api/v1/bars",
+        headers={"Authorization": f"Bearer {access_token}"},
+    )
+    assert bars.status_code == 200
+    payload = bars.get_json()
+    assert len(payload["data"]) == 1
+    assert payload["data"][0]["id"] == str(bar.id)
