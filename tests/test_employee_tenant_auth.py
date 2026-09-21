@@ -305,3 +305,36 @@ def test_cashier_cannot_modify_other_bar_order(env):
     assert unchanged.reference == "HIDDEN-MUTATION"
     assert unchanged.status == "DRAFT"
     assert unchanged.payment_status == "UNPAID"
+
+
+def test_server_cannot_read_other_bar_order(env):
+    app, owner, bar, _, _, server, _, _ = env
+    second_bar = Bar(
+        owner_id=owner.id,
+        name="Hidden Server Order Bar",
+        timezone="Africa/Douala",
+        currency="XAF",
+    )
+    db.session.add(second_bar)
+    db.session.flush()
+    foreign_order = Order(
+        bar_id=second_bar.id,
+        reference="SERVER-HIDDEN-ORDER",
+        status="DRAFT",
+        payment_status="UNPAID",
+        currency="XAF",
+        subtotal_amount=0,
+        discount_amount=0,
+        tax_amount=0,
+        total_amount=0,
+        created_by_id=owner.id,
+    )
+    db.session.add(foreign_order)
+    db.session.commit()
+
+    client = app.test_client()
+    assert _login(client, server.email).status_code == 302
+
+    response = client.get(f"/bars/{bar.id}/order-edits/{foreign_order.id}")
+    assert response.status_code == 404
+    assert "SERVER-HIDDEN-ORDER" not in response.text
