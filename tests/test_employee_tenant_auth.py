@@ -1,7 +1,7 @@
 import re
 
 from app.extensions import db
-from app.models import StaffAssignment, User, utcnow
+from app.models import Bar, StaffAssignment, User, utcnow
 from test_workflows import env
 
 
@@ -179,3 +179,45 @@ def test_employee_api_login_resolves_bar_automatically(env):
     payload = bars.get_json()
     assert len(payload["data"]) == 1
     assert payload["data"][0]["id"] == str(bar.id)
+
+
+def test_employee_cannot_reach_second_bar_of_same_owner(env):
+    app, owner, bar, _, _, server, _, _ = env
+    second_bar = Bar(
+        owner_id=owner.id,
+        name="Same Owner Hidden",
+        timezone="Africa/Douala",
+        currency="XAF",
+    )
+    db.session.add(second_bar)
+    db.session.commit()
+
+    client = app.test_client()
+    assert _login(client, server.email).status_code == 302
+
+    # Same owner must not weaken employee tenant isolation.
+    assert client.get(f"/bars/{second_bar.id}/orders/new").status_code == 404
+
+    forced_token = client.post(
+        "/api/v1/auth/tokens",
+        json={
+            "email": server.email,
+            "password": "test-password",
+            "bar_id": second_bar.id,
+        },
+    )
+    assert forced_token.status_code == 404
+
+    own_token = client.post(
+        "/api/v1/auth/tokens",
+        json={"email": server.email, "password": "test-password"},
+    )
+    assert own_token.status_code == 200
+    access_token = own_token.get_json()["data"]["access_token"]
+    bars = client.get(
+        "/api/v1/bars",
+        headers={"Authorization": f"Bearer {access_token}"},
+    )
+    assert bars.status_code == 200
+    payload = bars.get_json()
+    assert [item["id"] for item in payload["data"]] == [str(bar.id)]
