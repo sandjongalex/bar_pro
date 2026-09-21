@@ -7,6 +7,7 @@ from sqlalchemy import func, select
 
 from app.audit import record
 from app.extensions import db
+from app.finance_totals import order_balance
 from app.models import Order, Product, StaffAssignment, utcnow
 from app.order_suborder_models import OrderSuborder, OrderSuborderLine
 from app.permissions import permissions
@@ -174,6 +175,81 @@ class OrderSuborderService:
             "order_suborders",
             suborder.id,
             f"Sous-commande {sequence_no} de {order.reference}",
+        )
+        return suborder
+
+    def validate_by_server(
+        self,
+        actor,
+        bar_id: int,
+        order_id: int,
+        suborder_id: int,
+    ) -> OrderSuborder:
+        """Validate one cashier addition without merging its historical lines.
+
+        Only the active server assigned to the parent order may validate the
+        addition. Validation adds the sub-order amount to the invoice total, but
+        the sub-order and its lines remain distinct records for traceability.
+        Stock is not moved again because it was already deducted when the cashier
+        physically served the addition.
+        """
+        permissions.require(actor, "orders.edit", bar_id)
+        assignment = self._active_assignment(actor, bar_id)
+        if not assignment or assignment.role != "SERVER":
+            raise PermissionError("FORBIDDEN")
+
+        suborder = db.session.scalar(
+            select(OrderSuborder)
+            .where(
+                OrderSuborder.id == suborder_id,
+                OrderSuborder.order_id == order_id,
+                OrderSuborder.bar_id == bar_id,
+            )
+            .with_for_update()
+        )
+        if not suborder:
+            raise LookupError("NOT_FOUND")
+        if suborder.assigned_staff_id != assignment.id:
+            raise PermissionError("FORBIDDEN")
+        if suborder.status != "PENDING_VALIDATION":
+            raise ValueError("SUBORDER_NOT_PENDING")
+
+        order = db.session.scalar(
+            select(Order)
+            .where(Order.id == order_id, Order.bar_id == bar_id)
+            .with_for_update()
+        )
+        if not order:
+            raise LookupError("NOT_FOUND")
+        if order.payment_status == "PAID":
+            raise ValueError("ORDER_PAID")
+        if order.status not in {"DRAFT", "CONFIRMED", "SERVED"}:
+            raise ValueError("ORDER_NOT_EDITABLE")
+
+        order.subtotal_amount = number(
+            Decimal(order.subtotal_amount) + Decimal(suborder.subtotal_amount)
+        )
+        order.discount_amount = number(
+            Decimal(order.discount_amount) + Decimal(suborder.discount_amount)
+        )
+        order.tax_amount = number(
+            Decimal(order.tax_amount) + Decimal(suborder.tax_amount)
+        )
+        order.total_amount = number(
+            Decimal(order.total_amount) + Decimal(suborder.total_amount)
+        )
+        order_balance(order, update=True)
+
+        suborder.status = "VALIDATED"
+        suborder.validated_by_id = actor.id
+        suborder.validated_at = utcnow()
+        record(
+            actor,
+            bar_id,
+            "orders.suborder.validate",
+            "order_suborders",
+            suborder.id,
+            f"Validation sous-commande {suborder.sequence_no} de {order.reference}",
         )
         return suborder
 
