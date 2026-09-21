@@ -142,3 +142,19 @@ def test_bar_admin_cannot_open_bar_list_or_see_bar_list_navigation(env):
 
     listing = client.get("/bars/")
     assert listing.status_code == 404
+
+
+def test_bar_admin_dashboard_is_bound_to_assigned_bar(env):
+    app, _, bar, foreign, _, _, _, _ = env
+    admin, _ = _employee(bar, "BAR_ADMIN", "dashboard-bound")
+    client = app.test_client()
+    assert _login(client, admin.email).status_code == 302
+
+    dashboard = client.get(f"/dashboard?bar_id={bar.id}")
+    assert dashboard.status_code == 200
+    assert bar.name in dashboard.text
+    assert foreign.name not in dashboard.text
+    assert 'class="dashboard-bar-selector"' not in dashboard.text
+
+    foreign_dashboard = client.get(f"/dashboard?bar_id={foreign.id}")
+    assert foreign_dashboard.status_code == 404
