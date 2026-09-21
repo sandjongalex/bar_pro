@@ -1,0 +1,168 @@
+{% extends 'layout.html' %}
+{% block title %}Nouvelle sous-commande · {{ bar.name }} · Bar Manager Pro{% endblock %}
+{% block header %}Sous-commande · {{ bar.name }}{% endblock %}
+{% block content %}
+<style>
+.suborder-shell{max-width:1180px;margin:0 auto}.suborder-top{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:16px 18px;border:1px solid var(--line);border-radius:18px;background:#fff;box-shadow:0 10px 30px rgba(22,42,35,.05)}.suborder-top h1{font-size:1.4rem;margin:3px 0 0;font-weight:900}.suborder-top p{margin:4px 0 0;color:var(--muted);font-size:.8rem}.suborder-badge{display:inline-flex;align-items:center;gap:7px;padding:7px 10px;border-radius:999px;font-size:.72rem;font-weight:850;background:var(--brand-soft);color:var(--brand)}.suborder-badge::before{content:'';width:8px;height:8px;border-radius:50%;background:currentColor}.suborder-back{white-space:nowrap}.suborder-context{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px;margin-top:12px}.suborder-context article{background:#fff;border:1px solid var(--line);border-radius:14px;padding:12px 14px}.suborder-context span,.suborder-context strong{display:block}.suborder-context span{font-size:.68rem;color:var(--muted);font-weight:800;text-transform:uppercase;letter-spacing:.03em}.suborder-context strong{font-size:.88rem;margin-top:3px}.suborder-flow{margin-top:12px;padding:12px 14px;border-radius:14px;background:{% if mode == 'server' %}#eef6ff{% else %}#eef8f1{% endif %};border:1px solid {% if mode == 'server' %}#d6e8fb{% else %}#d3eadb{% endif %};display:flex;gap:10px;align-items:flex-start}.suborder-flow strong{display:block;font-size:.82rem}.suborder-flow small{display:block;color:#5f6d67;margin-top:2px;line-height:1.45}.suborder-flow-icon{width:34px;height:34px;border-radius:11px;display:grid;place-items:center;background:#fff;font-weight:900;color:var(--brand);flex:0 0 auto}.suborder-layout{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:14px;margin-top:14px;align-items:start}.suborder-catalog,.suborder-cart{background:#fff;border:1px solid var(--line);border-radius:18px;overflow:hidden}.suborder-toolbar{padding:14px;border-bottom:1px solid var(--line);display:grid;gap:10px}.suborder-search{position:relative}.suborder-search input{padding-left:38px}.suborder-search span{position:absolute;left:13px;top:50%;transform:translateY(-50%);color:var(--muted);font-size:1.1rem}.suborder-tabs{display:flex;gap:7px;overflow:auto;padding-bottom:2px}.suborder-tab{border:1px solid var(--line);background:#fff;border-radius:999px;padding:7px 11px;font-size:.72rem;font-weight:800;white-space:nowrap}.suborder-tab.active{background:var(--brand);border-color:var(--brand);color:#fff}.suborder-products{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;padding:14px;max-height:66vh;overflow:auto}.suborder-product{border:1px solid #e2e8e5;background:#fff;border-radius:14px;padding:12px;text-align:left;min-height:132px;display:flex;flex-direction:column;gap:4px;transition:.15s ease}.suborder-product:hover:not(:disabled){border-color:var(--brand);box-shadow:0 7px 20px rgba(19,75,55,.08);transform:translateY(-1px)}.suborder-product:disabled{opacity:.48}.suborder-product strong{font-size:.83rem;line-height:1.2}.suborder-product small{font-size:.67rem;color:var(--muted)}.suborder-price{margin-top:auto;font-size:.84rem;font-weight:900;color:var(--brand)}.suborder-stock{display:inline-flex;align-self:flex-start;border-radius:999px;padding:4px 7px;background:#eef7f2;color:#267149;font-size:.63rem;font-weight:850}.suborder-stock.low{background:#fff4dd;color:#986a11}.suborder-stock.out{background:#fdecec;color:#a23a3a}.suborder-cart{position:sticky;top:88px}.suborder-cart-head{padding:14px 15px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center}.suborder-cart-head h2{font-size:1.05rem;margin:0}.suborder-cart-body{padding:12px}.suborder-empty{text-align:center;padding:25px 10px;color:var(--muted)}.suborder-empty strong,.suborder-empty small{display:block}.suborder-empty strong{font-size:.9rem;color:#33423d}.suborder-empty small{font-size:.7rem;margin-top:3px}.suborder-line{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;padding:9px 0;border-bottom:1px solid #edf2ef}.suborder-line-copy strong,.suborder-line-copy small{display:block}.suborder-line-copy strong{font-size:.78rem}.suborder-line-copy small{font-size:.66rem;color:var(--muted);margin-top:2px}.suborder-qty{display:flex;align-items:center;gap:5px}.suborder-qty button{width:30px;height:30px;border:1px solid var(--line);border-radius:9px;background:#fff;font-weight:900}.suborder-qty input{width:54px;text-align:center;border:1px solid var(--line);border-radius:9px;height:30px;font-size:.75rem}.suborder-total{display:flex;justify-content:space-between;align-items:center;padding:13px 0 5px;font-weight:900}.suborder-total strong{font-size:1.12rem;color:var(--brand)}.suborder-note{margin-top:10px}.suborder-submit{margin-top:12px;min-height:50px;font-weight:900}.suborder-help{text-align:center;color:var(--muted);font-size:.67rem;margin:7px 0 0;line-height:1.4}.suborder-mobile-total{display:none}
+@media(max-width:980px){.suborder-layout{grid-template-columns:1fr}.suborder-cart{position:static}.suborder-products{max-height:none}.suborder-context{grid-template-columns:1fr 1fr}}
+@media(max-width:680px){.suborder-shell{margin:-4px}.suborder-top{display:block;border-radius:14px;padding:14px}.suborder-back{display:inline-flex;margin-top:10px}.suborder-context{grid-template-columns:1fr 1fr;gap:7px}.suborder-context article{padding:10px}.suborder-flow{border-radius:12px}.suborder-products{grid-template-columns:1fr 1fr;padding:9px;gap:7px}.suborder-product{min-height:122px;padding:10px}.suborder-catalog,.suborder-cart{border-radius:14px}.suborder-cart{margin-bottom:78px}.suborder-mobile-total{display:flex;position:fixed;left:10px;right:10px;bottom:10px;z-index:1040;background:#fff;border:1px solid var(--line);border-radius:15px;padding:8px 9px;box-shadow:0 12px 34px rgba(20,40,33,.22);gap:8px;align-items:center}.suborder-mobile-total div{flex:1}.suborder-mobile-total span,.suborder-mobile-total strong{display:block}.suborder-mobile-total span{font-size:.62rem;color:var(--muted);font-weight:800}.suborder-mobile-total strong{font-size:.9rem}.suborder-mobile-total button{min-width:145px;min-height:46px;font-weight:900}}
+</style>
+
+<div class="suborder-shell">
+  <section class="suborder-top">
+    <div>
+      <span class="suborder-badge">{% if mode == 'server' %}Serveuse · ajout client{% else %}Caissière · service direct{% endif %}</span>
+      <h1>Ajouter une sous-commande</h1>
+      <p>Les produits ajoutés restent dans un bloc séparé de la commande initiale.</p>
+    </div>
+    <a class="btn btn-light border suborder-back" href="{{ back_url }}">← Retour</a>
+  </section>
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for category, message in messages %}<div class="alert alert-{{ category }} mt-3 mb-0" role="alert">{{ message }}</div>{% endfor %}
+  {% endwith %}
+
+  <section class="suborder-context" aria-label="Commande concernée">
+    <article><span>Commande</span><strong>{{ order.reference }}</strong></article>
+    <article><span>Table</span><strong>{{ order.table_label_snapshot or 'Sans table' }}</strong></article>
+    <article><span>Total actuel</span><strong>{{ "{:,.0f}".format(order.total_amount) }} {{ order.currency }}</strong></article>
+    <article><span>Paiement</span><strong>{{ 'Partiel' if order.payment_status == 'PARTIAL' else 'Non payé' }}</strong></article>
+  </section>
+
+  <div class="suborder-flow">
+    <div class="suborder-flow-icon">{% if mode == 'server' %}→{% else %}✓{% endif %}</div>
+    <div>
+      {% if mode == 'server' %}
+        <strong>La serveuse envoie, la caissière livre.</strong>
+        <small>Le montant rejoint la facture immédiatement. Le stock sera déduit seulement lorsque la caissière confirmera la livraison de cette sous-commande.</small>
+      {% else %}
+        <strong>La caissière sert immédiatement, la serveuse valide ensuite.</strong>
+        <small>Le stock sera déduit au moment de cet ajout. La sous-commande restera séparée et apparaîtra chez la serveuse pour validation.</small>
+      {% endif %}
+    </div>
+  </div>
+
+  <form method="post" id="suborderForm" class="suborder-layout">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <section class="suborder-catalog">
+      <div class="suborder-toolbar">
+        <div class="suborder-search"><span>⌕</span><input class="form-control" id="suborderSearch" type="search" placeholder="Rechercher bière, eau, jus..." autocomplete="off"></div>
+        <div class="suborder-tabs" id="suborderTabs">
+          <button class="suborder-tab active" type="button" data-category="all">Tous</button>
+          {% for category in categories %}<button class="suborder-tab" type="button" data-category="{{ category.id }}">{{ category.name }}</button>{% endfor %}
+        </div>
+      </div>
+      <div class="suborder-products" id="suborderProducts">
+        {% for product in products %}
+          {% set stock = balances.get(product.id, 0) %}
+          {% set category = categories_by_id.get(product.category_id) %}
+          <button class="suborder-product" type="button" data-product-id="{{ product.id }}" data-name="{{ product.name }}" data-price="{{ product.sale_price }}" data-stock="{{ stock }}" data-category="{{ product.category_id }}" {% if stock <= 0 %}disabled{% endif %}>
+            <span class="suborder-stock {% if stock <= 0 %}out{% elif stock <= product.stock_alert_threshold %}low{% endif %}">{% if stock <= 0 %}Rupture{% else %}Stock {{ stock }}{% endif %}</span>
+            <strong>{{ product.name }}</strong>
+            <small>{{ category.name if category else 'Produit' }} · {{ product.base_unit }}</small>
+            <span class="suborder-price">{{ "{:,.0f}".format(product.sale_price) }} {{ bar.currency }}</span>
+          </button>
+        {% else %}
+          <div class="suborder-empty"><strong>Aucun produit disponible</strong><small>Le catalogue actif est vide.</small></div>
+        {% endfor %}
+      </div>
+    </section>
+
+    <aside class="suborder-cart">
+      <div class="suborder-cart-head"><div><p class="eyebrow mb-1">Sous-commande</p><h2>Produits à ajouter</h2></div><button class="btn btn-sm btn-light border" id="suborderClear" type="button">Vider</button></div>
+      <div class="suborder-cart-body">
+        <div class="suborder-empty" id="suborderEmpty"><strong>Aucun produit sélectionné</strong><small>Touchez les produits à gauche pour construire l'ajout.</small></div>
+        <div id="suborderLines"></div>
+        <div class="suborder-note"><label class="form-label" for="suborderNote">Note facultative</label><textarea class="form-control" id="suborderNote" name="note" rows="2" maxlength="500" placeholder="Ex. sans glaçons, table VIP, client pressé..."></textarea></div>
+        <div class="suborder-total"><span>Total de l'ajout</span><strong><span id="suborderTotal">0</span> {{ bar.currency }}</strong></div>
+        <button class="btn btn-primary btn-lg w-100 suborder-submit" id="suborderSubmit" type="submit" disabled>{% if mode == 'server' %}Envoyer à la caisse{% else %}Servir cet ajout{% endif %}</button>
+        <p class="suborder-help">{% if mode == 'server' %}La sous-commande sera marquée « à livrer » côté caisse.{% else %}La sous-commande sera marquée « servie · à valider » côté serveuse.{% endif %}</p>
+      </div>
+    </aside>
+  </form>
+</div>
+
+<div class="suborder-mobile-total">
+  <div><span>Total sous-commande</span><strong><span id="suborderMobileTotal">0</span> {{ bar.currency }}</strong></div>
+  <button class="btn btn-primary" id="suborderMobileSubmit" type="button" disabled>{% if mode == 'server' %}Envoyer{% else %}Servir{% endif %}</button>
+</div>
+
+<script>
+(() => {
+  const currency = {{ bar.currency|tojson }};
+  const cart = new Map();
+  const grid = document.getElementById('suborderProducts');
+  const lines = document.getElementById('suborderLines');
+  const empty = document.getElementById('suborderEmpty');
+  const total = document.getElementById('suborderTotal');
+  const mobileTotal = document.getElementById('suborderMobileTotal');
+  const submit = document.getElementById('suborderSubmit');
+  const mobileSubmit = document.getElementById('suborderMobileSubmit');
+  const search = document.getElementById('suborderSearch');
+  let category = 'all';
+  const money = value => new Intl.NumberFormat('fr-FR', {maximumFractionDigits:0}).format(value);
+  const esc = value => String(value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+  function render(){
+    lines.innerHTML = '';
+    let sum = 0;
+    for(const item of cart.values()){
+      sum += item.price * item.quantity;
+      const row = document.createElement('div');
+      row.className = 'suborder-line';
+      row.innerHTML = `<input type="hidden" name="product_id" value="${item.id}"><div class="suborder-line-copy"><strong>${esc(item.name)}</strong><small>${money(item.price)} ${esc(currency)} · stock ${item.stock}</small></div><div class="suborder-qty"><button type="button" class="minus">−</button><input name="quantity" type="number" min="1" max="${item.stock}" step="1" value="${item.quantity}"><button type="button" class="plus">+</button></div>`;
+      row.querySelector('.minus').onclick = () => change(item.id, item.quantity - 1);
+      row.querySelector('.plus').onclick = () => change(item.id, item.quantity + 1);
+      row.querySelector('input[name="quantity"]').onchange = event => change(item.id, Number(event.target.value));
+      lines.appendChild(row);
+    }
+    empty.hidden = cart.size > 0;
+    total.textContent = money(sum);
+    mobileTotal.textContent = money(sum);
+    submit.disabled = cart.size === 0;
+    mobileSubmit.disabled = cart.size === 0;
+  }
+
+  function change(id, quantity){
+    const item = cart.get(id);
+    if(!item) return;
+    if(!Number.isFinite(quantity) || quantity <= 0) cart.delete(id);
+    else item.quantity = Math.min(quantity, item.stock);
+    render();
+  }
+
+  grid?.querySelectorAll('.suborder-product').forEach(button => button.addEventListener('click', () => {
+    const id = button.dataset.productId;
+    const stock = Number(button.dataset.stock || 0);
+    if(stock <= 0) return;
+    const existing = cart.get(id);
+    if(existing) existing.quantity = Math.min(existing.quantity + 1, stock);
+    else cart.set(id, {id, name:button.dataset.name, price:Number(button.dataset.price), stock, quantity:1});
+    render();
+  }));
+
+  function filter(){
+    const term = (search?.value || '').trim().toLocaleLowerCase('fr');
+    grid?.querySelectorAll('.suborder-product').forEach(button => {
+      const categoryOk = category === 'all' || button.dataset.category === category;
+      const textOk = !term || button.dataset.name.toLocaleLowerCase('fr').includes(term);
+      button.hidden = !(categoryOk && textOk);
+    });
+  }
+  search?.addEventListener('input', filter);
+  document.querySelectorAll('.suborder-tab').forEach(button => button.addEventListener('click', () => {
+    document.querySelectorAll('.suborder-tab').forEach(x => x.classList.remove('active'));
+    button.classList.add('active');
+    category = button.dataset.category;
+    filter();
+  }));
+  document.getElementById('suborderClear')?.addEventListener('click', () => { cart.clear(); render(); });
+  mobileSubmit?.addEventListener('click', () => { if(cart.size) document.getElementById('suborderForm').requestSubmit(); });
+  document.getElementById('suborderForm')?.addEventListener('submit', event => {
+    if(!cart.size){ event.preventDefault(); return; }
+    submit.disabled = true; mobileSubmit.disabled = true;
+  });
+  render();
+})();
+</script>
+{% endblock %}
