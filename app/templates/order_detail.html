@@ -1,0 +1,114 @@
+{% extends 'layout.html' %}
+{% block title %}Détail {{ order.reference }} · {{ bar.name }}{% endblock %}
+{% block header %}Détail de la commande{% endblock %}
+{% block content %}
+<style>
+.order-detail-shell{max-width:980px;margin:0 auto}.order-detail-back{display:inline-flex;align-items:center;gap:6px;text-decoration:none;font-weight:750;margin-bottom:14px}.order-detail-hero{display:flex;justify-content:space-between;gap:18px;align-items:flex-start;padding:18px;border:1px solid #dfe8e3;border-radius:18px;background:linear-gradient(135deg,#fff 0%,#f7fbf9 100%)}.order-detail-hero h1{font-size:1.45rem;margin:2px 0 6px}.order-detail-meta{display:flex;flex-wrap:wrap;gap:7px;margin-top:10px}.order-detail-pill{display:inline-flex;align-items:center;padding:5px 9px;border-radius:999px;background:#eef5f1;font-size:.68rem;font-weight:800}.order-detail-pill.success{background:#e9f8ef;color:#257444}.order-detail-pill.warning{background:#fff4dd;color:#936411}.order-detail-pill.danger{background:#fff0f0;color:#a23b3b}.order-detail-total{text-align:right;white-space:nowrap}.order-detail-total span{display:block;font-size:.68rem;color:var(--muted)}.order-detail-total strong{font-size:1.35rem}.order-detail-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:14px}.order-detail-stat{padding:13px;border:1px solid #e4ebe7;border-radius:14px;background:#fff}.order-detail-stat span{display:block;font-size:.67rem;color:var(--muted);margin-bottom:3px}.order-detail-stat strong{font-size:1rem}.order-detail-card{margin-top:14px;padding:17px;border:1px solid #e1e9e5;border-radius:17px;background:#fff}.order-detail-card-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:12px}.order-detail-card-head h2{font-size:1rem;margin:0}.order-detail-card-head p{margin:3px 0 0;color:var(--muted);font-size:.7rem}.order-detail-lines{border-top:1px solid #edf1ef}.order-detail-line{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;padding:11px 0;border-bottom:1px solid #edf1ef}.order-detail-line-copy strong,.order-detail-line-copy small{display:block}.order-detail-line-copy strong{font-size:.82rem}.order-detail-line-copy small{font-size:.66rem;color:var(--muted);margin-top:2px}.order-detail-line-money{text-align:right}.order-detail-line-money strong{display:block;font-size:.8rem}.order-detail-line-money small{font-size:.64rem;color:var(--muted)}.order-detail-note{margin-top:12px;padding:11px 12px;border-radius:12px;background:#f7f9f8;font-size:.73rem}.order-detail-suborder{margin-top:12px;padding:14px;border:1px solid #e1e8e4;border-radius:14px;background:#fbfdfc}.order-detail-suborder-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}.order-detail-suborder-head h3{font-size:.88rem;margin:0}.order-detail-suborder-state{display:flex;flex-wrap:wrap;gap:6px;margin-top:5px}.order-detail-empty{padding:16px;text-align:center;color:var(--muted);font-size:.75rem;border:1px dashed #d9e3de;border-radius:13px}.order-detail-footer{display:flex;justify-content:flex-end;margin-top:16px}@media(max-width:680px){.order-detail-hero{display:block;padding:15px}.order-detail-total{text-align:left;margin-top:13px}.order-detail-stats{grid-template-columns:1fr}.order-detail-card{padding:14px}.order-detail-suborder-head{display:block}.order-detail-suborder-head>.text-end{text-align:left!important;margin-top:8px}.order-detail-footer .btn{width:100%}}
+</style>
+
+<div class="order-detail-shell">
+  <a class="order-detail-back" href="{{ return_url }}">← Retour aux commandes</a>
+
+  <section class="order-detail-hero">
+    <div>
+      <p class="eyebrow mb-1">Commande</p>
+      <h1>{{ order.reference }}</h1>
+      <div class="text-secondary small">{{ order.table_label_snapshot or 'Sans table' }} · {{ assigned_staff_name }}</div>
+      <div class="order-detail-meta">
+        {% if order.payment_status == 'PAID' %}
+          <span class="order-detail-pill success">{{ payment_status_labels.get(order.payment_status, order.payment_status) }}</span>
+        {% elif order.payment_status == 'PARTIAL' %}
+          <span class="order-detail-pill warning">{{ payment_status_labels.get(order.payment_status, order.payment_status) }}</span>
+        {% else %}
+          <span class="order-detail-pill">{{ payment_status_labels.get(order.payment_status, order.payment_status) }}</span>
+        {% endif %}
+        {% if order.status == 'CANCELLED' %}
+          <span class="order-detail-pill danger">{{ status_labels.get(order.status, order.status) }}</span>
+        {% else %}
+          <span class="order-detail-pill">{{ status_labels.get(order.status, order.status) }}</span>
+        {% endif %}
+        <span class="order-detail-pill">Créée le {{ order.created_at }}</span>
+      </div>
+    </div>
+    <div class="order-detail-total">
+      <span>Total facture actuelle</span>
+      <strong>{{ "{:,.0f}".format(balance.net_sale) }} {{ order.currency }}</strong>
+    </div>
+  </section>
+
+  <section class="order-detail-stats" aria-label="Résumé financier">
+    <div class="order-detail-stat"><span>Payé</span><strong>{{ "{:,.0f}".format(balance.net_settled) }} {{ order.currency }}</strong></div>
+    <div class="order-detail-stat"><span>Reste à payer</span><strong>{{ "{:,.0f}".format(balance.amount_due) }} {{ order.currency }}</strong></div>
+    <div class="order-detail-stat"><span>Sous-commandes</span><strong>{{ suborders|length }}</strong></div>
+  </section>
+
+  <section class="order-detail-card">
+    <div class="order-detail-card-head">
+      <div><p class="eyebrow mb-1">Bloc 1</p><h2>Commande initiale</h2><p>Les lignes d'origine restent séparées des ajouts.</p></div>
+      <div class="text-end"><strong>{{ "{:,.0f}".format(original_total) }} {{ order.currency }}</strong></div>
+    </div>
+
+    {% if lines %}
+    <div class="order-detail-lines">
+      {% for line in lines %}
+      <div class="order-detail-line">
+        <div class="order-detail-line-copy">
+          <strong>{{ line.quantity }} × {{ line.product_name_snapshot }}</strong>
+          <small>{{ "{:,.0f}".format(line.unit_sale_price_snapshot) }} {{ order.currency }} / {{ line.unit_snapshot }}</small>
+          {% if line.note %}<small>Note : {{ line.note }}</small>{% endif %}
+        </div>
+        <div class="order-detail-line-money"><strong>{{ "{:,.0f}".format(line.total_amount) }} {{ order.currency }}</strong></div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}<div class="order-detail-empty">Aucune ligne dans la commande initiale.</div>{% endif %}
+
+    {% if order.notes %}<div class="order-detail-note"><strong>Note commande :</strong> {{ order.notes }}</div>{% endif %}
+  </section>
+
+  <section class="order-detail-card">
+    <div class="order-detail-card-head">
+      <div><p class="eyebrow mb-1">Historique séparé</p><h2>Sous-commandes / ajouts</h2><p>Chaque ajout conserve ses propres lignes, son montant et son état.</p></div>
+    </div>
+
+    {% if suborders %}
+      {% for suborder in suborders %}
+      {% set sub_lines = suborder_lines_by_id.get(suborder.id, []) %}
+      <article class="order-detail-suborder">
+        <div class="order-detail-suborder-head">
+          <div>
+            <h3>Sous-commande {{ suborder.sequence_no }}</h3>
+            <div class="order-detail-suborder-state">
+              {% if suborder.status == 'VALIDATED' %}<span class="order-detail-pill success">{{ suborder_status_labels.get(suborder.status, suborder.status) }}</span>
+              {% elif suborder.status in ['REJECTED','CANCELLED'] %}<span class="order-detail-pill danger">{{ suborder_status_labels.get(suborder.status, suborder.status) }}</span>
+              {% else %}<span class="order-detail-pill warning">{{ suborder_status_labels.get(suborder.status, suborder.status) }}</span>{% endif %}
+              {% if suborder.delivery_status == 'DELIVERED' %}<span class="order-detail-pill success">{{ suborder_delivery_labels.get(suborder.delivery_status, suborder.delivery_status) }}</span>
+              {% else %}<span class="order-detail-pill warning">{{ suborder_delivery_labels.get(suborder.delivery_status, suborder.delivery_status) }}</span>{% endif %}
+            </div>
+          </div>
+          <div class="text-end"><strong>{{ "{:,.0f}".format(suborder.total_amount) }} {{ suborder.currency }}</strong></div>
+        </div>
+
+        <div class="order-detail-lines mt-2">
+          {% for line in sub_lines %}
+          <div class="order-detail-line">
+            <div class="order-detail-line-copy">
+              <strong>{{ line.quantity }} × {{ line.product_name_snapshot }}</strong>
+              <small>{{ "{:,.0f}".format(line.unit_sale_price_snapshot) }} {{ suborder.currency }} / {{ line.unit_snapshot }}</small>
+              {% if line.note %}<small>Note ligne : {{ line.note }}</small>{% endif %}
+            </div>
+            <div class="order-detail-line-money"><strong>{{ "{:,.0f}".format(line.total_amount) }} {{ suborder.currency }}</strong></div>
+          </div>
+          {% endfor %}
+        </div>
+        {% if suborder.note %}<div class="order-detail-note"><strong>Note ajout :</strong> {{ suborder.note }}</div>{% endif %}
+      </article>
+      {% endfor %}
+    {% else %}
+      <div class="order-detail-empty">Aucune sous-commande pour cette commande.</div>
+    {% endif %}
+  </section>
+
+  <div class="order-detail-footer"><a class="btn btn-primary" href="{{ return_url }}">Retour aux commandes</a></div>
+</div>
+{% endblock %}
