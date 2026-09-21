@@ -105,3 +105,26 @@ def test_employee_login_requires_exactly_one_active_assignment(env):
     with client.session_transaction() as session:
         assert "current_bar_id" not in session
         assert "current_role" not in session
+
+
+def test_employee_session_is_bound_to_assigned_bar_and_other_bar_is_404(env):
+    app, _, bar, foreign, _, server, _, _ = env
+    assignment = db.session.query(StaffAssignment).filter_by(user_id=server.id, ended_at=None).one()
+    client = app.test_client()
+    assert _login(client, server.email).status_code == 302
+
+    # Simulate stale/tampered browser tenant data. The server must repair it from StaffAssignment.
+    with client.session_transaction() as session:
+        session["current_bar_id"] = foreign.id
+        session["current_role"] = "CASHIER"
+        session["current_assignment_id"] = 999999
+
+    own_page = client.get(f"/bars/{bar.id}/orders/new")
+    assert own_page.status_code == 200
+    with client.session_transaction() as session:
+        assert session["current_bar_id"] == bar.id
+        assert session["current_role"] == "SERVER"
+        assert session["current_assignment_id"] == assignment.id
+
+    foreign_page = client.get(f"/bars/{foreign.id}/orders/new")
+    assert foreign_page.status_code == 404
