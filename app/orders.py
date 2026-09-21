@@ -10,6 +10,8 @@ from app.auth import api_required
 from app.extensions import db
 from app.models import Bar, BarTable, Order, OrderLine, Product, ProductCategory, StaffAssignment, StockBalance
 from app.order_services import order_service
+from app.order_suborder_models import OrderSuborder, OrderSuborderLine
+from app.order_suborder_service import order_suborder_service
 from app.permissions import permissions
 from app.product_display_order import product_order_expression
 
@@ -38,6 +40,8 @@ def _message(code):
         "ORDER_NOT_CANCELLABLE": "Cette commande ne peut plus être annulée.",
         "ORDER_NOT_EDITABLE": "Cette commande ne peut plus être modifiée.",
         "ORDER_NOTES_TOO_LONG": "Les notes de cette commande sont trop longues.",
+        "ORDER_PAID": "Cette facture est déjà payée.",
+        "SUBORDER_NOT_PENDING": "Cet ajout a déjà été traité.",
         "REASON_REQUIRED": "Le motif d'annulation est obligatoire.",
         "INSUFFICIENT_STOCK": "Stock insuffisant pour cette commande.",
         "NOT_FOUND": "Produit, table ou commande introuvable.",
@@ -131,6 +135,21 @@ def quick(bar_id):
                 db.session.commit()
                 flash(f"Commande {order.reference} annulée.", "success")
 
+            elif action == "validate_suborder":
+                if not is_server:
+                    raise PermissionError("FORBIDDEN")
+                suborder = order_suborder_service.validate_by_server(
+                    current_user,
+                    bar_id,
+                    int(request.form.get("order_id", "0")),
+                    int(request.form.get("suborder_id", "0")),
+                )
+                db.session.commit()
+                flash(
+                    f"Sous-commande {suborder.sequence_no} validée. Elle reste séparée de la commande initiale.",
+                    "success",
+                )
+
             else:
                 raise ValueError("INVALID_ACTION")
 
@@ -190,12 +209,54 @@ def quick(bar_id):
         ):
             lines_by_order.setdefault(line.order_id, []).append(line)
 
+    pending_suborders = []
+    suborder_lines_by_id = {}
+    suborder_parent_by_id = {}
+    if is_server:
+        pending_suborders = list(
+            db.session.scalars(
+                select(OrderSuborder)
+                .where(
+                    OrderSuborder.bar_id == bar_id,
+                    OrderSuborder.assigned_staff_id == assignment.id,
+                    OrderSuborder.status == "PENDING_VALIDATION",
+                )
+                .order_by(OrderSuborder.id.desc())
+                .limit(20)
+            )
+        )
+        pending_suborder_ids = [item.id for item in pending_suborders]
+        pending_order_ids = list({item.order_id for item in pending_suborders})
+        suborder_lines_by_id = {item.id: [] for item in pending_suborders}
+        if pending_suborder_ids:
+            for line in db.session.scalars(
+                select(OrderSuborderLine)
+                .where(
+                    OrderSuborderLine.bar_id == bar_id,
+                    OrderSuborderLine.order_suborder_id.in_(pending_suborder_ids),
+                )
+                .order_by(OrderSuborderLine.order_suborder_id, OrderSuborderLine.line_no)
+            ):
+                suborder_lines_by_id.setdefault(line.order_suborder_id, []).append(line)
+        if pending_order_ids:
+            suborder_parent_by_id = {
+                order.id: order
+                for order in db.session.scalars(
+                    select(Order).where(
+                        Order.bar_id == bar_id,
+                        Order.id.in_(pending_order_ids),
+                        Order.assigned_staff_id == assignment.id,
+                    )
+                )
+            }
+
     stats = {
         "products": len(products),
         "available": sum(1 for product in products if balances.get(product.id, 0) > 0),
         "waiting": sum(1 for order in recent_orders if order.status == "DRAFT"),
         "to_pay": sum(1 for order in recent_orders if order.status == "CONFIRMED" and order.payment_status != "PAID"),
         "paid": sum(1 for order in recent_orders if order.payment_status == "PAID"),
+        "pending_suborders": len(pending_suborders),
     }
 
     return render_template(
@@ -208,6 +269,9 @@ def quick(bar_id):
         tables=tables,
         recent_orders=recent_orders,
         lines_by_order=lines_by_order,
+        pending_suborders=pending_suborders,
+        suborder_lines_by_id=suborder_lines_by_id,
+        suborder_parent_by_id=suborder_parent_by_id,
         status_labels=STATUS_LABELS,
         stats=stats,
         can_edit=can_edit,
