@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+from decimal import Decimal
 import secrets
 
 from flask import Blueprint, flash, jsonify, redirect, render_template, request, url_for
@@ -8,7 +9,8 @@ from sqlalchemy.exc import IntegrityError
 
 from app.auth import api_required
 from app.extensions import db
-from app.models import Bar, BarTable, Order, OrderLine, Product, ProductCategory, StaffAssignment, StockBalance
+from app.finance_totals import order_balance
+from app.models import Bar, BarTable, Order, OrderLine, Product, ProductCategory, StaffAssignment, StockBalance, User
 from app.order_services import order_service
 from app.order_suborder_models import OrderSuborder, OrderSuborderLine
 from app.order_suborder_service import order_suborder_service
@@ -23,6 +25,24 @@ STATUS_LABELS = {
     "CONFIRMED": "À payer",
     "SERVED": "Servie",
     "CANCELLED": "Annulée",
+}
+
+PAYMENT_STATUS_LABELS = {
+    "UNPAID": "Non payé",
+    "PARTIAL": "Paiement partiel",
+    "PAID": "Payée",
+}
+
+SUBORDER_STATUS_LABELS = {
+    "PENDING_VALIDATION": "À valider",
+    "VALIDATED": "Validée",
+    "REJECTED": "Rejetée",
+    "CANCELLED": "Annulée",
+}
+
+SUBORDER_DELIVERY_LABELS = {
+    "PENDING": "À livrer",
+    "DELIVERED": "Livrée",
 }
 
 
@@ -73,6 +93,101 @@ def _assignment(bar_id):
             StaffAssignment.user_id == current_user.id,
             StaffAssignment.ended_at.is_(None),
         )
+    )
+
+
+@web_bp.get("/<int:order_id>/detail")
+@login_required
+def detail(bar_id: int, order_id: int):
+    permissions.require(current_user, "orders.read", bar_id)
+    bar = db.session.get(Bar, bar_id)
+    if not bar:
+        raise LookupError("NOT_FOUND")
+
+    order = db.session.scalar(
+        select(Order).where(
+            Order.id == order_id,
+            Order.bar_id == bar_id,
+        )
+    )
+    if not order:
+        raise LookupError("NOT_FOUND")
+
+    assignment = _assignment(bar_id)
+    is_server = bool(assignment and assignment.role == "SERVER")
+    is_cashier = bool(assignment and assignment.role == "CASHIER")
+
+    # A server may inspect only orders assigned to that exact active assignment.
+    # Return NOT_FOUND instead of exposing whether another server's order exists.
+    if is_server and order.assigned_staff_id != assignment.id:
+        raise LookupError("NOT_FOUND")
+
+    lines = list(
+        db.session.scalars(
+            select(OrderLine)
+            .where(OrderLine.bar_id == bar_id, OrderLine.order_id == order.id)
+            .order_by(OrderLine.line_no, OrderLine.id)
+        )
+    )
+    original_total = sum((line.total_amount or Decimal("0") for line in lines), Decimal("0"))
+
+    suborders = list(
+        db.session.scalars(
+            select(OrderSuborder)
+            .where(OrderSuborder.bar_id == bar_id, OrderSuborder.order_id == order.id)
+            .order_by(OrderSuborder.sequence_no, OrderSuborder.id)
+        )
+    )
+    suborder_lines_by_id = {suborder.id: [] for suborder in suborders}
+    suborder_ids = [suborder.id for suborder in suborders]
+    if suborder_ids:
+        for line in db.session.scalars(
+            select(OrderSuborderLine)
+            .where(
+                OrderSuborderLine.bar_id == bar_id,
+                OrderSuborderLine.order_id == order.id,
+                OrderSuborderLine.order_suborder_id.in_(suborder_ids),
+            )
+            .order_by(OrderSuborderLine.order_suborder_id, OrderSuborderLine.line_no, OrderSuborderLine.id)
+        ):
+            suborder_lines_by_id.setdefault(line.order_suborder_id, []).append(line)
+
+    assigned_staff_name = "Comptoir"
+    if order.assigned_staff_id:
+        assigned_staff = db.session.scalar(
+            select(StaffAssignment).where(
+                StaffAssignment.bar_id == bar_id,
+                StaffAssignment.id == order.assigned_staff_id,
+            )
+        )
+        if assigned_staff:
+            assigned_user = db.session.get(User, assigned_staff.user_id)
+            if assigned_user:
+                assigned_staff_name = assigned_user.display_name
+
+    balance = order_balance(order)
+    if is_cashier:
+        return_url = url_for("cashier_workspace_web.workspace", bar_id=bar_id, order_id=order.id)
+    else:
+        return_url = url_for("orders_web.quick", bar_id=bar_id) + "#mes-commandes"
+
+    return render_template(
+        "order_detail.html",
+        bar=bar,
+        order=order,
+        lines=lines,
+        original_total=original_total,
+        suborders=suborders,
+        suborder_lines_by_id=suborder_lines_by_id,
+        assigned_staff_name=assigned_staff_name,
+        balance=balance,
+        status_labels=STATUS_LABELS,
+        payment_status_labels=PAYMENT_STATUS_LABELS,
+        suborder_status_labels=SUBORDER_STATUS_LABELS,
+        suborder_delivery_labels=SUBORDER_DELIVERY_LABELS,
+        return_url=return_url,
+        is_server=is_server,
+        is_cashier=is_cashier,
     )
 
 
