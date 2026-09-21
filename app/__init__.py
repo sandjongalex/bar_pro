@@ -30,6 +30,7 @@ from app.live_orders_web import bp as live_orders_web_bp
 from app.order_edit_web import bp as order_edit_web_bp
 from app.unpaid_orders_web import bp as unpaid_orders_web_bp
 from app.orders import bp as orders_bp, web_bp as orders_web_bp
+from app.suborder_web import bp as suborders_web_bp
 from app.staff import bp as staff_web_bp
 from app.reports_web import bp as reports_web_bp
 
@@ -139,6 +140,7 @@ def _register_blueprints(app: Flask) -> None:
     app.register_blueprint(unpaid_orders_web_bp)
     app.register_blueprint(orders_bp)
     app.register_blueprint(orders_web_bp)
+    app.register_blueprint(suborders_web_bp)
 
     for blueprint in (
         api_bars_bp,
