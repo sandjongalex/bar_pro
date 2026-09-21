@@ -194,3 +194,105 @@ def test_assigned_server_validates_suborder_and_it_stays_separate(env):
     db.session.rollback()
     db.session.refresh(parent)
     assert parent.total_amount == Decimal("400")
+
+
+def test_server_creates_multiple_suborders_that_wait_for_cashier_delivery(env):
+    _, _, bar, _, product, server, _, _ = env
+
+    cashier = User(
+        email="server-suborder-cashier@example.invalid",
+        display_name="Server Addition Cashier",
+        category="EMPLOYEE",
+    )
+    cashier.set_password("test-password")
+    db.session.add(cashier)
+    db.session.flush()
+    db.session.add(
+        StaffAssignment(
+            bar_id=bar.id,
+            user_id=cashier.id,
+            role="CASHIER",
+            started_at=utcnow(),
+        )
+    )
+    db.session.flush()
+
+    parent = order_service.create(
+        server,
+        bar.id,
+        "SERVER-SUBORDER-PARENT",
+        [{"product_id": product.id, "quantity": 2}],
+    )
+    db.session.flush()
+    order_service.confirm(cashier, bar.id, parent.id)
+    db.session.commit()
+
+    original_line = db.session.scalar(
+        select(OrderLine).where(OrderLine.bar_id == bar.id, OrderLine.order_id == parent.id)
+    )
+    stock_before_additions = db.session.scalar(
+        select(StockBalance.quantity).where(
+            StockBalance.bar_id == bar.id,
+            StockBalance.product_id == product.id,
+        )
+    )
+    assert stock_before_additions == Decimal("8")
+    assert parent.total_amount == Decimal("200")
+
+    first = order_suborder_service.create_server_addition(
+        server,
+        bar.id,
+        parent.id,
+        [{"product_id": product.id, "quantity": 1}],
+        note="Premier ajout demandé par la table",
+    )
+    db.session.commit()
+
+    second = order_suborder_service.create_server_addition(
+        server,
+        bar.id,
+        parent.id,
+        [{"product_id": product.id, "quantity": 2}],
+        note="Deuxième ajout demandé par la table",
+    )
+    db.session.commit()
+
+    first_line = db.session.scalar(
+        select(OrderSuborderLine).where(
+            OrderSuborderLine.bar_id == bar.id,
+            OrderSuborderLine.order_suborder_id == first.id,
+        )
+    )
+    second_line = db.session.scalar(
+        select(OrderSuborderLine).where(
+            OrderSuborderLine.bar_id == bar.id,
+            OrderSuborderLine.order_suborder_id == second.id,
+        )
+    )
+    db.session.refresh(parent)
+    db.session.refresh(original_line)
+
+    assert first.sequence_no == 1
+    assert second.sequence_no == 2
+    assert first.status == second.status == "VALIDATED"
+    assert first.delivery_status == second.delivery_status == "PENDING"
+    assert first.created_by_id == second.created_by_id == server.id
+    assert first.validated_by_id == second.validated_by_id == server.id
+    assert first.validated_at is not None
+    assert second.validated_at is not None
+
+    # Each round remains a separate block; the original order line is untouched.
+    assert original_line.quantity == Decimal("2")
+    assert first_line.quantity == Decimal("1")
+    assert second_line.quantity == Decimal("2")
+    assert first_line.order_suborder_id != second_line.order_suborder_id
+
+    # The invoice records all ordered rounds immediately, but the cashier has not
+    # delivered these two additions yet, so their stock is still untouched.
+    assert parent.total_amount == Decimal("500")
+    assert db.session.scalar(
+        select(StockBalance.quantity).where(
+            StockBalance.bar_id == bar.id,
+            StockBalance.product_id == product.id,
+        )
+    ) == Decimal("8")
