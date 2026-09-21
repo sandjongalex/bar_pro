@@ -41,6 +41,8 @@ def _form_error_message(code):
 @bars_bp.get("/")
 @login_required
 def web_list():
+    if current_user.category == "EMPLOYEE":
+        raise LookupError("NOT_FOUND")
     bars=[b for b in Bar.query.order_by(Bar.created_at.desc(),Bar.name).all() if permissions.evaluate(current_user,"bars.read",b.id).allowed]
     return render_template(
         "bars/list.html",
