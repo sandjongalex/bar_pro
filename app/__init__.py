@@ -51,6 +51,7 @@ def create_app(config_name: str | None = None, test_config: dict[str, Any] | Non
     from app import purchase_models  # noqa: F401 - purchase/supplier domain extensions
     from app import customer_models  # noqa: F401 - customer receivables/cases/notifications metadata
     from app import inventory_period_models  # noqa: F401 - inventory period reconciliation metadata
+    from app import order_suborder_models  # noqa: F401 - cashier sub-orders and validation metadata
     _register_blueprints(app)
     _register_template_context(app)
     app.jinja_env.finalize = _template_finalize
