@@ -130,9 +130,19 @@ def web_logout(): logout_user(); return "",302,{"Location":"/login"}
 def token_login():
     body=request.get_json(silent=True) or {}; user=db.session.scalar(select(User).where(User.email==str(body.get("email","")).strip().lower()))
     if not user or not user.is_active or not user.check_password(str(body.get("password",""))): return error("INVALID_CREDENTIALS",401)
-    bar_id=body.get("bar_id")
-    if not isinstance(bar_id,int) or isinstance(bar_id,bool): return error("NOT_FOUND",404)
-    if not accessible(user,bar_id): return error("NOT_FOUND",404)
+    if user.category=="EMPLOYEE":
+        try:
+            context=get_current_employee_context(user)
+        except LookupError:
+            return error("NOT_FOUND",404)
+        requested_bar_id=body.get("bar_id")
+        if requested_bar_id is not None and (not isinstance(requested_bar_id,int) or isinstance(requested_bar_id,bool) or requested_bar_id!=context.bar_id):
+            return error("NOT_FOUND",404)
+        bar_id=context.bar_id
+    else:
+        bar_id=body.get("bar_id")
+        if not isinstance(bar_id,int) or isinstance(bar_id,bool): return error("NOT_FOUND",404)
+        if not accessible(user,bar_id): return error("NOT_FOUND",404)
     access,refresh=issue(user,bar_id); db.session.commit()
     return jsonify({"success":True,"data":{"token_type":"Bearer","access_token":access,"expires_in":900,"refresh_token":refresh},"meta":{}})
 
