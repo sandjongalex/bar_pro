@@ -27,32 +27,50 @@ def dashboard():
     from app.dashboard_charts import dashboard_charts
     from app.dashboard_inventory_control import dashboard_inventory_control
     from app.dashboard_service import dashboard_summary
+    from app.employee_context import get_current_employee_context
     from app.models import Bar, StaffAssignment
     from app.permissions import permissions
 
-    bars = [
-        bar
-        for bar in Bar.query.order_by(Bar.name).all()
-        if permissions.evaluate(current_user, "bars.read", bar.id).allowed
-    ]
-    assignments = [] if current_user.category != "EMPLOYEE" else list(
-        db.session.scalars(
-            select(StaffAssignment).where(
-                StaffAssignment.user_id == current_user.id,
-                StaffAssignment.ended_at.is_(None),
-            )
-        )
-    )
+    employee_context = None
+    requested_bar_id = request.args.get("bar_id", type=int)
+    if current_user.category == "EMPLOYEE":
+        try:
+            employee_context = get_current_employee_context(current_user)
+        except LookupError:
+            abort(404)
+
+        if requested_bar_id is not None and requested_bar_id != employee_context.bar_id:
+            abort(404)
+
+        if employee_context.role == "CASHIER":
+            return redirect(url_for("checkout_web.checkout", bar_id=employee_context.bar_id))
+        if employee_context.role == "SERVER":
+            return redirect(url_for("orders_web.quick", bar_id=employee_context.bar_id))
+        if employee_context.role != "BAR_ADMIN":
+            abort(404)
+
+        assigned_bar = db.session.get(Bar, employee_context.bar_id)
+        if not assigned_bar:
+            abort(404)
+        bars = [assigned_bar]
+        assignments = [employee_context.assignment]
+    else:
+        bars = [
+            bar
+            for bar in Bar.query.order_by(Bar.name).all()
+            if permissions.evaluate(current_user, "bars.read", bar.id).allowed
+        ]
+        assignments = []
+
     assignment_by_bar = {assignment.bar_id: assignment for assignment in assignments}
 
     reportable_bars = [
         bar for bar in bars if permissions.evaluate(current_user, "reports.read", bar.id).allowed
     ]
-    requested_bar_id = request.args.get("bar_id", type=int)
     active_bar = None
     if requested_bar_id is not None:
         active_bar = next((bar for bar in reportable_bars if bar.id == requested_bar_id), None)
-        if active_bar is None and reportable_bars:
+        if active_bar is None:
             abort(404)
     elif reportable_bars:
         active_bar = next((bar for bar in reportable_bars if bar.status == "ACTIVE"), reportable_bars[0])
