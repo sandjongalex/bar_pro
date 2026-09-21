@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from decimal import Decimal
 
-from flask import Blueprint, flash, jsonify, redirect, request, url_for
+from flask import Blueprint, abort, flash, jsonify, redirect, request, url_for
 from flask_login import current_user, login_required
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -198,7 +198,10 @@ def update(bar_id: int, order_id: int):
         )
         db.session.commit()
         flash(f"Commande {order.reference} mise à jour.", "success")
-    except (PermissionError, LookupError, ValueError, TypeError, IntegrityError) as exc:
+    except LookupError:
+        db.session.rollback()
+        abort(404)
+    except (PermissionError, ValueError, TypeError, IntegrityError) as exc:
         db.session.rollback()
         code = "INVALID_LINES" if isinstance(exc, IntegrityError) else str(exc)
         flash(_message(code), "danger")
