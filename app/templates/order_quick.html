@@ -23,6 +23,8 @@
   {% for category, message in messages %}<div class="alert alert-{{ category }} mt-3" role="alert">{{ message }}</div>{% endfor %}
 {% endwith %}
 
+{% include '_server_pending_suborders.html' %}
+
 {% if is_server and stats.paid %}
 <div class="alert alert-success mt-3" role="status">
   <strong>{{ stats.paid }} commande{{ 's' if stats.paid != 1 else '' }} payée{{ 's' if stats.paid != 1 else '' }}.</strong>
