@@ -55,17 +55,32 @@ def test_server_and_cashier_have_optimized_suborder_workflows(env):
     )
     db.session.flush()
     order_service.confirm(cashier, bar.id, parent.id)
+
+    waiting_parent = order_service.create(
+        server,
+        bar.id,
+        "SUBORDER-UI-WAITING",
+        [{"product_id": product.id, "quantity": 1}],
+    )
+    db.session.flush()
+
     cash_service.open(cashier, bar.id, "SUBORDER-UI-CASH", 0)
     db.session.commit()
+
+    builder_url = f"/bars/{bar.id}/orders/{parent.id}/suborders/new"
+    waiting_builder_url = f"/bars/{bar.id}/orders/{waiting_parent.id}/suborders/new"
 
     server_client = app.test_client()
     assert _login(server_client, server.email).status_code == 302
 
     server_workspace = server_client.get(f"/bars/{bar.id}/orders/new")
     assert server_workspace.status_code == 200
-    builder_url = f"/bars/{bar.id}/orders/{parent.id}/suborders/new"
     assert "Ajouter une sous-commande" in server_workspace.text
+    assert "Ajouter des produits" in server_workspace.text
+    # A direct add action is prepared on both the delivered order and the order
+    # that still waits for cashier delivery.
     assert builder_url in server_workspace.text
+    assert waiting_builder_url in server_workspace.text
 
     server_builder = server_client.get(builder_url)
     assert server_builder.status_code == 200
@@ -103,6 +118,11 @@ def test_server_and_cashier_have_optimized_suborder_workflows(env):
     assert cashier_workspace.status_code == 200
     assert f"/bars/{bar.id}/cashier/suborders" in cashier_workspace.text
     assert "Sous-commandes" in cashier_workspace.text
+    assert "cashier-order-direct-suborder" in cashier_workspace.text
+    # The cashier also gets a direct sub-order shortcut for delivered and
+    # not-yet-delivered server orders. Paid/cancelled orders are not in this queue.
+    assert builder_url in cashier_workspace.text
+    assert waiting_builder_url in cashier_workspace.text
 
     queue = cashier_client.get(f"/bars/{bar.id}/cashier/suborders")
     assert queue.status_code == 200
