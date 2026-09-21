@@ -2,7 +2,7 @@
 {% block content %}
 {{ super() }}
 <style>
-.cashier-suborder-entry{display:inline-flex;align-items:center;gap:7px}.cashier-suborder-entry .cashier-suborder-dot{width:8px;height:8px;border-radius:50%;background:currentColor}.cashier-selected-suborder-cta{display:flex;align-items:center;justify-content:space-between;gap:12px;text-decoration:none;color:inherit;border:1px solid #cfe1d8;background:#f2faf6;border-radius:13px;padding:11px 12px;margin:10px 0}.cashier-selected-suborder-cta:hover{border-color:var(--brand);background:var(--brand-soft)}.cashier-selected-suborder-cta strong,.cashier-selected-suborder-cta small{display:block}.cashier-selected-suborder-cta strong{font-size:.79rem}.cashier-selected-suborder-cta small{font-size:.67rem;color:var(--muted);margin-top:2px}.cashier-selected-suborder-plus{width:36px;height:36px;border-radius:11px;background:var(--brand);color:#fff;display:grid;place-items:center;font-size:1.15rem;font-weight:900;flex:0 0 auto}.cashier-order-row{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:stretch;border-top:1px solid #edf2ef}.cashier-order-row>.cashier-order-link{border-top:0;min-width:0}.cashier-order-direct-suborder{display:flex;flex-direction:column;justify-content:center;align-items:center;gap:2px;min-width:92px;padding:8px 10px;text-decoration:none;border-left:1px solid #e2ebe6;color:var(--brand);background:#fbfdfc;font-size:.61rem;font-weight:850;line-height:1.15;text-align:center}.cashier-order-direct-suborder strong{font-size:1.15rem;line-height:1}.cashier-order-direct-suborder:hover{background:var(--brand-soft);color:var(--brand)}@media(max-width:760px){.cashier-suborder-entry{min-height:44px;justify-content:center}.cashier-mobile-bar{grid-template-columns:repeat(5,1fr)!important}.cashier-order-direct-suborder{min-width:76px;min-height:54px;padding:7px 6px;font-size:.58rem}}
+.cashier-suborder-entry{display:inline-flex;align-items:center;gap:7px}.cashier-suborder-entry .cashier-suborder-dot{width:8px;height:8px;border-radius:50%;background:currentColor}.cashier-selected-suborder-cta{display:flex;align-items:center;justify-content:space-between;gap:12px;text-decoration:none;color:inherit;border:1px solid #cfe1d8;background:#f2faf6;border-radius:13px;padding:11px 12px;margin:10px 0}.cashier-selected-suborder-cta:hover{border-color:var(--brand);background:var(--brand-soft)}.cashier-selected-suborder-cta strong,.cashier-selected-suborder-cta small{display:block}.cashier-selected-suborder-cta strong{font-size:.79rem}.cashier-selected-suborder-cta small{font-size:.67rem;color:var(--muted);margin-top:2px}.cashier-selected-suborder-plus{width:36px;height:36px;border-radius:11px;background:var(--brand);color:#fff;display:grid;place-items:center;font-size:1.15rem;font-weight:900;flex:0 0 auto}.cashier-order-row{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:stretch;border-top:1px solid #edf2ef}.cashier-order-row>.cashier-order-link{border-top:0;min-width:0}.cashier-order-row-actions{display:flex;flex-direction:column;width:96px;border-left:1px solid #e2ebe6;background:#fbfdfc}.cashier-order-direct-detail,.cashier-order-direct-suborder{display:flex;flex:1;flex-direction:column;justify-content:center;align-items:center;gap:2px;min-height:42px;padding:7px 8px;text-decoration:none;color:var(--brand);font-size:.61rem;font-weight:850;line-height:1.15;text-align:center}.cashier-order-direct-detail{color:inherit;background:#fff}.cashier-order-direct-suborder{border-top:1px solid #e2ebe6}.cashier-order-direct-suborder strong{font-size:1.05rem;line-height:1}.cashier-order-direct-detail:hover,.cashier-order-direct-suborder:hover{background:var(--brand-soft);color:var(--brand)}@media(max-width:760px){.cashier-suborder-entry{min-height:44px;justify-content:center}.cashier-mobile-bar{grid-template-columns:repeat(5,1fr)!important}.cashier-order-row-actions{width:82px}.cashier-order-direct-detail,.cashier-order-direct-suborder{min-height:44px;padding:6px 5px;font-size:.57rem}}
 </style>
 <script>
 document.addEventListener('DOMContentLoaded', () => {
@@ -33,23 +33,44 @@ document.addEventListener('DOMContentLoaded', () => {
       {% endif %}
     {% endfor %}
   };
+  const detailUrls = {
+    {% for order in waiting_orders + payable_orders %}
+      "{{ order.id }}": {{ url_for('orders_web.detail', bar_id=bar.id, order_id=order.id)|tojson }},
+    {% endfor %}
+  };
 
   document.querySelectorAll('.cashier-order-link').forEach(link => {
     const orderId = new URL(link.href, window.location.origin).searchParams.get('order_id');
+    const detailUrl = detailUrls[orderId];
     const addUrl = activeSuborderUrls[orderId];
-    if (!addUrl || link.closest('.cashier-order-row')) return;
+    if (!detailUrl || link.closest('.cashier-order-row')) return;
+
     const row = document.createElement('div');
     row.className = 'cashier-order-row';
     link.parentNode.insertBefore(row, link);
     row.appendChild(link);
 
-    const add = document.createElement('a');
-    add.href = addUrl;
-    add.className = 'cashier-order-direct-suborder';
-    add.dataset.cashierAddSuborder = '1';
-    add.setAttribute('aria-label', 'Ajouter une sous-commande à cette commande');
-    add.innerHTML = '<strong>＋</strong><span>Sous-commande</span>';
-    row.appendChild(add);
+    const actions = document.createElement('div');
+    actions.className = 'cashier-order-row-actions';
+    row.appendChild(actions);
+
+    const detail = document.createElement('a');
+    detail.href = detailUrl;
+    detail.className = 'cashier-order-direct-detail';
+    detail.dataset.cashierOrderDetail = '1';
+    detail.setAttribute('aria-label', 'Voir les détails de cette commande');
+    detail.innerHTML = '<span>◉</span><span>Détails</span>';
+    actions.appendChild(detail);
+
+    if (addUrl) {
+      const add = document.createElement('a');
+      add.href = addUrl;
+      add.className = 'cashier-order-direct-suborder';
+      add.dataset.cashierAddSuborder = '1';
+      add.setAttribute('aria-label', 'Ajouter une sous-commande à cette commande');
+      add.innerHTML = '<strong>＋</strong><span>Sous-commande</span>';
+      actions.appendChild(add);
+    }
   });
 
   {% if selected_order and selected_server_assignment and selected_order.payment_status != 'PAID' %}
