@@ -69,6 +69,8 @@ def test_server_and_cashier_have_optimized_suborder_workflows(env):
 
     builder_url = f"/bars/{bar.id}/orders/{parent.id}/suborders/new"
     waiting_builder_url = f"/bars/{bar.id}/orders/{waiting_parent.id}/suborders/new"
+    detail_url = f"/bars/{bar.id}/orders/{parent.id}/detail"
+    waiting_detail_url = f"/bars/{bar.id}/orders/{waiting_parent.id}/detail"
 
     server_client = app.test_client()
     assert _login(server_client, server.email).status_code == 302
@@ -77,10 +79,21 @@ def test_server_and_cashier_have_optimized_suborder_workflows(env):
     assert server_workspace.status_code == 200
     assert "Ajouter une sous-commande" in server_workspace.text
     assert "Ajouter des produits" in server_workspace.text
-    # A direct add action is prepared on both the delivered order and the order
+    assert "Détails" in server_workspace.text
+    # Direct actions are prepared on both the delivered order and the order
     # that still waits for cashier delivery.
     assert builder_url in server_workspace.text
     assert waiting_builder_url in server_workspace.text
+    assert detail_url in server_workspace.text
+    assert waiting_detail_url in server_workspace.text
+
+    initial_detail = server_client.get(detail_url)
+    assert initial_detail.status_code == 200
+    assert "Détail de la commande" in initial_detail.text
+    assert "Commande initiale" in initial_detail.text
+    assert parent.reference in initial_detail.text
+    assert product.name in initial_detail.text
+    assert "Aucune sous-commande" in initial_detail.text
 
     server_builder = server_client.get(builder_url)
     assert server_builder.status_code == 200
@@ -111,6 +124,13 @@ def test_server_and_cashier_have_optimized_suborder_workflows(env):
     assert suborder.status == "VALIDATED"
     assert suborder.delivery_status == "PENDING"
 
+    detail_with_suborder = server_client.get(detail_url)
+    assert detail_with_suborder.status_code == 200
+    assert "Sous-commande 1" in detail_with_suborder.text
+    assert "Validée" in detail_with_suborder.text
+    assert "À livrer" in detail_with_suborder.text
+    assert "Ajout depuis l&#39;interface serveuse" in detail_with_suborder.text
+
     cashier_client = app.test_client()
     assert _login(cashier_client, cashier.email).status_code == 302
 
@@ -119,10 +139,18 @@ def test_server_and_cashier_have_optimized_suborder_workflows(env):
     assert f"/bars/{bar.id}/cashier/suborders" in cashier_workspace.text
     assert "Sous-commandes" in cashier_workspace.text
     assert "cashier-order-direct-suborder" in cashier_workspace.text
-    # The cashier also gets a direct sub-order shortcut for delivered and
-    # not-yet-delivered server orders. Paid/cancelled orders are not in this queue.
+    assert "cashier-order-direct-detail" in cashier_workspace.text
+    # The cashier gets direct detail links for every active order, plus the
+    # sub-order shortcut when the order belongs to a server.
     assert builder_url in cashier_workspace.text
     assert waiting_builder_url in cashier_workspace.text
+    assert detail_url in cashier_workspace.text
+    assert waiting_detail_url in cashier_workspace.text
+
+    cashier_detail = cashier_client.get(detail_url)
+    assert cashier_detail.status_code == 200
+    assert parent.reference in cashier_detail.text
+    assert "Sous-commande 1" in cashier_detail.text
 
     queue = cashier_client.get(f"/bars/{bar.id}/cashier/suborders")
     assert queue.status_code == 200
