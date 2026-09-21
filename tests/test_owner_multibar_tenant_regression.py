@@ -1,7 +1,7 @@
 import re
 
 from app.extensions import db
-from app.models import Bar
+from app.models import Bar, User
 from test_workflows import env
 
 
@@ -44,3 +44,26 @@ def test_owner_can_still_access_multiple_owned_bars(env):
     second_detail = client.get(f"/bars/{second_bar.id}")
     assert first_detail.status_code == 200
     assert second_detail.status_code == 200
+
+
+def test_super_admin_retains_global_access(env):
+    app, _, first_bar, foreign_bar, _, _, _, _ = env
+    super_admin = User(
+        email="tenant-super-admin@example.invalid",
+        display_name="Tenant Super Admin",
+        category="SUPER_ADMIN",
+    )
+    super_admin.set_password("test-password")
+    db.session.add(super_admin)
+    db.session.commit()
+
+    client = app.test_client()
+    assert _login(client, super_admin.email).status_code == 302
+
+    listing = client.get("/bars/")
+    assert listing.status_code == 200
+    assert first_bar.name in listing.text
+    assert foreign_bar.name in listing.text
+
+    assert client.get(f"/bars/{first_bar.id}").status_code == 200
+    assert client.get(f"/bars/{foreign_bar.id}").status_code == 200
