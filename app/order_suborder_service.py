@@ -272,6 +272,86 @@ class OrderSuborderService:
         )
         return suborder
 
+    def deliver_by_cashier(
+        self,
+        actor,
+        bar_id: int,
+        order_id: int,
+        suborder_id: int,
+    ) -> OrderSuborder:
+        """Deliver one validated server sub-order and deduct its stock exactly once."""
+        permissions.require(actor, "orders.deliver", bar_id)
+        assignment = self._active_assignment(actor, bar_id)
+        if assignment and assignment.role != "CASHIER":
+            raise PermissionError("FORBIDDEN")
+
+        order = db.session.scalar(
+            select(Order)
+            .where(Order.id == order_id, Order.bar_id == bar_id)
+            .with_for_update()
+        )
+        if not order:
+            raise LookupError("NOT_FOUND")
+        if order.status not in {"DRAFT", "CONFIRMED", "SERVED"}:
+            raise ValueError("ORDER_NOT_EDITABLE")
+        if order.payment_status == "PAID":
+            raise ValueError("ORDER_PAID")
+
+        suborder = db.session.scalar(
+            select(OrderSuborder)
+            .where(
+                OrderSuborder.id == suborder_id,
+                OrderSuborder.order_id == order.id,
+                OrderSuborder.bar_id == bar_id,
+            )
+            .with_for_update()
+        )
+        if not suborder:
+            raise LookupError("NOT_FOUND")
+        if suborder.status != "VALIDATED":
+            raise ValueError("SUBORDER_NOT_VALIDATED")
+        if suborder.delivery_status != "PENDING":
+            raise ValueError("SUBORDER_ALREADY_DELIVERED")
+
+        lines = list(
+            db.session.scalars(
+                select(OrderSuborderLine)
+                .where(
+                    OrderSuborderLine.bar_id == bar_id,
+                    OrderSuborderLine.order_id == order.id,
+                    OrderSuborderLine.order_suborder_id == suborder.id,
+                )
+                .order_by(OrderSuborderLine.line_no, OrderSuborderLine.id)
+            )
+        )
+        if not lines:
+            raise ValueError("SUBORDER_EMPTY")
+
+        for line in lines:
+            stock_service.move(
+                actor,
+                bar_id,
+                line.product_id,
+                "SALE",
+                -line.quantity,
+                f"Livraison sous-commande {suborder.sequence_no} de {order.reference}",
+                unit_snapshot=line.unit_snapshot,
+                unit_cost_snapshot=line.unit_cost_snapshot,
+            )
+
+        suborder.delivery_status = "DELIVERED"
+        suborder.delivered_by_id = actor.id
+        suborder.delivered_at = utcnow()
+        record(
+            actor,
+            bar_id,
+            "orders.suborder.deliver",
+            "order_suborders",
+            suborder.id,
+            f"Livraison sous-commande {suborder.sequence_no} de {order.reference}",
+        )
+        return suborder
+
     def validate_by_server(
         self,
         actor,
