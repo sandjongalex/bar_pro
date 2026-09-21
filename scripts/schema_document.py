@@ -14,6 +14,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.extensions import db
 from app import models  # noqa: F401  # import registers SQLAlchemy models
+from app import order_suborder_models  # noqa: F401  # register persistent order sub-orders
 
 
 ROOT = Path(__file__).resolve().parents[1]
