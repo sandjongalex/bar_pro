@@ -2,10 +2,11 @@
 from datetime import datetime, timedelta
 import hashlib, secrets, uuid
 import jwt
-from flask import Blueprint, current_app, jsonify, request, render_template, session, g
+from flask import Blueprint, current_app, jsonify, request, render_template, session, g, url_for
 from flask_login import current_user, login_required, login_user, logout_user
 from functools import wraps
 from sqlalchemy import select
+from app.employee_context import get_current_employee_context
 from app.extensions import db, limiter, login_manager
 from app.models import ApiToken, TokenRevocation, User, utcnow
 from app.permissions import permissions
@@ -16,6 +17,26 @@ api_auth_bp=Blueprint("api_auth",__name__,url_prefix="/api/v1/auth")
 def error(code,status): return jsonify({"success":False,"error":{"code":code,"message":"Authentication failed.","details":None}}),status
 def digest(value): return hashlib.sha256(value.encode() if isinstance(value,str) else b"invalid").digest()
 def accessible(user,bar_id): return permissions.evaluate(user,"bars.read",bar_id).allowed
+
+def _web_destination(user, employee_context=None):
+    if user.category != "EMPLOYEE":
+        return url_for("web.dashboard")
+    context = employee_context or get_current_employee_context(user)
+    if context.role == "CASHIER":
+        return url_for("checkout_web.checkout", bar_id=context.bar_id)
+    if context.role == "SERVER":
+        return url_for("orders_web.quick", bar_id=context.bar_id)
+    if context.role == "BAR_ADMIN":
+        return url_for("web.dashboard", bar_id=context.bar_id)
+    raise LookupError("EMPLOYEE_ROLE_INVALID")
+
+def _bind_employee_session(context):
+    if context is None:
+        return
+    session["current_bar_id"] = context.bar_id
+    session["current_role"] = context.role
+    session["current_assignment_id"] = context.assignment.id
+
 def api_required(view):
     """Authenticate bearer JWTs only; never accept a web cookie as API identity."""
     @wraps(view)
@@ -55,13 +76,24 @@ def load_user(user_id):
 def web_login():
     if request.method=="GET":
         if current_user.is_authenticated:
-            return "",302,{"Location":"/"}
+            try:
+                context=get_current_employee_context(current_user)
+                _bind_employee_session(context)
+                return "",302,{"Location":_web_destination(current_user,context)}
+            except LookupError:
+                logout_user(); session.clear(); g.pop("csrf_token",None)
+                return render_template("login.html",error="Aucune affectation active n'est disponible pour ce compte employé.",email=""),403
         return render_template("login.html",error=None,email="")
     email=request.form.get("email","").strip().lower()
     user=db.session.scalar(select(User).where(User.email==email))
     if not user or not user.is_active or not user.check_password(request.form.get("password", "")):
         return render_template("login.html",error="Adresse e-mail ou mot de passe incorrect.",email=email),401
-    session.clear(); g.pop("csrf_token",None); login_user(user); session["credentials_version"]=user.credentials_version; return "",302,{"Location":"/"}
+    try:
+        context=get_current_employee_context(user)
+        destination=_web_destination(user,context)
+    except LookupError:
+        return render_template("login.html",error="Aucune affectation active n'est disponible pour ce compte employé.",email=email),403
+    session.clear(); g.pop("csrf_token",None); login_user(user); session["credentials_version"]=user.credentials_version; _bind_employee_session(context); return "",302,{"Location":destination}
 @auth_bp.post("/logout")
 @login_required
 def web_logout(): logout_user(); return "",302,{"Location":"/login"}
