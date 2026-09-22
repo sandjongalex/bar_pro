@@ -99,6 +99,13 @@ def test_cashier_invoices_page_filters_delivery_and_origin(env):
     assert "✓ Payé" in page.text
     assert "Reste à encaisser" in page.text
 
+    # Human-readable references: the browser promotes the table name (or
+    # COMPTOIR when no table exists) and keeps the technical CMD reference only
+    # as secondary traceability information.
+    assert "invoice-human-title" in page.text
+    assert "Réf. système" in page.text
+    assert "COMPTOIR" in page.text
+
     # The cashier page refreshes counters and invoice cards in place every ten
     # seconds instead of forcing a disruptive full-page reload.
     assert 'id="invoiceStats"' in page.text
@@ -160,3 +167,5 @@ def test_cashier_invoices_page_filters_delivery_and_origin(env):
     assert workspace.status_code == 200
     assert f"/bars/{bar.id}/cashier/invoices" in workspace.text
     assert "Factures" in workspace.text
+    assert "cashier-human-order-title" in workspace.text
+    assert "Réf. système" in workspace.text
