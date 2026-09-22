@@ -2,22 +2,39 @@
 {% block content %}
 {{ super() }}
 <style>
-.cashier-suborder-entry{display:inline-flex;align-items:center;gap:7px}.cashier-suborder-entry .cashier-suborder-dot{width:8px;height:8px;border-radius:50%;background:currentColor}.cashier-selected-suborder-cta{display:flex;align-items:center;justify-content:space-between;gap:12px;text-decoration:none;color:inherit;border:1px solid #cfe1d8;background:#f2faf6;border-radius:13px;padding:11px 12px;margin:10px 0}.cashier-selected-suborder-cta:hover{border-color:var(--brand);background:var(--brand-soft)}.cashier-selected-suborder-cta strong,.cashier-selected-suborder-cta small{display:block}.cashier-selected-suborder-cta strong{font-size:.79rem}.cashier-selected-suborder-cta small{font-size:.67rem;color:var(--muted);margin-top:2px}.cashier-selected-suborder-plus{width:36px;height:36px;border-radius:11px;background:var(--brand);color:#fff;display:grid;place-items:center;font-size:1.15rem;font-weight:900;flex:0 0 auto}.cashier-order-row{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:stretch;border-top:1px solid #edf2ef}.cashier-order-row>.cashier-order-link{border-top:0;min-width:0}.cashier-order-row-actions{display:flex;flex-direction:column;width:96px;border-left:1px solid #e2ebe6;background:#fbfdfc}.cashier-order-direct-detail,.cashier-order-direct-suborder{display:flex;flex:1;flex-direction:column;justify-content:center;align-items:center;gap:2px;min-height:42px;padding:7px 8px;text-decoration:none;color:var(--brand);font-size:.61rem;font-weight:850;line-height:1.15;text-align:center}.cashier-order-direct-detail{color:inherit;background:#fff}.cashier-order-direct-suborder{border-top:1px solid #e2ebe6}.cashier-order-direct-suborder strong{font-size:1.05rem;line-height:1}.cashier-order-direct-detail:hover,.cashier-order-direct-suborder:hover{background:var(--brand-soft);color:var(--brand)}@media(max-width:760px){.cashier-suborder-entry{min-height:44px;justify-content:center}.cashier-mobile-bar{grid-template-columns:repeat(5,1fr)!important}.cashier-order-row-actions{width:82px}.cashier-order-direct-detail,.cashier-order-direct-suborder{min-height:44px;padding:6px 5px;font-size:.57rem}}
+.cashier-suborder-entry,.cashier-invoices-entry{display:inline-flex;align-items:center;gap:7px}.cashier-suborder-entry .cashier-suborder-dot{width:8px;height:8px;border-radius:50%;background:currentColor}.cashier-selected-suborder-cta{display:flex;align-items:center;justify-content:space-between;gap:12px;text-decoration:none;color:inherit;border:1px solid #cfe1d8;background:#f2faf6;border-radius:13px;padding:11px 12px;margin:10px 0}.cashier-selected-suborder-cta:hover{border-color:var(--brand);background:var(--brand-soft)}.cashier-selected-suborder-cta strong,.cashier-selected-suborder-cta small{display:block}.cashier-selected-suborder-cta strong{font-size:.79rem}.cashier-selected-suborder-cta small{font-size:.67rem;color:var(--muted);margin-top:2px}.cashier-selected-suborder-plus{width:36px;height:36px;border-radius:11px;background:var(--brand);color:#fff;display:grid;place-items:center;font-size:1.15rem;font-weight:900;flex:0 0 auto}.cashier-order-row{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:stretch;border-top:1px solid #edf2ef}.cashier-order-row>.cashier-order-link{border-top:0;min-width:0}.cashier-order-row-actions{display:flex;flex-direction:column;width:96px;border-left:1px solid #e2ebe6;background:#fbfdfc}.cashier-order-direct-detail,.cashier-order-direct-suborder{display:flex;flex:1;flex-direction:column;justify-content:center;align-items:center;gap:2px;min-height:42px;padding:7px 8px;text-decoration:none;color:var(--brand);font-size:.61rem;font-weight:850;line-height:1.15;text-align:center}.cashier-order-direct-detail{color:inherit;background:#fff}.cashier-order-direct-suborder{border-top:1px solid #e2ebe6}.cashier-order-direct-suborder strong{font-size:1.05rem;line-height:1}.cashier-order-direct-detail:hover,.cashier-order-direct-suborder:hover{background:var(--brand-soft);color:var(--brand)}@media(max-width:760px){.cashier-suborder-entry,.cashier-invoices-entry{min-height:44px;justify-content:center}.cashier-mobile-bar{grid-template-columns:repeat(5,1fr)!important}.cashier-order-row-actions{width:82px}.cashier-order-direct-detail,.cashier-order-direct-suborder{min-height:44px;padding:6px 5px;font-size:.57rem}}
 </style>
 <script>
 document.addEventListener('DOMContentLoaded', () => {
   const queueUrl = {{ url_for('suborders_web.cashier_queue', bar_id=bar.id)|tojson }};
+  const invoicesUrl = {{ url_for('cashier_invoices_web.invoices', bar_id=bar.id)|tojson }};
   const head = document.querySelector('.cashier-head-actions');
+
+  if (head && !head.querySelector('[data-cashier-invoices]')) {
+    const invoices = document.createElement('a');
+    invoices.href = invoicesUrl;
+    invoices.className = 'btn btn-outline-primary cashier-invoices-entry';
+    invoices.dataset.cashierInvoices = '1';
+    invoices.innerHTML = '<span>▤</span><span>Factures</span>';
+    head.insertBefore(invoices, head.children[1] || null);
+  }
+
   if (head && !head.querySelector('[data-cashier-suborders]')) {
     const link = document.createElement('a');
     link.href = queueUrl;
     link.className = 'btn btn-outline-primary cashier-suborder-entry';
     link.dataset.cashierSuborders = '1';
     link.innerHTML = '<span class="cashier-suborder-dot"></span><span>Sous-commandes</span>';
-    head.insertBefore(link, head.children[1] || null);
+    head.insertBefore(link, head.children[2] || null);
   }
 
   const mobile = document.querySelector('.cashier-mobile-bar');
+  const legacyQueue = mobile?.querySelector('a[href="#queue"]');
+  if (legacyQueue) {
+    legacyQueue.href = invoicesUrl;
+    legacyQueue.dataset.cashierInvoicesMobile = '1';
+    legacyQueue.innerHTML = '▤<br>Factures';
+  }
   if (mobile && !mobile.querySelector('[data-cashier-suborders-mobile]')) {
     const link = document.createElement('a');
     link.href = queueUrl;
