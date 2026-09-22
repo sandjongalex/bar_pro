@@ -37,12 +37,24 @@ class OrderService:
             )
         )
 
-    def create(self, actor, bar_id, reference, lines, table_id=None, customer_id=None, notes=None):
+    def create(
+        self,
+        actor,
+        bar_id,
+        reference,
+        lines,
+        table_id=None,
+        customer_id=None,
+        notes=None,
+        invoice_name=None,
+    ):
         """Create an order in the waiting state without touching stock.
 
         SERVER-created orders are linked to their active staff assignment so the
         cashier can identify the server and the server can retrieve only their
-        own operational queue.
+        own operational queue. ``invoice_name`` is the optional human-facing
+        label used to recognize the bill quickly; when omitted, an attached
+        customer's display name remains the snapshot fallback.
         """
         permissions.require(actor, "orders.create", bar_id)
 
@@ -59,6 +71,7 @@ class OrderService:
 
         assignment = self._active_assignment(actor, bar_id)
         assigned_staff_id = assignment.id if assignment and assignment.role == "SERVER" else None
+        human_invoice_name = required_text(invoice_name, 120) if invoice_name else None
 
         order = Order(
             bar_id=bar_id,
@@ -70,7 +83,9 @@ class OrderService:
             payment_status="UNPAID",
             notes=(required_text(notes, 500) if notes else None),
             currency=db.session.get(Bar, bar_id).currency,
-            customer_name_snapshot=customer.display_name if customer else None,
+            customer_name_snapshot=(
+                human_invoice_name or (customer.display_name if customer else None)
+            ),
             table_label_snapshot=table.label if table else None,
             subtotal_amount=0,
             discount_amount=0,
