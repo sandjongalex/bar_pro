@@ -83,7 +83,8 @@
     return `
       <a class="cashier-order-link ${String(order.id) === selectedId ? 'active' : ''}" href="${href}" data-live-order-id="${escapeHtml(order.id)}">
         <div class="cashier-order-copy">
-          <strong>${escapeHtml(order.reference)}</strong>
+          <strong class="cashier-human-order-title">${escapeHtml(order.display_name || (order.table && order.table !== 'Sans table' ? order.table : 'COMPTOIR'))}</strong>
+          <small class="cashier-human-tech-ref">Réf. système : ${escapeHtml(order.reference)}</small>
           <small>${escapeHtml(order.server_name || 'Comptoir')} · ${escapeHtml(order.table || 'Sans table')}${product}</small>
         </div>
         <div class="cashier-order-money">

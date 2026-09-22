@@ -33,7 +33,7 @@
           <article class="cash-sub-card" data-suborder-id="{{ suborder.id }}">
             <div class="cash-sub-card-head">
               <div>
-                <strong class="cash-sub-card-title">{{ (order.table_label_snapshot if order and order.table_label_snapshot else 'COMPTOIR') }} · Sous-commande {{ suborder.sequence_no }}</strong>
+                <strong class="cash-sub-card-title">{{ ((order.customer_name_snapshot or order.table_label_snapshot or 'COMPTOIR') if order else 'COMPTOIR') }} · Sous-commande {{ suborder.sequence_no }}</strong>
                 <small class="cash-sub-meta">{{ server_name_by_order.get(suborder.order_id, 'Serveuse') }}</small>
                 {% if order %}<small class="cash-sub-system-ref">Réf. système : {{ order.reference }}</small>{% endif %}
                 <span class="cash-sub-status">Validée par la serveuse · à livrer</span>
@@ -64,7 +64,7 @@
       <div class="cash-sub-order-list">
         {% for order in active_orders %}
         <a class="cash-sub-order" href="{{ url_for('suborders_web.new_suborder', bar_id=bar.id, order_id=order.id) }}">
-          <div><strong>{{ order.table_label_snapshot or 'COMPTOIR' }}</strong><small>Réf. système : {{ order.reference }}</small><small>{{ "{:,.0f}".format(order.total_amount) }} {{ order.currency }} · {{ 'Partiel' if order.payment_status == 'PARTIAL' else 'Non payé' }}</small></div>
+          <div><strong>{{ order.customer_name_snapshot or order.table_label_snapshot or 'COMPTOIR' }}</strong><small>Réf. système : {{ order.reference }}</small><small>{{ "{:,.0f}".format(order.total_amount) }} {{ order.currency }} · {{ 'Partiel' if order.payment_status == 'PARTIAL' else 'Non payé' }}</small></div>
           <span class="cash-sub-add">＋ Ajouter</span>
         </a>
         {% endfor %}

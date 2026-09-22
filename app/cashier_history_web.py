@@ -152,7 +152,7 @@ def history(bar_id: int):
     if entry_type in {"ALL", "PAYMENT"}:
         payment_rows = list(
             db.session.execute(
-                select(Payment, Order.reference, Order.table_label_snapshot, Order.assigned_staff_id)
+                select(Payment, Order.reference, Order.table_label_snapshot, Order.assigned_staff_id, Order.customer_name_snapshot)
                 .join(Order, (Order.id == Payment.order_id) & (Order.bar_id == Payment.bar_id))
                 .where(*payment_filters)
                 .order_by(Payment.received_at.desc(), Payment.id.desc())
@@ -164,7 +164,7 @@ def history(bar_id: int):
     if entry_type in {"ALL", "REFUND"}:
         refund_rows = list(
             db.session.execute(
-                select(Refund, Order.reference, Order.table_label_snapshot, Order.assigned_staff_id)
+                select(Refund, Order.reference, Order.table_label_snapshot, Order.assigned_staff_id, Order.customer_name_snapshot)
                 .join(Order, (Order.id == Refund.order_id) & (Order.bar_id == Refund.bar_id))
                 .where(*refund_filters)
                 .order_by(Refund.refunded_at.desc(), Refund.id.desc())
@@ -183,14 +183,14 @@ def history(bar_id: int):
     } if actor_ids else {}
 
     events = []
-    for payment, order_reference, table_label, assigned_staff_id in payment_rows:
+    for payment, order_reference, table_label, assigned_staff_id, invoice_name in payment_rows:
         events.append(
             {
                 "kind": "PAYMENT",
                 "reference": payment.reference,
                 "order_id": payment.order_id,
                 "order_reference": order_reference,
-                "order_label": table_label or "COMPTOIR",
+                "order_label": invoice_name or table_label or "COMPTOIR",
                 "server": server_names.get(assigned_staff_id, "Sans serveuse"),
                 "method": payment.method,
                 "method_label": PAYMENT_LABELS.get(payment.method, payment.method),
@@ -201,14 +201,14 @@ def history(bar_id: int):
                 "occurred_label": _local_display(payment.received_at, bar.timezone),
             }
         )
-    for refund, order_reference, table_label, assigned_staff_id in refund_rows:
+    for refund, order_reference, table_label, assigned_staff_id, invoice_name in refund_rows:
         events.append(
             {
                 "kind": "REFUND",
                 "reference": refund.reference,
                 "order_id": refund.order_id,
                 "order_reference": order_reference,
-                "order_label": table_label or "COMPTOIR",
+                "order_label": invoice_name or table_label or "COMPTOIR",
                 "server": server_names.get(assigned_staff_id, "Sans serveuse"),
                 "method": refund.method,
                 "method_label": PAYMENT_LABELS.get(refund.method, refund.method),

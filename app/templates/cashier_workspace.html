@@ -94,7 +94,7 @@
         {% set b = balances[order.id] %}
         {% set lines = lines_by_order.get(order.id, []) %}
         <a class="cashier-order-link {% if selected_order and selected_order.id == order.id %}active{% endif %}" href="{{ url_for('cashier_workspace_web.workspace', bar_id=bar.id, order_id=order.id) }}#paymentPanel">
-          <div class="cashier-order-copy"><strong>{{ order.reference }}</strong><small>{{ server_name_by_order.get(order.id, 'Comptoir') }} · {{ order.table_label_snapshot or 'Sans table' }}{% if lines %} · {{ lines[0].product_name_snapshot }}{% if lines|length > 1 %} +{{ lines|length - 1 }}{% endif %}{% endif %}</small></div>
+          <div class="cashier-order-copy"><strong class="cashier-human-order-title">{{ order.customer_name_snapshot or order.table_label_snapshot or 'COMPTOIR' }}</strong><small class="cashier-human-tech-ref">Réf. système : {{ order.reference }}</small><small>{{ server_name_by_order.get(order.id, 'Comptoir') }} · {{ order.table_label_snapshot or 'Sans table' }}{% if lines %} · {{ lines[0].product_name_snapshot }}{% if lines|length > 1 %} +{{ lines|length - 1 }}{% endif %}{% endif %}</small></div>
           <div class="cashier-order-money"><strong>{{ "{:,.0f}".format(b.amount_due) }} {{ order.currency }}</strong><small>{{ 'Partiel' if order.payment_status == 'PARTIAL' else 'À payer' }}</small></div>
         </a>
       {% else %}<div class="p-3 text-secondary small">Aucune commande à encaisser.</div>{% endfor %}
@@ -106,7 +106,7 @@
         {% set b = balances[order.id] %}
         {% set lines = lines_by_order.get(order.id, []) %}
         <a class="cashier-order-link {% if selected_order and selected_order.id == order.id %}active{% endif %}" href="{{ url_for('cashier_workspace_web.workspace', bar_id=bar.id, order_id=order.id) }}#paymentPanel">
-          <div class="cashier-order-copy"><strong>{{ order.reference }}</strong><small>{{ server_name_by_order.get(order.id, 'Comptoir') }} · {{ order.table_label_snapshot or 'Sans table' }}{% if lines %} · {{ lines[0].product_name_snapshot }}{% if lines|length > 1 %} +{{ lines|length - 1 }}{% endif %}{% endif %}</small></div>
+          <div class="cashier-order-copy"><strong class="cashier-human-order-title">{{ order.customer_name_snapshot or order.table_label_snapshot or 'COMPTOIR' }}</strong><small class="cashier-human-tech-ref">Réf. système : {{ order.reference }}</small><small>{{ server_name_by_order.get(order.id, 'Comptoir') }} · {{ order.table_label_snapshot or 'Sans table' }}{% if lines %} · {{ lines[0].product_name_snapshot }}{% if lines|length > 1 %} +{{ lines|length - 1 }}{% endif %}{% endif %}</small></div>
           <div class="cashier-order-money"><strong>{{ "{:,.0f}".format(b.net_sale) }} {{ order.currency }}</strong><small>À livrer</small></div>
         </a>
       {% else %}<div class="p-3 text-secondary small">Aucune commande à livrer.</div>{% endfor %}
@@ -117,7 +117,7 @@
     {% if selected_order %}
       {% set b = balances[selected_order.id] %}
       {% set selected_lines = lines_by_order.get(selected_order.id, []) %}
-      <div class="cashier-pay-title"><div><p class="eyebrow mb-1">Commande</p><h2>{{ selected_order.reference }}</h2></div><span class="cashier-pay-total">{{ "{:,.0f}".format(b.amount_due if selected_order.status != 'DRAFT' else b.net_sale) }} {{ selected_order.currency }}</span></div>
+      <div class="cashier-pay-title"><div><p class="eyebrow mb-1">Commande</p><h2 class="cashier-human-order-title">{{ selected_order.customer_name_snapshot or selected_order.table_label_snapshot or 'COMPTOIR' }}</h2><small class="cashier-selected-system-ref">Réf. système : {{ selected_order.reference }}</small></div><span class="cashier-pay-total">{{ "{:,.0f}".format(b.amount_due if selected_order.status != 'DRAFT' else b.net_sale) }} {{ selected_order.currency }}</span></div>
       <div class="cashier-order-summary">
         <div><span>Origine</span><strong>{{ server_name_by_order.get(selected_order.id, 'Comptoir') }}</strong></div>
         {% if selected_order.table_label_snapshot %}<div><span>Table</span><strong>{{ selected_order.table_label_snapshot }}</strong></div>{% endif %}

@@ -132,6 +132,7 @@ def orders(bar_id: int):
                 {
                     "id": order.id,
                     "reference": order.reference,
+                    "display_name": order.customer_name_snapshot or order.table_label_snapshot or "COMPTOIR",
                     "status": order.status,
                     "payment_status": order.payment_status,
                     "state": _order_state(order),
@@ -194,6 +195,7 @@ def orders(bar_id: int):
             {
                 "id": order.id,
                 "reference": order.reference,
+                "display_name": order.customer_name_snapshot or order.table_label_snapshot or "COMPTOIR",
                 "status": order.status,
                 "payment_status": order.payment_status,
                 "state": _order_state(order),

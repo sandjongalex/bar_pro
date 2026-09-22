@@ -62,25 +62,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const addUrl = activeSuborderUrls[orderId];
     if (!detailUrl || link.closest('.cashier-order-row')) return;
 
-    const copy = link.querySelector('.cashier-order-copy');
-    const title = copy?.querySelector('strong');
-    const meta = copy?.querySelector('small');
-    if (copy && title && meta) {
-      const systemReference = title.textContent.trim();
-      const parts = meta.textContent.split(' · ').map(value => value.trim()).filter(Boolean);
-      const serverName = parts[0] || 'Caisse / comptoir';
-      const rawTable = parts[1] || 'Sans table';
-      const productSummary = parts.slice(2).join(' · ');
-      const humanTitle = rawTable !== 'Sans table' ? rawTable : 'COMPTOIR';
-      title.textContent = humanTitle;
-      title.classList.add('cashier-human-order-title');
-      meta.textContent = productSummary ? `${serverName} · ${productSummary}` : serverName;
-      const techRef = document.createElement('small');
-      techRef.className = 'cashier-human-tech-ref';
-      techRef.textContent = `Réf. système : ${systemReference}`;
-      copy.appendChild(techRef);
-    }
-
     const row = document.createElement('div');
     row.className = 'cashier-order-row';
     link.parentNode.insertBefore(row, link);
@@ -108,18 +89,6 @@ document.addEventListener('DOMContentLoaded', () => {
       actions.appendChild(add);
     }
   });
-
-  {% if selected_order %}
-  const selectedHeading = document.querySelector('#paymentPanel .cashier-pay-title h2');
-  if (selectedHeading) {
-    selectedHeading.textContent = {{ (selected_order.table_label_snapshot or 'COMPTOIR')|tojson }};
-    selectedHeading.classList.add('cashier-human-order-title');
-    const technicalReference = document.createElement('small');
-    technicalReference.className = 'cashier-selected-system-ref';
-    technicalReference.textContent = 'Réf. système : ' + {{ selected_order.reference|tojson }};
-    selectedHeading.insertAdjacentElement('afterend', technicalReference);
-  }
-  {% endif %}
 
   {% if selected_order and selected_server_assignment and selected_order.payment_status != 'PAID' %}
   const addUrl = {{ url_for('suborders_web.new_suborder', bar_id=bar.id, order_id=selected_order.id)|tojson }};

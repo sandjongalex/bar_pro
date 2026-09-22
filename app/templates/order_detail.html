@@ -1,5 +1,5 @@
 {% extends 'layout.html' %}
-{% block title %}{{ order.table_label_snapshot or 'COMPTOIR' }} · {{ bar.name }}{% endblock %}
+{% block title %}{{ order.customer_name_snapshot or order.table_label_snapshot or 'COMPTOIR' }} · {{ bar.name }}{% endblock %}
 {% block header %}Détail de la commande{% endblock %}
 {% block content %}
 <style>
@@ -12,7 +12,7 @@
   <section class="order-detail-hero">
     <div>
       <p class="eyebrow mb-1">Facture / table</p>
-      <h1>{{ order.table_label_snapshot or 'COMPTOIR' }}</h1>
+      <h1>{{ order.customer_name_snapshot or order.table_label_snapshot or 'COMPTOIR' }}</h1>
       <div class="text-secondary small">{{ assigned_staff_name }}</div>
       <div class="order-detail-system-ref">Réf. système : {{ order.reference }}</div>
       <div class="order-detail-meta">
@@ -78,7 +78,7 @@
       <article class="order-detail-suborder">
         <div class="order-detail-suborder-head">
           <div>
-            <h3>{{ order.table_label_snapshot or 'COMPTOIR' }} · Sous-commande {{ suborder.sequence_no }}</h3>
+            <h3>{{ order.customer_name_snapshot or order.table_label_snapshot or 'COMPTOIR' }} · Sous-commande {{ suborder.sequence_no }}</h3>
             <div class="order-detail-suborder-state">
               {% if suborder.status == 'VALIDATED' %}<span class="order-detail-pill success">{{ suborder_status_labels.get(suborder.status, suborder.status) }}</span>
               {% elif suborder.status in ['REJECTED','CANCELLED'] %}<span class="order-detail-pill danger">{{ suborder_status_labels.get(suborder.status, suborder.status) }}</span>

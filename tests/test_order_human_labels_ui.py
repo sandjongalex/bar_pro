@@ -1,5 +1,8 @@
 import re
 
+import pytest
+from markupsafe import escape
+
 from app.cash_services import cash_service
 from app.extensions import db
 from app.models import BarTable, Order, StaffAssignment, User, utcnow
@@ -25,7 +28,8 @@ def _login(client, email, password="test-password"):
     )
 
 
-def test_table_name_is_primary_order_label_across_cashier_workflows(env):
+@pytest.mark.parametrize("invoice_name", [None, "VIP Jean · Anniversaire <Paul>"])
+def test_table_name_is_primary_order_label_across_cashier_workflows(env, invoice_name):
     app, _, bar, _, product, server, _, _ = env
 
     cashier = User(
@@ -54,6 +58,7 @@ def test_table_name_is_primary_order_label_across_cashier_workflows(env):
         "SYS-HUMAN-ACTIVE",
         [{"product_id": product.id, "quantity": 1}],
         table_id=table.id,
+        invoice_name=invoice_name,
     )
     db.session.flush()
     order_suborder_service.create_server_addition(
@@ -70,6 +75,7 @@ def test_table_name_is_primary_order_label_across_cashier_workflows(env):
         "SYS-HISTORY",
         [{"product_id": product.id, "quantity": 1}],
         table_id=table.id,
+        invoice_name=invoice_name,
     )
     db.session.flush()
     order_service.confirm(cashier, bar.id, history_order.id)
@@ -98,22 +104,32 @@ def test_table_name_is_primary_order_label_across_cashier_workflows(env):
     assert "cashier-human-order-title" in workspace.text
     assert "Réf. système :" in workspace.text
     assert "LÉO" in workspace.text
+    label = invoice_name or "LÉO"
+    assert f'class="cashier-human-order-title">{escape(label)}<' in workspace.text
+    invoices = client.get(f"/bars/{bar.id}/cashier/invoices")
+    assert invoices.status_code == 200
+    assert f'class="invoice-reference invoice-human-title">{escape(label)}</div>' in invoices.text
+    live = client.get(f"/bars/{bar.id}/live/orders")
+    assert live.status_code == 200
+    active_payload = next(item for item in live.json["orders"] if item["id"] == active_order.id)
+    assert active_payload["display_name"] == label
+    assert active_payload["reference"] == "SYS-HUMAN-ACTIVE"
 
     detail = client.get(
         f"/bars/{bar.id}/orders/{active_order.id}/detail"
     )
     assert detail.status_code == 200
-    assert "<h1>LÉO</h1>" in detail.text
+    assert f"<h1>{escape(label)}</h1>" in detail.text
     assert "Réf. système : SYS-HUMAN-ACTIVE" in detail.text
 
     suborders = client.get(f"/bars/{bar.id}/cashier/suborders")
     assert suborders.status_code == 200
-    assert "LÉO · Sous-commande 1" in suborders.text
+    assert f"{escape(label)} · Sous-commande 1" in suborders.text
     assert "Réf. système : SYS-HUMAN-ACTIVE" in suborders.text
 
     history = client.get(f"/bars/{bar.id}/cashier-history")
     assert history.status_code == 200
-    assert "<strong>LÉO</strong>" in history.text
+    assert f"<strong>{escape(label)}</strong>" in history.text
     assert "Réf. système : SYS-HISTORY" in history.text
 
     # Switch roles explicitly in the same browser session. The login route

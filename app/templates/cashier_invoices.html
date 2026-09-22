@@ -81,7 +81,7 @@
         <article class="invoice-card {{ 'delivered' if delivered else 'waiting' }}" data-invoice-id="{{ order.id }}">
           <div class="invoice-card-top">
             <div>
-              <div class="invoice-reference">{{ order.reference }}</div>
+              <div class="invoice-reference invoice-human-title">{{ order.customer_name_snapshot or order.table_label_snapshot or 'COMPTOIR' }}</div><div class="invoice-system-ref">Réf. système : {{ order.reference }}</div>
               <div class="invoice-origin">{{ origin_by_order.get(order.id, 'Caisse / comptoir') }} · {{ order.table_label_snapshot or 'Sans table' }}</div>
             </div>
             <div class="invoice-total">

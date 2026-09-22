@@ -4,43 +4,5 @@
 <style>
 .invoice-reference.invoice-human-title{text-transform:uppercase;font-size:1.02rem;letter-spacing:.02em}.invoice-system-ref{font-size:.58rem;color:var(--muted);margin-top:2px;opacity:.82}
 </style>
-<script>
-(() => {
-  function humanizeInvoiceCards(root = document) {
-    root.querySelectorAll('[data-invoice-id]').forEach(card => {
-      const title = card.querySelector('.invoice-reference');
-      const origin = card.querySelector('.invoice-origin');
-      if (!title || !origin) return;
 
-      const systemReference = title.dataset.systemReference || title.textContent.trim();
-      const rawOrigin = origin.dataset.rawOrigin || origin.textContent.trim();
-      title.dataset.systemReference = systemReference;
-      origin.dataset.rawOrigin = rawOrigin;
-
-      const separator = rawOrigin.lastIndexOf(' · ');
-      const originName = separator >= 0 ? rawOrigin.slice(0, separator) : rawOrigin;
-      const tableName = separator >= 0 ? rawOrigin.slice(separator + 3) : '';
-      const humanTitle = tableName && tableName !== 'Sans table' ? tableName : 'COMPTOIR';
-
-      title.textContent = humanTitle;
-      title.classList.add('invoice-human-title');
-      origin.textContent = originName || 'Caisse / comptoir';
-
-      let systemRef = card.querySelector('.invoice-system-ref');
-      if (!systemRef) {
-        systemRef = document.createElement('div');
-        systemRef.className = 'invoice-system-ref';
-        origin.insertAdjacentElement('afterend', systemRef);
-      }
-      systemRef.textContent = `Réf. système : ${systemReference}`;
-    });
-  }
-
-  humanizeInvoiceCards();
-  const results = document.getElementById('invoiceResults');
-  if (results) {
-    new MutationObserver(() => humanizeInvoiceCards(results)).observe(results, {childList: true, subtree: true});
-  }
-})();
-</script>
 {% endblock %}
