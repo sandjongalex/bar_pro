@@ -57,7 +57,7 @@
     </div>
     <div class="col-md-9">
       <label class="form-label" for="q">Recherche</label>
-      <input class="form-control" id="q" name="q" value="{{ filters['q'] }}" placeholder="Référence paiement, remboursement, commande, client ou table">
+      <input class="form-control" id="q" name="q" value="{{ filters['q'] }}" placeholder="Table, référence système, paiement, client ou serveuse">
     </div>
     <div class="col-md-3 d-flex gap-2">
       <button class="btn btn-primary flex-grow-1" type="submit">Filtrer</button>
@@ -89,13 +89,13 @@
   {% if events %}
   <div class="table-responsive">
     <table class="table checkout-history align-middle mb-0">
-      <thead><tr><th>Date</th><th>Type / référence</th><th>Commande</th><th>Serveuse</th><th>Mode</th><th>Enregistré par</th><th class="text-end">Montant</th><th class="text-end">Reçu</th></tr></thead>
+      <thead><tr><th>Date</th><th>Type / référence</th><th>Facture / table</th><th>Serveuse</th><th>Mode</th><th>Enregistré par</th><th class="text-end">Montant</th><th class="text-end">Reçu</th></tr></thead>
       <tbody>
       {% for event in events %}
       <tr>
         <td>{{ event['occurred_label'] }}</td>
         <td><strong>{{ 'Paiement' if event['kind'] == 'PAYMENT' else 'Remboursement' }}</strong><small class="d-block text-secondary">{{ event['reference'] }}</small></td>
-        <td>{{ event['order_reference'] }}</td>
+        <td><strong>{{ event['order_label'] }}</strong><small class="d-block text-secondary">Réf. système : {{ event['order_reference'] }}</small></td>
         <td>{{ event['server'] }}</td>
         <td>{{ event['method_label'] }}</td>
         <td>{{ event['recorded_by'] }}</td>
