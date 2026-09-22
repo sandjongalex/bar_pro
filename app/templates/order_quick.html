@@ -72,16 +72,10 @@
         <input class="form-control form-control-lg" id="invoice_name" name="invoice_name" maxlength="120" autocomplete="off" placeholder="Ex. Léo, VIP Jean, Anniversaire Paul">
         <small class="server-invoice-help">Si vous laissez ce champ vide, le nom de la table sera utilisé. Sans nom ni table, la facture apparaîtra comme « COMPTOIR ».</small>
       </div>
-      <div class="server-invoice-live" aria-live="polite">
-        <span>La caisse verra</span>
-        <strong id="serverInvoicePreview">COMPTOIR</strong>
-      </div>
     </div>
 
-    <div class="server-table-subhead"><strong>Table / emplacement</strong><small>Un toucher suffit</small></div>
     <input type="hidden" name="table_id" id="table_id" value="">
     <div class="server-table-grid" id="serverTableGrid" role="group" aria-label="Choisir la table">
-      <button class="server-table-chip active" type="button" data-table-id="" data-table-label="Sans table" aria-pressed="true">Sans table</button>
       {% for table in tables %}
       <button class="server-table-chip" type="button" data-table-id="{{ table.id }}" data-table-label="{{ table.label }}" aria-pressed="false">
         <strong>{{ table.label }}</strong>{% if table.capacity %}<small>{{ table.capacity }} places</small>{% endif %}
@@ -128,7 +122,7 @@
       {% if is_server %}
       <div class="server-order-identity-summary">
         <div><span>Facture</span><strong id="serverInvoiceCurrent">COMPTOIR</strong></div>
-        <div><span>Table</span><strong id="serverTableCurrent">Sans table</strong></div>
+        <div><span>Table</span><strong id="serverTableCurrent">—</strong></div>
         <button type="button" id="changeTableButton">Modifier</button>
       </div>
       {% else %}
@@ -273,9 +267,8 @@
   const tableInput = document.getElementById('table_id');
   const tableCurrent = document.getElementById('serverTableCurrent');
   const invoiceNameInput = document.getElementById('invoice_name');
-  const invoicePreview = document.getElementById('serverInvoicePreview');
   const invoiceCurrent = document.getElementById('serverInvoiceCurrent');
-  let selectedTableLabel = tableCurrent?.textContent.trim() || 'Sans table';
+  let selectedTableLabel = '';
   let activeCategory = 'all';
   const formatMoney = value => new Intl.NumberFormat('fr-FR', {maximumFractionDigits: 0}).format(value);
   const escapeHtml = value => String(value).replace(/[&<>'"]/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
@@ -288,7 +281,6 @@
   }
   function refreshInvoiceIdentity() {
     const label = humanInvoiceLabel();
-    if (invoicePreview) invoicePreview.textContent = label;
     if (invoiceCurrent) invoiceCurrent.textContent = label;
   }
   function renderCart() {
@@ -319,7 +311,7 @@
     button.classList.add('active');
     button.setAttribute('aria-pressed', 'true');
     if (tableInput) tableInput.value = button.dataset.tableId || '';
-    selectedTableLabel = button.dataset.tableLabel || 'Sans table';
+    selectedTableLabel = button.dataset.tableLabel || '';
     if (tableCurrent) tableCurrent.textContent = selectedTableLabel;
     refreshInvoiceIdentity();
   }
