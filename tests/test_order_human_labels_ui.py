@@ -88,10 +88,10 @@ def test_table_name_is_primary_order_label_across_cashier_workflows(env):
     )
     db.session.commit()
 
-    cashier_client = app.test_client()
-    assert _login(cashier_client, cashier.email).status_code == 302
+    client = app.test_client()
+    assert _login(client, cashier.email).status_code == 302
 
-    workspace = cashier_client.get(
+    workspace = client.get(
         f"/bars/{bar.id}/cashier/workspace?order_id={active_order.id}"
     )
     assert workspace.status_code == 200
@@ -99,26 +99,35 @@ def test_table_name_is_primary_order_label_across_cashier_workflows(env):
     assert "Réf. système :" in workspace.text
     assert "LÉO" in workspace.text
 
-    detail = cashier_client.get(
+    detail = client.get(
         f"/bars/{bar.id}/orders/{active_order.id}/detail"
     )
     assert detail.status_code == 200
     assert "<h1>LÉO</h1>" in detail.text
     assert "Réf. système : SYS-HUMAN-ACTIVE" in detail.text
 
-    suborders = cashier_client.get(f"/bars/{bar.id}/cashier/suborders")
+    suborders = client.get(f"/bars/{bar.id}/cashier/suborders")
     assert suborders.status_code == 200
     assert "LÉO · Sous-commande 1" in suborders.text
     assert "Réf. système : SYS-HUMAN-ACTIVE" in suborders.text
 
-    history = cashier_client.get(f"/bars/{bar.id}/cashier-history")
+    history = client.get(f"/bars/{bar.id}/cashier-history")
     assert history.status_code == 200
     assert "<strong>LÉO</strong>" in history.text
     assert "Réf. système : SYS-HISTORY" in history.text
 
-    server_client = app.test_client()
-    assert _login(server_client, server.email).status_code == 302
-    server_workspace = server_client.get(f"/bars/{bar.id}/orders/new")
+    # Switch roles explicitly in the same browser session. The login route
+    # redirects authenticated users, so a second login must be preceded by a
+    # real logout instead of relying on a fresh test client to clear context.
+    logout = client.post(
+        "/logout",
+        data={"csrf_token": _csrf(history)},
+        follow_redirects=False,
+    )
+    assert logout.status_code == 302
+
+    assert _login(client, server.email).status_code == 302
+    server_workspace = client.get(f"/bars/{bar.id}/orders/new")
     assert server_workspace.status_code == 200
     assert "LÉO" in server_workspace.text
     assert "Réf. système : SYS-HUMAN-ACTIVE" in server_workspace.text
