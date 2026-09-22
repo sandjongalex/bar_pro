@@ -96,6 +96,8 @@ def test_cashier_invoices_page_filters_delivery_and_origin(env):
     assert delivered_server.reference in page.text
     assert counter.reference in page.text
     assert f"/bars/{bar.id}/orders/{waiting.id}/detail" in page.text
+    assert "✓ Payé" in page.text
+    assert "Reste à encaisser" in page.text
 
     waiting_only = client.get(
         f"/bars/{bar.id}/cashier/invoices?delivery=waiting&payment=all"
@@ -119,6 +121,29 @@ def test_cashier_invoices_page_filters_delivery_and_origin(env):
     assert server_only.status_code == 200
     assert delivered_server.reference in server_only.text
     assert counter.reference not in server_only.text
+
+    payment = client.post(
+        f"/bars/{bar.id}/cashier/invoices",
+        data={
+            "csrf_token": _csrf(server_only),
+            "action": "pay_cash",
+            "order_id": str(delivered_server.id),
+            "delivery": "delivered",
+            "payment": "all",
+            "origin": f"staff-{server_assignment.id}",
+        },
+        follow_redirects=False,
+    )
+    assert payment.status_code == 302
+    db.session.refresh(delivered_server)
+    assert delivered_server.payment_status == "PAID"
+
+    paid_server = client.get(
+        f"/bars/{bar.id}/cashier/invoices?delivery=delivered&payment=paid&origin=staff-{server_assignment.id}"
+    )
+    assert paid_server.status_code == 200
+    assert delivered_server.reference in paid_server.text
+    assert "✓ Payée" in paid_server.text
 
     workspace = client.get(f"/bars/{bar.id}/cashier/workspace")
     assert workspace.status_code == 200
