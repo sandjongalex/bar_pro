@@ -54,6 +54,7 @@ def _reference():
 def _message(code):
     messages = {
         "INVALID_LINES": "Ajoutez au moins un produit avec une quantité valide.",
+        "INVALID_TEXT": "Le nom de la facture, la note ou la référence contient un texte invalide ou trop long.",
         "ORDER_EMPTY": "La commande ne contient aucun produit.",
         "ORDER_NOT_DRAFT": "Cette commande n'est plus en attente.",
         "ORDER_NOT_CONFIRMED": "Cette commande n'est pas disponible pour cette opération.",
@@ -217,10 +218,12 @@ def quick(bar_id):
                     _cart_lines(),
                     table_id=table_id,
                     notes=request.form.get("notes", "").strip() or None,
+                    invoice_name=request.form.get("invoice_name", "").strip() or None,
                 )
                 db.session.commit()
+                order_label = order.customer_name_snapshot or order.table_label_snapshot or "COMPTOIR"
                 flash(
-                    f"Commande {order.reference} envoyée à la caisse · {order.total_amount:,.0f} {order.currency}.",
+                    f"Facture {order_label} envoyée à la caisse · {order.total_amount:,.0f} {order.currency}.",
                     "success",
                 )
                 if can_pay and not is_server:
@@ -408,6 +411,7 @@ def create(bar_id):
             x.get("table_id"),
             x.get("customer_id"),
             x.get("notes"),
+            x.get("invoice_name"),
         )
         db.session.commit()
         return jsonify({"success": True, "data": {"id": str(o.id), "status": o.status}, "meta": {}}), 201
