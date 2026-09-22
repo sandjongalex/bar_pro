@@ -99,6 +99,17 @@ def test_cashier_invoices_page_filters_delivery_and_origin(env):
     assert "✓ Payé" in page.text
     assert "Reste à encaisser" in page.text
 
+    # The cashier page refreshes counters and invoice cards in place every ten
+    # seconds instead of forcing a disruptive full-page reload.
+    assert 'id="invoiceStats"' in page.text
+    assert 'id="invoiceResults"' in page.text
+    assert 'id="invoiceAutoRefresh"' in page.text
+    assert "Mise à jour automatique · toutes les 10 s" in page.text
+    assert "window.refreshCashierInvoices = refreshInvoices" in page.text
+    assert "window.setInterval(refreshInvoices, refreshEveryMs)" in page.text
+    assert "currentStats.innerHTML = nextStats.innerHTML" in page.text
+    assert "currentResults.innerHTML = nextResults.innerHTML" in page.text
+
     waiting_only = client.get(
         f"/bars/{bar.id}/cashier/invoices?delivery=waiting&payment=all"
     )
