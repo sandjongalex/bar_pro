@@ -1,0 +1,122 @@
+{% extends 'layout.html' %}
+{% block title %}Factures · {{ bar.name }} · Bar Manager Pro{% endblock %}
+{% block header %}Factures · {{ bar.name }}{% endblock %}
+{% block content %}
+<style>
+.invoice-shell{max-width:1080px;margin:0 auto;padding-bottom:92px}.invoice-hero{display:flex;justify-content:space-between;gap:18px;align-items:flex-start}.invoice-hero h1{font-size:1.55rem;margin:2px 0 6px}.invoice-hero p{margin:0;color:var(--muted);max-width:680px}.invoice-back{display:inline-flex;align-items:center;gap:6px;text-decoration:none;font-weight:800;margin-bottom:12px}.invoice-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:16px}.invoice-stat{padding:14px;border:1px solid #e1e9e5;border-radius:16px;background:#fff}.invoice-stat span{display:block;font-size:.66rem;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}.invoice-stat strong{display:block;font-size:1.3rem;margin-top:3px}.invoice-filter-card{margin-top:14px;padding:14px;border:1px solid #dfe8e3;border-radius:17px;background:#fff}.invoice-filter-card form{display:grid;grid-template-columns:repeat(3,minmax(0,1fr)) auto;gap:10px;align-items:end}.invoice-filter-card label{font-size:.65rem;font-weight:800;color:var(--muted);margin-bottom:4px}.invoice-filter-card select{min-height:44px}.invoice-filter-reset{min-height:44px;display:inline-flex;align-items:center;justify-content:center;text-decoration:none}.invoice-section-title{display:flex;justify-content:space-between;align-items:center;gap:10px;margin:18px 0 10px}.invoice-section-title h2{font-size:1.05rem;margin:0}.invoice-section-title span{font-size:.7rem;color:var(--muted)}.invoice-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.invoice-card{border:1px solid #dfe8e3;border-radius:18px;background:#fff;overflow:hidden}.invoice-card.waiting{border-left:5px solid #d39d2c}.invoice-card.delivered{border-left:5px solid #16856a}.invoice-card-top{display:flex;justify-content:space-between;gap:12px;padding:14px 14px 10px}.invoice-reference{font-size:.87rem;font-weight:900;word-break:break-word}.invoice-origin{font-size:.7rem;color:var(--muted);margin-top:4px}.invoice-total{text-align:right;white-space:nowrap}.invoice-total strong{display:block;font-size:1.02rem}.invoice-total small{font-size:.64rem;color:var(--muted)}.invoice-badges{display:flex;flex-wrap:wrap;gap:6px;padding:0 14px 10px}.invoice-badge{display:inline-flex;align-items:center;padding:5px 8px;border-radius:999px;font-size:.61rem;font-weight:850;background:#eef4f1}.invoice-badge.waiting{background:#fff4dc;color:#8b5e0b}.invoice-badge.delivered{background:#e9f7f1;color:#237057}.invoice-badge.partial{background:#fff3d9;color:#8a6214}.invoice-badge.paid{background:#e9f7ef;color:#247146}.invoice-preview{padding:0 14px 12px}.invoice-preview-line{display:flex;justify-content:space-between;gap:10px;padding:4px 0;font-size:.72rem}.invoice-preview-line span:first-child{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.invoice-preview-more{font-size:.65rem;color:var(--muted);margin-top:3px}.invoice-actions{display:grid;grid-template-columns:1fr 1fr;border-top:1px solid #e8eeeb}.invoice-actions a{min-height:46px;display:flex;align-items:center;justify-content:center;text-decoration:none;font-size:.7rem;font-weight:850}.invoice-actions a+a{border-left:1px solid #e8eeeb}.invoice-actions .primary{background:#f1f8f5;color:var(--brand)}.invoice-empty{padding:28px 18px;text-align:center;border:1px dashed #ccd9d3;border-radius:18px;background:#fff}.invoice-empty h3{font-size:1rem;margin:8px 0 4px}.invoice-empty p{font-size:.72rem;color:var(--muted);margin:0}.invoice-mobile-nav{position:fixed;left:18px;right:18px;bottom:16px;z-index:25;display:grid;grid-template-columns:repeat(5,1fr);background:#fff;border:1px solid #dfe8e3;border-radius:20px;box-shadow:0 10px 35px rgba(31,58,48,.16);overflow:hidden}.invoice-mobile-nav a{min-height:62px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;text-decoration:none;color:#53635d;font-size:.61rem;font-weight:800}.invoice-mobile-nav a.active{background:var(--brand);color:#fff}.invoice-mobile-nav strong{font-size:1rem;line-height:1}.invoice-mobile-nav span{white-space:nowrap}@media(max-width:760px){.invoice-shell{padding-bottom:94px}.invoice-hero{display:block}.invoice-stats{grid-template-columns:repeat(2,1fr)}.invoice-filter-card form{grid-template-columns:1fr}.invoice-grid{grid-template-columns:1fr}.invoice-card-top{padding:13px 12px 9px}.invoice-badges,.invoice-preview{padding-left:12px;padding-right:12px}.invoice-mobile-nav{left:10px;right:10px;bottom:10px}.invoice-mobile-nav a{min-height:60px;font-size:.58rem}}
+</style>
+
+<div class="invoice-shell">
+  <a class="invoice-back" href="{{ url_for('cashier_workspace_web.workspace', bar_id=bar.id) }}">← Retour à la caisse</a>
+
+  <section class="invoice-hero">
+    <div>
+      <p class="eyebrow mb-1">Espace caissière</p>
+      <h1>Factures</h1>
+      <p>Une vue dédiée pour retrouver rapidement les commandes non livrées, les commandes déjà livrées et leur origine.</p>
+    </div>
+  </section>
+
+  <section class="invoice-stats" aria-label="Résumé des factures">
+    <article class="invoice-stat"><span>À livrer</span><strong>{{ stats.waiting }}</strong></article>
+    <article class="invoice-stat"><span>Livrées à encaisser</span><strong>{{ stats.delivered }}</strong></article>
+    <article class="invoice-stat"><span>Payées</span><strong>{{ stats.paid }}</strong></article>
+    <article class="invoice-stat"><span>Affichées</span><strong>{{ stats.visible }}</strong></article>
+  </section>
+
+  <section class="invoice-filter-card" aria-label="Filtres factures">
+    <form method="get" id="invoiceFilters">
+      <div>
+        <label for="delivery">Livraison</label>
+        <select class="form-select" id="delivery" name="delivery">
+          <option value="all" {% if delivery_filter == 'all' %}selected{% endif %}>Toutes</option>
+          <option value="waiting" {% if delivery_filter == 'waiting' %}selected{% endif %}>À livrer</option>
+          <option value="delivered" {% if delivery_filter == 'delivered' %}selected{% endif %}>Livrées</option>
+        </select>
+      </div>
+      <div>
+        <label for="payment">Paiement</label>
+        <select class="form-select" id="payment" name="payment">
+          <option value="open" {% if payment_filter == 'open' %}selected{% endif %}>À encaisser</option>
+          <option value="all" {% if payment_filter == 'all' %}selected{% endif %}>Tous les paiements</option>
+          <option value="unpaid" {% if payment_filter == 'unpaid' %}selected{% endif %}>Non payées</option>
+          <option value="partial" {% if payment_filter == 'partial' %}selected{% endif %}>Partiellement payées</option>
+          <option value="paid" {% if payment_filter == 'paid' %}selected{% endif %}>Payées</option>
+        </select>
+      </div>
+      <div>
+        <label for="origin">Origine</label>
+        <select class="form-select" id="origin" name="origin">
+          <option value="all" {% if origin_filter == 'all' %}selected{% endif %}>Toutes les origines</option>
+          <option value="cashier" {% if origin_filter == 'cashier' %}selected{% endif %}>Caisse / comptoir</option>
+          {% for server in server_filters %}
+          <option value="staff-{{ server.assignment_id }}" {% if origin_filter == 'staff-' ~ server.assignment_id %}selected{% endif %}>{{ server.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <a class="btn btn-light border invoice-filter-reset" href="{{ url_for('cashier_invoices_web.invoices', bar_id=bar.id) }}">Réinitialiser</a>
+    </form>
+  </section>
+
+  <div class="invoice-section-title">
+    <h2>Factures trouvées</h2>
+    <span>{{ invoices|length }} résultat{{ 's' if invoices|length != 1 else '' }}</span>
+  </div>
+
+  {% if invoices %}
+  <section class="invoice-grid">
+    {% for order in invoices %}
+      {% set lines = lines_by_order.get(order.id, []) %}
+      {% set delivered = order.status in ['CONFIRMED','SERVED'] %}
+      <article class="invoice-card {{ 'delivered' if delivered else 'waiting' }}" data-invoice-id="{{ order.id }}">
+        <div class="invoice-card-top">
+          <div>
+            <div class="invoice-reference">{{ order.reference }}</div>
+            <div class="invoice-origin">{{ origin_by_order.get(order.id, 'Caisse / comptoir') }} · {{ order.table_label_snapshot or 'Sans table' }}</div>
+          </div>
+          <div class="invoice-total">
+            <strong>{{ "{:,.0f}".format(order.total_amount) }} {{ order.currency }}</strong>
+            <small>{{ order.created_at }}</small>
+          </div>
+        </div>
+
+        <div class="invoice-badges">
+          {% if delivered %}<span class="invoice-badge delivered">✓ Livrée</span>{% else %}<span class="invoice-badge waiting">● À livrer</span>{% endif %}
+          {% if order.payment_status == 'PAID' %}<span class="invoice-badge paid">✓ Payée</span>
+          {% elif order.payment_status == 'PARTIAL' %}<span class="invoice-badge partial">Paiement partiel</span>
+          {% else %}<span class="invoice-badge">À encaisser</span>{% endif %}
+        </div>
+
+        <div class="invoice-preview">
+          {% for line in lines[:3] %}
+          <div class="invoice-preview-line"><span><strong>{{ line.quantity }}×</strong> {{ line.product_name_snapshot }}</span><span>{{ "{:,.0f}".format(line.total_amount) }}</span></div>
+          {% endfor %}
+          {% if lines|length > 3 %}<div class="invoice-preview-more">+ {{ lines|length - 3 }} autre{{ 's' if lines|length - 3 > 1 else '' }} ligne{{ 's' if lines|length - 3 > 1 else '' }}</div>{% endif %}
+        </div>
+
+        <div class="invoice-actions">
+          <a href="{{ url_for('orders_web.detail', bar_id=bar.id, order_id=order.id) }}">◉ Détails</a>
+          <a class="primary" href="{{ url_for('cashier_workspace_web.workspace', bar_id=bar.id, order_id=order.id) }}#paymentPanel">Ouvrir →</a>
+        </div>
+      </article>
+    {% endfor %}
+  </section>
+  {% else %}
+  <div class="invoice-empty"><div style="font-size:1.6rem">🧾</div><h3>Aucune facture avec ces filtres</h3><p>Modifiez la livraison, le paiement ou l'origine pour élargir la liste.</p></div>
+  {% endif %}
+</div>
+
+<nav class="invoice-mobile-nav" aria-label="Navigation rapide caissière">
+  <a href="{{ url_for('cashier_workspace_web.workspace', bar_id=bar.id, sale=1) }}"><strong>＋</strong><span>Vente</span></a>
+  <a class="active" href="{{ url_for('cashier_invoices_web.invoices', bar_id=bar.id) }}"><strong>▤</strong><span>Factures</span></a>
+  <a href="{{ url_for('suborders_web.cashier_queue', bar_id=bar.id) }}"><strong>＋</strong><span>Sous-cmd</span></a>
+  <a href="{{ url_for('cashier_handovers_web.manage', bar_id=bar.id) }}"><strong>⇄</strong><span>Remises</span></a>
+  <a href="{{ url_for('unpaid_orders_web.list_unpaid', bar_id=bar.id) }}"><strong>!</strong><span>Impayées</span></a>
+</nav>
+
+<script>
+document.querySelectorAll('#invoiceFilters select').forEach(select => {
+  select.addEventListener('change', () => document.getElementById('invoiceFilters').submit());
+});
+</script>
+{% endblock %}
