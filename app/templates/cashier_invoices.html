@@ -111,7 +111,7 @@
   <a class="active" href="{{ url_for('cashier_invoices_web.invoices', bar_id=bar.id) }}"><strong>▤</strong><span>Factures</span></a>
   <a href="{{ url_for('suborders_web.cashier_queue', bar_id=bar.id) }}"><strong>＋</strong><span>Sous-cmd</span></a>
   <a href="{{ url_for('cashier_handovers_web.manage', bar_id=bar.id) }}"><strong>⇄</strong><span>Remises</span></a>
-  <a href="{{ url_for('unpaid_orders_web.list_unpaid', bar_id=bar.id) }}"><strong>!</strong><span>Impayées</span></a>
+  <a href="{{ url_for('unpaid_orders_web.monitor', bar_id=bar.id) }}"><strong>!</strong><span>Impayées</span></a>
 </nav>
 
 <script>
