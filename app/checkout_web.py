@@ -6,6 +6,8 @@ from decimal import Decimal, InvalidOperation
 import secrets
 from zoneinfo import ZoneInfo
 
+from app.receipt_printing import rawbt_receipt
+
 from flask import Blueprint, flash, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
 from sqlalchemy import select
@@ -195,8 +197,7 @@ def receipt(bar_id: int, order_id: int):
     sale_time = _local_display(order.closed_at or order.updated_at or order.posted_at, bar.timezone)
     issued_at = datetime.now(ZoneInfo(bar.timezone)).strftime("%d/%m/%Y %H:%M")
 
-    return render_template(
-        "checkout_receipt.html",
+    receipt_context = dict(
         bar=bar,
         order=order,
         lines=lines,
@@ -210,6 +211,11 @@ def receipt(bar_id: int, order_id: int):
         payment_labels=PAYMENT_LABELS,
         sale_time=sale_time,
         issued_at=issued_at,
+    )
+    return render_template(
+        "checkout_receipt.html",
+        rawbt_intent=rawbt_receipt(**receipt_context),
+        **receipt_context,
     )
 
 
