@@ -250,7 +250,7 @@ def invoices(bar_id: int):
     }
 
     return render_template(
-        "cashier_invoices.html",
+        "cashier_invoices_v2.html",
         bar=bar,
         invoices=invoice_rows,
         lines_by_order=lines_by_order,
