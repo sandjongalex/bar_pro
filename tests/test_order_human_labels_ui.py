@@ -146,8 +146,11 @@ def test_server_can_enter_a_dedicated_invoice_name(env):
     assert page.status_code == 200
     assert 'name="invoice_name"' in page.text
     assert "Nom de la facture" in page.text
-    assert "La caisse verra" in page.text
-    assert "serverInvoicePreview" in page.text
+    assert "La caisse verra" not in page.text
+    assert "serverInvoicePreview" not in page.text
+    assert "Table / emplacement" not in page.text
+    assert "Un toucher suffit" not in page.text
+    assert 'data-table-label="Sans table"' not in page.text
     assert "si vous laissez ce champ vide" in page.text.lower()
 
     created = client.post(
