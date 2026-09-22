@@ -91,7 +91,7 @@
           <strong>${money.format(amount)} ${escapeHtml(order.currency || '')}</strong>
           <small>${status}</small>
         </div>
-      </a>`;
+      </a>${order.actions_html || ''}`;
   }
 
   function replaceSection(section, orders, selectedId, emptyText) {
@@ -168,7 +168,7 @@
   }
 
   async function poll() {
-    if (inFlight || document.hidden) return;
+    if (inFlight || document.hidden || queue.contains(document.activeElement)) return;
     inFlight = true;
     try {
       const response = await fetch(endpoint, {

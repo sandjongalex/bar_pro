@@ -3,6 +3,8 @@
 {% block header %}Caisse rapide · {{ bar.name }}{% endblock %}
 {% block content %}
 <style>
+.cashier-order-actions{display:flex;flex-wrap:wrap;gap:8px;padding:8px 12px 12px;border-bottom:1px solid var(--line)}.cashier-order-actions form{margin:0}.cashier-order-actions .btn{min-height:44px;display:inline-flex;align-items:center;justify-content:center}
+
 .cashier-workspace-head{display:flex;justify-content:space-between;align-items:center;gap:1rem;padding:14px 16px;background:#fff;border:1px solid var(--line);border-radius:16px;box-shadow:0 8px 24px rgba(25,46,39,.04)}
 .cashier-workspace-head h1{font-size:1.45rem;margin:0;font-weight:850}.cashier-workspace-head p{margin:2px 0 0;color:var(--muted);font-size:.78rem}.cashier-head-actions{display:flex;gap:.55rem;flex-wrap:wrap;align-items:center}.cashier-open-pill{display:inline-flex;align-items:center;gap:.4rem;padding:.5rem .7rem;border-radius:999px;background:#eaf7ee;color:#176b36;font-weight:800;font-size:.75rem}.cashier-open-pill::before{content:'';width:8px;height:8px;border-radius:50%;background:currentColor}
 .cashier-kpis{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:12px}.cashier-kpis a,.cashier-kpis article{display:block;text-decoration:none;color:inherit;background:#fff;border:1px solid var(--line);border-radius:14px;padding:13px 15px}.cashier-kpis span,.cashier-kpis strong,.cashier-kpis small{display:block}.cashier-kpis span{font-size:.72rem;color:var(--muted);font-weight:750}.cashier-kpis strong{font-size:1.25rem;line-height:1.2;margin:.15rem 0}.cashier-kpis small{font-size:.68rem;color:#8c9793}
@@ -97,6 +99,7 @@
           <div class="cashier-order-copy"><strong class="cashier-human-order-title">{{ order.customer_name_snapshot or order.table_label_snapshot or 'COMPTOIR' }}</strong><small class="cashier-human-tech-ref">Réf. système : {{ order.reference }}</small><small>{{ server_name_by_order.get(order.id, 'Comptoir') }} · {{ order.table_label_snapshot or 'Sans table' }}{% if lines %} · {{ lines[0].product_name_snapshot }}{% if lines|length > 1 %} +{{ lines|length - 1 }}{% endif %}{% endif %}</small></div>
           <div class="cashier-order-money"><strong>{{ "{:,.0f}".format(b.amount_due) }} {{ order.currency }}</strong><small>{{ 'Partiel' if order.payment_status == 'PARTIAL' else 'À payer' }}</small></div>
         </a>
+        {% with bar_id=bar.id %}{% include '_cashier_order_actions.html' %}{% endwith %}
       {% else %}<div class="p-3 text-secondary small">Aucune commande à encaisser.</div>{% endfor %}
     </div>
 
@@ -109,6 +112,7 @@
           <div class="cashier-order-copy"><strong class="cashier-human-order-title">{{ order.customer_name_snapshot or order.table_label_snapshot or 'COMPTOIR' }}</strong><small class="cashier-human-tech-ref">Réf. système : {{ order.reference }}</small><small>{{ server_name_by_order.get(order.id, 'Comptoir') }} · {{ order.table_label_snapshot or 'Sans table' }}{% if lines %} · {{ lines[0].product_name_snapshot }}{% if lines|length > 1 %} +{{ lines|length - 1 }}{% endif %}{% endif %}</small></div>
           <div class="cashier-order-money"><strong>{{ "{:,.0f}".format(b.net_sale) }} {{ order.currency }}</strong><small>À livrer</small></div>
         </a>
+        {% with bar_id=bar.id %}{% include '_cashier_order_actions.html' %}{% endwith %}
       {% else %}<div class="p-3 text-secondary small">Aucune commande à livrer.</div>{% endfor %}
     </div>
   </section>

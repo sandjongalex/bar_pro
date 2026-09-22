@@ -43,53 +43,6 @@ document.addEventListener('DOMContentLoaded', () => {
     mobile.insertBefore(link, mobile.children[2] || null);
   }
 
-  const activeSuborderUrls = {
-    {% for order in waiting_orders + payable_orders %}
-      {% if order.assigned_staff_id %}
-      "{{ order.id }}": {{ url_for('suborders_web.new_suborder', bar_id=bar.id, order_id=order.id)|tojson }},
-      {% endif %}
-    {% endfor %}
-  };
-  const detailUrls = {
-    {% for order in waiting_orders + payable_orders %}
-      "{{ order.id }}": {{ url_for('orders_web.detail', bar_id=bar.id, order_id=order.id)|tojson }},
-    {% endfor %}
-  };
-
-  document.querySelectorAll('.cashier-order-link').forEach(link => {
-    const orderId = new URL(link.href, window.location.origin).searchParams.get('order_id');
-    const detailUrl = detailUrls[orderId];
-    const addUrl = activeSuborderUrls[orderId];
-    if (!detailUrl || link.closest('.cashier-order-row')) return;
-
-    const row = document.createElement('div');
-    row.className = 'cashier-order-row';
-    link.parentNode.insertBefore(row, link);
-    row.appendChild(link);
-
-    const actions = document.createElement('div');
-    actions.className = 'cashier-order-row-actions';
-    row.appendChild(actions);
-
-    const detail = document.createElement('a');
-    detail.href = detailUrl;
-    detail.className = 'cashier-order-direct-detail';
-    detail.dataset.cashierOrderDetail = '1';
-    detail.setAttribute('aria-label', 'Voir les détails de cette commande');
-    detail.innerHTML = '<span>◉</span><span>Détails</span>';
-    actions.appendChild(detail);
-
-    if (addUrl) {
-      const add = document.createElement('a');
-      add.href = addUrl;
-      add.className = 'cashier-order-direct-suborder';
-      add.dataset.cashierAddSuborder = '1';
-      add.setAttribute('aria-label', 'Ajouter une sous-commande à cette commande');
-      add.innerHTML = '<strong>＋</strong><span>Sous-commande</span>';
-      actions.appendChild(add);
-    }
-  });
-
   {% if selected_order and selected_server_assignment and selected_order.payment_status != 'PAID' %}
   const addUrl = {{ url_for('suborders_web.new_suborder', bar_id=bar.id, order_id=selected_order.id)|tojson }};
   const paymentPanel = document.getElementById('paymentPanel');

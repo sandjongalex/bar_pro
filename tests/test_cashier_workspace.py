@@ -124,3 +124,42 @@ def test_cashier_workspace_counter_sale_and_exact_cash(env):
     assert payment.method == "CASH"
     assert payment.cash_session_id == session.id
     assert cash_service.expected(session) == 5100
+
+
+def test_order_actions_survive_live_refresh_and_delivery(env):
+    from app.order_services import order_service
+
+    app, _, bar, _, product, server, _, _ = env
+    cashier = _cashier(bar)
+    cash_service.open(cashier, bar.id, "ACTION-CASH", 0)
+    order = order_service.create(server, bar.id, "ACTION-ORDER",
+                                 [{"product_id": product.id, "quantity": 1}],
+                                 invoice_name="Zaza")
+    db.session.commit()
+    client = app.test_client()
+    assert _login(client, cashier.email).status_code == 302
+    url = f"/bars/{bar.id}/cashier/workspace"
+    page = client.get(url)
+    assert f'data-order-actions="{order.id}"' in page.text
+    live = client.get(f"/bars/{bar.id}/live/orders").json
+    actions = next(row for row in live["orders"] if row["id"] == order.id)["actions_html"]
+    assert '>Livrée</button>' in actions
+    assert '>Payer</a>' not in actions
+    assert f'/orders/{order.id}/detail' in actions
+    # The live action is a CSRF-protected POST; reading or previewing never delivers.
+    assert client.post(url, data={"action": "deliver", "order_id": order.id}).status_code == 400
+    assert order.status == "DRAFT"
+    response = client.post(url, data={"action": "deliver", "order_id": order.id,
+                                     "csrf_token": _csrf(page)})
+    assert response.status_code == 302
+    db.session.refresh(order)
+    assert order.status == "CONFIRMED"
+    assert order.payment_status == "UNPAID"
+    live = client.get(f"/bars/{bar.id}/live/orders").json
+    actions = next(row for row in live["orders"] if row["id"] == order.id)["actions_html"]
+    assert '>Livrée</button>' not in actions
+    assert '>Payer</a>' in actions
+    assert '>Imprimer</a>' in actions
+    assert f'/orders/{order.id}/receipt' in actions
+    receipt_url = re.search(r'href="([^"]+/receipt)"', actions).group(1)
+    assert client.get(receipt_url).status_code == 200

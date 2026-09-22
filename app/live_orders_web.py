@@ -9,7 +9,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from decimal import Decimal
 
-from flask import Blueprint, jsonify
+from flask import Blueprint, jsonify, render_template
 from flask_login import current_user, login_required
 from sqlalchemy import select
 
@@ -201,6 +201,7 @@ def orders(bar_id: int):
                 "state": _order_state(order),
                 "table": order.table_label_snapshot or "Sans table",
                 "server_name": server_names.get(order.id, "Comptoir"),
+                "actions_html": render_template("_cashier_order_actions.html", order=order, bar_id=bar_id),
                 "currency": order.currency,
                 "amount_due": _decimal_text(balance["amount_due"]),
                 "net_sale": _decimal_text(balance["net_sale"]),
