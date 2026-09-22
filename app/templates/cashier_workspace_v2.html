@@ -2,7 +2,7 @@
 {% block content %}
 {{ super() }}
 <style>
-.cashier-suborder-entry,.cashier-invoices-entry{display:inline-flex;align-items:center;gap:7px}.cashier-suborder-entry .cashier-suborder-dot{width:8px;height:8px;border-radius:50%;background:currentColor}.cashier-selected-suborder-cta{display:flex;align-items:center;justify-content:space-between;gap:12px;text-decoration:none;color:inherit;border:1px solid #cfe1d8;background:#f2faf6;border-radius:13px;padding:11px 12px;margin:10px 0}.cashier-selected-suborder-cta:hover{border-color:var(--brand);background:var(--brand-soft)}.cashier-selected-suborder-cta strong,.cashier-selected-suborder-cta small{display:block}.cashier-selected-suborder-cta strong{font-size:.79rem}.cashier-selected-suborder-cta small{font-size:.67rem;color:var(--muted);margin-top:2px}.cashier-selected-suborder-plus{width:36px;height:36px;border-radius:11px;background:var(--brand);color:#fff;display:grid;place-items:center;font-size:1.15rem;font-weight:900;flex:0 0 auto}.cashier-order-row{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:stretch;border-top:1px solid #edf2ef}.cashier-order-row>.cashier-order-link{border-top:0;min-width:0}.cashier-order-row-actions{display:flex;flex-direction:column;width:96px;border-left:1px solid #e2ebe6;background:#fbfdfc}.cashier-order-direct-detail,.cashier-order-direct-suborder{display:flex;flex:1;flex-direction:column;justify-content:center;align-items:center;gap:2px;min-height:42px;padding:7px 8px;text-decoration:none;color:var(--brand);font-size:.61rem;font-weight:850;line-height:1.15;text-align:center}.cashier-order-direct-detail{color:inherit;background:#fff}.cashier-order-direct-suborder{border-top:1px solid #e2ebe6}.cashier-order-direct-suborder strong{font-size:1.05rem;line-height:1}.cashier-order-direct-detail:hover,.cashier-order-direct-suborder:hover{background:var(--brand-soft);color:var(--brand)}@media(max-width:760px){.cashier-suborder-entry,.cashier-invoices-entry{min-height:44px;justify-content:center}.cashier-mobile-bar{grid-template-columns:repeat(5,1fr)!important}.cashier-order-row-actions{width:82px}.cashier-order-direct-detail,.cashier-order-direct-suborder{min-height:44px;padding:6px 5px;font-size:.57rem}}
+.cashier-suborder-entry,.cashier-invoices-entry{display:inline-flex;align-items:center;gap:7px}.cashier-suborder-entry .cashier-suborder-dot{width:8px;height:8px;border-radius:50%;background:currentColor}.cashier-selected-suborder-cta{display:flex;align-items:center;justify-content:space-between;gap:12px;text-decoration:none;color:inherit;border:1px solid #cfe1d8;background:#f2faf6;border-radius:13px;padding:11px 12px;margin:10px 0}.cashier-selected-suborder-cta:hover{border-color:var(--brand);background:var(--brand-soft)}.cashier-selected-suborder-cta strong,.cashier-selected-suborder-cta small{display:block}.cashier-selected-suborder-cta strong{font-size:.79rem}.cashier-selected-suborder-cta small{font-size:.67rem;color:var(--muted);margin-top:2px}.cashier-selected-suborder-plus{width:36px;height:36px;border-radius:11px;background:var(--brand);color:#fff;display:grid;place-items:center;font-size:1.15rem;font-weight:900;flex:0 0 auto}.cashier-order-row{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:stretch;border-top:1px solid #edf2ef}.cashier-order-row>.cashier-order-link{border-top:0;min-width:0}.cashier-order-row-actions{display:flex;flex-direction:column;width:96px;border-left:1px solid #e2ebe6;background:#fbfdfc}.cashier-order-direct-detail,.cashier-order-direct-suborder{display:flex;flex:1;flex-direction:column;justify-content:center;align-items:center;gap:2px;min-height:42px;padding:7px 8px;text-decoration:none;color:var(--brand);font-size:.61rem;font-weight:850;line-height:1.15;text-align:center}.cashier-order-direct-detail{color:inherit;background:#fff}.cashier-order-direct-suborder{border-top:1px solid #e2ebe6}.cashier-order-direct-suborder strong{font-size:1.05rem;line-height:1}.cashier-order-direct-detail:hover,.cashier-order-direct-suborder:hover{background:var(--brand-soft);color:var(--brand)}.cashier-human-order-title{text-transform:uppercase;letter-spacing:.02em}.cashier-human-tech-ref{display:block!important;font-size:.54rem!important;color:var(--muted)!important;opacity:.78;margin-top:2px!important}@media(max-width:760px){.cashier-suborder-entry,.cashier-invoices-entry{min-height:44px;justify-content:center}.cashier-mobile-bar{grid-template-columns:repeat(5,1fr)!important}.cashier-order-row-actions{width:82px}.cashier-order-direct-detail,.cashier-order-direct-suborder{min-height:44px;padding:6px 5px;font-size:.57rem}}
 </style>
 <script>
 document.addEventListener('DOMContentLoaded', () => {
@@ -61,6 +61,25 @@ document.addEventListener('DOMContentLoaded', () => {
     const detailUrl = detailUrls[orderId];
     const addUrl = activeSuborderUrls[orderId];
     if (!detailUrl || link.closest('.cashier-order-row')) return;
+
+    const copy = link.querySelector('.cashier-order-copy');
+    const title = copy?.querySelector('strong');
+    const meta = copy?.querySelector('small');
+    if (copy && title && meta) {
+      const systemReference = title.textContent.trim();
+      const parts = meta.textContent.split(' · ').map(value => value.trim()).filter(Boolean);
+      const serverName = parts[0] || 'Caisse / comptoir';
+      const rawTable = parts[1] || 'Sans table';
+      const productSummary = parts.slice(2).join(' · ');
+      const humanTitle = rawTable !== 'Sans table' ? rawTable : 'COMPTOIR';
+      title.textContent = humanTitle;
+      title.classList.add('cashier-human-order-title');
+      meta.textContent = productSummary ? `${serverName} · ${productSummary}` : serverName;
+      const techRef = document.createElement('small');
+      techRef.className = 'cashier-human-tech-ref';
+      techRef.textContent = `Réf. système : ${systemReference}`;
+      copy.appendChild(techRef);
+    }
 
     const row = document.createElement('div');
     row.className = 'cashier-order-row';
