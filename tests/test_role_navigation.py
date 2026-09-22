@@ -105,8 +105,8 @@ def test_server_navigation_is_focused_on_orders_and_unpaid(env):
     # Serveuse: le flux opérationnel commence par le lieu/table avant les produits.
     assert 'data-server-table-step' in page.text
     assert 'id="serverTableGrid"' in page.text
-    assert 'data-table-label="Sans table"' in page.text
-    assert 'id="serverTableCurrent">Sans table' in page.text
+    assert 'data-table-label="Sans table"' not in page.text
+    assert 'id="serverTableCurrent">—' in page.text
     assert '3. Envoyer à la caisse' in page.text
     assert 'À traiter par la caisse' in page.text
 
