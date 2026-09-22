@@ -1,12 +1,18 @@
 """Cashier invoice browser with delivery, payment and origin filters."""
 from __future__ import annotations
 
-from flask import Blueprint, render_template, request
+from datetime import datetime, timezone
+from decimal import Decimal
+import secrets
+
+from flask import Blueprint, flash, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
 from sqlalchemy import select
 
 from app.extensions import db
-from app.models import Bar, Order, OrderLine, StaffAssignment, User
+from app.finance_totals import order_balance
+from app.models import Bar, CashSession, Order, OrderLine, StaffAssignment, User
+from app.payment_services import payment_service
 from app.permissions import permissions
 
 bp = Blueprint("cashier_invoices_web", __name__, url_prefix="/bars/<int:bar_id>/cashier")
@@ -28,12 +34,40 @@ def _cashier_assignment(bar_id: int):
     )
 
 
+def _open_session(bar_id: int):
+    return db.session.scalar(
+        select(CashSession)
+        .where(CashSession.bar_id == bar_id, CashSession.status == "OPEN")
+        .order_by(CashSession.id.desc())
+    )
+
+
+def _reference() -> str:
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+    return f"PAY-{stamp}-{secrets.token_hex(2).upper()}"
+
+
 def _normalize_filter(value: str | None, allowed: set[str], default: str) -> str:
     normalized = (value or default).strip().lower()
     return normalized if normalized in allowed else default
 
 
-@bp.get("/invoices")
+def _redirect_to_filters(bar_id: int):
+    delivery = _normalize_filter(request.form.get("delivery"), DELIVERY_FILTERS, "all")
+    payment = _normalize_filter(request.form.get("payment"), PAYMENT_FILTERS, "open")
+    origin = (request.form.get("origin") or "all").strip().lower()
+    return redirect(
+        url_for(
+            "cashier_invoices_web.invoices",
+            bar_id=bar_id,
+            delivery=delivery,
+            payment=payment,
+            origin=origin,
+        )
+    )
+
+
+@bp.route("/invoices", methods=["GET", "POST"])
 @login_required
 def invoices(bar_id: int):
     permissions.require(current_user, "orders.read", bar_id)
@@ -43,6 +77,61 @@ def invoices(bar_id: int):
     bar = db.session.get(Bar, bar_id)
     if not bar:
         raise LookupError("NOT_FOUND")
+
+    if request.method == "POST":
+        try:
+            action = (request.form.get("action") or "").strip()
+            if action != "pay_cash":
+                raise ValueError("INVALID_ACTION")
+
+            session = _open_session(bar_id)
+            if session is None:
+                raise ValueError("CASH_SESSION_REQUIRED")
+
+            order_id = request.form.get("order_id", type=int)
+            if not order_id:
+                raise LookupError("NOT_FOUND")
+
+            order = db.session.scalar(
+                select(Order)
+                .where(Order.id == order_id, Order.bar_id == bar_id)
+                .with_for_update()
+            )
+            if not order:
+                raise LookupError("NOT_FOUND")
+            if order.status not in {"CONFIRMED", "SERVED"}:
+                raise ValueError("ORDER_NOT_PAYABLE")
+
+            due = Decimal(order_balance(order)["amount_due"] or 0)
+            if due <= 0 or order.payment_status == "PAID":
+                raise ValueError("ORDER_NOT_PAYABLE")
+
+            payment_service.record(
+                current_user,
+                bar_id,
+                order.id,
+                _reference(),
+                "CASH",
+                due,
+                due,
+                0,
+                cash_session_id=session.id,
+            )
+            db.session.commit()
+            flash(
+                f"{order.reference} payée en espèces · {due:,.0f} {order.currency}.",
+                "success",
+            )
+        except (PermissionError, LookupError, ValueError, TypeError) as exc:
+            db.session.rollback()
+            messages = {
+                "CASH_SESSION_REQUIRED": "Ouvrez d'abord votre session de caisse.",
+                "ORDER_NOT_PAYABLE": "Cette facture doit être livrée et avoir un solde avant l'encaissement.",
+                "NOT_FOUND": "Facture introuvable.",
+                "FORBIDDEN": "Encaissement non autorisé.",
+            }
+            flash(messages.get(str(exc), "Paiement refusé. Vérifiez la facture."), "danger")
+        return _redirect_to_filters(bar_id)
 
     delivery_filter = _normalize_filter(request.args.get("delivery"), DELIVERY_FILTERS, "all")
     payment_filter = _normalize_filter(request.args.get("payment"), PAYMENT_FILTERS, "open")
@@ -128,13 +217,13 @@ def invoices(bar_id: int):
             return order.assigned_staff_id == selected_staff_id
         return True
 
-    invoices = [
+    invoice_rows = [
         order
         for order in all_orders
         if delivery_matches(order) and payment_matches(order) and origin_matches(order)
     ]
 
-    invoice_ids = [order.id for order in invoices]
+    invoice_ids = [order.id for order in invoice_rows]
     lines_by_order = {order_id: [] for order_id in invoice_ids}
     if invoice_ids:
         for line in db.session.scalars(
@@ -145,25 +234,28 @@ def invoices(bar_id: int):
             lines_by_order.setdefault(line.order_id, []).append(line)
 
     origin_by_order = {}
-    for order in invoices:
+    balance_by_order = {}
+    for order in invoice_rows:
         assignment = assignments.get(order.assigned_staff_id)
         user = users.get(assignment.user_id) if assignment else None
         origin_by_order[order.id] = user.display_name if user else "Caisse / comptoir"
+        balance_by_order[order.id] = order_balance(order)
 
     open_orders = [order for order in all_orders if order.payment_status in {"UNPAID", "PARTIAL"}]
     stats = {
         "waiting": sum(1 for order in open_orders if order.status == "DRAFT"),
         "delivered": sum(1 for order in open_orders if order.status in {"CONFIRMED", "SERVED"}),
         "paid": sum(1 for order in all_orders if order.payment_status == "PAID"),
-        "visible": len(invoices),
+        "visible": len(invoice_rows),
     }
 
     return render_template(
         "cashier_invoices.html",
         bar=bar,
-        invoices=invoices,
+        invoices=invoice_rows,
         lines_by_order=lines_by_order,
         origin_by_order=origin_by_order,
+        balance_by_order=balance_by_order,
         server_filters=server_filters,
         delivery_filter=delivery_filter,
         payment_filter=payment_filter,
