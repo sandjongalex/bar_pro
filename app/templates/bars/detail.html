@@ -17,6 +17,7 @@
     </div>
   </div>
   <div class="bar-hero-actions">
+    {% if nav_can('shifts.read', bar.id) %}<a class="btn btn-outline-success" href="{{ url_for('shifts_web.manage',bar_id=bar.id) }}">Personnel en service</a>{% endif %}
     {% if rights.orders_create %}<a class="btn btn-outline-primary" href="{{ url_for('orders_web.quick',bar_id=bar.id) }}">Point de vente</a>{% endif %}
     {% if rights.payments_read %}<a class="btn btn-primary" href="{{ url_for('checkout_web.checkout',bar_id=bar.id) }}">Caisse commandes</a>{% endif %}
   </div>
@@ -34,6 +35,7 @@
     <div class="panel-header"><div><p class="eyebrow mb-1">Exploitation</p><h2>Modules de gestion</h2></div></div>
     <div class="module-grid">
       {% if rights.staff_read %}<a class="module-card" href="{{ url_for('staff_web.manage',bar_id=bar.id) }}"><span class="module-icon">U</span><div><strong>Personnel</strong><p>Comptes, rôles, affectations et accès de l'équipe.</p></div><span class="module-arrow">→</span></a>{% endif %}
+      {% if nav_can('shifts.read', bar.id) %}<a class="module-card" href="{{ url_for('shifts_web.manage',bar_id=bar.id) }}"><span class="module-icon">⏱</span><div><strong>Personnel en service</strong><p>Pointage réel, mise en service et fin de service des caissières et serveuses.</p></div><span class="module-arrow">→</span></a>{% endif %}
       {% if rights.catalog_read %}<a class="module-card" href="{{ url_for('catalog.web_list',bar_id=bar.id) }}"><span class="module-icon">▦</span><div><strong>Produits</strong><p>Catalogue, catégories, prix et disponibilité.</p></div><span class="module-arrow">→</span></a>{% endif %}
       {% if rights.inventory_read %}
       <a class="module-card" href="{{ url_for('stock.history',bar_id=bar.id) }}"><span class="module-icon">S</span><div><strong>Stock</strong><p>Mouvements de stock, pertes et ajustements.</p></div><span class="module-arrow">→</span></a>
