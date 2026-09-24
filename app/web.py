@@ -59,7 +59,19 @@ def dashboard():
                     role=employee_context.role,
                 )
             if employee_context.role == "CASHIER":
-                return redirect(url_for("checkout_web.checkout", bar_id=employee_context.bar_id))
+                from app.cashier_performance import build_cashier_performance
+
+                performance = build_cashier_performance(
+                    assigned_bar.id,
+                    current_user.id,
+                    employee_context.assignment.id,
+                    assigned_bar.timezone,
+                )
+                return render_template(
+                    "cashier_dashboard.html",
+                    bar=assigned_bar,
+                    performance=performance,
+                )
             return redirect(url_for("orders_web.quick", bar_id=employee_context.bar_id))
 
         if employee_context.role != "BAR_ADMIN":

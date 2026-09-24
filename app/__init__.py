@@ -202,11 +202,12 @@ def _register_template_context(app: Flask) -> None:
     def navigation_helpers():
         from flask_login import current_user
         from sqlalchemy import select
-        from app.models import StaffAssignment
+        from app.models import Bar, StaffAssignment
         from app.permissions import permissions
 
         permission_cache: dict[tuple[str, int], bool] = {}
         role_cache: dict[int, str | None] = {}
+        performance_cache: dict[int, dict | None] = {}
 
         def _bar_id(value):
             try:
@@ -254,7 +255,44 @@ def _register_template_context(app: Flask) -> None:
             role_cache[normalized_bar_id] = role
             return role
 
-        return {"nav_can": nav_can, "nav_role": nav_role}
+        def cashier_performance(bar_id):
+            """Current-shift cashier/team KPIs, available only to that cashier."""
+            if not current_user.is_authenticated or current_user.category != "EMPLOYEE":
+                return None
+            normalized_bar_id = _bar_id(bar_id)
+            if normalized_bar_id is None:
+                return None
+            if normalized_bar_id in performance_cache:
+                return performance_cache[normalized_bar_id]
+
+            assignment = db.session.scalar(
+                select(StaffAssignment).where(
+                    StaffAssignment.bar_id == normalized_bar_id,
+                    StaffAssignment.user_id == current_user.id,
+                    StaffAssignment.role == "CASHIER",
+                    StaffAssignment.ended_at.is_(None),
+                )
+            )
+            bar = db.session.get(Bar, normalized_bar_id)
+            if not assignment or not bar:
+                performance_cache[normalized_bar_id] = None
+                return None
+
+            from app.cashier_performance import build_cashier_performance
+
+            performance_cache[normalized_bar_id] = build_cashier_performance(
+                normalized_bar_id,
+                current_user.id,
+                assignment.id,
+                bar.timezone,
+            )
+            return performance_cache[normalized_bar_id]
+
+        return {
+            "nav_can": nav_can,
+            "nav_role": nav_role,
+            "cashier_performance": cashier_performance,
+        }
 
 
 def _register_error_handlers(app: Flask) -> None:
