@@ -184,6 +184,7 @@ def workspace(bar_id: int):
                     (request.form.get("reference") or "").strip() or _reference("CMD"),
                     _cart_lines(),
                     notes=(request.form.get("notes") or "").strip() or None,
+                    invoice_name=(request.form.get("invoice_name") or "").strip() or None,
                 )
                 # A counter sale is physically delivered by the cashier at creation time.
                 order_service.confirm(current_user, bar_id, order.id)
