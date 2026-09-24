@@ -7,6 +7,7 @@ from app.customer_services import notify_server
 from app.extensions import db
 from app.finance_totals import order_balance, total
 from app.models import CashSession, Order, OrderReturn, Payment, Refund, StaffAssignment, utcnow
+from app.order_suborder_models import OrderSuborder
 from app.permissions import permissions
 from app.validation import number, required_text
 
@@ -39,6 +40,20 @@ class PaymentService:
         if not order:
             raise LookupError("NOT_FOUND")
         if order.status not in {"CONFIRMED", "SERVED"}:
+            raise ValueError("ORDER_NOT_PAYABLE")
+        pending_delivery = db.session.scalar(
+            select(OrderSuborder.id)
+            .where(
+                OrderSuborder.bar_id == bar_id,
+                OrderSuborder.order_id == order.id,
+                OrderSuborder.status == "VALIDATED",
+                OrderSuborder.delivery_status == "PENDING",
+            )
+            .limit(1)
+        )
+        if pending_delivery is not None:
+            # The invoice already includes the server-added amount, but the stock
+            # must not leave the bar until the cashier acknowledges physical delivery.
             raise ValueError("ORDER_NOT_PAYABLE")
         presented, applied, change = map(number, (presented, applied, change))
         if applied <= 0 or change < 0 or presented != applied + change:
