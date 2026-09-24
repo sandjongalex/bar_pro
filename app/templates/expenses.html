@@ -8,7 +8,7 @@
     <h1>Dépenses</h1>
     <p>Enregistrez les sorties d'argent, classez-les par catégorie et conservez un historique d'annulation traçable.</p>
   </div>
-  <a class="btn btn-outline-secondary" href="{{ url_for('reports_web.desk', bar_id=bar.id) }}">Voir les rapports</a>
+  {% if nav_can('reports.read', bar.id) %}<a class="btn btn-outline-secondary" href="{{ url_for('reports_web.desk', bar_id=bar.id) }}">Voir les rapports</a>{% endif %}
 </section>
 
 <section class="expenses-kpi-grid mt-4" aria-label="Indicateurs dépenses">
@@ -18,7 +18,7 @@
   <article class="expenses-kpi"><span>Aujourd'hui</span><strong>{{ "{:,.0f}".format(stats.today_net) }} <small>{{ bar.currency }}</small></strong><small>Dépenses nettes du jour</small></article>
 </section>
 
-{% if can_manage %}
+{% if can_record %}
 <div class="expenses-grid mt-4">
   <section class="panel-card expenses-panel">
     <div class="panel-header"><div><p class="eyebrow mb-1">Nouvelle écriture</p><h2>Enregistrer une dépense</h2></div></div>
@@ -45,8 +45,13 @@
           </select>
         </div>
         <div class="col-md-6">
+          {% if can_manage %}
           <label class="form-label" for="expense-date">Date et heure</label>
           <input class="form-control" id="expense-date" type="datetime-local" name="incurred_at" value="{{ now_local }}" required>
+          {% else %}
+          <label class="form-label">Date et heure</label>
+          <div class="form-control bg-light text-secondary">Enregistrées automatiquement à la validation</div>
+          {% endif %}
         </div>
         <div class="col-12">
           <label class="form-label" for="expense-description">Description</label>
@@ -73,10 +78,11 @@
       <button class="btn btn-primary mt-3" type="submit">Enregistrer la dépense</button>
     </form>
     {% else %}
-    <div class="expenses-empty p-4">Créez d'abord au moins une catégorie de dépense active.</div>
+    <div class="expenses-empty p-4">Aucune catégorie de dépense active. Demandez au propriétaire d'en créer une.</div>
     {% endif %}
   </section>
 
+  {% if can_manage %}
   <section class="panel-card expenses-panel">
     <div class="panel-header"><div><p class="eyebrow mb-1">Paramétrage</p><h2>Catégories</h2></div></div>
     <form method="post" class="d-flex gap-2 p-3 border-bottom">
@@ -99,6 +105,7 @@
       {% else %}<div class="expenses-empty">Aucune catégorie créée.</div>{% endfor %}
     </div>
   </section>
+  {% endif %}
 </div>
 {% endif %}
 
