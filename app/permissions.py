@@ -1,74 +1,180 @@
 """Central, server-side permission decisions."""
 from dataclasses import dataclass
+
 from sqlalchemy import select
+
 from app.extensions import db
 from app.models import Bar, StaffAssignment
 
+
 ROLE_ACTIONS = {
- "catalog.manage":{"SUPER_ADMIN","OWNER","BAR_ADMIN"},
- "suppliers.read":{"SUPER_ADMIN","OWNER","BAR_ADMIN"},
- "suppliers.manage":{"SUPER_ADMIN","OWNER","BAR_ADMIN"},
- "purchases.read":{"SUPER_ADMIN","OWNER","BAR_ADMIN"},
- "inventory.read":{"SUPER_ADMIN","OWNER","BAR_ADMIN"},
- "inventory.adjust":{"SUPER_ADMIN","OWNER","BAR_ADMIN"},
- "purchases.manage":{"SUPER_ADMIN","OWNER","BAR_ADMIN"},
- "expenses.read":{"SUPER_ADMIN","OWNER","BAR_ADMIN"},
- "expenses.manage":{"SUPER_ADMIN","OWNER","BAR_ADMIN"},
- "cash.operate":{"SUPER_ADMIN","OWNER","BAR_ADMIN","CASHIER"},
- "auth.self.read":{"SUPER_ADMIN","OWNER","BAR_ADMIN","CASHIER","SERVER"},
- "bars.read":{"SUPER_ADMIN","OWNER","BAR_ADMIN","CASHIER","SERVER"},
- "bars.update_settings":{"SUPER_ADMIN","OWNER"}, "bars.create":{"SUPER_ADMIN"},
- "bars.reset":{"SUPER_ADMIN","OWNER"},
- "staff.manage":{"SUPER_ADMIN","OWNER"}, "staff.read":{"SUPER_ADMIN","OWNER","BAR_ADMIN"},
- "catalog.read":{"SUPER_ADMIN","OWNER","BAR_ADMIN","CASHIER","SERVER"},
- "customers.read":{"SUPER_ADMIN","OWNER","BAR_ADMIN","CASHIER"},
- "customers.manage":{"SUPER_ADMIN","OWNER","BAR_ADMIN","CASHIER"},
- "customer_credit.manage":{"SUPER_ADMIN","OWNER","BAR_ADMIN","CASHIER"},
- "cases.manage":{"SUPER_ADMIN","OWNER","BAR_ADMIN","CASHIER"},
- "orders.read":{"SUPER_ADMIN","OWNER","BAR_ADMIN","CASHIER","SERVER"},
- # Servers create table orders; cashiers may also create direct counter-sale orders.
- "orders.create":{"SUPER_ADMIN","OWNER","BAR_ADMIN","CASHIER","SERVER"},
- "orders.edit":{"SUPER_ADMIN","OWNER","BAR_ADMIN","CASHIER","SERVER"},
- "orders.deliver":{"SUPER_ADMIN","OWNER","BAR_ADMIN","CASHIER"},
- "payments.read":{"SUPER_ADMIN","OWNER","BAR_ADMIN","CASHIER"},
- "refunds.record":{"SUPER_ADMIN","OWNER","BAR_ADMIN","CASHIER"},
- "cash.read":{"SUPER_ADMIN","OWNER","BAR_ADMIN","CASHIER"},
- "reports.read":{"SUPER_ADMIN","OWNER","BAR_ADMIN"},
- "subscriptions.read":{"SUPER_ADMIN","OWNER"},
- "subscriptions.manage":{"SUPER_ADMIN"},
- "payments.record":{"SUPER_ADMIN","OWNER","BAR_ADMIN","CASHIER"},
- "bars.reactivate":{"SUPER_ADMIN"}, "bars.suspend":{"SUPER_ADMIN"},
+    "catalog.manage": {"SUPER_ADMIN", "OWNER", "BAR_ADMIN"},
+    "suppliers.read": {"SUPER_ADMIN", "OWNER", "BAR_ADMIN"},
+    "suppliers.manage": {"SUPER_ADMIN", "OWNER", "BAR_ADMIN"},
+    "purchases.read": {"SUPER_ADMIN", "OWNER", "BAR_ADMIN"},
+    "inventory.read": {"SUPER_ADMIN", "OWNER", "BAR_ADMIN"},
+    "inventory.adjust": {"SUPER_ADMIN", "OWNER", "BAR_ADMIN"},
+    "purchases.manage": {"SUPER_ADMIN", "OWNER", "BAR_ADMIN"},
+    "expenses.read": {"SUPER_ADMIN", "OWNER", "BAR_ADMIN"},
+    "expenses.manage": {"SUPER_ADMIN", "OWNER", "BAR_ADMIN"},
+    "cash.operate": {"SUPER_ADMIN", "OWNER", "BAR_ADMIN", "CASHIER"},
+    "auth.self.read": {"SUPER_ADMIN", "OWNER", "BAR_ADMIN", "CASHIER", "SERVER"},
+    "bars.read": {"SUPER_ADMIN", "OWNER", "BAR_ADMIN", "CASHIER", "SERVER"},
+    "bars.update_settings": {"SUPER_ADMIN", "OWNER"},
+    "bars.create": {"SUPER_ADMIN"},
+    "bars.reset": {"SUPER_ADMIN", "OWNER"},
+    "staff.manage": {"SUPER_ADMIN", "OWNER"},
+    "staff.read": {"SUPER_ADMIN", "OWNER", "BAR_ADMIN"},
+    "shifts.read": {"SUPER_ADMIN", "OWNER", "CASHIER"},
+    "catalog.read": {"SUPER_ADMIN", "OWNER", "BAR_ADMIN", "CASHIER", "SERVER"},
+    "customers.read": {"SUPER_ADMIN", "OWNER", "BAR_ADMIN", "CASHIER"},
+    "customers.manage": {"SUPER_ADMIN", "OWNER", "BAR_ADMIN", "CASHIER"},
+    "customer_credit.manage": {"SUPER_ADMIN", "OWNER", "BAR_ADMIN", "CASHIER"},
+    "cases.manage": {"SUPER_ADMIN", "OWNER", "BAR_ADMIN", "CASHIER"},
+    "orders.read": {"SUPER_ADMIN", "OWNER", "BAR_ADMIN", "CASHIER", "SERVER"},
+    # Servers create table orders; cashiers may also create direct counter-sale orders.
+    "orders.create": {"SUPER_ADMIN", "OWNER", "BAR_ADMIN", "CASHIER", "SERVER"},
+    "orders.edit": {"SUPER_ADMIN", "OWNER", "BAR_ADMIN", "CASHIER", "SERVER"},
+    "orders.deliver": {"SUPER_ADMIN", "OWNER", "BAR_ADMIN", "CASHIER"},
+    "payments.read": {"SUPER_ADMIN", "OWNER", "BAR_ADMIN", "CASHIER"},
+    "refunds.record": {"SUPER_ADMIN", "OWNER", "BAR_ADMIN", "CASHIER"},
+    "cash.read": {"SUPER_ADMIN", "OWNER", "BAR_ADMIN", "CASHIER"},
+    "reports.read": {"SUPER_ADMIN", "OWNER", "BAR_ADMIN"},
+    "subscriptions.read": {"SUPER_ADMIN", "OWNER"},
+    "subscriptions.manage": {"SUPER_ADMIN"},
+    "payments.record": {"SUPER_ADMIN", "OWNER", "BAR_ADMIN", "CASHIER"},
+    "bars.reactivate": {"SUPER_ADMIN"},
+    "bars.suspend": {"SUPER_ADMIN"},
 }
-WRITES = {"refunds.record","payments.record", "bars.suspend", "bars.reactivate","bars.update_settings","bars.reset","staff.manage","orders.create","orders.edit","orders.deliver"}
-WRITES.update({"catalog.manage", "suppliers.manage", "inventory.adjust", "purchases.manage", "expenses.manage", "cash.operate", "customers.manage", "customer_credit.manage", "cases.manage"})
+
+WRITES = {
+    "refunds.record",
+    "payments.record",
+    "bars.suspend",
+    "bars.reactivate",
+    "bars.update_settings",
+    "bars.reset",
+    "staff.manage",
+    "orders.create",
+    "orders.edit",
+    "orders.deliver",
+}
+WRITES.update(
+    {
+        "catalog.manage",
+        "suppliers.manage",
+        "inventory.adjust",
+        "purchases.manage",
+        "expenses.manage",
+        "cash.operate",
+        "customers.manage",
+        "customer_credit.manage",
+        "cases.manage",
+    }
+)
 WRITES.add("subscriptions.manage")
 
+# Cashiers and servers keep their account/tenant identity while off duty, but
+# operational/sales information becomes unavailable until a shift is active.
+SHIFT_GATED_ACTIONS = {
+    "catalog.read",
+    "customers.read",
+    "customers.manage",
+    "customer_credit.manage",
+    "cases.manage",
+    "orders.read",
+    "orders.create",
+    "orders.edit",
+    "orders.deliver",
+    "payments.read",
+    "payments.record",
+    "refunds.record",
+    "cash.read",
+    "cash.operate",
+}
+
+
 @dataclass(frozen=True)
-class Decision: allowed: bool; reason: str
+class Decision:
+    allowed: bool
+    reason: str
+
 
 class PermissionService:
     def evaluate(self, actor, action, bar_id=None):
-        if not actor or not actor.is_active: return Decision(False,"ACCOUNT_INACTIVE")
-        if action not in ROLE_ACTIONS: return Decision(False,"UNKNOWN_PERMISSION")
-        if action.startswith("auth.self."): return Decision(True,"ALLOWED")
-        if bar_id is None: return Decision(False,"BAR_REQUIRED")
-        bar=db.session.get(Bar,bar_id)
-        if not bar: return Decision(False,"NOT_FOUND")
-        role = "SUPER_ADMIN" if actor.category=="SUPER_ADMIN" else "OWNER" if bar.owner_id==actor.id and actor.category=="OWNER" else None
-        if role is None and actor.category=="EMPLOYEE":
-            assignment=db.session.scalar(select(StaffAssignment).where(StaffAssignment.bar_id==bar.id,StaffAssignment.user_id==actor.id,StaffAssignment.ended_at.is_(None)))
-            role=assignment.role if assignment else None
-        if bar.status=="SUSPENDED" and actor.category=="EMPLOYEE": return Decision(False,"BAR_SUSPENDED")
-        if role not in ROLE_ACTIONS[action]: return Decision(False,"FORBIDDEN")
-        if bar.status=="SUSPENDED" and action in WRITES and action not in {"bars.reactivate"}: return Decision(False,"BAR_SUSPENDED")
-        return Decision(True,"ALLOWED")
-    def require(self,*args,**kwargs):
-        action=args[1] if len(args)>1 else kwargs.get("action")
-        bar_id=args[2] if len(args)>2 else kwargs.get("bar_id")
+        if not actor or not actor.is_active:
+            return Decision(False, "ACCOUNT_INACTIVE")
+        if action not in ROLE_ACTIONS:
+            return Decision(False, "UNKNOWN_PERMISSION")
+        if action.startswith("auth.self."):
+            return Decision(True, "ALLOWED")
+        if bar_id is None:
+            return Decision(False, "BAR_REQUIRED")
+
+        bar = db.session.get(Bar, bar_id)
+        if not bar:
+            return Decision(False, "NOT_FOUND")
+
+        role = (
+            "SUPER_ADMIN"
+            if actor.category == "SUPER_ADMIN"
+            else "OWNER"
+            if bar.owner_id == actor.id and actor.category == "OWNER"
+            else None
+        )
+        assignment = None
+        if role is None and actor.category == "EMPLOYEE":
+            assignment = db.session.scalar(
+                select(StaffAssignment).where(
+                    StaffAssignment.bar_id == bar.id,
+                    StaffAssignment.user_id == actor.id,
+                    StaffAssignment.ended_at.is_(None),
+                )
+            )
+            role = assignment.role if assignment else None
+
+        if bar.status == "SUSPENDED" and actor.category == "EMPLOYEE":
+            return Decision(False, "BAR_SUSPENDED")
+        if role not in ROLE_ACTIONS[action]:
+            return Decision(False, "FORBIDDEN")
+
+        if (
+            actor.category == "EMPLOYEE"
+            and role in {"CASHIER", "SERVER"}
+            and action in SHIFT_GATED_ACTIONS
+        ):
+            from app.shift_models import EmployeeShift
+
+            active_shift = db.session.scalar(
+                select(EmployeeShift.id)
+                .where(
+                    EmployeeShift.bar_id == bar.id,
+                    EmployeeShift.staff_assignment_id == assignment.id,
+                    EmployeeShift.status == "OPEN",
+                )
+                .limit(1)
+            )
+            if not active_shift:
+                return Decision(False, "OFF_DUTY")
+
+        if bar.status == "SUSPENDED" and action in WRITES and action not in {"bars.reactivate"}:
+            return Decision(False, "BAR_SUSPENDED")
+        return Decision(True, "ALLOWED")
+
+    def require(self, *args, **kwargs):
+        action = args[1] if len(args) > 1 else kwargs.get("action")
+        bar_id = args[2] if len(args) > 2 else kwargs.get("bar_id")
         if action in WRITES and bar_id is not None:
-            db.session.scalar(select(Bar).where(Bar.id==bar_id).execution_options(populate_existing=True).with_for_update())
-        decision=self.evaluate(*args,**kwargs)
-        if not decision.allowed: raise PermissionError(decision.reason)
+            db.session.scalar(
+                select(Bar)
+                .where(Bar.id == bar_id)
+                .execution_options(populate_existing=True)
+                .with_for_update()
+            )
+        decision = self.evaluate(*args, **kwargs)
+        if not decision.allowed:
+            raise PermissionError(decision.reason)
         return decision
 
-permissions=PermissionService()
+
+permissions = PermissionService()
