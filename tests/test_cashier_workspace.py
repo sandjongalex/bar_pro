@@ -5,6 +5,7 @@ from sqlalchemy import select
 from app.cash_services import cash_service
 from app.extensions import db
 from app.models import Order, Payment, StaffAssignment, User, utcnow
+from app.shift_service import start_shift
 from test_workflows import env
 
 
@@ -28,14 +29,16 @@ def _cashier(bar):
     user.set_password("test-password")
     db.session.add(user)
     db.session.flush()
-    db.session.add(
-        StaffAssignment(
-            bar_id=bar.id,
-            user_id=user.id,
-            role="CASHIER",
-            started_at=utcnow(),
-        )
+    assignment = StaffAssignment(
+        bar_id=bar.id,
+        user_id=user.id,
+        role="CASHIER",
+        started_at=utcnow(),
     )
+    db.session.add(assignment)
+    db.session.flush()
+    owner = db.session.get(User, bar.owner_id)
+    start_shift(owner, bar.id, assignment.id)
     db.session.commit()
     return user
 
@@ -63,6 +66,8 @@ def test_cashier_workspace_counter_sale_and_exact_cash(env):
     assert "Poste de caisse" in workspace.text
     assert "Valider &amp; encaisser" in workspace.text or "Valider & encaisser" in workspace.text
     assert "cashier_live_ui.js" in workspace.text
+    assert "Nom du client / repère" in workspace.text
+    assert 'name="invoice_name"' in workspace.text
 
     response = client.post(
         f"/bars/{bar.id}/cashier/workspace",
@@ -71,6 +76,7 @@ def test_cashier_workspace_counter_sale_and_exact_cash(env):
             "action": "create_sale",
             "product_id": str(product.id),
             "quantity": "1",
+            "invoice_name": "Paul Comptoir",
             "notes": "Client comptoir",
         },
         follow_redirects=False,
@@ -86,6 +92,7 @@ def test_cashier_workspace_counter_sale_and_exact_cash(env):
     assert order.status == "CONFIRMED"
     assert order.payment_status == "UNPAID"
     assert order.assigned_staff_id is None
+    assert order.customer_name_snapshot == "Paul Comptoir"
 
     live = client.get(f"/bars/{bar.id}/live/orders")
     assert live.status_code == 200
@@ -102,6 +109,7 @@ def test_cashier_workspace_counter_sale_and_exact_cash(env):
     pay_page = client.get(response.headers["Location"])
     assert pay_page.status_code == 200
     assert order.reference in pay_page.text
+    assert "Paul Comptoir" in pay_page.text
     assert "Paiement espèces exact" in pay_page.text
     assert "Encaisser 100 XAF" in pay_page.text
 
