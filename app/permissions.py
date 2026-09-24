@@ -18,6 +18,7 @@ ROLE_ACTIONS = {
  "auth.self.read":{"SUPER_ADMIN","OWNER","BAR_ADMIN","CASHIER","SERVER"},
  "bars.read":{"SUPER_ADMIN","OWNER","BAR_ADMIN","CASHIER","SERVER"},
  "bars.update_settings":{"SUPER_ADMIN","OWNER"}, "bars.create":{"SUPER_ADMIN"},
+ "bars.reset":{"OWNER"},
  "staff.manage":{"SUPER_ADMIN","OWNER"}, "staff.read":{"SUPER_ADMIN","OWNER","BAR_ADMIN"},
  "catalog.read":{"SUPER_ADMIN","OWNER","BAR_ADMIN","CASHIER","SERVER"},
  "customers.read":{"SUPER_ADMIN","OWNER","BAR_ADMIN","CASHIER"},
@@ -38,7 +39,7 @@ ROLE_ACTIONS = {
  "payments.record":{"SUPER_ADMIN","OWNER","BAR_ADMIN","CASHIER"},
  "bars.reactivate":{"SUPER_ADMIN"}, "bars.suspend":{"SUPER_ADMIN"},
 }
-WRITES = {"refunds.record","payments.record", "bars.suspend", "bars.reactivate","bars.update_settings","staff.manage","orders.create","orders.edit","orders.deliver"}
+WRITES = {"refunds.record","payments.record", "bars.suspend", "bars.reactivate","bars.update_settings","bars.reset","staff.manage","orders.create","orders.edit","orders.deliver"}
 WRITES.update({"catalog.manage", "suppliers.manage", "inventory.adjust", "purchases.manage", "expenses.manage", "cash.operate", "customers.manage", "customer_credit.manage", "cases.manage"})
 WRITES.add("subscriptions.manage")
 
