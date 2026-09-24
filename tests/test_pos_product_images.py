@@ -1,7 +1,10 @@
 import re
 from pathlib import Path
 
+from PIL import Image
+
 from app.extensions import db
+from app.product_images import MAX_DISPLAY_DIMENSION, _optimize_product_image
 from test_workflows import env
 
 
@@ -46,3 +49,23 @@ def test_product_image_ui_targets_server_cashier_and_suborder_cards():
     assert "/catalog/image-map" in script
     assert "product-image-slot" in script
     assert "has-image" in script
+    assert "IntersectionObserver" in script
+    assert "rootMargin: '280px 0px'" in script
+    assert "fetchPriority = 'low'" in script
+
+
+def test_large_product_photo_is_resized_and_compressed(tmp_path):
+    image_path = tmp_path / "large-product.jpg"
+    Image.new("RGB", (1800, 1200), (80, 130, 180)).save(
+        image_path,
+        format="JPEG",
+        quality=98,
+    )
+    original_size = image_path.stat().st_size
+
+    _optimize_product_image(image_path, "jpg")
+
+    with Image.open(image_path) as optimized:
+        assert max(optimized.size) <= MAX_DISPLAY_DIMENSION
+        assert optimized.format == "JPEG"
+    assert image_path.stat().st_size < original_size
