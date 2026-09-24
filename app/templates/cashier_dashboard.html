@@ -1,0 +1,55 @@
+{% extends 'layout.html' %}
+{% block title %}Tableau de bord caissière · {{ bar.name }}{% endblock %}
+{% block header %}Tableau de bord caissière · {{ bar.name }}{% endblock %}
+{% block content %}
+<style>
+.cashier-dashboard-head{display:flex;justify-content:space-between;gap:1rem;align-items:center;padding:16px 18px;border:1px solid var(--line);border-radius:16px;background:#fff}.cashier-dashboard-head h1{font-size:1.45rem;margin:0}.cashier-dashboard-head p{margin:.25rem 0 0;color:var(--muted);font-size:.8rem}.cashier-dashboard-actions{display:flex;gap:8px;flex-wrap:wrap}.cashier-performance-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:14px}.cashier-kpi-card{padding:14px 15px;border:1px solid var(--line);border-radius:14px;background:#fff}.cashier-kpi-card span,.cashier-kpi-card strong,.cashier-kpi-card small{display:block}.cashier-kpi-card span{font-size:.72rem;color:var(--muted);font-weight:800}.cashier-kpi-card strong{font-size:1.35rem;line-height:1.15;margin:.2rem 0}.cashier-kpi-card small{font-size:.68rem;color:var(--muted)}.cashier-performance-section{margin-top:16px}.cashier-performance-section .panel-header{display:flex;align-items:center;justify-content:space-between;gap:1rem}.cashier-server-list{display:grid;gap:8px;padding:12px}.cashier-server-row{display:grid;grid-template-columns:minmax(150px,1.4fr) repeat(4,minmax(90px,1fr));align-items:center;gap:10px;border:1px solid var(--line);border-radius:12px;padding:11px 12px;background:#fff}.cashier-server-row strong,.cashier-server-row span,.cashier-server-row small{display:block}.cashier-server-name small{color:var(--muted);font-size:.68rem}.cashier-server-metric{text-align:right}.cashier-server-metric span{font-size:.65rem;color:var(--muted);font-weight:750}.cashier-server-metric strong{font-size:.88rem}.cashier-dashboard-note{font-size:.72rem;color:var(--muted);padding:0 2px;margin-top:8px}@media(max-width:950px){.cashier-performance-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.cashier-server-row{grid-template-columns:1fr 1fr 1fr}.cashier-server-name{grid-column:1/-1}.cashier-server-metric{text-align:left}}@media(max-width:620px){.cashier-dashboard-head{display:block}.cashier-dashboard-actions{margin-top:12px}.cashier-dashboard-actions .btn{flex:1 1 45%;min-height:44px}.cashier-performance-grid{grid-template-columns:1fr 1fr}.cashier-kpi-card strong{font-size:1.12rem}.cashier-server-row{grid-template-columns:1fr 1fr}.cashier-server-name{grid-column:1/-1}}
+</style>
+
+<section class="cashier-dashboard-head">
+  <div>
+    <p class="eyebrow mb-1">Service en cours</p>
+    <h1>Bonjour {{ current_user.display_name }}</h1>
+    <p>Début de service : {{ performance.shift_started if performance else '—' }} · chiffres limités à votre service actuel.</p>
+  </div>
+  <div class="cashier-dashboard-actions">
+    <a class="btn btn-primary" href="{{ url_for('checkout_web.checkout', bar_id=bar.id) }}">Ouvrir la caisse</a>
+    <a class="btn btn-outline-primary" href="{{ url_for('expenses_web.manage', bar_id=bar.id) }}">Dépenses</a>
+    <a class="btn btn-light border" href="{{ url_for('shifts_web.manage', bar_id=bar.id) }}">Personnel en service</a>
+  </div>
+</section>
+
+{% if performance %}
+<section class="cashier-performance-grid" aria-label="Performance de la caissière">
+  <article class="cashier-kpi-card"><span>Ventes du service</span><strong>{{ "{:,.0f}".format(performance.service_sales) }} {{ bar.currency }}</strong><small>{{ performance.order_count }} commande{{ 's' if performance.order_count != 1 else '' }}</small></article>
+  <article class="cashier-kpi-card"><span>Vos ventes comptoir</span><strong>{{ "{:,.0f}".format(performance.counter_sales) }} {{ bar.currency }}</strong><small>Commandes créées directement par vous</small></article>
+  <article class="cashier-kpi-card"><span>Vos encaissements nets</span><strong>{{ "{:,.0f}".format(performance.net_collected) }} {{ bar.currency }}</strong><small>{{ "{:,.0f}".format(performance.collected) }} encaissés · {{ "{:,.0f}".format(performance.refunds) }} remboursés</small></article>
+  <article class="cashier-kpi-card"><span>Dépenses saisies</span><strong>{{ "{:,.0f}".format(performance.expense_total) }} {{ bar.currency }}</strong><small>{{ performance.expense_count }} dépense{{ 's' if performance.expense_count != 1 else '' }}</small></article>
+  <article class="cashier-kpi-card"><span>Ticket moyen</span><strong>{{ "{:,.0f}".format(performance.average_ticket) }} {{ bar.currency }}</strong><small>Moyenne des commandes du service</small></article>
+  <article class="cashier-kpi-card"><span>Commandes du service</span><strong>{{ performance.order_count }}</strong><small>Depuis votre mise en service</small></article>
+  <article class="cashier-kpi-card"><span>Commandes non soldées</span><strong>{{ performance.unpaid_count }}</strong><small>Impayées ou partiellement payées</small></article>
+  <article class="cashier-kpi-card"><span>Serveuses en service</span><strong>{{ performance.servers|length }}</strong><small>Performance détaillée ci-dessous</small></article>
+</section>
+
+<section class="panel-card cashier-performance-section">
+  <div class="panel-header p-3 border-bottom">
+    <div><p class="eyebrow mb-1">Équipe</p><h2 class="h5 mb-0">Performance des serveuses en service</h2></div>
+    <a class="btn btn-sm btn-light border" href="{{ url_for('shifts_web.manage', bar_id=bar.id) }}">Gérer le service</a>
+  </div>
+  <div class="cashier-server-list">
+    {% for server in performance.servers %}
+    <article class="cashier-server-row">
+      <div class="cashier-server-name"><strong>{{ server.name }}</strong><small>En service depuis {{ server.started }}</small></div>
+      <div class="cashier-server-metric"><span>Ventes</span><strong>{{ "{:,.0f}".format(server.sales) }} {{ bar.currency }}</strong></div>
+      <div class="cashier-server-metric"><span>Commandes</span><strong>{{ server.order_count }}</strong></div>
+      <div class="cashier-server-metric"><span>Ticket moyen</span><strong>{{ "{:,.0f}".format(server.average_ticket) }} {{ bar.currency }}</strong></div>
+      <div class="cashier-server-metric"><span>Non soldées</span><strong>{{ server.unpaid_count }}</strong></div>
+    </article>
+    {% else %}
+    <div class="text-center text-secondary py-4">Aucune serveuse n'est actuellement en service.</div>
+    {% endfor %}
+  </div>
+</section>
+<div class="cashier-dashboard-note">Les ventes d'une serveuse sont calculées à partir des commandes qui lui sont attribuées depuis le début de son service actuel. Les ventes du service caissière couvrent toutes les commandes confirmées depuis votre propre prise de service.</div>
+{% endif %}
+{% endblock %}
