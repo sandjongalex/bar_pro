@@ -13,8 +13,10 @@ on:
       - 'app/templates/shifts.html'
       - 'app/templates/off_duty.html'
       - 'app/templates/bars/detail.html'
+      - 'app/templates/_app_navigation.html'
       - 'migrations/versions/c9d0e1f2a3b4_employee_shifts.py'
       - 'tests/test_employee_shifts.py'
+      - 'tests/test_shift_navigation.py'
       - '.github/workflows/employee-shifts-tests.yml'
   pull_request:
     paths:
@@ -28,8 +30,10 @@ on:
       - 'app/templates/shifts.html'
       - 'app/templates/off_duty.html'
       - 'app/templates/bars/detail.html'
+      - 'app/templates/_app_navigation.html'
       - 'migrations/versions/c9d0e1f2a3b4_employee_shifts.py'
       - 'tests/test_employee_shifts.py'
+      - 'tests/test_shift_navigation.py'
       - '.github/workflows/employee-shifts-tests.yml'
 
 jobs:
@@ -41,5 +45,5 @@ jobs:
         with:
           python-version: '3.12'
       - run: pip install -r requirements.txt
-      - name: Employee shift hierarchy and access control
-        run: pytest -q tests/test_employee_shifts.py
+      - name: Employee shift hierarchy, access control and navigation
+        run: pytest -q tests/test_employee_shifts.py tests/test_shift_navigation.py
