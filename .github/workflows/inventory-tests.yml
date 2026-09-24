@@ -5,17 +5,23 @@ on:
     paths:
       - 'app/inventories.py'
       - 'app/inventory_services.py'
+      - 'app/stock.py'
       - 'app/templates/inventory_detail.html'
+      - 'app/templates/stock.html'
       - 'tests/test_inventory_blank_zero.py'
       - 'tests/test_inventories.py'
+      - 'tests/test_stock_sale_value.py'
       - '.github/workflows/inventory-tests.yml'
   pull_request:
     paths:
       - 'app/inventories.py'
       - 'app/inventory_services.py'
+      - 'app/stock.py'
       - 'app/templates/inventory_detail.html'
+      - 'app/templates/stock.html'
       - 'tests/test_inventory_blank_zero.py'
       - 'tests/test_inventories.py'
+      - 'tests/test_stock_sale_value.py'
       - '.github/workflows/inventory-tests.yml'
 
 jobs:
@@ -31,3 +37,5 @@ jobs:
         run: pytest -q tests/test_inventory_blank_zero.py
       - name: Inventory regressions
         run: pytest -q tests/test_inventories.py
+      - name: Stock sale value
+        run: pytest -q tests/test_stock_sale_value.py
