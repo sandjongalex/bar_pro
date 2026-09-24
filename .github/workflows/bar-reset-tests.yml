@@ -8,6 +8,7 @@ on:
       - 'app/permissions.py'
       - 'app/templates/bars/list.html'
       - 'tests/test_bar_reset.py'
+      - 'tests/test_bar_reset_superadmin.py'
       - '.github/workflows/bar-reset-tests.yml'
   pull_request:
     paths:
@@ -16,6 +17,7 @@ on:
       - 'app/permissions.py'
       - 'app/templates/bars/list.html'
       - 'tests/test_bar_reset.py'
+      - 'tests/test_bar_reset_superadmin.py'
       - '.github/workflows/bar-reset-tests.yml'
 
 jobs:
@@ -27,5 +29,5 @@ jobs:
         with:
           python-version: '3.12'
       - run: pip install -r requirements.txt
-      - name: Owner reset isolation and safeguards
-        run: pytest -q tests/test_bar_reset.py
+      - name: Bar reset isolation and safeguards
+        run: pytest -q tests/test_bar_reset.py tests/test_bar_reset_superadmin.py
