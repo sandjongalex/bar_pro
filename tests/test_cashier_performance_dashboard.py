@@ -1,6 +1,5 @@
+import re
 from decimal import Decimal
-
-from sqlalchemy import select
 
 from app.cash_services import cash_service
 from app.cashier_performance import build_cashier_performance
@@ -27,6 +26,12 @@ def _employee(email, name, bar, role):
     db.session.add(assignment)
     db.session.flush()
     return user, assignment
+
+
+def _csrf(page):
+    match = re.search(r'name=["\']csrf_token["\'][^>]*value=["\']([^"\']+)["\']', page.text)
+    assert match is not None
+    return match.group(1)
 
 
 def test_cashier_dashboard_metrics_are_current_shift_and_per_server(env):
@@ -117,9 +122,14 @@ def test_cashier_dashboard_metrics_are_current_shift_and_per_server(env):
     assert metrics["servers"][0]["order_count"] == 1
 
     client = app.test_client()
+    login_page = client.get("/login")
     login = client.post(
         "/login",
-        data={"email": cashier.email, "password": "test-password"},
+        data={
+            "email": cashier.email,
+            "password": "test-password",
+            "csrf_token": _csrf(login_page),
+        },
         follow_redirects=False,
     )
     assert login.status_code == 302
