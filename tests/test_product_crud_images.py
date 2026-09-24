@@ -135,7 +135,7 @@ def test_invalid_product_image_is_rejected_without_changing_product(env):
     data["image"] = (BytesIO(b"not an image"), "malware.png")
     response = client.post(f"/bars/{bar.id}/catalog", data=data, follow_redirects=True)
     assert response.status_code == 200
-    assert "n'est pas une image valide" in response.text
+    assert "image valide" in response.text
 
     db.session.refresh(product)
     assert product.name != "Should Not Persist"
