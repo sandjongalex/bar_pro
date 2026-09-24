@@ -1,14 +1,67 @@
 {% extends 'cashier_workspace.html' %}
 {% block content %}
 {{ super() }}
+{% set perf = cashier_performance(bar.id) %}
 <style>
-.cashier-suborder-entry,.cashier-invoices-entry{display:inline-flex;align-items:center;gap:7px}.cashier-suborder-entry .cashier-suborder-dot{width:8px;height:8px;border-radius:50%;background:currentColor}.cashier-selected-suborder-cta{display:flex;align-items:center;justify-content:space-between;gap:12px;text-decoration:none;color:inherit;border:1px solid #cfe1d8;background:#f2faf6;border-radius:13px;padding:11px 12px;margin:10px 0}.cashier-selected-suborder-cta:hover{border-color:var(--brand);background:var(--brand-soft)}.cashier-selected-suborder-cta strong,.cashier-selected-suborder-cta small{display:block}.cashier-selected-suborder-cta strong{font-size:.79rem}.cashier-selected-suborder-cta small{font-size:.67rem;color:var(--muted);margin-top:2px}.cashier-selected-suborder-plus{width:36px;height:36px;border-radius:11px;background:var(--brand);color:#fff;display:grid;place-items:center;font-size:1.15rem;font-weight:900;flex:0 0 auto}.cashier-order-row{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:stretch;border-top:1px solid #edf2ef}.cashier-order-row>.cashier-order-link{border-top:0;min-width:0}.cashier-order-row-actions{display:flex;flex-direction:column;width:96px;border-left:1px solid #e2ebe6;background:#fbfdfc}.cashier-order-direct-detail,.cashier-order-direct-suborder{display:flex;flex:1;flex-direction:column;justify-content:center;align-items:center;gap:2px;min-height:42px;padding:7px 8px;text-decoration:none;color:var(--brand);font-size:.61rem;font-weight:850;line-height:1.15;text-align:center}.cashier-order-direct-detail{color:inherit;background:#fff}.cashier-order-direct-suborder{border-top:1px solid #e2ebe6}.cashier-order-direct-suborder strong{font-size:1.05rem;line-height:1}.cashier-order-direct-detail:hover,.cashier-order-direct-suborder:hover{background:var(--brand-soft);color:var(--brand)}.cashier-human-order-title{text-transform:uppercase;letter-spacing:.02em}.cashier-human-tech-ref{display:block!important;font-size:.54rem!important;color:var(--muted)!important;opacity:.78;margin-top:2px!important}.cashier-selected-system-ref{display:block;margin-top:3px;font-size:.58rem;color:var(--muted);font-weight:650}.cashier-counter-name-help{display:block;margin-top:4px;font-size:.67rem;color:var(--muted)}@media(max-width:760px){.cashier-suborder-entry,.cashier-invoices-entry{min-height:44px;justify-content:center}.cashier-mobile-bar{grid-template-columns:repeat(5,1fr)!important}.cashier-order-row-actions{width:82px}.cashier-order-direct-detail,.cashier-order-direct-suborder{min-height:44px;padding:6px 5px;font-size:.57rem}}
+.cashier-suborder-entry,.cashier-invoices-entry{display:inline-flex;align-items:center;gap:7px}.cashier-suborder-entry .cashier-suborder-dot{width:8px;height:8px;border-radius:50%;background:currentColor}.cashier-selected-suborder-cta{display:flex;align-items:center;justify-content:space-between;gap:12px;text-decoration:none;color:inherit;border:1px solid #cfe1d8;background:#f2faf6;border-radius:13px;padding:11px 12px;margin:10px 0}.cashier-selected-suborder-cta:hover{border-color:var(--brand);background:var(--brand-soft)}.cashier-selected-suborder-cta strong,.cashier-selected-suborder-cta small{display:block}.cashier-selected-suborder-cta strong{font-size:.79rem}.cashier-selected-suborder-cta small{font-size:.67rem;color:var(--muted);margin-top:2px}.cashier-selected-suborder-plus{width:36px;height:36px;border-radius:11px;background:var(--brand);color:#fff;display:grid;place-items:center;font-size:1.15rem;font-weight:900;flex:0 0 auto}.cashier-order-row{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:stretch;border-top:1px solid #edf2ef}.cashier-order-row>.cashier-order-link{border-top:0;min-width:0}.cashier-order-row-actions{display:flex;flex-direction:column;width:96px;border-left:1px solid #e2ebe6;background:#fbfdfc}.cashier-order-direct-detail,.cashier-order-direct-suborder{display:flex;flex:1;flex-direction:column;justify-content:center;align-items:center;gap:2px;min-height:42px;padding:7px 8px;text-decoration:none;color:var(--brand);font-size:.61rem;font-weight:850;line-height:1.15;text-align:center}.cashier-order-direct-detail{color:inherit;background:#fff}.cashier-order-direct-suborder{border-top:1px solid #e2ebe6}.cashier-order-direct-suborder strong{font-size:1.05rem;line-height:1}.cashier-order-direct-detail:hover,.cashier-order-direct-suborder:hover{background:var(--brand-soft);color:var(--brand)}.cashier-human-order-title{text-transform:uppercase;letter-spacing:.02em}.cashier-human-tech-ref{display:block!important;font-size:.54rem!important;color:var(--muted)!important;opacity:.78;margin-top:2px!important}.cashier-selected-system-ref{display:block;margin-top:3px;font-size:.58rem;color:var(--muted);font-weight:650}.cashier-counter-name-help{display:block;margin-top:4px;font-size:.67rem;color:var(--muted)}
+.cashier-performance{margin-top:14px}.cashier-performance-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:14px 16px;border-bottom:1px solid var(--line)}.cashier-performance-head h2{font-size:1.05rem;margin:0}.cashier-performance-head p{margin:3px 0 0;color:var(--muted);font-size:.72rem}.cashier-performance-shift{font-size:.7rem;font-weight:850;color:var(--brand);white-space:nowrap}.cashier-performance-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;padding:12px}.cashier-performance-card{border:1px solid var(--line);border-radius:12px;padding:11px;background:#fbfdfc}.cashier-performance-card span,.cashier-performance-card strong,.cashier-performance-card small{display:block}.cashier-performance-card span{font-size:.67rem;color:var(--muted);font-weight:800}.cashier-performance-card strong{font-size:1.08rem;margin:2px 0}.cashier-performance-card small{font-size:.63rem;color:#829089}.cashier-team-title{padding:12px 16px 7px;font-size:.78rem;font-weight:900}.cashier-team-table th{font-size:.62rem;text-transform:uppercase;color:var(--muted);white-space:nowrap}.cashier-team-table td{font-size:.75rem;vertical-align:middle}.cashier-team-name strong,.cashier-team-name small{display:block}.cashier-team-name small{font-size:.62rem;color:var(--muted)}.cashier-team-empty{padding:18px;text-align:center;color:var(--muted);font-size:.75rem;border-top:1px solid var(--line)}
+@media(max-width:760px){.cashier-suborder-entry,.cashier-invoices-entry{min-height:44px;justify-content:center}.cashier-mobile-bar{grid-template-columns:repeat(5,1fr)!important}.cashier-order-row-actions{width:82px}.cashier-order-direct-detail,.cashier-order-direct-suborder{min-height:44px;padding:6px 5px;font-size:.57rem}.cashier-performance-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.cashier-performance-head{align-items:center}}
 </style>
+{% if perf %}
+<template id="cashierPerformanceTemplate">
+  <section class="panel-card cashier-performance" id="cashierPerformance">
+    <div class="cashier-performance-head">
+      <div>
+        <p class="eyebrow mb-1">Performance du service</p>
+        <h2>Mes indicateurs et ceux des serveuses</h2>
+        <p>Les chiffres repartent de zéro à chaque nouvelle mise en service.</p>
+      </div>
+      <span class="cashier-performance-shift">En service depuis {{ perf.shift_started }}</span>
+    </div>
+    <div class="cashier-performance-grid">
+      <article class="cashier-performance-card"><span>CA du service</span><strong>{{ "{:,.0f}".format(perf.service_sales) }} {{ bar.currency }}</strong><small>{{ perf.order_count }} commande{{ 's' if perf.order_count != 1 else '' }} · {{ perf.unpaid_count }} impayée{{ 's' if perf.unpaid_count != 1 else '' }}</small></article>
+      <article class="cashier-performance-card"><span>Mes ventes comptoir</span><strong>{{ "{:,.0f}".format(perf.counter_sales) }} {{ bar.currency }}</strong><small>Commandes créées directement par moi</small></article>
+      <article class="cashier-performance-card"><span>Encaissé par moi</span><strong>{{ "{:,.0f}".format(perf.net_collected) }} {{ bar.currency }}</strong><small>Brut {{ "{:,.0f}".format(perf.collected) }} · remboursements {{ "{:,.0f}".format(perf.refunds) }}</small></article>
+      <article class="cashier-performance-card"><span>Commandes vendues</span><strong>{{ perf.order_count }}</strong><small>Confirmées ou servies pendant mon service</small></article>
+      <article class="cashier-performance-card"><span>Ticket moyen</span><strong>{{ "{:,.0f}".format(perf.average_ticket) }} {{ bar.currency }}</strong><small>CA du service ÷ commandes vendues</small></article>
+      <article class="cashier-performance-card"><span>Dépenses saisies</span><strong>{{ "{:,.0f}".format(perf.expense_total) }} {{ bar.currency }}</strong><small>{{ perf.expense_count }} dépense{{ 's' if perf.expense_count != 1 else '' }} enregistrée{{ 's' if perf.expense_count != 1 else '' }} par moi</small></article>
+    </div>
+    <div class="cashier-team-title">Serveuses actuellement en service</div>
+    {% if perf.servers %}
+    <div class="table-responsive">
+      <table class="table cashier-team-table align-middle mb-0">
+        <thead><tr><th>Serveuse</th><th class="text-end">Ventes</th><th class="text-end">Commandes</th><th class="text-end">Ticket moyen</th><th class="text-end">Impayées</th></tr></thead>
+        <tbody>
+          {% for server in perf.servers %}
+          <tr>
+            <td class="cashier-team-name"><strong>{{ server.name }}</strong><small>En service depuis {{ server.started }}</small></td>
+            <td class="text-end fw-bold">{{ "{:,.0f}".format(server.sales) }} {{ bar.currency }}</td>
+            <td class="text-end">{{ server.order_count }}</td>
+            <td class="text-end">{{ "{:,.0f}".format(server.average_ticket) }} {{ bar.currency }}</td>
+            <td class="text-end">{{ server.unpaid_count }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="cashier-team-empty">Aucune serveuse n'est actuellement en service.</div>
+    {% endif %}
+  </section>
+</template>
+{% endif %}
 <script>
 document.addEventListener('DOMContentLoaded', () => {
   const queueUrl = {{ url_for('suborders_web.cashier_queue', bar_id=bar.id)|tojson }};
   const invoicesUrl = {{ url_for('cashier_invoices_web.invoices', bar_id=bar.id)|tojson }};
   const head = document.querySelector('.cashier-head-actions');
+
+  const performanceTemplate = document.getElementById('cashierPerformanceTemplate');
+  const operationalKpis = document.querySelector('.cashier-kpis');
+  if (performanceTemplate && operationalKpis && !document.getElementById('cashierPerformance')) {
+    const performance = performanceTemplate.content.firstElementChild.cloneNode(true);
+    operationalKpis.insertAdjacentElement('afterend', performance);
+  }
 
   const orderMeta = document.querySelector('#quickSaleForm .pos-order-meta');
   if (orderMeta && !orderMeta.querySelector('[name="invoice_name"]')) {
