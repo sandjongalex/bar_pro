@@ -1,0 +1,164 @@
+{% extends 'layout.html' %}
+{% block title %}Échanges & remboursements · {{ bar.name }}{% endblock %}
+{% block header %}Échanges & remboursements · {{ bar.name }}{% endblock %}
+{% block content %}
+<style>
+.exchange-hero{display:flex;justify-content:space-between;gap:1rem;align-items:flex-start;padding:18px;border:1px solid var(--line);border-radius:18px;background:#fff}.exchange-hero h1{font-size:1.5rem;margin:.2rem 0}.exchange-hero p{margin:0;color:var(--muted);max-width:760px}.exchange-badge{display:inline-flex;align-items:center;gap:.4rem;padding:.48rem .7rem;border-radius:999px;background:#eaf7ee;color:#176b36;font-weight:850;font-size:.75rem}.operation-tabs{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap}.operation-tab{border:1px solid var(--line);background:#fff;border-radius:12px;padding:10px 14px;font-weight:850;color:#4c5b55}.operation-tab.active{background:var(--brand);border-color:var(--brand);color:#fff}.operation-panel{display:none}.operation-panel.active{display:block}.exchange-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(300px,360px);gap:16px;margin-top:16px;align-items:start}.exchange-card{background:#fff;border:1px solid var(--line);border-radius:18px;overflow:hidden}.exchange-card-head{padding:15px 17px;border-bottom:1px solid var(--line)}.exchange-card-head h2{font-size:1.08rem;margin:0}.exchange-form{padding:17px}.exchange-products{display:grid;grid-template-columns:1fr 52px 1fr;gap:12px;align-items:end}.exchange-arrow{display:flex;align-items:center;justify-content:center;height:42px;font-size:1.35rem;font-weight:900;color:var(--brand)}.exchange-summary{background:#f7faf8;border:1px solid #e1eae5;border-radius:14px;padding:14px}.exchange-summary>div{display:flex;justify-content:space-between;gap:1rem;padding:4px 0}.exchange-summary span{color:var(--muted)}.exchange-summary .difference{border-top:1px dashed #cfdcd5;margin-top:7px;padding-top:11px;font-size:1.05rem}.exchange-summary .difference strong.collect{color:#9a5a00}.exchange-summary .difference strong.refund{color:#a22}.exchange-summary .difference strong.none{color:#176b36}.exchange-rule{padding:12px 14px;border-radius:12px;background:#fff8e8;border:1px solid #f0deb0;font-size:.8rem;color:#6f5618}.refund-rule{background:#fff0f0;border-color:#f0caca;color:#7c2f2f}.exchange-history{margin-top:16px}.exchange-history table{margin:0}.exchange-history td,.exchange-history th{vertical-align:middle}.exchange-history small{display:block;color:var(--muted)}.exchange-direction{font-weight:850}.exchange-direction.COLLECT{color:#9a5a00}.exchange-direction.REFUND{color:#a22}.exchange-direction.NONE{color:#176b36}.operation-badge{display:inline-flex;padding:.25rem .45rem;border-radius:999px;font-size:.66rem;font-weight:850;background:#eef4f1;color:#36594b}.operation-badge.REFUND{background:#fdecec;color:#9b4343}.refund-form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.refund-amount{font-size:1.5rem;color:#a22;font-weight:900}.refund-note{font-size:.72rem;color:var(--muted);margin-top:5px}.history-mobile{display:none}@media(max-width:900px){.exchange-grid{grid-template-columns:1fr}.exchange-products{grid-template-columns:1fr}.exchange-arrow{height:auto;transform:rotate(90deg)}.refund-form-grid{grid-template-columns:1fr}}@media(max-width:700px){.exchange-hero{display:block}.exchange-hero .btn{margin-top:12px;width:100%}.operation-tabs{display:grid;grid-template-columns:1fr 1fr}.operation-tab{width:100%}.exchange-history .table-responsive{display:none}.history-mobile{display:grid;gap:10px;padding:12px}.history-card{border:1px solid var(--line);border-radius:13px;padding:12px}.history-card strong,.history-card small{display:block}.history-card-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}.history-card-grid span{font-size:.65rem;color:var(--muted);display:block}.history-card-grid strong{font-size:.78rem}.exchange-form{padding:13px}.exchange-card{border-radius:14px}}
+</style>
+
+<section class="exchange-hero">
+  <div>
+    <span class="exchange-badge">⇄ Sans rechercher la facture</span>
+    <h1>Échanger ou rembourser une bière vendue</h1>
+    <p>La caissière peut remplacer une boisson rendue ou rembourser directement une bière vendue. Le stock et la caisse sont corrigés automatiquement selon l'opération.</p>
+  </div>
+  <a class="btn btn-outline-primary" href="{{ url_for('checkout_web.checkout', bar_id=bar.id) }}">Retour à la caisse</a>
+</section>
+
+{% for category, message in get_flashed_messages(with_categories=true) %}
+<div class="alert alert-{{ category }} mt-3" role="alert">{{ message }}</div>
+{% endfor %}
+
+<div class="operation-tabs" role="tablist" aria-label="Type d'opération">
+  <button class="operation-tab {% if initial_mode == 'exchange' %}active{% endif %}" type="button" data-operation="exchange">⇄ Échanger une bière</button>
+  <button class="operation-tab {% if initial_mode == 'refund' %}active{% endif %}" type="button" data-operation="refund">↩ Rembourser une bière vendue</button>
+</div>
+
+<section class="operation-panel {% if initial_mode == 'exchange' %}active{% endif %}" data-operation-panel="exchange">
+<div class="exchange-grid">
+  <section class="exchange-card">
+    <div class="exchange-card-head"><p class="eyebrow mb-1">Nouvel échange</p><h2>Boisson rendue → boisson donnée</h2></div>
+    <form method="post" class="exchange-form" id="exchangeForm">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="action" value="exchange">
+      <div class="exchange-products">
+        <div>
+          <label class="form-label" for="returnedProduct">Boisson rendue</label>
+          <select class="form-select" id="returnedProduct" name="returned_product_id" required>
+            <option value="">Choisir…</option>
+            {% for product in products %}<option value="{{ product.id }}" data-price="{{ product.sale_price }}">{{ product.name }} · {{ "{:,.0f}".format(product.sale_price) }} {{ bar.currency }}</option>{% endfor %}
+          </select>
+          <div class="row g-2 mt-1">
+            <div class="col-5"><label class="form-label small" for="returnedQuantity">Quantité</label><input class="form-control" id="returnedQuantity" name="returned_quantity" type="number" min="0.001" step="0.001" value="1" required></div>
+            <div class="col-7"><label class="form-label small" for="returnedDisposition">État du retour</label><select class="form-select" id="returnedDisposition" name="returned_disposition"><option value="RESTOCK">Remettre en stock</option><option value="LOSS">Perte / non revendable</option></select></div>
+          </div>
+        </div>
+        <div class="exchange-arrow" aria-hidden="true">→</div>
+        <div>
+          <label class="form-label" for="replacementProduct">Boisson de remplacement</label>
+          <select class="form-select" id="replacementProduct" name="replacement_product_id" required>
+            <option value="">Choisir…</option>
+            {% for product in products %}{% set stock = stock_balances.get(product.id, 0) %}<option value="{{ product.id }}" data-price="{{ product.sale_price }}" {% if stock <= 0 %}disabled{% endif %}>{{ product.name }} · {{ "{:,.0f}".format(product.sale_price) }} {{ bar.currency }} · stock {{ stock }}</option>{% endfor %}
+          </select>
+          <div class="mt-1"><label class="form-label small" for="replacementQuantity">Quantité donnée</label><input class="form-control" id="replacementQuantity" name="replacement_quantity" type="number" min="0.001" step="0.001" value="1" required></div>
+        </div>
+      </div>
+      <div class="exchange-summary mt-3" aria-live="polite">
+        <div><span>Valeur rendue</span><strong><span id="returnedValue">0</span> {{ bar.currency }}</strong></div>
+        <div><span>Valeur remplacement</span><strong><span id="replacementValue">0</span> {{ bar.currency }}</strong></div>
+        <div class="difference"><span id="differenceLabel">Différence</span><strong class="none" id="differenceValue">0 {{ bar.currency }}</strong></div>
+      </div>
+      <div class="row g-2 mt-2" id="settlementFields">
+        <div class="col-md-5"><label class="form-label" for="settlementMethod">Règlement de la différence</label><select class="form-select" id="settlementMethod" name="settlement_method"><option value="">Choisir…</option><option value="CASH">Espèces</option><option value="MOBILE_MONEY">Mobile Money</option><option value="CARD">Carte</option><option value="BANK_TRANSFER">Virement</option></select></div>
+        <div class="col-md-7" id="providerField"><label class="form-label" for="providerTransaction">Référence transaction <span class="text-secondary">(facultatif)</span></label><input class="form-control" id="providerTransaction" name="provider_transaction_id" maxlength="128"></div>
+      </div>
+      <div class="mt-3"><label class="form-label" for="exchangeReason">Motif / observation</label><input class="form-control" id="exchangeReason" name="reason" maxlength="500" value="Changement de boisson non consommée" required></div>
+      <div class="exchange-rule mt-3"><strong>Stock :</strong> la boisson rendue augmente le stock uniquement si « Remettre en stock » est choisi. La boisson donnée est toujours retirée du stock.</div>
+      <button class="btn btn-primary btn-lg w-100 mt-3" type="submit" {% if not can_exchange %}disabled{% endif %}>Valider l'échange</button>
+    </form>
+  </section>
+  <aside class="exchange-card"><div class="exchange-card-head"><p class="eyebrow mb-1">Exemples</p><h2>Calcul automatique</h2></div><div class="p-3 d-grid gap-3"><div><strong>33 → Castel</strong><small class="d-block text-secondary">Même prix : aucun règlement.</small></div><div><strong>Mutzig → Petite Guinness</strong><small class="d-block text-secondary">Le client paie seulement la différence si la nouvelle bière coûte plus cher.</small></div><div><strong>Remplacement moins cher</strong><small class="d-block text-secondary">La différence est remboursée automatiquement.</small></div></div></aside>
+</div>
+</section>
+
+<section class="operation-panel {% if initial_mode == 'refund' %}active{% endif %}" data-operation-panel="refund">
+<div class="exchange-grid">
+  <section class="exchange-card">
+    <div class="exchange-card-head"><p class="eyebrow mb-1">Remboursement direct</p><h2>Rembourser une bière déjà vendue</h2></div>
+    <form method="post" class="exchange-form" id="refundForm">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="action" value="refund">
+      <div>
+        <label class="form-label" for="refundProduct">Bière / boisson rendue</label>
+        <select class="form-select" id="refundProduct" name="refund_product_id" required>
+          <option value="">Choisir…</option>
+          {% for product in products %}<option value="{{ product.id }}" data-price="{{ product.sale_price }}">{{ product.name }} · {{ "{:,.0f}".format(product.sale_price) }} {{ bar.currency }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="refund-form-grid mt-2">
+        <div><label class="form-label" for="refundQuantity">Quantité à rembourser</label><input class="form-control" id="refundQuantity" name="refund_quantity" type="number" min="0.001" step="0.001" value="1" required></div>
+        <div><label class="form-label" for="refundDisposition">État de la bouteille rendue</label><select class="form-select" id="refundDisposition" name="refund_disposition"><option value="RESTOCK">Revendable · remettre en stock</option><option value="LOSS">Non revendable · perte</option></select></div>
+      </div>
+      <div class="exchange-summary mt-3"><div><span>Montant à rembourser</span><strong class="refund-amount"><span id="refundAmount">0</span> {{ bar.currency }}</strong></div></div>
+      <div class="refund-note">Le montant est calculé avec le prix de vente actuel du produit × la quantité retournée.</div>
+      <div class="refund-form-grid mt-3">
+        <div><label class="form-label" for="refundMethod">Mode de remboursement</label><select class="form-select" id="refundMethod" name="refund_method" required><option value="">Choisir…</option><option value="CASH">Espèces</option><option value="MOBILE_MONEY">Mobile Money</option><option value="CARD">Carte</option><option value="BANK_TRANSFER">Virement</option></select></div>
+        <div id="refundProviderField"><label class="form-label" for="refundProvider">Référence transaction <span class="text-secondary">(facultatif)</span></label><input class="form-control" id="refundProvider" name="refund_provider_transaction_id" maxlength="128"></div>
+      </div>
+      <div class="mt-3"><label class="form-label" for="refundReason">Motif du remboursement</label><input class="form-control" id="refundReason" name="refund_reason" maxlength="500" value="Bière rendue par le client" required></div>
+      <div class="exchange-rule refund-rule mt-3"><strong>Attention :</strong> en espèces, le montant est retiré de la caisse ouverte. Si la caisse ne contient pas assez d'espèces théoriques, toute l'opération est refusée et le stock reste inchangé.</div>
+      <button class="btn btn-danger btn-lg w-100 mt-3" type="submit" {% if not can_refund %}disabled{% endif %}>Rembourser la bière</button>
+    </form>
+  </section>
+  <aside class="exchange-card"><div class="exchange-card-head"><p class="eyebrow mb-1">Exemple</p><h2>Petite Guinness rendue</h2></div><div class="p-3"><strong>1 × Petite Guinness à 900 {{ bar.currency }}</strong><small class="d-block text-secondary mt-1">Le client reçoit 900 {{ bar.currency }}. Si la bouteille est revendable, le stock augmente de 1. Sinon elle est enregistrée sans remise en stock.</small></div></aside>
+</div>
+</section>
+
+<section class="exchange-card exchange-history">
+  <div class="exchange-card-head d-flex justify-content-between align-items-center gap-3"><div><p class="eyebrow mb-1">Traçabilité</p><h2>Dernières opérations</h2></div><span class="badge text-bg-light">{{ exchanges|length }}</span></div>
+  {% if exchanges %}
+  <div class="table-responsive">
+    <table class="table align-middle mb-0"><thead><tr><th>Type / date</th><th>Boisson rendue</th><th>Remplacement</th><th>Montant</th><th>Règlement</th><th>Motif</th></tr></thead><tbody>
+    {% for item in exchanges %}
+    <tr>
+      <td><span class="operation-badge {{ item.operation_type }}">{{ 'Remboursement' if item.operation_type == 'REFUND' else 'Échange' }}</span><small>{{ item.reference }}</small><small>{{ item.date }}</small></td>
+      <td><strong>{{ item.returned_product_name }}</strong><small>{{ item.returned_quantity }} × {{ "{:,.0f}".format(item.returned_unit_price|float) }} {{ bar.currency }} · {{ 'stock' if item.returned_disposition == 'RESTOCK' else 'perte' }}</small></td>
+      <td>{% if item.operation_type == 'REFUND' %}<span class="text-secondary">—</span>{% else %}<strong>{{ item.replacement_product_name }}</strong><small>{{ item.replacement_quantity }} × {{ "{:,.0f}".format(item.replacement_unit_price|float) }} {{ bar.currency }}</small>{% endif %}</td>
+      <td><span class="exchange-direction {{ item.settlement_direction }}">{{ direction_labels.get(item.settlement_direction, item.settlement_direction) }}</span><small>{{ "{:,.0f}".format(item.settlement_amount_value) }} {{ bar.currency }}</small></td>
+      <td>{{ payment_labels.get(item.settlement_method, '—') }}{% if item.provider_transaction_id %}<small>{{ item.provider_transaction_id }}</small>{% endif %}</td>
+      <td>{{ item.reason }}</td>
+    </tr>
+    {% endfor %}
+    </tbody></table>
+  </div>
+  <div class="history-mobile">
+    {% for item in exchanges %}
+    <article class="history-card"><span class="operation-badge {{ item.operation_type }}">{{ 'Remboursement' if item.operation_type == 'REFUND' else 'Échange' }}</span><strong class="mt-2">{{ item.returned_product_name }}{% if item.operation_type != 'REFUND' %} → {{ item.replacement_product_name }}{% endif %}</strong><small>{{ item.date }} · {{ item.reference }}</small><div class="history-card-grid"><div><span>Montant</span><strong>{{ "{:,.0f}".format(item.settlement_amount_value) }} {{ bar.currency }}</strong></div><div><span>Règlement</span><strong>{{ payment_labels.get(item.settlement_method, '—') }}</strong></div></div><small class="mt-2">{{ item.reason }}</small></article>
+    {% endfor %}
+  </div>
+  {% else %}<div class="p-4 text-secondary">Aucun échange ou remboursement autonome enregistré.</div>{% endif %}
+</section>
+
+<script>
+(function(){
+  const tabs=[...document.querySelectorAll('[data-operation]')];
+  const panels=[...document.querySelectorAll('[data-operation-panel]')];
+  tabs.forEach(tab=>tab.addEventListener('click',()=>{const mode=tab.dataset.operation;tabs.forEach(x=>x.classList.toggle('active',x===tab));panels.forEach(x=>x.classList.toggle('active',x.dataset.operationPanel===mode));history.replaceState(null,'',`?mode=${mode}`)}));
+
+  const returnedProduct=document.getElementById('returnedProduct');
+  const replacementProduct=document.getElementById('replacementProduct');
+  const returnedQuantity=document.getElementById('returnedQuantity');
+  const replacementQuantity=document.getElementById('replacementQuantity');
+  const returnedValue=document.getElementById('returnedValue');
+  const replacementValue=document.getElementById('replacementValue');
+  const differenceLabel=document.getElementById('differenceLabel');
+  const differenceValue=document.getElementById('differenceValue');
+  const settlementMethod=document.getElementById('settlementMethod');
+  const providerField=document.getElementById('providerField');
+  const providerTransaction=document.getElementById('providerTransaction');
+  const refundProduct=document.getElementById('refundProduct');
+  const refundQuantity=document.getElementById('refundQuantity');
+  const refundAmount=document.getElementById('refundAmount');
+  const refundMethod=document.getElementById('refundMethod');
+  const refundProviderField=document.getElementById('refundProviderField');
+  const refundProvider=document.getElementById('refundProvider');
+  function price(select){const option=select.options[select.selectedIndex];return option?Number(option.dataset.price||0):0}
+  function qty(input){return Math.max(0,Number(input.value||0))}
+  function money(value){return Math.round(value).toLocaleString('fr-FR')}
+  function updateProvider(select,field,input){const isCash=select.value==='CASH';field.style.display=isCash?'none':'';if(isCash)input.value=''}
+  function updateExchange(){const returned=price(returnedProduct)*qty(returnedQuantity);const replacement=price(replacementProduct)*qty(replacementQuantity);const difference=replacement-returned;returnedValue.textContent=money(returned);replacementValue.textContent=money(replacement);differenceValue.classList.remove('collect','refund','none');if(difference>0){differenceLabel.textContent='À encaisser';differenceValue.textContent=money(difference)+' {{ bar.currency }}';differenceValue.classList.add('collect');settlementMethod.required=true}else if(difference<0){differenceLabel.textContent='À rembourser';differenceValue.textContent=money(Math.abs(difference))+' {{ bar.currency }}';differenceValue.classList.add('refund');settlementMethod.required=true}else{differenceLabel.textContent='Aucun supplément';differenceValue.textContent='0 {{ bar.currency }}';differenceValue.classList.add('none');settlementMethod.required=false;settlementMethod.value='';providerTransaction.value=''}updateProvider(settlementMethod,providerField,providerTransaction)}
+  function updateRefund(){refundAmount.textContent=money(price(refundProduct)*qty(refundQuantity));updateProvider(refundMethod,refundProviderField,refundProvider)}
+  [returnedProduct,replacementProduct,returnedQuantity,replacementQuantity].forEach(el=>el.addEventListener('input',updateExchange));settlementMethod.addEventListener('change',()=>updateProvider(settlementMethod,providerField,providerTransaction));[refundProduct,refundQuantity].forEach(el=>el.addEventListener('input',updateRefund));refundMethod.addEventListener('change',updateRefund);updateExchange();updateRefund();
+})();
+</script>
+{% endblock %}

@@ -92,7 +92,7 @@ def test_cashier_can_exchange_beer_without_invoice_and_collect_difference(env):
     page = client.get(f"/bars/{bar.id}/cashier-exchanges")
     assert page.status_code == 200
     assert "Échange bière" in page.text
-    assert "Changer une bière directement à la caisse" in page.text
+    assert "Échanger ou rembourser une bière vendue" in page.text
     assert returned_product.name in page.text
     assert replacement.name in page.text
 

@@ -1,4 +1,4 @@
-"""Cashier-facing beer/product exchanges, independent from invoices."""
+"""Cashier-facing beer/product exchanges and refunds, independent from invoices."""
 from __future__ import annotations
 
 from datetime import timezone
@@ -13,6 +13,7 @@ from app.exchange_services import exchange_service
 from app.extensions import db
 from app.models import AuditLog, Bar, Product, StockBalance
 from app.permissions import permissions
+from app.standalone_refund_service import standalone_refund_service
 
 bp = Blueprint("cashier_exchanges_web", __name__, url_prefix="/bars/<int:bar_id>/cashier-exchanges")
 
@@ -34,21 +35,22 @@ def _message(exc) -> str:
     code = str(exc)
     messages = {
         "NOT_FOUND": "Produit introuvable ou indisponible.",
-        "FORBIDDEN": "Vous n'êtes pas autorisé à enregistrer cet échange.",
+        "FORBIDDEN": "Vous n'êtes pas autorisé à effectuer cette opération.",
         "SAME_PRODUCT": "Choisissez deux boissons différentes.",
         "INVALID_DISPOSITION": "Choisissez si la boisson rendue revient au stock ou devient une perte.",
-        "INVALID_METHOD": "Choisissez un mode de règlement valide pour la différence de prix.",
+        "INVALID_METHOD": "Choisissez un mode de règlement valide.",
         "INVALID_CASH_PROVIDER": "Ne saisissez pas de référence de transaction pour un règlement en espèces.",
+        "INVALID_REFUND_AMOUNT": "Le montant à rembourser doit être supérieur à zéro.",
         "CASH_SESSION_REQUIRED": "Une session de caisse ouverte est obligatoire pour encaisser ou rembourser en espèces.",
         "CASH_SESSION_NOT_OPEN": "La session de caisse n'est plus ouverte.",
-        "INSUFFICIENT_DRAWER_CASH": "La caisse ne contient pas assez d'espèces pour rembourser cette différence.",
+        "INSUFFICIENT_DRAWER_CASH": "La caisse ne contient pas assez d'espèces pour effectuer ce remboursement.",
         "INSUFFICIENT_STOCK": "Le stock de la boisson de remplacement est insuffisant. Aucun mouvement n'a été conservé.",
         "POSITIVE_NUMBER_REQUIRED": "Les quantités doivent être strictement supérieures à zéro.",
         "INVALID_NUMBER": "Une quantité ou un montant est invalide.",
         "INVALID_PRECISION": "La précision d'une quantité est invalide.",
         "INVALID_TEXT": "Le motif est obligatoire et doit rester court.",
     }
-    return messages.get(code, "Échange refusé. Vérifiez les produits, les quantités, le stock et le règlement.")
+    return messages.get(code, "Opération refusée. Vérifiez les produits, les quantités, le stock et le règlement.")
 
 
 def _decimal(value) -> Decimal:
@@ -64,7 +66,7 @@ def _history(bar: Bar):
             select(AuditLog)
             .where(
                 AuditLog.bar_id == bar.id,
-                AuditLog.action == "exchanges.record",
+                AuditLog.action.in_(["exchanges.record", "exchanges.refund"]),
                 AuditLog.outcome == "SUCCESS",
             )
             .order_by(AuditLog.occurred_at.desc(), AuditLog.id.desc())
@@ -85,6 +87,7 @@ def _history(bar: Bar):
             {
                 "date": display_time,
                 "reason": log.reason,
+                "operation_type": data.get("operation_type") or ("REFUND" if log.action == "exchanges.refund" else "EXCHANGE"),
                 "settlement_amount_value": _decimal(data.get("settlement_amount")),
             }
         )
@@ -95,19 +98,50 @@ def _history(bar: Bar):
 @bp.route("", methods=["GET", "POST"])
 @login_required
 def manage(bar_id: int):
-    # This workflow deliberately has no Order dependency: the cashier can
-    # exchange a bottle at the counter even when the original invoice is unknown.
+    # These workflows deliberately have no Order dependency: the cashier can
+    # exchange or refund a returned bottle even when the original invoice is unknown.
     permissions.require(current_user, "payments.read", bar_id)
     bar = db.session.get(Bar, bar_id)
     if not bar:
         raise LookupError("NOT_FOUND")
 
     can_exchange = permissions.evaluate(current_user, "payments.record", bar_id).allowed
+    can_refund = permissions.evaluate(current_user, "refunds.record", bar_id).allowed
 
     if request.method == "POST":
-        if not can_exchange:
-            raise PermissionError("FORBIDDEN")
+        action = (request.form.get("action") or "exchange").strip().lower()
         try:
+            if action == "refund":
+                if not can_refund:
+                    raise PermissionError("FORBIDDEN")
+                product_id = request.form.get("refund_product_id", type=int)
+                if not product_id:
+                    raise LookupError("NOT_FOUND")
+                result = standalone_refund_service.create(
+                    current_user,
+                    bar_id,
+                    product_id=product_id,
+                    quantity=request.form.get("refund_quantity", "1"),
+                    returned_disposition=request.form.get("refund_disposition", "RESTOCK"),
+                    reason=request.form.get("refund_reason", "").strip(),
+                    refund_method=request.form.get("refund_method", ""),
+                    provider_transaction_id=request.form.get("refund_provider_transaction_id"),
+                )
+                db.session.commit()
+                stock_note = " remise en stock" if result.returned_disposition == "RESTOCK" else " classée en perte"
+                flash(
+                    f"Remboursement {result.reference} enregistré : {result.quantity} × {result.product_name}, "
+                    f"{result.refund_amount:,.0f} {bar.currency} remboursés en "
+                    f"{PAYMENT_LABELS.get(result.refund_method, result.refund_method)} ; bouteille{stock_note}.",
+                    "success",
+                )
+                return redirect(url_for("cashier_exchanges_web.manage", bar_id=bar_id, mode="refund"))
+
+            if action != "exchange":
+                raise ValueError("INVALID_ACTION")
+            if not can_exchange:
+                raise PermissionError("FORBIDDEN")
+
             returned_product_id = request.form.get("returned_product_id", type=int)
             replacement_product_id = request.form.get("replacement_product_id", type=int)
             if not returned_product_id or not replacement_product_id:
@@ -138,7 +172,7 @@ def manage(bar_id: int):
                 f"{result.replacement_product_name}.{settlement}",
                 "success",
             )
-            return redirect(url_for("cashier_exchanges_web.manage", bar_id=bar_id))
+            return redirect(url_for("cashier_exchanges_web.manage", bar_id=bar_id, mode="exchange"))
         except (PermissionError, LookupError, ValueError, TypeError, ArithmeticError) as exc:
             db.session.rollback()
             flash(_message(exc), "danger")
@@ -157,7 +191,7 @@ def manage(bar_id: int):
     )
 
     return render_template(
-        "cashier_exchanges.html",
+        "cashier_exchanges_v2.html",
         bar=bar,
         products=products,
         stock_balances=stock_balances,
@@ -165,4 +199,6 @@ def manage(bar_id: int):
         payment_labels=PAYMENT_LABELS,
         direction_labels=DIRECTION_LABELS,
         can_exchange=can_exchange,
+        can_refund=can_refund,
+        initial_mode="refund" if request.args.get("mode") == "refund" else "exchange",
     )
