@@ -12,6 +12,11 @@
     {% set context_parent_url = url_for('bars.web_list') %}
     {% set context_scope = 'settings' %}
 
+  {% elif endpoint.startswith('exchanges_web.') %}
+    {% set context_section = 'Service' %}
+    {% set context_title = 'Échanges de boissons' %}
+    {% set context_scope = 'service' if nav_effective_role == 'SERVER' else 'cashier' %}
+
   {% elif endpoint.startswith('orders_web.') %}
     {% if nav_effective_role == 'SERVER' %}
       {% set context_section = 'Service' %}
@@ -207,6 +212,7 @@
 
     {% elif context_scope == 'cashier' %}
       <nav class="context-shortcuts" aria-label="Raccourcis caisse" data-context-shortcuts>
+        <a href="{{ url_for('exchanges_web.manage', bar_id=nav_bar_id) }}">Échanges sans facture</a>
         <a class="{% if endpoint.startswith('checkout_web.') %}active{% endif %}" href="{{ url_for('checkout_web.checkout', bar_id=nav_bar_id) }}">Caisse</a>
         <a class="{% if endpoint.startswith('unpaid_orders_web.') %}active{% endif %}" href="{{ url_for('unpaid_orders_web.monitor', bar_id=nav_bar_id) }}">Impayées</a>
         <a class="{% if endpoint.startswith('cashier_handovers_web.') %}active{% endif %}" href="{{ url_for('cashier_handovers_web.manage', bar_id=nav_bar_id) }}">Remises</a>

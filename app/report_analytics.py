@@ -10,7 +10,7 @@ from sqlalchemy import func, select
 
 from app.customer_models import CustomerLedgerEntry
 from app.extensions import db
-from app.models import Bar, Expense, Order, OrderReturn, Payment, Refund
+from app.models import BeverageExchange, Bar, Expense, Order, OrderReturn, Payment, Refund
 from app.permissions import permissions
 from app.report_services import summary
 
@@ -230,6 +230,16 @@ def _daily_trend(bar: Bar, start_day: date, end_day: date):
                 buckets[local_day]["sales"] += max(
                     _decimal(order.total_amount) - _decimal(returns.get(order.id, 0)), ZERO
                 )
+
+    for decided_at, supplement in db.session.execute(
+        select(BeverageExchange.decided_at, BeverageExchange.supplement).where(
+            BeverageExchange.bar_id == bar.id, BeverageExchange.status == "POSTED",
+            BeverageExchange.decided_at >= start_at, BeverageExchange.decided_at < end_at)
+    ).all():
+        local_day = _local_day(decided_at, tz)
+        if local_day in buckets:
+            buckets[local_day]["sales"] += _decimal(supplement)
+            buckets[local_day]["receipts"] += _decimal(supplement)
 
     for received_at, amount in db.session.execute(
         select(Payment.received_at, Payment.amount_applied).where(

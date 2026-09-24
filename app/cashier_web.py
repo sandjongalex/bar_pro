@@ -13,7 +13,7 @@ from sqlalchemy.exc import IntegrityError
 from app.cash_services import cash_service
 from app.extensions import db
 from app.finance_totals import order_balance
-from app.models import Bar, CashMovement, CashSession, Order, Payment, Refund, StaffAssignment, User
+from app.models import BeverageExchange, Bar, CashMovement, CashSession, Order, Payment, Refund, StaffAssignment, User
 from app.permissions import permissions
 
 bp = Blueprint("cashier_web", __name__, url_prefix="/bars/<int:bar_id>/cashier-session")
@@ -93,7 +93,16 @@ def _movement_breakdown(session: CashSession | None):
             CashMovement.cash_session_id == session.id,
         )
     ).one()
-    return {key: Decimal(value or 0) for key, value in zip(empty, row, strict=True)}
+    result = {key: Decimal(value or 0) for key, value in zip(empty, row, strict=True)}
+    supplement = Decimal(db.session.scalar(
+        select(func.coalesce(func.sum(BeverageExchange.supplement), 0))
+        .join(CashMovement, CashMovement.id == BeverageExchange.cash_movement_id)
+        .where(BeverageExchange.bar_id == session.bar_id, BeverageExchange.status == "POSTED",
+               CashMovement.cash_session_id == session.id)
+    ) or 0)
+    result["cash_sales"] += supplement
+    result["other"] -= supplement
+    return result
 
 
 def _period_filters(column, session: CashSession):
@@ -141,6 +150,13 @@ def _service_summary(session: CashSession | None):
     ):
         if method in refunded:
             refunded[method] = Decimal(amount or 0)
+
+    gross["CASH"] += Decimal(db.session.scalar(
+        select(func.coalesce(func.sum(BeverageExchange.supplement), 0))
+        .join(CashMovement, CashMovement.id == BeverageExchange.cash_movement_id)
+        .where(BeverageExchange.bar_id == session.bar_id, BeverageExchange.status == "POSTED",
+               CashMovement.cash_session_id == session.id)
+    ) or 0)
 
     net = {code: gross[code] - refunded[code] for code in methods}
     orders_touched = int(

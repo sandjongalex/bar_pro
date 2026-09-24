@@ -10,6 +10,8 @@ from sqlalchemy import func, select
 
 from app.customer_models import CustomerLedgerEntry
 from app.extensions import db
+from app.models import BeverageExchange
+from sqlalchemy.orm import aliased
 from app.models import (
     Bar,
     CashSession,
@@ -240,6 +242,21 @@ def summary(actor, bar_id, start=None, end=None):
         if net_qty > 0:
             top[line.product_name_snapshot] += net_qty
 
+    incoming, outgoing = aliased(StockMovement), aliased(StockMovement)
+    exchanges = db.session.execute(
+        select(BeverageExchange, incoming.unit_cost_snapshot, outgoing.unit_cost_snapshot)
+        .join(incoming, incoming.id == BeverageExchange.return_movement_id)
+        .join(outgoing, outgoing.id == BeverageExchange.replacement_movement_id)
+        .where(BeverageExchange.bar_id == bar_id, BeverageExchange.status == "POSTED",
+               *_period_filters(BeverageExchange.decided_at, start_at, end_at))
+    ).all()
+    exchange_supplements = sum((item.supplement for item, _, _ in exchanges), ZERO)
+    revenue += exchange_supplements
+    gross_revenue += exchange_supplements
+    for item, incoming_cost, outgoing_cost in exchanges:
+        gross_margin += (item.supplement + item.returned_quantity * incoming_cost
+                         - item.replacement_quantity * outgoing_cost)
+
     direct_payments = list(
         db.session.scalars(
             select(Payment).where(
@@ -268,6 +285,8 @@ def summary(actor, bar_id, start=None, end=None):
 
     by_method_gross = defaultdict(Decimal)
     by_method_refunds = defaultdict(Decimal)
+    if exchange_supplements:
+        by_method_gross["CASH"] += exchange_supplements
     for payment in direct_payments:
         by_method_gross[payment.method] += _decimal(payment.amount_applied)
     for entry in customer_collections:
@@ -282,7 +301,7 @@ def summary(actor, bar_id, start=None, end=None):
     direct_received = sum((_decimal(p.amount_applied) for p in direct_payments), ZERO)
     credit_collections = sum((abs(_decimal(x.amount_delta)) for x in customer_collections), ZERO)
     refunded = sum((_decimal(r.amount) for r in refunds), ZERO)
-    total_received = direct_received + credit_collections
+    total_received = direct_received + credit_collections + exchange_supplements
 
     expenses = list(
         db.session.scalars(
@@ -479,6 +498,7 @@ def summary(actor, bar_id, start=None, end=None):
         "sales": {
             "revenue": str(revenue),
             "gross_revenue": str(gross_revenue),
+            "exchange_supplements": str(exchange_supplements),
             "returns": str(returned_amount),
             "orders": len(sales),
             "gross_margin_estimate": str(gross_margin),
@@ -488,6 +508,7 @@ def summary(actor, bar_id, start=None, end=None):
         "payments": {
             "received": str(total_received),
             "direct_received": str(direct_received),
+            "exchange_supplements": str(exchange_supplements),
             "customer_credit_collections": str(credit_collections),
             "refunded": str(refunded),
             "net_received": str(total_received - refunded),

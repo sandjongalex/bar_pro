@@ -235,3 +235,46 @@ for columns, targets, name in (
     (["bar_id","order_line_id","product_id"],["order_lines.bar_id","order_lines.id","order_lines.product_id"],"fk_return_line_product"),
 ):
     OrderReturnLine.__table__.append_constraint(ForeignKeyConstraint(columns,targets,name=name,ondelete="RESTRICT"))
+
+
+class BeverageExchange(Tenant, db.Model):
+    """Independent, quoted exchange; journals are created only on cashier approval."""
+    __tablename__ = "beverage_exchanges"
+    id = db.Column(ID, primary_key=True)
+    reference = db.Column(db.String(64), nullable=False)
+    status = db.Column(db.String(16), nullable=False, default="PENDING")
+    staff_assignment_id = db.Column(ID, nullable=False)
+    returned_product_id = db.Column(ID, nullable=False)
+    replacement_product_id = db.Column(ID, nullable=False)
+    returned_name = db.Column(db.String(160), nullable=False)
+    replacement_name = db.Column(db.String(160), nullable=False)
+    returned_quantity = db.Column(QTY, nullable=False)
+    replacement_quantity = db.Column(QTY, nullable=False)
+    returned_price = db.Column(MONEY, nullable=False)
+    replacement_price = db.Column(MONEY, nullable=False)
+    supplement = db.Column(MONEY, nullable=False)
+    currency = db.Column(db.String(3), nullable=False)
+    reason = db.Column(db.String(500), nullable=False)
+    created_by_id = db.Column(ID, db.ForeignKey("users.id", ondelete="RESTRICT"), nullable=False)
+    decided_by_id = db.Column(ID, db.ForeignKey("users.id", ondelete="RESTRICT"))
+    decided_at = db.Column(DT)
+    return_movement_id = db.Column(ID)
+    replacement_movement_id = db.Column(ID)
+    cash_movement_id = db.Column(ID)
+    __table_args__ = tenant_args(
+        "beverage_exchanges",
+        ForeignKeyConstraint(["bar_id", "staff_assignment_id"], ["staff_assignments.bar_id", "staff_assignments.id"], ondelete="RESTRICT"),
+        ForeignKeyConstraint(["bar_id", "returned_product_id"], ["products.bar_id", "products.id"], ondelete="RESTRICT"),
+        ForeignKeyConstraint(["bar_id", "replacement_product_id"], ["products.bar_id", "products.id"], ondelete="RESTRICT"),
+        ForeignKeyConstraint(["bar_id", "return_movement_id"], ["stock_movements.bar_id", "stock_movements.id"], ondelete="RESTRICT"),
+        ForeignKeyConstraint(["bar_id", "replacement_movement_id"], ["stock_movements.bar_id", "stock_movements.id"], ondelete="RESTRICT"),
+        ForeignKeyConstraint(["bar_id", "cash_movement_id"], ["cash_movements.bar_id", "cash_movements.id"], ondelete="RESTRICT"),
+        UniqueConstraint("bar_id", "reference", name="uq_beverage_exchanges_reference"),
+        UniqueConstraint("bar_id", "return_movement_id", name="uq_beverage_exchanges_return"),
+        UniqueConstraint("bar_id", "replacement_movement_id", name="uq_beverage_exchanges_replacement"),
+        UniqueConstraint("bar_id", "cash_movement_id", name="uq_beverage_exchanges_cash"),
+        CheckConstraint("status IN ('PENDING','POSTED','CANCELLED')", name="ck_beverage_exchanges_status"),
+        CheckConstraint("returned_product_id <> replacement_product_id AND returned_quantity > 0 AND replacement_quantity > 0 AND returned_price >= 0 AND replacement_price >= 0 AND supplement >= 0", name="ck_beverage_exchanges_values"),
+        CheckConstraint("(status = 'PENDING' AND decided_by_id IS NULL AND decided_at IS NULL) OR (status <> 'PENDING' AND decided_by_id IS NOT NULL AND decided_at IS NOT NULL)", name="ck_beverage_exchanges_decision"),
+        CheckConstraint("(status = 'POSTED' AND return_movement_id IS NOT NULL AND replacement_movement_id IS NOT NULL AND ((supplement = 0 AND cash_movement_id IS NULL) OR (supplement > 0 AND cash_movement_id IS NOT NULL))) OR (status <> 'POSTED' AND return_movement_id IS NULL AND replacement_movement_id IS NULL AND cash_movement_id IS NULL)", name="ck_beverage_exchanges_journals"),
+    )
