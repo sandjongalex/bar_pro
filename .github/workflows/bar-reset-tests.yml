@@ -1,0 +1,31 @@
+name: Owner bar reset tests
+
+on:
+  push:
+    paths:
+      - 'app/bar_reset_service.py'
+      - 'app/bars.py'
+      - 'app/permissions.py'
+      - 'app/templates/bars/list.html'
+      - 'tests/test_bar_reset.py'
+      - '.github/workflows/bar-reset-tests.yml'
+  pull_request:
+    paths:
+      - 'app/bar_reset_service.py'
+      - 'app/bars.py'
+      - 'app/permissions.py'
+      - 'app/templates/bars/list.html'
+      - 'tests/test_bar_reset.py'
+      - '.github/workflows/bar-reset-tests.yml'
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r requirements.txt
+      - name: Owner reset isolation and safeguards
+        run: pytest -q tests/test_bar_reset.py
