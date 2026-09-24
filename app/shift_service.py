@@ -163,7 +163,17 @@ def end_shift(actor, bar_id: int, assignment_id: int):
             )
             .limit(1)
         )
-        if server_open:
+        other_cashier_open = db.session.scalar(
+            select(EmployeeShift.id)
+            .where(
+                EmployeeShift.bar_id == bar_id,
+                EmployeeShift.role_snapshot == "CASHIER",
+                EmployeeShift.status == "OPEN",
+                EmployeeShift.id != item.id,
+            )
+            .limit(1)
+        )
+        if server_open and not other_cashier_open:
             raise ShiftError("SERVERS_STILL_ACTIVE")
 
     item.status = "CLOSED"
