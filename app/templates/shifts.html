@@ -15,6 +15,11 @@
       {% endif %}
     </div>
   </div>
+  {% if is_cashier and cashier_on_duty %}
+  <div class="d-flex align-items-start">
+    <a class="btn btn-primary" href="{{ url_for('checkout_web.checkout', bar_id=bar.id) }}">Ouvrir la caisse →</a>
+  </div>
+  {% endif %}
 </section>
 
 {% with messages = get_flashed_messages(with_categories=true) %}
