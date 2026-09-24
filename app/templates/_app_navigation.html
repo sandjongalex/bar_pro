@@ -22,6 +22,11 @@
       <a class="nav-link {% if endpoint.startswith('cashier_returns_web.') %}active{% endif %}" href="{{ url_for('cashier_returns_web.manage', bar_id=nav_bar_id) }}">
         <span class="nav-icon">↩</span><span class="nav-link-text">Retours</span>
       </a>
+      {% if nav_can('expenses.record', nav_bar_id) %}
+      <a class="nav-link {% if endpoint.startswith('expenses_web.') %}active{% endif %}" href="{{ url_for('expenses_web.manage', bar_id=nav_bar_id) }}">
+        <span class="nav-icon">−₣</span><span class="nav-link-text">Dépenses</span>
+      </a>
+      {% endif %}
       {% if nav_can('customers.read', nav_bar_id) %}
       <a class="nav-link {% if endpoint.startswith('customers_web.') %}active{% endif %}" href="{{ url_for('customers_web.manage', bar_id=nav_bar_id) }}">
         <span class="nav-icon">CL</span><span class="nav-link-text">Clients & crédits</span>
