@@ -1,3 +1,4 @@
+import re
 from decimal import Decimal
 
 from sqlalchemy import select
@@ -11,6 +12,12 @@ from app.order_services import order_service
 from app.payment_services import payment_service
 from app.shift_service import start_shift
 from test_workflows import env
+
+
+def _csrf(page):
+    match = re.search(r'name=["\']csrf_token["\'][^>]*value=["\']([^"\']+)["\']', page.text)
+    assert match is not None, page.text
+    return match.group(1)
 
 
 def _cashier(owner, bar):
@@ -126,16 +133,24 @@ def test_cashier_performance_uses_current_shift_and_server_sales(env):
     assert performance["servers"][0]["unpaid_count"] == 0
 
     client = app.test_client()
+    login_page = client.get("/login")
     login = client.post(
         "/login",
-        data={"email": cashier.email, "password": "test-password"},
-        follow_redirects=True,
+        data={
+            "email": cashier.email,
+            "password": "test-password",
+            "csrf_token": _csrf(login_page),
+        },
+        follow_redirects=False,
     )
-    assert login.status_code == 200
-    assert "Performance du service" in login.text
-    assert "Mes ventes comptoir" in login.text
-    assert "Encaissé par moi" in login.text
-    assert "Ticket moyen" in login.text
-    assert "Dépenses saisies" in login.text
-    assert "Serveuses actuellement en service" in login.text
-    assert server.display_name in login.text
+    assert login.status_code == 302
+
+    page = client.get(f"/bars/{bar.id}/cashier/workspace")
+    assert page.status_code == 200
+    assert "Performance du service" in page.text
+    assert "Mes ventes comptoir" in page.text
+    assert "Encaissé par moi" in page.text
+    assert "Ticket moyen" in page.text
+    assert "Dépenses saisies" in page.text
+    assert "Serveuses actuellement en service" in page.text
+    assert server.display_name in page.text
