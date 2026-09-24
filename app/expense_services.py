@@ -74,7 +74,7 @@ class ExpenseService:
         provider_code: str | None = None,
         provider_transaction_id: str | None = None,
     ):
-        permissions.require(actor, "expenses.manage", bar_id)
+        permissions.require(actor, "expenses.record", bar_id)
         bar = db.session.get(Bar, bar_id)
         if not bar:
             raise LookupError("NOT_FOUND")
