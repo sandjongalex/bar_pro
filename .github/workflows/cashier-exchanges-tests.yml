@@ -1,0 +1,33 @@
+name: Cashier exchange tests
+
+on:
+  push:
+    paths:
+      - 'app/exchange_services.py'
+      - 'app/cashier_exchanges_web.py'
+      - 'app/templates/cashier_exchanges.html'
+      - 'app/templates/_app_navigation.html'
+      - 'app/__init__.py'
+      - 'tests/test_cashier_exchanges.py'
+      - '.github/workflows/cashier-exchanges-tests.yml'
+  pull_request:
+    paths:
+      - 'app/exchange_services.py'
+      - 'app/cashier_exchanges_web.py'
+      - 'app/templates/cashier_exchanges.html'
+      - 'app/templates/_app_navigation.html'
+      - 'app/__init__.py'
+      - 'tests/test_cashier_exchanges.py'
+      - '.github/workflows/cashier-exchanges-tests.yml'
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r requirements.txt
+      - name: Run cashier exchange tests
+        run: pytest -q tests/test_cashier_exchanges.py
