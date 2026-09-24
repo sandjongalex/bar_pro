@@ -7,8 +7,10 @@ on:
       - 'app/bars.py'
       - 'app/permissions.py'
       - 'app/templates/bars/list.html'
+      - 'app/templates/dashboard.html'
       - 'tests/test_bar_reset.py'
       - 'tests/test_bar_reset_superadmin.py'
+      - 'tests/test_dashboard_reset_button.py'
       - '.github/workflows/bar-reset-tests.yml'
   pull_request:
     paths:
@@ -16,8 +18,10 @@ on:
       - 'app/bars.py'
       - 'app/permissions.py'
       - 'app/templates/bars/list.html'
+      - 'app/templates/dashboard.html'
       - 'tests/test_bar_reset.py'
       - 'tests/test_bar_reset_superadmin.py'
+      - 'tests/test_dashboard_reset_button.py'
       - '.github/workflows/bar-reset-tests.yml'
 
 jobs:
@@ -30,4 +34,4 @@ jobs:
           python-version: '3.12'
       - run: pip install -r requirements.txt
       - name: Bar reset isolation and safeguards
-        run: pytest -q tests/test_bar_reset.py tests/test_bar_reset_superadmin.py
+        run: pytest -q tests/test_bar_reset.py tests/test_bar_reset_superadmin.py tests/test_dashboard_reset_button.py
