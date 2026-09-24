@@ -1,4 +1,4 @@
-"""Owner-only reset of one bar's operational data.
+"""Reset one bar's operational data with strict tenant isolation.
 
 The reset keeps the tenant identity and reusable configuration/master data,
 while removing operational journals and setting stock balances back to zero.
@@ -38,12 +38,7 @@ PRESERVED_BAR_TABLES = frozenset(
 
 
 def _clear_nullable_self_references(table, bar_id: int) -> None:
-    """Break nullable self-FKs before a bulk tenant delete.
-
-    Reversal journals and token rotations use self-references with RESTRICT.
-    Clearing only nullable self references keeps the delete portable across
-    SQLite/MySQL without disabling foreign-key checks globally.
-    """
+    """Break nullable self-FKs before a bulk tenant delete."""
     columns = set()
     for foreign_key in table.foreign_keys:
         local = foreign_key.parent
@@ -62,15 +57,20 @@ def _clear_nullable_self_references(table, bar_id: int) -> None:
 
 
 def reset_bar(actor, bar_id: int, confirmation: str, password: str) -> dict:
-    """Erase one owner's operational history and reset its stock to zero.
+    """Erase one bar's operational history and reset its stock to zero.
 
-    The caller owns the transaction: this function never commits.  Any failure
-    therefore leaves the bar unchanged once the caller rolls back.
+    The bar owner may reset only their own bar. A super-admin may reset any bar
+    for platform support. The caller owns the transaction: this function never
+    commits, so a rollback leaves the bar unchanged.
     """
     permissions.require(actor, "bars.reset", bar_id)
 
     bar = db.session.get(Bar, bar_id)
-    if not bar or actor.category != "OWNER" or bar.owner_id != actor.id:
+    if not bar:
+        raise PermissionError("FORBIDDEN")
+    if actor.category == "OWNER" and bar.owner_id != actor.id:
+        raise PermissionError("FORBIDDEN")
+    if actor.category not in {"OWNER", "SUPER_ADMIN"}:
         raise PermissionError("FORBIDDEN")
 
     if str(confirmation or "").strip().upper() != CONFIRMATION_TEXT:
@@ -90,9 +90,8 @@ def reset_bar(actor, bar_id: int, confirmation: str, password: str) -> dict:
         if result.rowcount and result.rowcount > 0:
             deleted[table.name] += result.rowcount
 
-    # Products and stock-balance rows survive so the owner keeps the catalogue,
-    # but every quantity restarts from zero. Incrementing the version invalidates
-    # stale inventory snapshots if any external client still holds one.
+    # Products and stock-balance rows survive so the catalogue remains available,
+    # but every quantity restarts from zero.
     result = db.session.execute(
         StockBalance.__table__.update()
         .where(StockBalance.bar_id == bar_id)
@@ -104,7 +103,7 @@ def reset_bar(actor, bar_id: int, confirmation: str, password: str) -> dict:
     balances_reset = max(result.rowcount or 0, 0)
 
     # Old audit rows were removed with the operational history. Keep one explicit
-    # immutable trace indicating when the new clean period began.
+    # trace indicating when the new clean period began.
     record(
         actor,
         bar_id,
