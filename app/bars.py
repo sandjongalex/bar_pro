@@ -1,9 +1,10 @@
 import os, uuid
-from flask import Blueprint, jsonify, redirect, render_template, request, url_for
+from flask import Blueprint, flash, jsonify, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
 from sqlalchemy import func, select
 
 from app.bar_services import assign_staff, create_bar, create_owner, update_bar
+from app.bar_reset_service import reset_bar
 from app.extensions import db
 from app.models import Bar, Order, Product, StaffAssignment, StockBalance, User
 from app.permissions import permissions
@@ -36,6 +37,15 @@ def _form_error_message(code):
         "INVALID_THRESHOLD":"Le seuil d'alerte stock doit être un nombre positif ou nul.",
     }
     return messages.get(str(code),"Impossible de créer l'établissement. Vérifiez les informations saisies.")
+
+
+def _reset_error_message(code):
+    messages={
+        "RESET_CONFIRMATION_REQUIRED":"Saisissez exactement REINITIALISER pour confirmer.",
+        "INVALID_PASSWORD":"Mot de passe incorrect. Le bar n'a pas été modifié.",
+        "BAR_SUSPENDED":"Un bar suspendu ne peut pas être réinitialisé.",
+    }
+    return messages.get(str(code),"Réinitialisation refusée. Aucune donnée n'a été supprimée.")
 
 
 @bars_bp.get("/")
@@ -76,6 +86,7 @@ def web_detail(bar_id):
         "staff_read":allowed("staff.read"),
         "staff_manage":allowed("staff.manage"),
         "settings":allowed("bars.update_settings"),
+        "reset":allowed("bars.reset"),
         "reports":allowed("reports.read"),
     }
 
@@ -115,6 +126,36 @@ def web_detail(bar_id):
         ) or 0
 
     return render_template("bars/detail.html",bar=bar,stats=stats,rights=rights)
+
+
+@bars_bp.post("/<int:bar_id>/reset")
+@login_required
+def web_reset(bar_id):
+    try:
+        result=reset_bar(
+            current_user,
+            bar_id,
+            request.form.get("confirmation",""),
+            request.form.get("password",""),
+        )
+        db.session.commit()
+        flash(
+            f"{result['stock_balances_reset']} stock(s) remis à zéro. "
+            "L'historique opérationnel du bar a été effacé.",
+            "success",
+        )
+    except PermissionError as exc:
+        db.session.rollback()
+        if str(exc)=="FORBIDDEN":
+            raise LookupError("NOT_FOUND") from None
+        flash(_reset_error_message(exc),"danger")
+    except ValueError as exc:
+        db.session.rollback()
+        flash(_reset_error_message(exc),"danger")
+    except Exception:
+        db.session.rollback()
+        raise
+    return redirect(url_for("bars.web_detail",bar_id=bar_id))
 
 
 @bars_bp.route("/new",methods=["GET","POST"])

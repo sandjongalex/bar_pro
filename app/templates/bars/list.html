@@ -52,7 +52,91 @@
           <td>{{ bar.phone or '—' }}</td>
           <td>{{ bar.currency }}</td>
           <td><span class="status-pill {% if bar.status == 'ACTIVE' %}status-active{% else %}status-suspended{% endif %}">{{ 'Actif' if bar.status == 'ACTIVE' else 'Suspendu' }}</span></td>
-          <td class="text-end"><a class="btn btn-primary btn-sm" href="{{ url_for('bars.web_detail',bar_id=bar.id) }}">Gérer</a></td>
+          <td class="text-end">
+            <div class="d-inline-flex flex-wrap justify-content-end gap-2">
+              <a class="btn btn-primary btn-sm" href="{{ url_for('bars.web_detail',bar_id=bar.id) }}">Gérer</a>
+              {% if nav_can('bars.reset', bar.id) %}
+              <button
+                type="button"
+                class="btn btn-outline-danger btn-sm"
+                onclick="document.getElementById('reset-dialog-{{ bar.id }}').showModal()"
+              >Réinitialiser</button>
+              {% endif %}
+            </div>
+
+            {% if nav_can('bars.reset', bar.id) %}
+            <dialog
+              id="reset-dialog-{{ bar.id }}"
+              class="panel-card p-0 border-0 rounded-4 shadow text-start"
+              style="width:min(560px,calc(100% - 2rem));max-width:560px;"
+            >
+              <div class="panel-header border-bottom">
+                <div>
+                  <p class="eyebrow text-danger mb-1">Action irréversible</p>
+                  <h2 class="mb-0">Réinitialiser {{ bar.name }}</h2>
+                </div>
+                <button
+                  type="button"
+                  class="btn-close"
+                  aria-label="Fermer"
+                  onclick="document.getElementById('reset-dialog-{{ bar.id }}').close()"
+                ></button>
+              </div>
+              <div class="p-4">
+                <p><strong>Le bar lui-même ne sera pas supprimé.</strong></p>
+                <p class="text-secondary small">
+                  Le personnel, le catalogue produits, les tables, les fournisseurs,
+                  les clients et l'abonnement sont conservés. Les stocks passent à 0
+                  et les commandes, paiements, caisse, achats, inventaires, crédits,
+                  dépenses et historiques opérationnels sont effacés.
+                </p>
+
+                <form method="post" action="{{ url_for('bars.web_reset',bar_id=bar.id) }}">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+                  <div class="mb-3">
+                    <label class="form-label" for="reset-confirmation-{{ bar.id }}">
+                      Saisissez <strong>REINITIALISER</strong>
+                    </label>
+                    <input
+                      id="reset-confirmation-{{ bar.id }}"
+                      class="form-control"
+                      type="text"
+                      name="confirmation"
+                      autocomplete="off"
+                      required
+                    >
+                  </div>
+
+                  <div class="mb-3">
+                    <label class="form-label" for="reset-password-{{ bar.id }}">Votre mot de passe</label>
+                    <input
+                      id="reset-password-{{ bar.id }}"
+                      class="form-control"
+                      type="password"
+                      name="password"
+                      autocomplete="current-password"
+                      required
+                    >
+                  </div>
+
+                  <div class="d-flex flex-wrap justify-content-end gap-2">
+                    <button
+                      type="button"
+                      class="btn btn-outline-secondary"
+                      onclick="document.getElementById('reset-dialog-{{ bar.id }}').close()"
+                    >Annuler</button>
+                    <button
+                      type="submit"
+                      class="btn btn-danger"
+                      onclick="return confirm('Dernière confirmation : réinitialiser {{ bar.name|e }} ?');"
+                    >Confirmer le reset</button>
+                  </div>
+                </form>
+              </div>
+            </dialog>
+            {% endif %}
+          </td>
         </tr>
       {% endfor %}
       </tbody>
@@ -67,4 +151,7 @@
   </div>
   {% endif %}
 </section>
+<style>
+  dialog::backdrop { background: rgba(15, 23, 42, .58); }
+</style>
 {% endblock %}
