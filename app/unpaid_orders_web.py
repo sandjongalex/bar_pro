@@ -4,14 +4,16 @@ from __future__ import annotations
 from datetime import timezone
 from decimal import Decimal
 
-from flask import Blueprint, jsonify, render_template, request, url_for
+from flask import Blueprint, abort, flash, jsonify, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
 from sqlalchemy import or_, select
 
 from app.extensions import db, limiter
 from app.finance_totals import order_balance
-from app.models import Bar, Order, StaffAssignment, User
+from app.models import Bar, CashSession, Order, StaffAssignment, User
 from app.order_line_views import effective_lines_by_order
+from app.order_suborder_models import OrderSuborder, OrderSuborderLine
+from app.order_suborder_service import order_suborder_service
 from app.permissions import permissions
 
 bp = Blueprint("unpaid_orders_web", __name__, url_prefix="/bars/<int:bar_id>/unpaid-orders")
@@ -107,6 +109,67 @@ def _personnel_context(bar_id: int, orders: list[Order]):
     return assignments, users, personnel_by_user, personnel
 
 
+def _validated_suborders(bar_id: int, order_ids: list[int]):
+    """Return invoice additions, split between delivered and awaiting cashier confirmation."""
+    result = {
+        order_id: {"delivered": [], "pending": []}
+        for order_id in order_ids
+    }
+    if not order_ids:
+        return result
+
+    suborders = list(
+        db.session.scalars(
+            select(OrderSuborder)
+            .where(
+                OrderSuborder.bar_id == bar_id,
+                OrderSuborder.order_id.in_(order_ids),
+                OrderSuborder.status == "VALIDATED",
+            )
+            .order_by(OrderSuborder.order_id, OrderSuborder.sequence_no, OrderSuborder.id)
+        )
+    )
+    if not suborders:
+        return result
+
+    ids = [item.id for item in suborders]
+    lines_by_suborder = {item.id: [] for item in suborders}
+    for line in db.session.scalars(
+        select(OrderSuborderLine)
+        .where(
+            OrderSuborderLine.bar_id == bar_id,
+            OrderSuborderLine.order_suborder_id.in_(ids),
+        )
+        .order_by(OrderSuborderLine.order_suborder_id, OrderSuborderLine.line_no, OrderSuborderLine.id)
+    ):
+        lines_by_suborder.setdefault(line.order_suborder_id, []).append(line)
+
+    for suborder in suborders:
+        line_rows = [
+            {
+                "name": line.product_name_snapshot,
+                "quantity": _decimal_text(line.quantity),
+                "total_amount": _decimal_text(line.total_amount),
+            }
+            for line in lines_by_suborder.get(suborder.id, [])
+        ]
+        if suborder.delivery_status == "DELIVERED":
+            result.setdefault(suborder.order_id, {"delivered": [], "pending": []})["delivered"].extend(line_rows)
+            continue
+        if suborder.delivery_status == "PENDING":
+            result.setdefault(suborder.order_id, {"delivered": [], "pending": []})["pending"].append(
+                {
+                    "id": suborder.id,
+                    "sequence_no": suborder.sequence_no,
+                    "total_amount": _decimal_text(suborder.total_amount),
+                    "currency": suborder.currency,
+                    "note": suborder.note or "",
+                    "lines": line_rows,
+                }
+            )
+    return result
+
+
 def _payload(bar_id: int, staff_filter: str | None = None):
     permissions.require(current_user, "orders.create", bar_id)
     assignment = _assignment(bar_id)
@@ -153,12 +216,16 @@ def _payload(bar_id: int, staff_filter: str | None = None):
         else all_orders
     )
 
-    lines_by_order = effective_lines_by_order(bar_id, [order.id for order in orders])
+    order_ids = [order.id for order in orders]
+    lines_by_order = effective_lines_by_order(bar_id, order_ids)
+    suborders_by_order = _validated_suborders(bar_id, order_ids)
     can_collect = role != "SERVER" and permissions.evaluate(current_user, "payments.read", bar_id).allowed
+    can_confirm_delivery = role == "CASHIER" and permissions.evaluate(current_user, "orders.deliver", bar_id).allowed
 
     rows = []
     total_due = Decimal("0")
     partial = 0
+    pending_delivery_count = 0
     for order in orders:
         balance = order_balance(order)
         due = Decimal(balance["amount_due"] or 0)
@@ -174,12 +241,43 @@ def _payload(bar_id: int, staff_filter: str | None = None):
             person = personnel_by_user.get(order.created_by_id)
             person_name = f"{person['name']} · Comptoir" if person else "Comptoir"
 
-        if role == "CASHIER":
+        additions = suborders_by_order.get(order.id, {"delivered": [], "pending": []})
+        pending_deliveries = []
+        for item in additions["pending"]:
+            pending_delivery_count += 1
+            pending_deliveries.append(
+                {
+                    **item,
+                    "confirm_url": (
+                        url_for(
+                            "unpaid_orders_web.confirm_delivery",
+                            bar_id=bar_id,
+                            order_id=order.id,
+                            suborder_id=item["id"],
+                        )
+                        if can_confirm_delivery
+                        else None
+                    ),
+                }
+            )
+        payment_blocked = bool(pending_deliveries)
+
+        if not payment_blocked and role == "CASHIER":
             action_url = url_for("cashier_workspace_web.workspace", bar_id=bar_id, order_id=order.id) + "#paymentPanel"
-        elif can_collect:
+        elif not payment_blocked and can_collect:
             action_url = url_for("checkout_web.checkout", bar_id=bar_id, order_id=order.id)
         else:
             action_url = None
+
+        delivered_lines = [
+            {
+                "name": line["product_name_snapshot"],
+                "quantity": _decimal_text(line["quantity"]),
+                "total_amount": _decimal_text(line["total_amount"]),
+            }
+            for line in lines_by_order.get(order.id, [])
+        ]
+        delivered_lines.extend(additions["delivered"])
 
         rows.append(
             {
@@ -194,14 +292,9 @@ def _payload(bar_id: int, staff_filter: str | None = None):
                 "posted_at": _iso(order.posted_at or order.created_at),
                 "notes": order.notes or "",
                 "action_url": action_url,
-                "lines": [
-                    {
-                        "name": line["product_name_snapshot"],
-                        "quantity": _decimal_text(line["quantity"]),
-                        "total_amount": _decimal_text(line["total_amount"]),
-                    }
-                    for line in lines_by_order.get(order.id, [])
-                ],
+                "payment_blocked": payment_blocked,
+                "pending_deliveries": pending_deliveries,
+                "lines": delivered_lines,
             }
         )
 
@@ -214,6 +307,7 @@ def _payload(bar_id: int, staff_filter: str | None = None):
             "count": len(rows),
             "partial": partial,
             "due": _decimal_text(total_due),
+            "pending_delivery": pending_delivery_count,
         },
     }
 
@@ -232,6 +326,59 @@ def monitor(bar_id: int):
         is_server=payload["mode"] == "SERVER",
         is_cashier=payload["mode"] == "CASHIER",
     )
+
+
+@bp.post("/<int:order_id>/suborders/<int:suborder_id>/confirm-delivery")
+@login_required
+def confirm_delivery(bar_id: int, order_id: int, suborder_id: int):
+    """Cashier acknowledgement that a server-added round was physically delivered."""
+    assignment = _assignment(bar_id)
+    if assignment is None or assignment.role != "CASHIER":
+        abort(404)
+    permissions.require(current_user, "orders.deliver", bar_id)
+
+    opened = db.session.scalar(
+        select(CashSession.id).where(
+            CashSession.bar_id == bar_id,
+            CashSession.status == "OPEN",
+        )
+    )
+    if not opened:
+        flash("Ouvrez votre caisse avant de confirmer une livraison.", "info")
+        return redirect(url_for("cashier_web.session", bar_id=bar_id))
+
+    try:
+        suborder = order_suborder_service.deliver_by_cashier(
+            current_user,
+            bar_id,
+            order_id,
+            suborder_id,
+        )
+        db.session.commit()
+        flash(
+            f"Sous-commande {suborder.sequence_no} confirmée comme livrée. Le stock a été mis à jour.",
+            "success",
+        )
+    except LookupError:
+        db.session.rollback()
+        abort(404)
+    except (PermissionError, ValueError, TypeError) as exc:
+        db.session.rollback()
+        messages = {
+            "SUBORDER_NOT_VALIDATED": "Cet ajout n'est pas prêt à être livré.",
+            "SUBORDER_ALREADY_DELIVERED": "Cet ajout a déjà été confirmé comme livré.",
+            "SUBORDER_EMPTY": "Cet ajout ne contient aucun produit.",
+            "ORDER_PAID": "Cette commande est déjà payée.",
+            "ORDER_NOT_EDITABLE": "Cette commande ne peut plus être modifiée.",
+            "INSUFFICIENT_STOCK": "Stock insuffisant pour confirmer cette livraison.",
+        }
+        flash(messages.get(str(exc), "Impossible de confirmer cette livraison."), "danger")
+
+    staff_filter = (request.form.get("staff") or "all").strip()
+    values = {"bar_id": bar_id}
+    if staff_filter != "all":
+        values["staff"] = staff_filter
+    return redirect(url_for("unpaid_orders_web.monitor", **values))
 
 
 @bp.get("/data")
