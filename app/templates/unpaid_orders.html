@@ -2,7 +2,11 @@
 {% block title %}Commandes impayées · {{ bar.name }} · Bar Manager Pro{% endblock %}
 {% block header %}Commandes impayées · {{ bar.name }}{% endblock %}
 {% block content %}
-<section class="unpaid-hero" data-unpaid-monitor data-live-url="{{ url_for('unpaid_orders_web.data', bar_id=bar.id) }}" data-role="{{ payload.mode }}">
+<style>
+.unpaid-personnel-filter{margin:14px 0 16px;padding:14px;border:1px solid #dfe8e3;border-radius:16px;background:#fff}.unpaid-personnel-filter form{display:flex;align-items:end;gap:10px;flex-wrap:wrap}.unpaid-personnel-filter .field{flex:1 1 260px}.unpaid-personnel-filter label{display:block;font-size:.72rem;font-weight:800;color:var(--muted);margin-bottom:5px}.unpaid-personnel-filter select{min-height:44px;width:100%}.unpaid-personnel-filter .btn{min-height:44px;display:inline-flex;align-items:center;justify-content:center;text-decoration:none}@media(max-width:700px){.unpaid-personnel-filter form{display:block}.unpaid-personnel-filter .btn{width:100%;margin-top:8px}}
+</style>
+
+<section class="unpaid-hero" data-unpaid-monitor data-live-url="{{ url_for('unpaid_orders_web.data', bar_id=bar.id, staff=payload.staff_filter) }}" data-role="{{ payload.mode }}">
   <div>
     <p class="eyebrow mb-2">Surveillance prioritaire</p>
     <h1>{% if is_server %}Mes commandes livrées non payées{% else %}Commandes livrées non payées{% endif %}</h1>
@@ -10,6 +14,38 @@
   </div>
   <span class="unpaid-live-badge" data-unpaid-live-badge>● Mise à jour auto</span>
 </section>
+
+{% if not is_server %}
+<section class="unpaid-personnel-filter" aria-label="Filtrer les commandes impayées par personnel">
+  <form method="get">
+    <div class="field">
+      <label for="staff">Personnel</label>
+      <select class="form-select" id="staff" name="staff" onchange="this.form.submit()">
+        <option value="all" {% if payload.staff_filter == 'all' %}selected{% endif %}>Tout le personnel</option>
+        {% set cashiers = payload.personnel|selectattr('role', 'equalto', 'CASHIER')|list %}
+        {% set servers = payload.personnel|selectattr('role', 'equalto', 'SERVER')|list %}
+        {% if cashiers %}
+        <optgroup label="Caissiers / Caissières">
+          {% for person in cashiers %}
+          <option value="person-{{ person.user_id }}" {% if payload.staff_filter == 'person-' ~ person.user_id %}selected{% endif %}>{{ person.name }}</option>
+          {% endfor %}
+        </optgroup>
+        {% endif %}
+        {% if servers %}
+        <optgroup label="Serveurs / Serveuses">
+          {% for person in servers %}
+          <option value="person-{{ person.user_id }}" {% if payload.staff_filter == 'person-' ~ person.user_id %}selected{% endif %}>{{ person.name }}</option>
+          {% endfor %}
+        </optgroup>
+        {% endif %}
+      </select>
+    </div>
+    {% if payload.staff_filter != 'all' %}
+    <a class="btn btn-light border" href="{{ url_for('unpaid_orders_web.monitor', bar_id=bar.id) }}">Tout afficher</a>
+    {% endif %}
+  </form>
+</section>
+{% endif %}
 
 <section class="unpaid-stats" aria-label="Résumé des commandes impayées">
   <article><span>À surveiller</span><strong data-unpaid-count>{{ payload.stats.count }}</strong><small>Livrées et non soldées</small></article>
@@ -20,7 +56,7 @@
 <div class="unpaid-empty" data-unpaid-empty {% if payload.orders %}hidden{% endif %}>
   <div>✓</div>
   <h2>Aucune commande impayée</h2>
-  <p>Toutes les commandes livrées sont actuellement soldées.</p>
+  <p>Toutes les commandes livrées sont actuellement soldées pour ce filtre.</p>
 </div>
 
 <section class="unpaid-grid" data-unpaid-grid>
