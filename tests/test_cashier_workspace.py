@@ -140,6 +140,16 @@ def test_order_actions_survive_live_refresh_and_delivery(env):
     app, _, bar, _, product, server, _, _ = env
     cashier = _cashier(bar)
     cash_service.open(cashier, bar.id, "ACTION-CASH", 0)
+    server_assignment = db.session.scalar(
+        select(StaffAssignment).where(
+            StaffAssignment.bar_id == bar.id,
+            StaffAssignment.user_id == server.id,
+            StaffAssignment.role == "SERVER",
+            StaffAssignment.ended_at.is_(None),
+        )
+    )
+    assert server_assignment is not None
+    start_shift(cashier, bar.id, server_assignment.id)
     order = order_service.create(server, bar.id, "ACTION-ORDER",
                                  [{"product_id": product.id, "quantity": 1}],
                                  invoice_name="Zaza")
