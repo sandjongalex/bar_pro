@@ -43,14 +43,8 @@ def build_cashier_performance(
     cashier_user_id: int,
     cashier_assignment_id: int,
     timezone_name: str,
-    active_orders,
-    balances,
 ):
-    """Return current-shift KPIs for the cashier and active servers.
-
-    ``active_orders`` and ``balances`` are reused from the workspace so unpaid
-    totals do not introduce another per-order balance query.
-    """
+    """Return current-shift KPIs for the cashier and active servers."""
     cashier_shift = db.session.scalar(
         select(EmployeeShift)
         .where(
@@ -62,20 +56,7 @@ def build_cashier_performance(
         .order_by(EmployeeShift.started_at.desc(), EmployeeShift.id.desc())
     )
     if cashier_shift is None:
-        return {
-            "shift_started": "—",
-            "service_sales": Decimal("0"),
-            "counter_sales": Decimal("0"),
-            "collected": Decimal("0"),
-            "refunds": Decimal("0"),
-            "net_collected": Decimal("0"),
-            "order_count": 0,
-            "average_ticket": Decimal("0"),
-            "outstanding": Decimal("0"),
-            "expense_total": Decimal("0"),
-            "expense_count": 0,
-            "servers": [],
-        }
+        return None
 
     server_shifts = list(
         db.session.scalars(
@@ -114,18 +95,7 @@ def build_cashier_performance(
     counter_sales = sum((_decimal(item.total_amount) for item in counter_orders), Decimal("0"))
     order_count = len(service_orders)
     average_ticket = service_sales / order_count if order_count else Decimal("0")
-
-    outstanding = sum(
-        (
-            _decimal(balances[item.id]["amount_due"])
-            for item in active_orders
-            if item.status in {"CONFIRMED", "SERVED"}
-            and item.posted_at is not None
-            and item.posted_at >= cashier_shift.started_at
-            and item.id in balances
-        ),
-        Decimal("0"),
-    )
+    unpaid_count = sum(1 for item in service_orders if item.payment_status != "PAID")
 
     collected = _sum(
         Payment,
@@ -185,18 +155,6 @@ def build_cashier_performance(
         ]
         sales = sum((_decimal(item.total_amount) for item in server_orders), Decimal("0"))
         count = len(server_orders)
-        server_due = sum(
-            (
-                _decimal(balances[item.id]["amount_due"])
-                for item in active_orders
-                if item.assigned_staff_id == shift.staff_assignment_id
-                and item.status in {"CONFIRMED", "SERVED"}
-                and item.posted_at is not None
-                and item.posted_at >= shift.started_at
-                and item.id in balances
-            ),
-            Decimal("0"),
-        )
         server_rows.append(
             {
                 "assignment_id": shift.staff_assignment_id,
@@ -205,7 +163,7 @@ def build_cashier_performance(
                 "sales": sales,
                 "order_count": count,
                 "average_ticket": sales / count if count else Decimal("0"),
-                "outstanding": server_due,
+                "unpaid_count": sum(1 for item in server_orders if item.payment_status != "PAID"),
             }
         )
 
@@ -218,7 +176,7 @@ def build_cashier_performance(
         "net_collected": collected - refunds,
         "order_count": order_count,
         "average_ticket": average_ticket,
-        "outstanding": outstanding,
+        "unpaid_count": unpaid_count,
         "expense_total": expense_total,
         "expense_count": expense_count,
         "servers": server_rows,
