@@ -130,7 +130,7 @@ def test_server_addition_requires_cashier_delivery_confirmation_before_payment(e
     page = client.get(f"/bars/{bar.id}/unpaid-orders")
     assert page.status_code == 200
     assert "NOUVEL AJOUT DE LA SERVEUSE" in page.text
-    assert "Confirmer que j&#39;ai livré" in page.text
+    assert "Confirmer que j'ai livré" in page.text
     assert "Livraison à confirmer" in page.text
     assert "Une bouteille ajoutée après la première livraison" in page.text
 
