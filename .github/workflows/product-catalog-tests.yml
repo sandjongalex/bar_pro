@@ -3,6 +3,7 @@ name: Product catalog CRUD tests
 on:
   pull_request:
     paths:
+      - 'requirements.txt'
       - 'app/catalog.py'
       - 'app/catalog_services.py'
       - 'app/product_images.py'

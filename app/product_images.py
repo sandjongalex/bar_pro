@@ -1,6 +1,6 @@
-"""Persistent, validated product image storage.
+"""Persistent, validated and bandwidth-friendly product image storage.
 
-Images are runtime data, not source files.  They live below Flask's instance
+Images are runtime data, not source files. They live below Flask's instance
 folder so a normal Git deployment does not replace them.
 """
 from __future__ import annotations
@@ -9,9 +9,13 @@ from pathlib import Path
 import uuid
 
 from flask import current_app
+from PIL import Image, ImageOps, UnidentifiedImageError
 
 MAX_PRODUCT_IMAGE_BYTES = 4 * 1024 * 1024
 ALLOWED_EXTENSIONS = {"jpg", "jpeg", "jfif", "png", "webp"}
+MAX_DISPLAY_DIMENSION = 900
+JPEG_QUALITY = 82
+WEBP_QUALITY = 80
 
 
 def product_image_directory() -> Path:
@@ -39,8 +43,62 @@ def _looks_like_image(data: bytes, extension: str) -> bool:
     return False
 
 
+def _optimize_product_image(path: Path, extension: str) -> None:
+    """Shrink a valid product photo in place without changing its public key.
+
+    Optimization is best-effort: if Pillow cannot decode an old/odd file, the
+    original remains untouched so product management never loses an upload.
+    """
+    temp = path.with_name(f".{path.name}.{uuid.uuid4().hex}.tmp")
+    try:
+        original_size = path.stat().st_size
+        with Image.open(path) as opened:
+            image = ImageOps.exif_transpose(opened)
+            original_dimensions = image.size
+            image.thumbnail(
+                (MAX_DISPLAY_DIMENSION, MAX_DISPLAY_DIMENSION),
+                Image.Resampling.LANCZOS,
+            )
+
+            if extension == "jpg":
+                if image.mode != "RGB":
+                    image = image.convert("RGB")
+                image.save(
+                    temp,
+                    format="JPEG",
+                    quality=JPEG_QUALITY,
+                    optimize=True,
+                    progressive=True,
+                )
+            elif extension == "webp":
+                has_alpha = image.mode in {"RGBA", "LA"} or "transparency" in image.info
+                image = image.convert("RGBA" if has_alpha else "RGB")
+                image.save(
+                    temp,
+                    format="WEBP",
+                    quality=WEBP_QUALITY,
+                    method=4,
+                )
+            elif extension == "png":
+                image.save(temp, format="PNG", optimize=True, compress_level=9)
+            else:
+                return
+
+        resized = max(original_dimensions) > MAX_DISPLAY_DIMENSION
+        optimized_size = temp.stat().st_size
+        if resized or optimized_size < original_size:
+            temp.replace(path)
+        else:
+            temp.unlink()
+    except (UnidentifiedImageError, OSError, ValueError):
+        try:
+            temp.unlink()
+        except FileNotFoundError:
+            pass
+
+
 def save_product_image(upload) -> str | None:
-    """Validate and persist an uploaded image, returning its opaque storage key."""
+    """Validate, persist and optimize an uploaded image."""
     if not upload or not getattr(upload, "filename", ""):
         return None
 
@@ -59,6 +117,7 @@ def save_product_image(upload) -> str | None:
     key = f"{uuid.uuid4().hex}.{extension}"
     path = product_image_directory() / key
     path.write_bytes(data)
+    _optimize_product_image(path, extension)
     return key
 
 

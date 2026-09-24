@@ -2,6 +2,7 @@
   'use strict';
 
   const CARD_SELECTOR = '.pos-product[data-product-id], .suborder-product[data-product-id]';
+  let imageObserver = null;
 
   function installStyles() {
     if (document.getElementById('productImagesUiStyles')) return;
@@ -37,6 +38,33 @@
     return slot;
   }
 
+  function startImageLoad(image) {
+    const source = image.dataset.src;
+    if (!source || image.getAttribute('src')) return;
+    image.src = source;
+    delete image.dataset.src;
+  }
+
+  function lazyObserver() {
+    if (imageObserver !== null) return imageObserver;
+    if (!('IntersectionObserver' in window)) return null;
+
+    imageObserver = new IntersectionObserver((entries, observer) => {
+      entries.forEach((entry) => {
+        if (!entry.isIntersecting) return;
+        startImageLoad(entry.target);
+        observer.unobserve(entry.target);
+      });
+    }, {
+      // Start just before the card enters the viewport so the photo is already
+      // decoded when the employee scrolls to it, without fetching the whole
+      // catalogue at once.
+      rootMargin: '280px 0px',
+      threshold: 0.01,
+    });
+    return imageObserver;
+  }
+
   function attachImage(card, url) {
     if (!url || card.dataset.productImageReady === '1') return;
     card.dataset.productImageReady = '1';
@@ -45,6 +73,7 @@
     const image = document.createElement('img');
     image.loading = 'lazy';
     image.decoding = 'async';
+    image.fetchPriority = 'low';
     image.alt = card.dataset.name ? `Photo ${card.dataset.name}` : 'Photo produit';
     image.addEventListener('load', () => slot.classList.add('has-image'), { once: true });
     image.addEventListener('error', () => {
@@ -52,8 +81,12 @@
       slot.classList.remove('has-image');
       card.dataset.productImageReady = '0';
     }, { once: true });
+    image.dataset.src = url;
     slot.appendChild(image);
-    image.src = url;
+
+    const observer = lazyObserver();
+    if (observer) observer.observe(image);
+    else startImageLoad(image);
   }
 
   async function setupProductImages() {
