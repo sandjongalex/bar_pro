@@ -1,4 +1,4 @@
-"""Cashier invoice browser with delivery, payment and origin filters."""
+"""Cashier invoice browser with delivery, payment and personnel filters."""
 from __future__ import annotations
 
 from datetime import datetime, timezone
@@ -7,7 +7,7 @@ import secrets
 
 from flask import Blueprint, flash, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
-from sqlalchemy import select
+from sqlalchemy import or_, select
 
 from app.extensions import db
 from app.finance_totals import order_balance
@@ -150,37 +150,84 @@ def invoices(bar_id: int):
         )
     )
 
-    assignment_ids = {order.assigned_staff_id for order in all_orders if order.assigned_staff_id is not None}
-    assignments = {
-        assignment.id: assignment
-        for assignment in db.session.scalars(
-            select(StaffAssignment).where(
-                StaffAssignment.bar_id == bar_id,
-                StaffAssignment.id.in_(assignment_ids),
-                StaffAssignment.role == "SERVER",
-            )
-        )
-    } if assignment_ids else {}
+    assigned_staff_ids = {
+        order.assigned_staff_id
+        for order in all_orders
+        if order.assigned_staff_id is not None
+    }
+    counter_creator_ids = {
+        order.created_by_id
+        for order in all_orders
+        if order.assigned_staff_id is None
+    }
 
-    user_ids = {assignment.user_id for assignment in assignments.values()}
+    # The selector shows current cashiers/servers even before they create an
+    # order, while retaining former personnel referenced by the visible orders.
+    staff_stmt = select(StaffAssignment).where(
+        StaffAssignment.bar_id == bar_id,
+        StaffAssignment.role.in_(["CASHIER", "SERVER"]),
+    )
+    reference_clauses = [StaffAssignment.ended_at.is_(None)]
+    if assigned_staff_ids:
+        reference_clauses.append(StaffAssignment.id.in_(assigned_staff_ids))
+    if counter_creator_ids:
+        reference_clauses.append(StaffAssignment.user_id.in_(counter_creator_ids))
+    staff_rows = list(db.session.scalars(staff_stmt.where(or_(*reference_clauses))))
+    assignments = {assignment.id: assignment for assignment in staff_rows}
+
+    user_ids = {assignment.user_id for assignment in staff_rows}
     users = {
         user.id: user
         for user in db.session.scalars(select(User).where(User.id.in_(user_ids)))
     } if user_ids else {}
 
-    server_filters = []
-    for assignment in assignments.values():
+    # One person may have historical assignments. The current assignment wins
+    # for the role label, but filtering by person covers all of that person's
+    # orders in the bar.
+    personnel_by_user = {}
+    for assignment in staff_rows:
         user = users.get(assignment.user_id)
-        server_filters.append(
-            {
-                "assignment_id": assignment.id,
-                "name": user.display_name if user else f"Serveuse #{assignment.id}",
+        if not user:
+            continue
+        previous = personnel_by_user.get(user.id)
+        if previous is None or (previous["ended"] and assignment.ended_at is None):
+            personnel_by_user[user.id] = {
+                "user_id": user.id,
+                "name": user.display_name,
+                "role": assignment.role,
+                "ended": assignment.ended_at is not None,
             }
-        )
-    server_filters.sort(key=lambda item: (item["name"].casefold(), item["assignment_id"]))
 
+    personnel_filters = sorted(
+        (
+            {
+                "user_id": item["user_id"],
+                "name": item["name"],
+                "role": item["role"],
+            }
+            for item in personnel_by_user.values()
+        ),
+        key=lambda item: (
+            0 if item["role"] == "CASHIER" else 1,
+            item["name"].casefold(),
+            item["user_id"],
+        ),
+    )
+
+    # Keep the former assignment-based URLs functional for bookmarks and forms
+    # already rendered before deployment.
     selected_staff_id = None
-    if origin_filter.startswith("staff-"):
+    selected_person_id = None
+    if origin_filter.startswith("person-"):
+        try:
+            selected_person_id = int(origin_filter.split("-", 1)[1])
+        except (TypeError, ValueError):
+            origin_filter = "all"
+        else:
+            if selected_person_id not in personnel_by_user:
+                origin_filter = "all"
+                selected_person_id = None
+    elif origin_filter.startswith("staff-"):
         try:
             selected_staff_id = int(origin_filter.split("-", 1)[1])
         except (TypeError, ValueError):
@@ -210,7 +257,15 @@ def invoices(bar_id: int):
             return order.payment_status == "PAID"
         return True
 
+    def order_person_id(order: Order):
+        if order.assigned_staff_id is not None:
+            assignment = assignments.get(order.assigned_staff_id)
+            return assignment.user_id if assignment else None
+        return order.created_by_id if order.created_by_id in personnel_by_user else None
+
     def origin_matches(order: Order) -> bool:
+        if selected_person_id is not None:
+            return order_person_id(order) == selected_person_id
         if origin_filter == "cashier":
             return order.assigned_staff_id is None
         if selected_staff_id is not None:
@@ -236,9 +291,17 @@ def invoices(bar_id: int):
     origin_by_order = {}
     balance_by_order = {}
     for order in invoice_rows:
-        assignment = assignments.get(order.assigned_staff_id)
-        user = users.get(assignment.user_id) if assignment else None
-        origin_by_order[order.id] = user.display_name if user else "Caisse / comptoir"
+        if order.assigned_staff_id is not None:
+            assignment = assignments.get(order.assigned_staff_id)
+            user = users.get(assignment.user_id) if assignment else None
+            origin_by_order[order.id] = user.display_name if user else "Serveuse"
+        else:
+            person = personnel_by_user.get(order.created_by_id)
+            origin_by_order[order.id] = (
+                f"{person['name']} · Caisse / comptoir"
+                if person
+                else "Caisse / comptoir"
+            )
         balance_by_order[order.id] = order_balance(order)
 
     open_orders = [order for order in all_orders if order.payment_status in {"UNPAID", "PARTIAL"}]
@@ -256,7 +319,7 @@ def invoices(bar_id: int):
         lines_by_order=lines_by_order,
         origin_by_order=origin_by_order,
         balance_by_order=balance_by_order,
-        server_filters=server_filters,
+        personnel_filters=personnel_filters,
         delivery_filter=delivery_filter,
         payment_filter=payment_filter,
         origin_filter=origin_filter,
