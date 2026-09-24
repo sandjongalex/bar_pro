@@ -19,6 +19,29 @@ def require(actor, action, bar_id):
     return db.session.get(Bar, bar_id)
 
 
+def _close_open_staff_shift(actor, bar_id, assignment):
+    """Close any duty record before changing/removing an assignment."""
+    from app.shift_models import EmployeeShift
+
+    now = datetime.now(timezone.utc)
+    open_shifts = list(
+        db.session.scalars(
+            select(EmployeeShift)
+            .where(
+                EmployeeShift.bar_id == bar_id,
+                EmployeeShift.staff_assignment_id == assignment.id,
+                EmployeeShift.status == "OPEN",
+            )
+            .with_for_update()
+        )
+    )
+    for shift in open_shifts:
+        shift.status = "CLOSED"
+        shift.ended_at = now
+        shift.ended_by_id = actor.id
+    return len(open_shifts)
+
+
 def create_owner(actor, data):
     """Create an active bar owner account from the super-admin onboarding flow."""
     if not actor.is_active or actor.category != "SUPER_ADMIN":
@@ -216,6 +239,8 @@ def assign_staff(actor, bar_id, user_id, role):
             started_at=datetime.now(timezone.utc),
         )
     else:
+        if assignment.role != role:
+            _close_open_staff_shift(actor, bar_id, assignment)
         assignment.role = role
 
     db.session.add(assignment)
@@ -244,6 +269,7 @@ def end_staff_assignment(actor, bar_id, assignment_id):
     if not assignment:
         raise LookupError("STAFF_ASSIGNMENT_NOT_FOUND")
 
+    _close_open_staff_shift(actor, bar_id, assignment)
     assignment.ended_at = datetime.now(timezone.utc)
     db.session.flush()
     record(
@@ -286,6 +312,7 @@ def set_employee_active(actor, bar_id, user_id, active):
             )
         )
         if assignment:
+            _close_open_staff_shift(actor, bar_id, assignment)
             assignment.ended_at = datetime.now(timezone.utc)
         user.disabled_at = datetime.now(timezone.utc)
     else:

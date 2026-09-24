@@ -4,6 +4,7 @@ from sqlalchemy import select
 
 from app.extensions import db
 from app.models import CashMovement, CashSession, StaffAssignment, User, utcnow
+from app.shift_service import start_shift
 from test_workflows import env, order
 
 
@@ -28,14 +29,16 @@ def _cashier(bar, email, name):
     cashier.set_password("test-password")
     db.session.add(cashier)
     db.session.flush()
-    db.session.add(
-        StaffAssignment(
-            bar_id=bar.id,
-            user_id=cashier.id,
-            role="CASHIER",
-            started_at=utcnow(),
-        )
+    assignment = StaffAssignment(
+        bar_id=bar.id,
+        user_id=cashier.id,
+        role="CASHIER",
+        started_at=utcnow(),
     )
+    db.session.add(assignment)
+    db.session.flush()
+    owner = db.session.get(User, bar.owner_id)
+    start_shift(owner, bar.id, assignment.id)
     db.session.commit()
     return cashier
 

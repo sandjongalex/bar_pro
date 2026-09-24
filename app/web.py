@@ -28,8 +28,9 @@ def dashboard():
     from app.dashboard_inventory_control import dashboard_inventory_control
     from app.dashboard_service import dashboard_summary
     from app.employee_context import get_current_employee_context
-    from app.models import Bar, StaffAssignment
+    from app.models import Bar
     from app.permissions import permissions
+    from app.shift_service import get_active_shift_for_assignment
 
     employee_context = None
     requested_bar_id = request.args.get("bar_id", type=int)
@@ -42,16 +43,28 @@ def dashboard():
         if requested_bar_id is not None and requested_bar_id != employee_context.bar_id:
             abort(404)
 
-        if employee_context.role == "CASHIER":
-            return redirect(url_for("checkout_web.checkout", bar_id=employee_context.bar_id))
-        if employee_context.role == "SERVER":
-            return redirect(url_for("orders_web.quick", bar_id=employee_context.bar_id))
-        if employee_context.role != "BAR_ADMIN":
-            abort(404)
-
         assigned_bar = db.session.get(Bar, employee_context.bar_id)
         if not assigned_bar:
             abort(404)
+
+        if employee_context.role in {"CASHIER", "SERVER"}:
+            shift = get_active_shift_for_assignment(
+                employee_context.bar_id,
+                employee_context.assignment.id,
+            )
+            if not shift:
+                return render_template(
+                    "off_duty.html",
+                    bar=assigned_bar,
+                    role=employee_context.role,
+                )
+            if employee_context.role == "CASHIER":
+                return redirect(url_for("checkout_web.checkout", bar_id=employee_context.bar_id))
+            return redirect(url_for("orders_web.quick", bar_id=employee_context.bar_id))
+
+        if employee_context.role != "BAR_ADMIN":
+            abort(404)
+
         bars = [assigned_bar]
         assignments = [employee_context.assignment]
     else:

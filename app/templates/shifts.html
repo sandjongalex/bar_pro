@@ -1,0 +1,138 @@
+{% extends 'layout.html' %}
+{% block title %}Personnel en service · {{ bar.name }} · Bar Manager Pro{% endblock %}
+{% block header %}Personnel en service · {{ bar.name }}{% endblock %}
+{% block content %}
+<section class="bar-hero">
+  <div class="bar-hero-main">
+    <a class="bar-back" href="{{ url_for('bars.web_detail', bar_id=bar.id) }}">← Retour à {{ bar.name }}</a>
+    <div class="mt-3">
+      <p class="eyebrow mb-2">Présence & accès</p>
+      <h1>Personnel en service</h1>
+      {% if is_owner %}
+        <p>Mettez les caissières en service. Une caissière en service peut ensuite activer les serveuses.</p>
+      {% elif is_cashier %}
+        <p>Activez ou terminez le service des serveuses. Chaque heure est enregistrée automatiquement par le serveur.</p>
+      {% endif %}
+    </div>
+  </div>
+  {% if is_cashier and cashier_on_duty %}
+  <div class="d-flex align-items-start">
+    <a class="btn btn-primary" href="{{ url_for('checkout_web.checkout', bar_id=bar.id) }}">Ouvrir la caisse →</a>
+  </div>
+  {% endif %}
+</section>
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% for category, message in messages %}
+    <div class="alert alert-{{ category }} mt-3" role="alert">{{ message }}</div>
+  {% endfor %}
+{% endwith %}
+
+{% if is_cashier and not cashier_on_duty %}
+<div class="alert alert-warning mt-4">
+  <strong>Vous n'êtes pas en service.</strong>
+  Le propriétaire doit d'abord vous mettre en service avant que vous puissiez activer les serveuses.
+</div>
+{% endif %}
+
+<section class="panel-card mt-4">
+  <div class="panel-header">
+    <div>
+      <p class="eyebrow mb-1">Aujourd'hui</p>
+      <h2>État du personnel</h2>
+    </div>
+  </div>
+
+  {% if assignments %}
+  <div class="table-responsive">
+    <table class="table dashboard-table align-middle mb-0">
+      <thead>
+        <tr>
+          <th>Employé</th>
+          <th>Rôle</th>
+          <th>État</th>
+          <th>Début</th>
+          <th>Mis en service par</th>
+          <th class="text-end">Action</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for assignment in assignments %}
+        {% set shift = active_shifts.get(assignment.id) %}
+        <tr>
+          <td>
+            <strong>{{ assignment.user.display_name }}</strong>
+            <small class="d-block text-secondary">{{ assignment.user.email }}</small>
+          </td>
+          <td>{{ role_labels.get(assignment.role, assignment.role) }}</td>
+          <td>
+            {% if shift %}
+              <span class="status-pill status-active">● En service</span>
+            {% else %}
+              <span class="status-pill">Hors service</span>
+            {% endif %}
+          </td>
+          <td>{{ local_time(shift.started_at, bar.timezone, '%H:%M') if shift else '—' }}</td>
+          <td>{{ shift.started_by.display_name if shift and shift.started_by else '—' }}</td>
+          <td class="text-end">
+            {% if shift %}
+              {% if is_owner or cashier_on_duty %}
+              <form method="post" class="d-inline" onsubmit="return confirm('Terminer le service de {{ assignment.user.display_name }} ?');">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="action" value="end">
+                <input type="hidden" name="assignment_id" value="{{ assignment.id }}">
+                <button class="btn btn-outline-danger btn-sm" type="submit">Fin de service</button>
+              </form>
+              {% endif %}
+            {% else %}
+              {% set can_start = (is_owner and assignment.role == 'CASHIER') or (is_cashier and cashier_on_duty and assignment.role == 'SERVER') %}
+              {% if can_start %}
+              <form method="post" class="d-inline">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="action" value="start">
+                <input type="hidden" name="assignment_id" value="{{ assignment.id }}">
+                <button class="btn btn-success btn-sm" type="submit">Mettre en service</button>
+              </form>
+              {% endif %}
+            {% endif %}
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+    <div class="empty-state">
+      <h3>Aucun employé à gérer</h3>
+      <p>Aucune personne correspondant à votre niveau de responsabilité n'est actuellement affectée au bar.</p>
+    </div>
+  {% endif %}
+</section>
+
+{% if is_owner and recent %}
+<section class="panel-card mt-4">
+  <div class="panel-header">
+    <div><p class="eyebrow mb-1">Traçabilité</p><h2>Historique récent des services</h2></div>
+  </div>
+  <div class="table-responsive">
+    <table class="table dashboard-table align-middle mb-0">
+      <thead><tr><th>Employé</th><th>Rôle</th><th>Début</th><th>Fin</th><th>Durée</th><th>Activé par</th><th>Terminé par</th></tr></thead>
+      <tbody>
+      {% for shift in recent %}
+        {% set minutes = duration_minutes(shift) %}
+        <tr>
+          <td>{{ shift.assignment.user.display_name if shift.assignment and shift.assignment.user else 'Employé' }}</td>
+          <td>{{ role_labels.get(shift.role_snapshot, shift.role_snapshot) }}</td>
+          <td>{{ local_time(shift.started_at, bar.timezone) }}</td>
+          <td>{{ local_time(shift.ended_at, bar.timezone) if shift.ended_at else 'En cours' }}</td>
+          <td>{% if minutes is not none %}{{ minutes // 60 }}h {{ minutes % 60 }}min{% else %}—{% endif %}</td>
+          <td>{{ shift.started_by.display_name if shift.started_by else '—' }}</td>
+          <td>{{ shift.ended_by.display_name if shift.ended_by else '—' }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endif %}
+{% endblock %}

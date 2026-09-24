@@ -1,0 +1,45 @@
+name: Employee shift access tests
+
+on:
+  push:
+    paths:
+      - 'app/shift_models.py'
+      - 'app/shift_service.py'
+      - 'app/shifts_web.py'
+      - 'app/permissions.py'
+      - 'app/bar_services.py'
+      - 'app/web.py'
+      - 'app/__init__.py'
+      - 'app/templates/shifts.html'
+      - 'app/templates/off_duty.html'
+      - 'app/templates/bars/detail.html'
+      - 'migrations/versions/c9d0e1f2a3b4_employee_shifts.py'
+      - 'tests/test_employee_shifts.py'
+      - '.github/workflows/employee-shifts-tests.yml'
+  pull_request:
+    paths:
+      - 'app/shift_models.py'
+      - 'app/shift_service.py'
+      - 'app/shifts_web.py'
+      - 'app/permissions.py'
+      - 'app/bar_services.py'
+      - 'app/web.py'
+      - 'app/__init__.py'
+      - 'app/templates/shifts.html'
+      - 'app/templates/off_duty.html'
+      - 'app/templates/bars/detail.html'
+      - 'migrations/versions/c9d0e1f2a3b4_employee_shifts.py'
+      - 'tests/test_employee_shifts.py'
+      - '.github/workflows/employee-shifts-tests.yml'
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r requirements.txt
+      - name: Employee shift hierarchy and access control
+        run: pytest -q tests/test_employee_shifts.py

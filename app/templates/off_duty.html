@@ -1,0 +1,30 @@
+{% extends 'layout.html' %}
+{% block title %}Hors service · {{ bar.name }} · Bar Manager Pro{% endblock %}
+{% block header %}Hors service · {{ bar.name }}{% endblock %}
+{% block content %}
+<section class="panel-card mx-auto mt-5" style="max-width:720px;">
+  <div class="p-4 p-md-5 text-center">
+    <div class="display-5 mb-3">⏱</div>
+    <p class="eyebrow mb-2">Accès temporairement fermé</p>
+    <h1 class="h2">Vous n'êtes pas en service</h1>
+    <p class="text-secondary mt-3 mb-4">
+      Votre compte reste actif, mais les commandes, paiements, caisse et informations de vente de
+      <strong>{{ bar.name }}</strong> sont accessibles uniquement pendant votre service.
+    </p>
+    {% if role == 'CASHIER' %}
+      <div class="alert alert-info text-start">
+        Le propriétaire doit vous mettre en service. Vous pourrez ensuite mettre les serveuses en service.
+      </div>
+      <a class="btn btn-outline-primary" href="{{ url_for('shifts_web.manage', bar_id=bar.id) }}">Voir l'état du personnel</a>
+    {% elif role == 'SERVER' %}
+      <div class="alert alert-info text-start">
+        Une caissière actuellement en service doit vous mettre en service avant que vous puissiez prendre des commandes.
+      </div>
+    {% endif %}
+    <form method="post" action="{{ url_for('auth.web_logout') }}" class="mt-4">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button class="btn btn-light border" type="submit">Se déconnecter</button>
+    </form>
+  </div>
+</section>
+{% endblock %}

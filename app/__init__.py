@@ -33,6 +33,7 @@ from app.unpaid_orders_web import bp as unpaid_orders_web_bp
 from app.orders import bp as orders_bp, web_bp as orders_web_bp
 from app.suborder_web import bp as suborders_web_bp
 from app.staff import bp as staff_web_bp
+from app.shifts_web import bp as shifts_web_bp
 from app.reports_web import bp as reports_web_bp
 
 
@@ -54,6 +55,7 @@ def create_app(config_name: str | None = None, test_config: dict[str, Any] | Non
     from app import customer_models  # noqa: F401 - customer receivables/cases/notifications metadata
     from app import inventory_period_models  # noqa: F401 - inventory period reconciliation metadata
     from app import order_suborder_models  # noqa: F401 - cashier sub-orders and validation metadata
+    from app import shift_models  # noqa: F401 - employee attendance/on-duty metadata
     _register_blueprints(app)
     _register_template_context(app)
     app.jinja_env.finalize = _template_finalize
@@ -124,6 +126,7 @@ def _register_blueprints(app: Flask) -> None:
     app.register_blueprint(bars_bp)
     app.register_blueprint(api_bars_bp)
     app.register_blueprint(staff_web_bp)
+    app.register_blueprint(shifts_web_bp)
     app.register_blueprint(catalog_bp)
     app.register_blueprint(api_catalog_bp)
     app.register_blueprint(stock_bp)
@@ -161,17 +164,35 @@ def _register_blueprints(app: Flask) -> None:
 
     @app.before_request
     def tenant_web_guard():
-        from flask import request, abort
+        from flask import abort, redirect, request, url_for
         from flask_login import current_user
+        from app.employee_context import get_current_employee_context
         from app.permissions import permissions
+        from app.shift_service import get_active_shift_for_assignment
 
         if request.path.startswith("/api/") and request.is_json:
             if not isinstance(request.get_json(), dict):
                 abort(400)
+
         bar_id = (request.view_args or {}).get("bar_id")
         if not request.path.startswith("/api/") and bar_id is not None and current_user.is_authenticated:
             if not permissions.evaluate(current_user, "bars.read", bar_id).allowed:
                 abort(404)
+
+            # A cashier/server may keep a valid account while off duty, but no
+            # operational bar page is available until a supervisor opens a shift.
+            if current_user.category == "EMPLOYEE" and request.endpoint != "shifts_web.manage":
+                try:
+                    context = get_current_employee_context(current_user)
+                except LookupError:
+                    abort(404)
+                if context.role in {"CASHIER", "SERVER"}:
+                    active_shift = get_active_shift_for_assignment(bar_id, context.assignment.id)
+                    if not active_shift:
+                        if request.method in {"GET", "HEAD"}:
+                            return redirect(url_for("web.dashboard"))
+                        abort(403)
+        return None
 
 
 def _register_template_context(app: Flask) -> None:
