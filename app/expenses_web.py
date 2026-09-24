@@ -1,4 +1,4 @@
-"""Server-rendered expense management for owners and bar administrators."""
+"""Server-rendered expense management and cashier expense recording."""
 from __future__ import annotations
 
 import secrets
@@ -107,18 +107,21 @@ def _message(exc):
 def manage(bar_id: int):
     bar = _bar(bar_id)
     can_manage = permissions.evaluate(current_user, "expenses.manage", bar_id).allowed
+    can_record = permissions.evaluate(current_user, "expenses.record", bar_id).allowed
 
     if request.method == "POST":
-        if not can_manage:
-            raise PermissionError("FORBIDDEN")
         action = request.form.get("action", "")
         try:
             if action == "category_create":
+                if not can_manage:
+                    raise PermissionError("FORBIDDEN")
                 expense_service.create_category(current_user, bar_id, request.form.get("name", ""))
                 db.session.commit()
                 flash("Catégorie de dépense enregistrée.", "success")
 
             elif action in {"category_enable", "category_disable"}:
+                if not can_manage:
+                    raise PermissionError("FORBIDDEN")
                 expense_service.set_category_active(
                     current_user,
                     bar_id,
@@ -129,7 +132,15 @@ def manage(bar_id: int):
                 flash("Catégorie mise à jour.", "success")
 
             elif action == "expense_create":
+                if not can_record:
+                    raise PermissionError("FORBIDDEN")
                 session_raw = (request.form.get("cash_session_id") or "").strip()
+                # A cashier cannot backdate an expense: the server records the real time.
+                incurred_at = (
+                    _parse_local_datetime(bar, request.form.get("incurred_at"))
+                    if can_manage
+                    else None
+                )
                 expense_service.create(
                     current_user,
                     bar_id,
@@ -138,7 +149,7 @@ def manage(bar_id: int):
                     request.form.get("description", ""),
                     request.form.get("amount", ""),
                     request.form.get("method", ""),
-                    _parse_local_datetime(bar, request.form.get("incurred_at")),
+                    incurred_at,
                     int(session_raw) if session_raw else None,
                     request.form.get("provider_code"),
                     request.form.get("provider_transaction_id"),
@@ -147,6 +158,8 @@ def manage(bar_id: int):
                 flash("Dépense enregistrée.", "success")
 
             elif action == "expense_reverse":
+                if not can_manage:
+                    raise PermissionError("FORBIDDEN")
                 session_raw = (request.form.get("cash_session_id") or "").strip()
                 expense_service.reverse(
                     current_user,
@@ -288,6 +301,7 @@ def manage(bar_id: int):
         "expenses.html",
         bar=bar,
         can_manage=can_manage,
+        can_record=can_record,
         categories=categories,
         active_categories=active_categories,
         rows=rows,
