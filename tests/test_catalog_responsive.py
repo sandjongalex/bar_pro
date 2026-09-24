@@ -21,3 +21,14 @@ def test_catalogue_small_screen_actions_remain_visible():
     assert ".catalog-hero-actions .btn { width:100%; }" in css
     assert ".catalog-table .product-actions { width:100%; display:grid; grid-template-columns:1fr 1fr;" in css
     assert ".catalog-table .product-actions form .btn { width:100%; }" in css
+
+
+def test_catalogue_modal_footer_stays_visible_on_short_screens():
+    css = Path("app/static/catalog.css").read_text(encoding="utf-8")
+
+    assert ".catalog-modal > form { display:flex; flex-direction:column;" in css
+    assert "max-height:calc(100dvh - 3.5rem)" in css
+    assert ".catalog-modal > form > .modal-body { min-height:0; overflow-y:auto;" in css
+    assert ".catalog-modal > form > .modal-header,.catalog-modal > form > .modal-footer { flex:0 0 auto; }" in css
+    assert "max-height:calc(100dvh - 2rem)" in css
+    assert ".catalog-modal .modal-footer .btn { width:100%; margin:0; }" in css
