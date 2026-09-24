@@ -90,6 +90,28 @@ def test_owner_updates_product_and_uploads_replaces_removes_image(env):
     assert client.get(f"/bars/{bar.id}/catalog/images/{first_key}").status_code == 404
 
 
+def test_jfif_product_image_is_accepted_as_jpeg(env):
+    app, owner, bar, _, product, *_ = env
+    client = app.test_client()
+    assert _login(client, owner.email).status_code == 302
+    page = client.get(f"/bars/{bar.id}/catalog")
+
+    # JFIF files use the JPEG binary signature; they are stored canonically as .jpg.
+    jfif = b"\xff\xd8\xff\xe0\x00\x10JFIF\x00" + b"product-photo"
+    data = _product_form(page, product)
+    data["image"] = (BytesIO(jfif), "33-export.jfif")
+    response = client.post(f"/bars/{bar.id}/catalog", data=data, follow_redirects=True)
+
+    assert response.status_code == 200
+    assert "a été modifié avec succès" in response.text
+    db.session.refresh(product)
+    assert product.image_key and product.image_key.endswith(".jpg")
+
+    image = client.get(f"/bars/{bar.id}/catalog/images/{product.image_key}")
+    assert image.status_code == 200
+    assert image.data == jfif
+
+
 def test_product_archive_and_reactivate_are_soft_delete(env):
     app, owner, bar, _, product, *_ = env
     client = app.test_client()
