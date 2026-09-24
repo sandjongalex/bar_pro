@@ -30,6 +30,12 @@ def upgrade():
         sa.Column("ended_at", dt_type, nullable=True),
         sa.Column("started_by_id", id_type, nullable=False),
         sa.Column("ended_by_id", id_type, nullable=True),
+        sa.Column(
+            "open_staff_assignment_id",
+            id_type,
+            sa.Computed("CASE WHEN status = 'OPEN' THEN staff_assignment_id ELSE NULL END"),
+            nullable=True,
+        ),
         sa.Column("created_at", dt_type, nullable=False),
         sa.Column("updated_at", dt_type, nullable=False),
         sa.Column("bar_id", id_type, nullable=False),
@@ -42,6 +48,11 @@ def upgrade():
             ondelete="RESTRICT",
         ),
         sa.UniqueConstraint("bar_id", "id", name="uq_employee_shifts_bar_id_id"),
+        sa.UniqueConstraint(
+            "bar_id",
+            "open_staff_assignment_id",
+            name="uq_employee_shifts_one_open_assignment",
+        ),
         sa.CheckConstraint(
             "role_snapshot IN ('CASHIER','SERVER')",
             name="ck_employee_shifts_role",
