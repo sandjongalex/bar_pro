@@ -18,7 +18,7 @@ ROLE_ACTIONS = {
  "auth.self.read":{"SUPER_ADMIN","OWNER","BAR_ADMIN","CASHIER","SERVER"},
  "bars.read":{"SUPER_ADMIN","OWNER","BAR_ADMIN","CASHIER","SERVER"},
  "bars.update_settings":{"SUPER_ADMIN","OWNER"}, "bars.create":{"SUPER_ADMIN"},
- "bars.reset":{"OWNER"},
+ "bars.reset":{"SUPER_ADMIN","OWNER"},
  "staff.manage":{"SUPER_ADMIN","OWNER"}, "staff.read":{"SUPER_ADMIN","OWNER","BAR_ADMIN"},
  "catalog.read":{"SUPER_ADMIN","OWNER","BAR_ADMIN","CASHIER","SERVER"},
  "customers.read":{"SUPER_ADMIN","OWNER","BAR_ADMIN","CASHIER"},
