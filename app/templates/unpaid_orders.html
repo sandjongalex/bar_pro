@@ -6,11 +6,11 @@
 .unpaid-personnel-filter{margin:14px 0 16px;padding:14px;border:1px solid #dfe8e3;border-radius:16px;background:#fff}.unpaid-personnel-filter form{display:flex;align-items:end;gap:10px;flex-wrap:wrap}.unpaid-personnel-filter .field{flex:1 1 260px}.unpaid-personnel-filter label{display:block;font-size:.72rem;font-weight:800;color:var(--muted);margin-bottom:5px}.unpaid-personnel-filter select{min-height:44px;width:100%}.unpaid-personnel-filter .btn{min-height:44px;display:inline-flex;align-items:center;justify-content:center;text-decoration:none}@media(max-width:700px){.unpaid-personnel-filter form{display:block}.unpaid-personnel-filter .btn{width:100%;margin-top:8px}}
 </style>
 
-<section class="unpaid-hero" data-unpaid-monitor data-live-url="{{ url_for('unpaid_orders_web.data', bar_id=bar.id, staff=payload.staff_filter) }}" data-role="{{ payload.mode }}">
+<section class="unpaid-hero" data-unpaid-monitor data-live-url="{{ url_for('unpaid_orders_web.data', bar_id=bar.id, staff=payload.staff_filter) }}" data-role="{{ payload.mode }}" data-csrf-token="{{ csrf_token() }}" data-staff-filter="{{ payload.staff_filter }}">
   <div>
     <p class="eyebrow mb-2">Surveillance prioritaire</p>
     <h1>{% if is_server %}Mes commandes livrées non payées{% else %}Commandes livrées non payées{% endif %}</h1>
-    <p>{% if is_server %}Suivez ici uniquement vos commandes déjà livrées qui attendent encore un paiement.{% else %}Toutes les commandes déjà livrées qui ne sont pas encore totalement encaissées sont regroupées ici.{% endif %}</p>
+    <p>{% if is_server %}Suivez ici vos commandes livrées, y compris les nouveaux ajouts qui attendent la confirmation de la caisse.{% else %}Encaissez les commandes et confirmez les nouveaux produits ajoutés par une serveuse avant le paiement.{% endif %}</p>
   </div>
   <span class="unpaid-live-badge" data-unpaid-live-badge>● Mise à jour auto</span>
 </section>
@@ -49,6 +49,7 @@
 
 <section class="unpaid-stats" aria-label="Résumé des commandes impayées">
   <article><span>À surveiller</span><strong data-unpaid-count>{{ payload.stats.count }}</strong><small>Livrées et non soldées</small></article>
+  <article><span>Livraisons à confirmer</span><strong data-unpaid-pending-delivery>{{ payload.stats.pending_delivery }}</strong><small>Ajouts des serveuses</small></article>
   <article><span>Paiements partiels</span><strong data-unpaid-partial>{{ payload.stats.partial }}</strong><small>Reste encore à encaisser</small></article>
   <article><span>Reste total</span><strong><span data-unpaid-due>{{ "{:,.0f}".format(payload.stats.due|float) }}</span> {{ bar.currency }}</strong><small>Montant encore attendu</small></article>
 </section>
@@ -61,10 +62,10 @@
 
 <section class="unpaid-grid" data-unpaid-grid>
   {% for order in payload.orders %}
-  <article class="unpaid-card {% if order.payment_status == 'PARTIAL' %}is-partial{% endif %}" data-unpaid-order-id="{{ order.id }}" data-posted-at="{{ order.posted_at or '' }}">
+  <article class="unpaid-card {% if order.payment_status == 'PARTIAL' %}is-partial{% endif %} {% if order.payment_blocked %}is-pending-delivery{% endif %}" data-unpaid-order-id="{{ order.id }}" data-posted-at="{{ order.posted_at or '' }}">
     <div class="unpaid-card-head">
       <div><small>Table</small><strong>{{ order.table }}</strong></div>
-      <span class="unpaid-status">{{ 'Partiellement payée' if order.payment_status == 'PARTIAL' else 'Impayée' }}</span>
+      <span class="unpaid-status">{% if order.payment_blocked %}Livraison à confirmer{% else %}{{ 'Partiellement payée' if order.payment_status == 'PARTIAL' else 'Impayée' }}{% endif %}</span>
     </div>
     <div class="unpaid-card-meta">
       <strong>{{ order.reference }}</strong>
@@ -74,10 +75,37 @@
     <div class="unpaid-lines">
       {% for line in order.lines %}<div><span>{{ line.quantity }} × {{ line.name }}</span><strong>{{ "{:,.0f}".format(line.total_amount|float) }}</strong></div>{% endfor %}
     </div>
+
+    {% if order.pending_deliveries %}
+    <div class="unpaid-pending-list">
+      {% for delivery in order.pending_deliveries %}
+      <section class="unpaid-pending">
+        <div class="unpaid-pending-head">
+          <div><strong>NOUVEL AJOUT DE LA SERVEUSE</strong><small>Sous-commande {{ delivery.sequence_no }} · à confirmer par la caisse</small></div>
+          <span class="unpaid-pending-amount">{{ "{:,.0f}".format(delivery.total_amount|float) }} {{ delivery.currency }}</span>
+        </div>
+        <div class="unpaid-pending-lines">
+          {% for line in delivery.lines %}<div><span>{{ line.quantity }} × {{ line.name }}</span><strong>{{ "{:,.0f}".format(line.total_amount|float) }}</strong></div>{% endfor %}
+        </div>
+        {% if delivery.note %}<p class="unpaid-pending-note">Note : {{ delivery.note }}</p>{% endif %}
+        {% if delivery.confirm_url %}
+        <form class="unpaid-delivery-form" method="post" action="{{ delivery.confirm_url }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="staff" value="{{ payload.staff_filter }}">
+          <button class="btn btn-primary" type="submit">✓ Confirmer que j'ai livré</button>
+        </form>
+        {% else %}
+        <span class="unpaid-delivery-wait">En attente de confirmation par la caissière</span>
+        {% endif %}
+      </section>
+      {% endfor %}
+    </div>
+    {% endif %}
+
     {% if order.notes %}<p class="unpaid-note">{{ order.notes }}</p>{% endif %}
     <div class="unpaid-card-foot">
       <div><small>Reste à encaisser</small><strong>{{ "{:,.0f}".format(order.amount_due|float) }} {{ order.currency }}</strong></div>
-      {% if order.action_url %}<a class="btn btn-primary" href="{{ order.action_url }}">Encaisser →</a>{% else %}<span class="unpaid-watch">À suivre avec la caisse</span>{% endif %}
+      {% if order.payment_blocked %}<span class="unpaid-watch is-blocked">Confirmez d'abord la livraison avant d'encaisser</span>{% elif order.action_url %}<a class="btn btn-primary" href="{{ order.action_url }}">Encaisser →</a>{% else %}<span class="unpaid-watch">À suivre avec la caisse</span>{% endif %}
     </div>
   </article>
   {% endfor %}
