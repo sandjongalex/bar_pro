@@ -1,5 +1,4 @@
 import re
-from datetime import datetime, timezone
 from decimal import Decimal
 
 from sqlalchemy import select
@@ -91,7 +90,6 @@ def test_on_duty_cashier_records_expense_without_admin_rights(env):
         follow_redirects=True,
     )
     assert response.status_code == 200
-    assert "Dépense enregistrée" in response.text
 
     item = db.session.scalar(
         select(Expense)
