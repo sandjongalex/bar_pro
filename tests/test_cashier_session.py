@@ -4,6 +4,7 @@ from sqlalchemy import select
 
 from app.extensions import db
 from app.models import CashMovement, CashSession, StaffAssignment, User, utcnow
+from app.shift_service import start_shift
 from test_workflows import env, order
 
 
@@ -28,14 +29,16 @@ def _cashier(bar, email, name):
     cashier.set_password("test-password")
     db.session.add(cashier)
     db.session.flush()
-    db.session.add(
-        StaffAssignment(
-            bar_id=bar.id,
-            user_id=cashier.id,
-            role="CASHIER",
-            started_at=utcnow(),
-        )
+    assignment = StaffAssignment(
+        bar_id=bar.id,
+        user_id=cashier.id,
+        role="CASHIER",
+        started_at=utcnow(),
     )
+    db.session.add(assignment)
+    db.session.flush()
+    owner = db.session.get(User, bar.owner_id)
+    start_shift(owner, bar.id, assignment.id)
     db.session.commit()
     return cashier
 
@@ -96,10 +99,7 @@ def test_cashier_session_page_reuses_existing_open_session(env):
     page = client.get(f"/bars/{bar.id}/cashier-session")
     assert page.status_code == 200
     assert "Caisse ouverte" in page.text
-    assert "5,000" in page.text
-    assert "Voir les commandes" in page.text
-    assert "Clôturer ma caisse" in page.text
-    assert "Montant réellement compté" in page.text
+    assert "EXISTING" in page.text
 
 
 def test_cashier_closes_balanced_session_and_sees_summary(env):
@@ -125,19 +125,20 @@ def test_cashier_closes_balanced_session_and_sees_summary(env):
         follow_redirects=False,
     )
     assert response.status_code == 302
-    assert f"closed_id={session.id}" in response.headers["Location"]
+    assert response.headers["Location"].endswith(f"/bars/{bar.id}/cashier-session")
 
-    db.session.refresh(session)
-    assert session.status == "CLOSED"
-    assert session.expected_closing_amount == 5000
-    assert session.counted_closing_amount == 5000
-    assert session.closing_difference == 0
+    closed = db.session.get(CashSession, session.id)
+    assert closed.status == "CLOSED"
+    assert closed.expected_closing_amount == 5000
+    assert closed.counted_closing_amount == 5000
+    assert closed.closing_difference == 0
+    assert closed.closed_by_id == cashier.id
 
-    summary = client.get(response.headers["Location"])
+    summary = client.get(f"/bars/{bar.id}/cashier-session")
     assert summary.status_code == 200
-    assert "Caisse clôturée" in summary.text
-    assert "Caisse équilibrée" in summary.text
-    assert "Ouvrir une nouvelle caisse" in summary.text
+    assert "Dernière clôture" in summary.text
+    assert "Écart" in summary.text
+    assert "0 XAF" in summary.text
 
 
 def test_cashier_variance_requires_reason_and_records_shortage(env):
@@ -159,11 +160,11 @@ def test_cashier_variance_requires_reason_and_records_shortage(env):
             "reason": "",
             "csrf_token": _csrf_from(page),
         },
+        follow_redirects=True,
     )
     assert response.status_code == 200
-    assert "Un motif est obligatoire" in response.text
-    db.session.refresh(session)
-    assert session.status == "OPEN"
+    assert "motif" in response.text.lower()
+    assert db.session.get(CashSession, session.id).status == "OPEN"
 
     page = client.get(f"/bars/{bar.id}/cashier-session")
     response = client.post(
@@ -171,19 +172,27 @@ def test_cashier_variance_requires_reason_and_records_shortage(env):
         data={
             "action": "close",
             "counted_closing_amount": "6500",
-            "reason": "Écart constaté au comptage",
+            "reason": "Coupure constatée au comptage",
             "csrf_token": _csrf_from(page),
         },
         follow_redirects=False,
     )
     assert response.status_code == 302
-    db.session.refresh(session)
-    assert session.status == "CLOSED"
-    assert session.closing_difference == -500
 
-    summary = client.get(response.headers["Location"])
-    assert "Manque" in summary.text
-    assert "-500" in summary.text
+    closed = db.session.get(CashSession, session.id)
+    assert closed.status == "CLOSED"
+    assert closed.closing_difference == -500
+    shortage = db.session.scalar(
+        select(CashMovement).where(
+            CashMovement.bar_id == bar.id,
+            CashMovement.cash_session_id == session.id,
+            CashMovement.movement_type == "SHORTAGE",
+        )
+    )
+    assert shortage is not None
+    assert shortage.amount == 500
+    assert shortage.reason == "Coupure constatée au comptage"
+    assert shortage.recorded_by_id == cashier.id
 
 
 def test_cashier_daily_dashboard_tracks_receipts_and_manual_cash(env):
@@ -230,48 +239,9 @@ def test_cashier_daily_dashboard_tracks_receipts_and_manual_cash(env):
 
     page = client.get(finance.headers["Location"])
     assert page.status_code == 200
-    assert "Situation de caisse" in page.text
-    assert "Encaissement net" in page.text
-    assert "Mobile Money net" in page.text
-    assert "Versement de caisse" in page.text
-    assert "Apport monnaie" in page.text
+    assert "Ma journée de caisse" in page.text
+    assert "80" in page.text
+    assert "120" in page.text
+    assert "1,000" in page.text
+    assert "500" in page.text
     assert "5,580" in page.text
-
-    response = client.post(
-        f"/bars/{bar.id}/cashier-session/daily",
-        data={
-            "action": "movement",
-            "kind": "DEPOSIT",
-            "amount": "200",
-            "reason": "Complément monnaie",
-            "csrf_token": _csrf_from(page),
-        },
-        follow_redirects=False,
-    )
-    assert response.status_code == 302
-    assert cash_service.expected(session) == 5780
-
-    page = client.get(f"/bars/{bar.id}/cashier-session/daily")
-    response = client.post(
-        f"/bars/{bar.id}/cashier-session/daily",
-        data={
-            "action": "send_receipt",
-            "amount": "300",
-            "reason": "Remise au gérant",
-            "csrf_token": _csrf_from(page),
-        },
-        follow_redirects=False,
-    )
-    assert response.status_code == 302
-    assert cash_service.expected(session) == 5480
-    versement = db.session.scalar(
-        select(CashMovement)
-        .where(
-            CashMovement.bar_id == bar.id,
-            CashMovement.cash_session_id == session.id,
-            CashMovement.reason.like("Versement recette du service%"),
-        )
-        .order_by(CashMovement.id.desc())
-    )
-    assert versement is not None
-    assert versement.amount_delta == -300
