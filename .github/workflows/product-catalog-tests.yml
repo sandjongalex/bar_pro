@@ -1,0 +1,24 @@
+name: Product catalog CRUD tests
+
+on:
+  pull_request:
+    paths:
+      - 'app/catalog.py'
+      - 'app/catalog_services.py'
+      - 'app/product_images.py'
+      - 'app/templates/catalog.html'
+      - 'tests/test_product_crud_images.py'
+      - '.github/workflows/product-catalog-tests.yml'
+  workflow_dispatch:
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r requirements.txt
+      - name: Run product CRUD and image tests
+        run: python -m pytest tests/test_product_crud_images.py -q

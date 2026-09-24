@@ -2,12 +2,15 @@
 {% block title %}Produits · {{ bar.name }} · Bar Manager Pro{% endblock %}
 {% block header %}Produits · {{ bar.name }}{% endblock %}
 {% block content %}
+<style>
+.product-photo,.product-avatar{width:48px;height:48px;flex:0 0 48px;border-radius:12px;border:1px solid var(--line);background:#f5f7f6}.product-photo{object-fit:contain;padding:3px}.product-avatar{display:inline-flex;align-items:center;justify-content:center;font-weight:900;color:var(--brand)}.product-cell{display:flex;align-items:center;gap:11px}.product-cell small{display:block;color:var(--muted)}.product-actions{display:flex;justify-content:flex-end;gap:6px;flex-wrap:wrap}.image-preview{width:110px;height:110px;border:1px dashed var(--line);border-radius:16px;background:#f7f9f8;display:flex;align-items:center;justify-content:center;overflow:hidden;color:var(--muted);font-size:.78rem;text-align:center}.image-preview img{width:100%;height:100%;object-fit:contain;padding:5px}.image-upload-row{display:flex;gap:16px;align-items:center}.crud-note{font-size:.78rem;color:var(--muted)}
+</style>
 <section class="catalog-hero">
   <div>
     <a class="bar-back" href="{{ url_for('bars.web_detail', bar_id=bar.id) }}">← Retour à {{ bar.name }}</a>
-    <p class="eyebrow mt-3 mb-2">Catalogue & stock initial</p>
+    <p class="eyebrow mt-3 mb-2">Catalogue produits</p>
     <h1>Produits de {{ bar.name }}</h1>
-    <p>Organisez les boissons et autres articles par catégorie, définissez les prix et enregistrez le stock de départ.</p>
+    <p>Créez, consultez, modifiez et archivez les produits. Ajoutez une photo pour les identifier rapidement.</p>
   </div>
   {% if can_manage %}
   <div class="catalog-hero-actions">
@@ -41,21 +44,9 @@
   <section class="panel-card catalog-main-panel">
     <div class="catalog-toolbar">
       <form method="get" class="catalog-filter-form">
-        <div class="catalog-search">
-          <span>⌕</span>
-          <input class="form-control" name="q" value="{{ request.args.get('q','') }}" placeholder="Rechercher un produit ou une référence">
-        </div>
-        <select class="form-select" name="category_id">
-          <option value="">Toutes les catégories</option>
-          {% for category in categories %}
-            <option value="{{ category.id }}" {% if request.args.get('category_id')|int == category.id %}selected{% endif %}>{{ category.name }}</option>
-          {% endfor %}
-        </select>
-        <select class="form-select" name="active">
-          <option value="">Tous les états</option>
-          <option value="true" {% if request.args.get('active') == 'true' %}selected{% endif %}>Actifs</option>
-          <option value="false" {% if request.args.get('active') == 'false' %}selected{% endif %}>Archivés</option>
-        </select>
+        <div class="catalog-search"><span>⌕</span><input class="form-control" name="q" value="{{ request.args.get('q','') }}" placeholder="Rechercher un produit ou une référence"></div>
+        <select class="form-select" name="category_id"><option value="">Toutes les catégories</option>{% for category in categories %}<option value="{{ category.id }}" {% if request.args.get('category_id')|int == category.id %}selected{% endif %}>{{ category.name }}</option>{% endfor %}</select>
+        <select class="form-select" name="active"><option value="">Tous les états</option><option value="true" {% if request.args.get('active') == 'true' %}selected{% endif %}>Actifs</option><option value="false" {% if request.args.get('active') == 'false' %}selected{% endif %}>Archivés</option></select>
         <button class="btn btn-light border" type="submit">Filtrer</button>
         {% if request.args %}<a class="btn btn-link" href="{{ url_for('catalog.web_list', bar_id=bar.id) }}">Réinitialiser</a>{% endif %}
       </form>
@@ -64,33 +55,29 @@
     {% if products.items %}
     <div class="table-responsive">
       <table class="table catalog-table align-middle mb-0">
-        <thead><tr><th>Produit</th><th>Catégorie</th><th>Prix de vente</th><th>Stock</th><th>Seuil</th><th>État</th>{% if can_manage %}<th class="text-end">Action</th>{% endif %}</tr></thead>
+        <thead><tr><th>Produit</th><th>Catégorie</th><th>Prix de vente</th><th>Stock</th><th>Seuil</th><th>État</th>{% if can_manage %}<th class="text-end">Actions</th>{% endif %}</tr></thead>
         <tbody>
         {% for p in products.items %}
           {% set quantity = balances.get(p.id, 0) %}
+          {% set image_url = url_for('catalog.product_image', bar_id=bar.id, key=p.image_key) if p.image_key else '' %}
           <tr>
-            <td>
-              <div class="product-cell">
-                <span class="product-avatar">{{ p.name[0]|upper }}</span>
-                <div><strong>{{ p.name }}</strong><small>{{ p.sku }} · {{ p.base_unit }}</small></div>
-              </div>
-            </td>
-            <td>
-              {% for category in categories %}{% if category.id == p.category_id %}<span class="category-chip">{{ category.name }}</span>{% endif %}{% endfor %}
-            </td>
+            <td><div class="product-cell">{% if p.image_key %}<img class="product-photo" src="{{ image_url }}" alt="{{ p.name }}" loading="lazy">{% else %}<span class="product-avatar">{{ p.name[0]|upper }}</span>{% endif %}<div><strong>{{ p.name }}</strong><small>{{ p.sku }} · {{ p.base_unit }}</small></div></div></td>
+            <td>{% for category in categories %}{% if category.id == p.category_id %}<span class="category-chip">{{ category.name }}</span>{% endif %}{% endfor %}</td>
             <td><strong>{{ "{:,.0f}".format(p.sale_price) }} {{ bar.currency }}</strong><small class="d-block text-secondary">Coût : {{ "{:,.0f}".format(p.valuation_unit_cost) }}</small></td>
             <td><span class="stock-value {% if quantity <= p.stock_alert_threshold %}stock-low{% endif %}">{{ quantity }}</span></td>
             <td>{{ p.stock_alert_threshold }}</td>
             <td><span class="status-pill {% if p.is_active %}status-active{% else %}status-suspended{% endif %}">{{ 'Actif' if p.is_active else 'Archivé' }}</span></td>
             {% if can_manage %}
-            <td class="text-end">
-              <form method="post" class="d-inline">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                <input type="hidden" name="product_id" value="{{ p.id }}">
-                <input type="hidden" name="action" value="{{ 'product_disable' if p.is_active else 'product_enable' }}">
+            <td class="text-end"><div class="product-actions">
+              <button class="btn btn-sm btn-outline-primary edit-product" type="button" data-bs-toggle="modal" data-bs-target="#editProductModal"
+                data-id="{{ p.id }}" data-name="{{ p.name|e }}" data-sku="{{ p.sku|e }}" data-category="{{ p.category_id }}"
+                data-sale-price="{{ p.sale_price }}" data-cost="{{ p.valuation_unit_cost }}" data-unit="{{ p.base_unit|e }}"
+                data-units-per-case="{{ p.units_per_case or '' }}" data-threshold="{{ p.stock_alert_threshold }}" data-image-url="{{ image_url }}">Modifier</button>
+              <form method="post" class="d-inline" onsubmit="return confirm('{{ 'Archiver ce produit ? Son historique sera conservé.' if p.is_active else 'Réactiver ce produit ?' }}')">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="product_id" value="{{ p.id }}"><input type="hidden" name="action" value="{{ 'product_disable' if p.is_active else 'product_enable' }}">
                 <button class="btn btn-sm btn-light border" type="submit">{{ 'Archiver' if p.is_active else 'Réactiver' }}</button>
               </form>
-            </td>
+            </div></td>
             {% endif %}
           </tr>
         {% endfor %}
@@ -98,91 +85,87 @@
       </table>
     </div>
 
-    {% if products.pages > 1 %}
-    <div class="catalog-pagination">
-      <span>Page {{ products.page }} sur {{ products.pages }}</span>
-      <div>
-        {% if products.has_prev %}<a class="btn btn-sm btn-light border" href="{{ url_for('catalog.web_list', bar_id=bar.id, page=products.prev_num, q=request.args.get('q',''), category_id=request.args.get('category_id',''), active=request.args.get('active','')) }}">← Précédent</a>{% endif %}
-        {% if products.has_next %}<a class="btn btn-sm btn-light border" href="{{ url_for('catalog.web_list', bar_id=bar.id, page=products.next_num, q=request.args.get('q',''), category_id=request.args.get('category_id',''), active=request.args.get('active','')) }}">Suivant →</a>{% endif %}
-      </div>
-    </div>
-    {% endif %}
+    {% if products.pages > 1 %}<div class="catalog-pagination"><span>Page {{ products.page }} sur {{ products.pages }}</span><div>{% if products.has_prev %}<a class="btn btn-sm btn-light border" href="{{ url_for('catalog.web_list', bar_id=bar.id, page=products.prev_num, q=request.args.get('q',''), category_id=request.args.get('category_id',''), active=request.args.get('active','')) }}">← Précédent</a>{% endif %}{% if products.has_next %}<a class="btn btn-sm btn-light border" href="{{ url_for('catalog.web_list', bar_id=bar.id, page=products.next_num, q=request.args.get('q',''), category_id=request.args.get('category_id',''), active=request.args.get('active','')) }}">Suivant →</a>{% endif %}</div></div>{% endif %}
     {% else %}
-    <div class="empty-state">
-      <div class="empty-icon">▦</div>
-      <h3>Aucun produit trouvé</h3>
-      <p>{% if categories %}Ajoutez votre premier produit ou modifiez les filtres de recherche.{% else %}Créez d'abord une catégorie, puis ajoutez les produits de {{ bar.name }}.{% endif %}</p>
-      {% if can_manage and active_categories %}<button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#productModal">Ajouter un produit</button>{% endif %}
-    </div>
+    <div class="empty-state"><div class="empty-icon">▦</div><h3>Aucun produit trouvé</h3><p>{% if categories %}Ajoutez votre premier produit ou modifiez les filtres de recherche.{% else %}Créez d'abord une catégorie, puis ajoutez les produits de {{ bar.name }}.{% endif %}</p>{% if can_manage and active_categories %}<button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#productModal">Ajouter un produit</button>{% endif %}</div>
     {% endif %}
   </section>
 
   <aside class="panel-card category-panel">
     <div class="panel-header"><div><p class="eyebrow mb-1">Organisation</p><h2>Catégories</h2></div>{% if can_manage %}<button class="btn btn-sm btn-light border" data-bs-toggle="modal" data-bs-target="#categoryModal">＋</button>{% endif %}</div>
-    <div class="category-list">
-      {% for category in categories %}
-      <div class="category-row">
-        <div><strong>{{ category.name }}</strong><small>{{ 'Active' if category.is_active else 'Désactivée' }}</small></div>
-        {% if can_manage %}
-        <form method="post">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <input type="hidden" name="category_id" value="{{ category.id }}">
-          <input type="hidden" name="action" value="{{ 'category_disable' if category.is_active else 'category_enable' }}">
-          <button class="btn btn-sm btn-link" type="submit">{{ 'Désactiver' if category.is_active else 'Activer' }}</button>
-        </form>
-        {% endif %}
-      </div>
-      {% else %}
-      <div class="p-4 text-secondary small">Aucune catégorie pour le moment.</div>
-      {% endfor %}
-    </div>
+    <div class="category-list">{% for category in categories %}<div class="category-row"><div><strong>{{ category.name }}</strong><small>{{ 'Active' if category.is_active else 'Désactivée' }}</small></div>{% if can_manage %}<form method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="category_id" value="{{ category.id }}"><input type="hidden" name="action" value="{{ 'category_disable' if category.is_active else 'category_enable' }}"><button class="btn btn-sm btn-link" type="submit">{{ 'Désactiver' if category.is_active else 'Activer' }}</button></form>{% endif %}</div>{% else %}<div class="p-4 text-secondary small">Aucune catégorie pour le moment.</div>{% endfor %}</div>
   </aside>
 </div>
 
 {% if can_manage %}
-<div class="modal fade" id="categoryModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered">
-    <div class="modal-content catalog-modal">
-      <form method="post">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <input type="hidden" name="action" value="category_create">
-        <div class="modal-header"><div><p class="eyebrow mb-1">Nouvelle catégorie</p><h2 class="modal-title h5">Organiser le catalogue</h2></div><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
-        <div class="modal-body">
-          <label class="form-label" for="category_name">Nom de la catégorie</label>
-          <input class="form-control form-control-lg" id="category_name" name="category_name" placeholder="Ex. Bières" maxlength="100" required>
-          <div class="form-text">Une catégorie permet de regrouper les produits similaires.</div>
-        </div>
-        <div class="modal-footer"><button type="button" class="btn btn-light border" data-bs-dismiss="modal">Annuler</button><button class="btn btn-primary" type="submit">Créer la catégorie</button></div>
-      </form>
-    </div>
-  </div>
-</div>
+<div class="modal fade" id="categoryModal" tabindex="-1" aria-hidden="true"><div class="modal-dialog modal-dialog-centered"><div class="modal-content catalog-modal"><form method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="category_create"><div class="modal-header"><div><p class="eyebrow mb-1">Nouvelle catégorie</p><h2 class="modal-title h5">Organiser le catalogue</h2></div><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><label class="form-label" for="category_name">Nom de la catégorie</label><input class="form-control form-control-lg" id="category_name" name="category_name" placeholder="Ex. Bières" maxlength="100" required><div class="form-text">Une catégorie permet de regrouper les produits similaires.</div></div><div class="modal-footer"><button type="button" class="btn btn-light border" data-bs-dismiss="modal">Annuler</button><button class="btn btn-primary" type="submit">Créer la catégorie</button></div></form></div></div></div>
 
-<div class="modal fade" id="productModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
-    <div class="modal-content catalog-modal">
-      <form method="post">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <input type="hidden" name="action" value="product_create">
-        <div class="modal-header"><div><p class="eyebrow mb-1">Nouveau produit</p><h2 class="modal-title h5">Ajouter au catalogue de {{ bar.name }}</h2></div><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
-        <div class="modal-body">
-          <div class="product-form-grid">
-            <div class="field-span-2"><label class="form-label">Catégorie</label><select class="form-select form-select-lg" name="category_id" required><option value="">Sélectionner...</option>{% for category in active_categories %}<option value="{{ category.id }}">{{ category.name }}</option>{% endfor %}</select></div>
-            <div><label class="form-label">Nom du produit</label><input class="form-control" name="name" placeholder="Ex. 33 Export" maxlength="160" required></div>
-            <div><label class="form-label">Référence / SKU</label><input class="form-control" name="sku" placeholder="Ex. BIERE-33-65" maxlength="64" required></div>
-            <div><label class="form-label">Prix de vente</label><div class="input-group"><input class="form-control" name="sale_price" type="number" min="0" step="1" placeholder="800" required><span class="input-group-text">{{ bar.currency }}</span></div></div>
-            <div><label class="form-label">Coût d'achat unitaire</label><div class="input-group"><input class="form-control" name="valuation_unit_cost" type="number" min="0" step="1" placeholder="600" required><span class="input-group-text">{{ bar.currency }}</span></div></div>
-            <div><label class="form-label">Unité de vente</label><select class="form-select" name="base_unit"><option value="bouteille">Bouteille</option><option value="canette">Canette</option><option value="unité">Unité</option><option value="plat">Plat</option><option value="verre">Verre</option><option value="portion">Portion</option></select></div>
-            <div><label class="form-label">Unités par casier/carton</label><input class="form-control" name="units_per_case" type="number" min="1" step="1" placeholder="12"></div>
-            <div><label class="form-label">Stock initial</label><input class="form-control" name="initial_quantity" type="number" min="0" step="0.001" value="0"><div class="form-text">Quantité disponible actuellement.</div></div>
-            <div><label class="form-label">Seuil d'alerte</label><input class="form-control" name="stock_alert_threshold" type="number" min="0" step="0.001" value="0"><div class="form-text">Alerte lorsque le stock atteint ce niveau.</div></div>
-          </div>
-          <div class="info-box mt-4"><strong>Stock initial :</strong> cette quantité sera enregistrée comme premier mouvement de stock et restera traçable dans l'historique.</div>
-        </div>
-        <div class="modal-footer"><button type="button" class="btn btn-light border" data-bs-dismiss="modal">Annuler</button><button class="btn btn-primary" type="submit">Créer le produit</button></div>
-      </form>
+<div class="modal fade" id="productModal" tabindex="-1" aria-hidden="true"><div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable"><div class="modal-content catalog-modal">
+  <form method="post" enctype="multipart/form-data"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="product_create">
+    <div class="modal-header"><div><p class="eyebrow mb-1">Nouveau produit</p><h2 class="modal-title h5">Ajouter au catalogue de {{ bar.name }}</h2></div><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+    <div class="modal-body">
+      <div class="mb-4"><label class="form-label">Photo du produit</label><input class="form-control" name="image" type="file" accept="image/jpeg,image/png,image/webp"><div class="form-text">JPG, PNG ou WebP · maximum 4 Mo.</div></div>
+      <div class="product-form-grid">
+        <div class="field-span-2"><label class="form-label">Catégorie</label><select class="form-select form-select-lg" name="category_id" required><option value="">Sélectionner...</option>{% for category in active_categories %}<option value="{{ category.id }}">{{ category.name }}</option>{% endfor %}</select></div>
+        <div><label class="form-label">Nom du produit</label><input class="form-control" name="name" placeholder="Ex. 33 Export" maxlength="160" required></div>
+        <div><label class="form-label">Référence / SKU</label><input class="form-control" name="sku" placeholder="Ex. BIERE-33-65" maxlength="64" required></div>
+        <div><label class="form-label">Prix de vente</label><div class="input-group"><input class="form-control" name="sale_price" type="number" min="0" step="1" placeholder="800" required><span class="input-group-text">{{ bar.currency }}</span></div></div>
+        <div><label class="form-label">Coût d'achat unitaire</label><div class="input-group"><input class="form-control" name="valuation_unit_cost" type="number" min="0" step="1" placeholder="600" required><span class="input-group-text">{{ bar.currency }}</span></div></div>
+        <div><label class="form-label">Unité de vente</label><select class="form-select" name="base_unit"><option value="bouteille">Bouteille</option><option value="canette">Canette</option><option value="unité">Unité</option><option value="plat">Plat</option><option value="verre">Verre</option><option value="portion">Portion</option></select></div>
+        <div><label class="form-label">Unités par casier/carton</label><input class="form-control" name="units_per_case" type="number" min="1" step="1" placeholder="12"></div>
+        <div><label class="form-label">Stock initial</label><input class="form-control" name="initial_quantity" type="number" min="0" step="0.001" value="0"><div class="form-text">Quantité disponible actuellement.</div></div>
+        <div><label class="form-label">Seuil d'alerte</label><input class="form-control" name="stock_alert_threshold" type="number" min="0" step="0.001" value="0"><div class="form-text">Alerte lorsque le stock atteint ce niveau.</div></div>
+      </div>
+      <div class="info-box mt-4"><strong>Stock initial :</strong> cette quantité sera enregistrée comme premier mouvement de stock et restera traçable dans l'historique.</div>
     </div>
-  </div>
-</div>
+    <div class="modal-footer"><button type="button" class="btn btn-light border" data-bs-dismiss="modal">Annuler</button><button class="btn btn-primary" type="submit">Créer le produit</button></div>
+  </form>
+</div></div></div>
+
+<div class="modal fade" id="editProductModal" tabindex="-1" aria-hidden="true"><div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable"><div class="modal-content catalog-modal">
+  <form method="post" enctype="multipart/form-data" id="editProductForm"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="product_update"><input type="hidden" name="product_id" id="editProductId">
+    <div class="modal-header"><div><p class="eyebrow mb-1">Modifier un produit</p><h2 class="modal-title h5" id="editProductTitle">Produit</h2></div><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+    <div class="modal-body">
+      <div class="image-upload-row mb-4"><div class="image-preview" id="editImagePreview"><span>Aucune photo</span></div><div class="flex-grow-1"><label class="form-label">Remplacer la photo</label><input class="form-control" name="image" type="file" accept="image/jpeg,image/png,image/webp"><div class="form-text">JPG, PNG ou WebP · maximum 4 Mo.</div><div class="form-check mt-2"><input class="form-check-input" type="checkbox" value="yes" name="remove_image" id="removeProductImage"><label class="form-check-label" for="removeProductImage">Supprimer la photo actuelle</label></div></div></div>
+      <div class="product-form-grid">
+        <div class="field-span-2"><label class="form-label">Catégorie</label><select class="form-select form-select-lg" name="category_id" id="editCategory" required>{% for category in active_categories %}<option value="{{ category.id }}">{{ category.name }}</option>{% endfor %}</select></div>
+        <div><label class="form-label">Nom du produit</label><input class="form-control" name="name" id="editName" maxlength="160" required></div>
+        <div><label class="form-label">Référence / SKU</label><input class="form-control" name="sku" id="editSku" maxlength="64" required></div>
+        <div><label class="form-label">Prix de vente</label><div class="input-group"><input class="form-control" name="sale_price" id="editSalePrice" type="number" min="0" step="1" required><span class="input-group-text">{{ bar.currency }}</span></div></div>
+        <div><label class="form-label">Coût d'achat unitaire</label><div class="input-group"><input class="form-control" name="valuation_unit_cost" id="editCost" type="number" min="0" step="1" required><span class="input-group-text">{{ bar.currency }}</span></div></div>
+        <div><label class="form-label">Unité de vente</label><select class="form-select" name="base_unit" id="editUnit"><option value="bouteille">Bouteille</option><option value="canette">Canette</option><option value="unité">Unité</option><option value="plat">Plat</option><option value="verre">Verre</option><option value="portion">Portion</option></select></div>
+        <div><label class="form-label">Unités par casier/carton</label><input class="form-control" name="units_per_case" id="editUnitsPerCase" type="number" min="1" step="1"></div>
+        <div><label class="form-label">Seuil d'alerte</label><input class="form-control" name="stock_alert_threshold" id="editThreshold" type="number" min="0" step="0.001" required></div>
+      </div>
+      <p class="crud-note mt-3 mb-0">La quantité de stock n'est pas modifiée depuis cette fiche : utilisez les mouvements de stock ou l'inventaire afin de conserver la traçabilité.</p>
+    </div>
+    <div class="modal-footer"><button type="button" class="btn btn-light border" data-bs-dismiss="modal">Annuler</button><button class="btn btn-primary" type="submit">Enregistrer les modifications</button></div>
+  </form>
+</div></div></div>
+
+<script>
+(function(){
+  const modal=document.getElementById('editProductModal');
+  if(!modal) return;
+  modal.addEventListener('show.bs.modal', function(event){
+    const b=event.relatedTarget; if(!b) return;
+    document.getElementById('editProductId').value=b.dataset.id||'';
+    document.getElementById('editProductTitle').textContent=b.dataset.name||'Produit';
+    document.getElementById('editName').value=b.dataset.name||'';
+    document.getElementById('editSku').value=b.dataset.sku||'';
+    document.getElementById('editCategory').value=b.dataset.category||'';
+    document.getElementById('editSalePrice').value=b.dataset.salePrice||'0';
+    document.getElementById('editCost').value=b.dataset.cost||'0';
+    document.getElementById('editUnit').value=b.dataset.unit||'unité';
+    document.getElementById('editUnitsPerCase').value=b.dataset.unitsPerCase||'';
+    document.getElementById('editThreshold').value=b.dataset.threshold||'0';
+    const preview=document.getElementById('editImagePreview');
+    const remove=document.getElementById('removeProductImage');
+    remove.checked=false;
+    remove.disabled=!b.dataset.imageUrl;
+    preview.innerHTML=b.dataset.imageUrl?'<img src="'+b.dataset.imageUrl+'" alt="Photo produit">':'<span>Aucune photo</span>';
+  });
+})();
+</script>
 {% endif %}
 {% endblock %}
