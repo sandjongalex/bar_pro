@@ -6,8 +6,10 @@ on:
       - 'app/catalog.py'
       - 'app/catalog_services.py'
       - 'app/product_images.py'
+      - 'app/static/catalog.css'
       - 'app/templates/catalog.html'
       - 'tests/test_product_crud_images.py'
+      - 'tests/test_catalog_responsive.py'
       - '.github/workflows/product-catalog-tests.yml'
   workflow_dispatch:
 
@@ -20,5 +22,5 @@ jobs:
         with:
           python-version: '3.12'
       - run: pip install -r requirements.txt
-      - name: Run product CRUD and image tests
-        run: python -m pytest tests/test_product_crud_images.py -q
+      - name: Run product CRUD, image and responsive tests
+        run: python -m pytest tests/test_product_crud_images.py tests/test_catalog_responsive.py -q
