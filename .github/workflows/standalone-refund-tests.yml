@@ -1,0 +1,23 @@
+name: Standalone beer refund tests
+
+on:
+  pull_request:
+    paths:
+      - 'app/standalone_refund_service.py'
+      - 'app/cashier_exchanges_web.py'
+      - 'app/templates/cashier_exchanges_v2.html'
+      - 'tests/test_cashier_standalone_refunds.py'
+      - '.github/workflows/standalone-refund-tests.yml'
+  workflow_dispatch:
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r requirements.txt
+      - name: Run standalone refund and exchange regression tests
+        run: python -m pytest tests/test_cashier_standalone_refunds.py tests/test_cashier_exchanges.py -q
