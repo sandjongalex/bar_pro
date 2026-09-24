@@ -5,4 +5,31 @@
 .invoice-reference.invoice-human-title{text-transform:uppercase;font-size:1.02rem;letter-spacing:.02em}.invoice-system-ref{font-size:.58rem;color:var(--muted);margin-top:2px;opacity:.82}
 </style>
 
+<template id="cashierPersonnelOptions">
+  <option value="all" {% if origin_filter == 'all' %}selected{% endif %}>Tout le personnel</option>
+  <option value="cashier" {% if origin_filter == 'cashier' %}selected{% endif %}>Caisse / comptoir · toutes</option>
+  {% if personnel_filters %}
+    <optgroup label="Caissiers / Caissières">
+      {% for person in personnel_filters if person.role == 'CASHIER' %}
+      <option value="person-{{ person.user_id }}" {% if origin_filter == 'person-' ~ person.user_id %}selected{% endif %}>{{ person.name }}</option>
+      {% endfor %}
+    </optgroup>
+    <optgroup label="Serveurs / Serveuses">
+      {% for person in personnel_filters if person.role == 'SERVER' %}
+      <option value="person-{{ person.user_id }}" {% if origin_filter == 'person-' ~ person.user_id %}selected{% endif %}>{{ person.name }}</option>
+      {% endfor %}
+    </optgroup>
+  {% endif %}
+</template>
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+  const select = document.getElementById("origin");
+  const options = document.getElementById("cashierPersonnelOptions");
+  if (!select || !options) return;
+  const label = document.querySelector('label[for="origin"]');
+  if (label) label.textContent = "Personnel";
+  select.setAttribute("aria-label", "Filtrer les commandes par personnel");
+  select.innerHTML = options.innerHTML;
+});
+</script>
 {% endblock %}
