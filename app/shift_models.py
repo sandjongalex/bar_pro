@@ -1,5 +1,5 @@
 """Employee attendance and on-duty state for cashier/server access control."""
-from sqlalchemy import CheckConstraint, ForeignKeyConstraint, Index
+from sqlalchemy import CheckConstraint, Computed, ForeignKeyConstraint, Index, UniqueConstraint
 
 from app.extensions import db
 from app.models import ID, Tenant, datetime_type, tenant_args
@@ -17,6 +17,10 @@ class EmployeeShift(Tenant, db.Model):
     ended_at = db.Column(datetime_type(fsp=6))
     started_by_id = db.Column(ID, db.ForeignKey("users.id", ondelete="RESTRICT"), nullable=False)
     ended_by_id = db.Column(ID, db.ForeignKey("users.id", ondelete="RESTRICT"))
+    open_staff_assignment_id = db.Column(
+        ID,
+        Computed("CASE WHEN status = 'OPEN' THEN staff_assignment_id ELSE NULL END"),
+    )
 
     assignment = db.relationship("StaffAssignment", foreign_keys=[staff_assignment_id])
     started_by = db.relationship("User", foreign_keys=[started_by_id])
@@ -28,6 +32,11 @@ class EmployeeShift(Tenant, db.Model):
             ["bar_id", "staff_assignment_id"],
             ["staff_assignments.bar_id", "staff_assignments.id"],
             ondelete="RESTRICT",
+        ),
+        UniqueConstraint(
+            "bar_id",
+            "open_staff_assignment_id",
+            name="uq_employee_shifts_one_open_assignment",
         ),
         CheckConstraint(
             "role_snapshot IN ('CASHIER','SERVER')",
