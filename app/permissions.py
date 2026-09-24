@@ -15,7 +15,8 @@ ROLE_ACTIONS = {
     "inventory.read": {"SUPER_ADMIN", "OWNER", "BAR_ADMIN"},
     "inventory.adjust": {"SUPER_ADMIN", "OWNER", "BAR_ADMIN"},
     "purchases.manage": {"SUPER_ADMIN", "OWNER", "BAR_ADMIN"},
-    "expenses.read": {"SUPER_ADMIN", "OWNER", "BAR_ADMIN"},
+    "expenses.read": {"SUPER_ADMIN", "OWNER", "BAR_ADMIN", "CASHIER"},
+    "expenses.record": {"SUPER_ADMIN", "OWNER", "BAR_ADMIN", "CASHIER"},
     "expenses.manage": {"SUPER_ADMIN", "OWNER", "BAR_ADMIN"},
     "cash.operate": {"SUPER_ADMIN", "OWNER", "BAR_ADMIN", "CASHIER"},
     "auth.self.read": {"SUPER_ADMIN", "OWNER", "BAR_ADMIN", "CASHIER", "SERVER"},
@@ -65,6 +66,7 @@ WRITES.update(
         "suppliers.manage",
         "inventory.adjust",
         "purchases.manage",
+        "expenses.record",
         "expenses.manage",
         "cash.operate",
         "customers.manage",
@@ -91,6 +93,8 @@ SHIFT_GATED_ACTIONS = {
     "refunds.record",
     "cash.read",
     "cash.operate",
+    "expenses.read",
+    "expenses.record",
 }
 
 
