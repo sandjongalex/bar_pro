@@ -4,16 +4,22 @@ on:
   push:
     paths:
       - 'app/unpaid_orders_web.py'
+      - 'app/payment_services.py'
       - 'app/templates/unpaid_orders.html'
+      - 'app/static/unpaid_orders.css'
       - 'app/static/unpaid_orders_ui.js'
       - 'tests/test_unpaid_orders_web.py'
+      - 'tests/test_cashier_delivery_confirmation.py'
       - '.github/workflows/unpaid-orders-tests.yml'
   pull_request:
     paths:
       - 'app/unpaid_orders_web.py'
+      - 'app/payment_services.py'
       - 'app/templates/unpaid_orders.html'
+      - 'app/static/unpaid_orders.css'
       - 'app/static/unpaid_orders_ui.js'
       - 'tests/test_unpaid_orders_web.py'
+      - 'tests/test_cashier_delivery_confirmation.py'
       - '.github/workflows/unpaid-orders-tests.yml'
 
 jobs:
@@ -25,4 +31,4 @@ jobs:
         with:
           python-version: '3.12'
       - run: pip install -r requirements.txt
-      - run: pytest -q tests/test_unpaid_orders_web.py
+      - run: pytest -q tests/test_unpaid_orders_web.py tests/test_cashier_delivery_confirmation.py
