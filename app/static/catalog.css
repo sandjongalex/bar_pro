@@ -56,6 +56,14 @@
 .catalog-modal .modal-body { padding:22px; }
 .catalog-modal .form-label { font-weight:750; font-size:.86rem; }
 .catalog-modal .form-control,.catalog-modal .form-select,.catalog-modal .input-group-text { border-color:#dce5e1; min-height:47px; }
+/* The catalogue forms wrap Bootstrap's header/body/footer in a <form>. Bootstrap's
+   scrollable modal rules therefore do not constrain the body by themselves. Keep
+   the form inside the viewport, make only the body scroll, and keep the actions
+   permanently reachable at the bottom. */
+.catalog-modal > form { display:flex; flex-direction:column; min-height:0; max-height:calc(100vh - 3.5rem); max-height:calc(100dvh - 3.5rem); }
+.catalog-modal > form > .modal-header,.catalog-modal > form > .modal-footer { flex:0 0 auto; }
+.catalog-modal > form > .modal-body { min-height:0; overflow-y:auto; overscroll-behavior:contain; }
+.catalog-modal > form > .modal-footer { background:#fff; }
 .product-form-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; }
 .product-form-grid > * { min-width:0; }
 .field-span-2 { grid-column:1 / -1; }
@@ -112,6 +120,7 @@
   .catalog-pagination .btn { flex:1 1 auto; }
   .catalog-modal .modal-header,.catalog-modal .modal-footer { padding:14px 16px; }
   .catalog-modal .modal-body { padding:16px; }
+  .catalog-modal > form { max-height:calc(100vh - 2rem); max-height:calc(100dvh - 2rem); }
 }
 
 @media (max-width: 520px) {
@@ -132,4 +141,6 @@
   .category-list { padding-left:14px; padding-right:14px; }
   .category-row { align-items:flex-start; }
   .catalog-modal { border-radius:14px; }
+  .catalog-modal .modal-footer { display:grid; grid-template-columns:1fr 1fr; gap:8px; width:100%; }
+  .catalog-modal .modal-footer .btn { width:100%; margin:0; }
 }
