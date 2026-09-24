@@ -1,46 +1,52 @@
 /* Catalog management */
-.catalog-hero { display:flex; justify-content:space-between; align-items:flex-end; gap:2rem; padding:6px 0 8px; }
-.catalog-hero h1 { margin:0; font-size:clamp(2rem,3vw,3rem); font-weight:850; letter-spacing:-.045em; }
+.catalog-hero { display:flex; justify-content:space-between; align-items:flex-end; gap:2rem; padding:6px 0 8px; min-width:0; }
+.catalog-hero > * { min-width:0; }
+.catalog-hero h1 { margin:0; font-size:clamp(2rem,3vw,3rem); font-weight:850; letter-spacing:-.045em; overflow-wrap:anywhere; }
 .catalog-hero p:not(.eyebrow) { margin:.55rem 0 0; color:var(--muted); max-width:760px; }
-.catalog-hero-actions { display:flex; gap:.65rem; flex-wrap:wrap; }
+.catalog-hero-actions { display:flex; gap:.65rem; flex-wrap:wrap; flex:0 0 auto; }
 
 .catalog-stats { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px; }
-.catalog-stats article { background:#fff; border:1px solid var(--line); border-radius:16px; padding:18px 20px; box-shadow:0 8px 24px rgba(25,46,39,.035); }
+.catalog-stats article { background:#fff; border:1px solid var(--line); border-radius:16px; padding:18px 20px; box-shadow:0 8px 24px rgba(25,46,39,.035); min-width:0; }
 .catalog-stats span,.catalog-stats strong,.catalog-stats small { display:block; }
 .catalog-stats span { color:var(--muted); font-size:.82rem; font-weight:750; }
 .catalog-stats strong { font-size:1.8rem; line-height:1.15; margin:.3rem 0; letter-spacing:-.035em; }
 .catalog-stats small { color:#9aa39f; }
 
-.catalog-onboarding { display:flex; align-items:center; gap:1rem; padding:18px; border:1px solid #cfe5df; border-radius:16px; background:#f1f8f6; }
+.catalog-onboarding { display:flex; align-items:center; gap:1rem; padding:18px; border:1px solid #cfe5df; border-radius:16px; background:#f1f8f6; min-width:0; }
 .catalog-onboarding-number { width:38px; height:38px; flex:0 0 38px; border-radius:11px; display:flex; align-items:center; justify-content:center; background:var(--brand); color:#fff; font-weight:900; }
 .catalog-onboarding strong { display:block; }
 .catalog-onboarding p { margin:.2rem 0 0; color:var(--muted); font-size:.85rem; }
 
-.catalog-layout { display:grid; grid-template-columns:minmax(0,1fr) 310px; gap:22px; align-items:start; }
-.catalog-main-panel { min-width:0; }
-.category-panel { position:sticky; top:98px; }
-.catalog-toolbar { padding:18px; border-bottom:1px solid var(--line); background:#fcfdfc; }
-.catalog-filter-form { display:grid; grid-template-columns:minmax(260px,1fr) 190px 145px auto auto; gap:10px; align-items:center; }
-.catalog-search { position:relative; }
+.catalog-layout { display:grid; grid-template-columns:minmax(0,1fr) 310px; gap:22px; align-items:start; min-width:0; }
+.catalog-main-panel { min-width:0; overflow:hidden; }
+.category-panel { position:sticky; top:98px; min-width:0; }
+.catalog-toolbar { padding:18px; border-bottom:1px solid var(--line); background:#fcfdfc; min-width:0; }
+.catalog-filter-form { display:grid; grid-template-columns:minmax(260px,1fr) 190px 145px auto auto; gap:10px; align-items:center; min-width:0; }
+.catalog-filter-form > * { min-width:0; }
+.catalog-search { position:relative; min-width:0; }
 .catalog-search > span { position:absolute; left:14px; top:50%; transform:translateY(-50%); color:#84918c; z-index:2; }
 .catalog-search .form-control { padding-left:38px; }
-.catalog-filter-form .form-control,.catalog-filter-form .form-select { min-height:44px; border-radius:11px; border-color:#dfe7e3; }
+.catalog-filter-form .form-control,.catalog-filter-form .form-select { min-height:44px; border-radius:11px; border-color:#dfe7e3; width:100%; }
 
+.catalog-main-panel .table-responsive { width:100%; max-width:100%; }
+.catalog-table { width:100%; }
 .catalog-table thead th { background:#fafbfa; color:#7a8782; font-size:.69rem; text-transform:uppercase; letter-spacing:.07em; font-weight:800; padding:13px 16px; border-bottom-color:var(--line); }
 .catalog-table td { padding:14px 16px; border-bottom-color:#eef2f0; vertical-align:middle; }
-.product-cell { display:flex; align-items:center; gap:.75rem; min-width:190px; }
-.product-avatar { width:40px; height:40px; border-radius:12px; display:flex; align-items:center; justify-content:center; background:var(--brand-soft); color:var(--brand); font-weight:900; flex:0 0 40px; }
-.product-cell strong,.product-cell small { display:block; }
+.product-cell { display:flex; align-items:center; gap:.75rem; min-width:190px; max-width:100%; }
+.product-cell > div { min-width:0; }
+.product-cell strong,.product-cell small { display:block; overflow-wrap:anywhere; }
 .product-cell small { color:var(--muted); margin-top:.1rem; font-size:.75rem; }
-.category-chip { display:inline-flex; padding:.28rem .55rem; border-radius:999px; background:#f0f3f2; color:#66736f; font-size:.72rem; font-weight:750; }
+.category-chip { display:inline-flex; padding:.28rem .55rem; border-radius:999px; background:#f0f3f2; color:#66736f; font-size:.72rem; font-weight:750; max-width:100%; white-space:normal; }
 .stock-value { display:inline-flex; min-width:42px; justify-content:center; padding:.3rem .55rem; border-radius:9px; background:#edf6f2; color:#267451; font-weight:850; }
 .stock-low { background:#fff0e7; color:#b25d2a; }
 .catalog-pagination { padding:14px 18px; display:flex; justify-content:space-between; gap:1rem; align-items:center; border-top:1px solid var(--line); color:var(--muted); font-size:.82rem; }
+.catalog-pagination > div { display:flex; gap:.5rem; flex-wrap:wrap; }
 
 .category-list { padding:6px 18px 14px; }
-.category-row { display:flex; align-items:center; justify-content:space-between; gap:.75rem; padding:13px 0; border-bottom:1px solid #eef2f0; }
+.category-row { display:flex; align-items:center; justify-content:space-between; gap:.75rem; padding:13px 0; border-bottom:1px solid #eef2f0; min-width:0; }
 .category-row:last-child { border-bottom:0; }
-.category-row strong,.category-row small { display:block; }
+.category-row > div { min-width:0; }
+.category-row strong,.category-row small { display:block; overflow-wrap:anywhere; }
 .category-row strong { font-size:.88rem; }
 .category-row small { color:var(--muted); font-size:.72rem; margin-top:.15rem; }
 .category-row .btn-link { padding:0; font-size:.75rem; text-decoration:none; }
@@ -51,6 +57,7 @@
 .catalog-modal .form-label { font-weight:750; font-size:.86rem; }
 .catalog-modal .form-control,.catalog-modal .form-select,.catalog-modal .input-group-text { border-color:#dce5e1; min-height:47px; }
 .product-form-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; }
+.product-form-grid > * { min-width:0; }
 .field-span-2 { grid-column:1 / -1; }
 
 @media (max-width: 1180px) {
@@ -58,6 +65,35 @@
   .category-panel { position:static; }
   .catalog-filter-form { grid-template-columns:1fr 1fr; }
   .catalog-search { grid-column:1 / -1; }
+}
+
+/* At tablet widths the desktop table becomes product cards instead of
+   forcing horizontal scrolling. This also works when the application sidebar
+   leaves less usable width than the browser viewport. */
+@media (max-width: 920px) {
+  .catalog-main-panel .table-responsive { overflow:visible; }
+  .catalog-table,
+  .catalog-table tbody { display:block; width:100%; }
+  .catalog-table thead { display:none; }
+  .catalog-table tbody { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; padding:12px; background:#f7f9f8; }
+  .catalog-table tbody tr { display:flex; flex-direction:column; min-width:0; background:#fff; border:1px solid var(--line); border-radius:16px; overflow:hidden; box-shadow:0 4px 14px rgba(25,46,39,.035); }
+  .catalog-table tbody td { display:flex; align-items:center; justify-content:space-between; gap:14px; width:100%; min-width:0; padding:9px 12px; border:0; border-top:1px solid #eef2f0; text-align:right !important; }
+  .catalog-table tbody td:first-child { border-top:0; padding:12px; background:#fcfdfc; text-align:left !important; }
+  .catalog-table tbody td:not(:first-child)::before { flex:0 0 auto; color:#7a8782; font-size:.68rem; font-weight:850; letter-spacing:.055em; text-transform:uppercase; text-align:left; }
+  .catalog-table tbody td:nth-child(2)::before { content:"Catégorie"; }
+  .catalog-table tbody td:nth-child(3)::before { content:"Prix"; }
+  .catalog-table tbody td:nth-child(4)::before { content:"Stock"; }
+  .catalog-table tbody td:nth-child(5)::before { content:"Seuil"; }
+  .catalog-table tbody td:nth-child(6)::before { content:"État"; }
+  .catalog-table tbody td:nth-child(7)::before { content:"Actions"; }
+  .catalog-table .product-cell { min-width:0; width:100%; }
+  .catalog-table .product-cell strong,
+  .catalog-table .product-cell small { white-space:normal; }
+  .catalog-table .product-actions { margin-left:auto; justify-content:flex-end; max-width:100%; }
+  .catalog-table .product-actions form { margin:0; }
+  .catalog-table td > strong,
+  .catalog-table td > span,
+  .catalog-table td > div { min-width:0; }
 }
 
 @media (max-width: 760px) {
@@ -70,4 +106,30 @@
   .catalog-onboarding .btn { width:100%; margin-left:0 !important; }
   .product-form-grid { grid-template-columns:1fr; }
   .field-span-2 { grid-column:auto; }
+  .catalog-table tbody { grid-template-columns:1fr; padding:10px; gap:10px; }
+  .catalog-pagination { align-items:stretch; flex-direction:column; }
+  .catalog-pagination > div { width:100%; }
+  .catalog-pagination .btn { flex:1 1 auto; }
+  .catalog-modal .modal-header,.catalog-modal .modal-footer { padding:14px 16px; }
+  .catalog-modal .modal-body { padding:16px; }
+}
+
+@media (max-width: 520px) {
+  .catalog-hero h1 { font-size:1.75rem; }
+  .catalog-hero-actions { display:grid; grid-template-columns:1fr; width:100%; }
+  .catalog-hero-actions .btn { width:100%; }
+  .catalog-toolbar { padding:12px; }
+  .catalog-stats { gap:10px; }
+  .catalog-stats article { padding:14px 16px; }
+  .catalog-table tbody { padding:8px; }
+  .catalog-table tbody td { align-items:flex-start; }
+  .catalog-table tbody td:not(:first-child) { gap:10px; }
+  .catalog-table .product-actions { width:100%; display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+  .catalog-table .product-actions > .btn,
+  .catalog-table .product-actions form,
+  .catalog-table .product-actions form .btn { width:100%; }
+  .catalog-table .product-actions::before { display:none; }
+  .category-list { padding-left:14px; padding-right:14px; }
+  .category-row { align-items:flex-start; }
+  .catalog-modal { border-radius:14px; }
 }
