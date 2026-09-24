@@ -11,7 +11,7 @@ import uuid
 from flask import current_app
 
 MAX_PRODUCT_IMAGE_BYTES = 4 * 1024 * 1024
-ALLOWED_EXTENSIONS = {"jpg", "jpeg", "png", "webp"}
+ALLOWED_EXTENSIONS = {"jpg", "jpeg", "jfif", "png", "webp"}
 
 
 def product_image_directory() -> Path:
@@ -24,7 +24,9 @@ def _extension(filename: str) -> str:
     if "." not in filename:
         return ""
     ext = filename.rsplit(".", 1)[1].lower().strip()
-    return "jpg" if ext == "jpeg" else ext
+    # JFIF is a JPEG interchange format. Store JPEG/JFIF files under the
+    # canonical .jpg extension after validating the actual JPEG signature.
+    return "jpg" if ext in {"jpeg", "jfif"} else ext
 
 
 def _looks_like_image(data: bytes, extension: str) -> bool:
