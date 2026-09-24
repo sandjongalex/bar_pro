@@ -35,6 +35,12 @@ def _positive_quantity(value):
     return quantity
 
 
+def _stock_values(quantity, product):
+    """Return current stock value at cost and potential value at sale price."""
+    quantity = Decimal(quantity)
+    return quantity * product.valuation_unit_cost, quantity * product.sale_price
+
+
 def _message(code):
     messages = {
         "INVALID_QUANTITY": "La quantité doit être supérieure à zéro.",
@@ -116,14 +122,16 @@ def history(bar_id):
     balances = []
     total_quantity = Decimal("0")
     total_value = Decimal("0")
+    total_sale_value = Decimal("0")
     low_stock = 0
     out_of_stock = 0
 
     for product, balance in balance_rows:
         quantity = balance.quantity if balance is not None else Decimal("0")
-        value = quantity * product.valuation_unit_cost
+        value, sale_value = _stock_values(quantity, product)
         total_quantity += quantity
         total_value += value
+        total_sale_value += sale_value
         is_low = quantity <= product.stock_alert_threshold
         is_out = quantity <= 0
         if is_low:
@@ -135,6 +143,7 @@ def history(bar_id):
                 "product": product,
                 "quantity": quantity,
                 "value": value,
+                "sale_value": sale_value,
                 "is_low": is_low,
                 "is_out": is_out,
             }
@@ -181,6 +190,7 @@ def history(bar_id):
         "out_of_stock": out_of_stock,
         "total_quantity": total_quantity,
         "total_value": total_value,
+        "total_sale_value": total_sale_value,
     }
 
     return render_template(

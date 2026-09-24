@@ -40,9 +40,14 @@
     <small>Produits avec quantité nulle</small>
   </article>
   <article>
-    <span>Valeur du stock</span>
+    <span>Valeur du stock au coût</span>
     <strong>{{ "{:,.0f}".format(stats.total_value) }}</strong>
     <small>{{ bar.currency }} selon le coût d'achat par bouteille</small>
+  </article>
+  <article>
+    <span>Valeur potentielle de vente</span>
+    <strong>{{ "{:,.0f}".format(stats.total_sale_value) }}</strong>
+    <small>{{ bar.currency }} si tout le stock est vendu au prix actuel</small>
   </article>
 </section>
 
@@ -64,7 +69,9 @@
           <th>Stock (bouteilles)</th>
           <th>Seuil (bouteilles)</th>
           <th>Coût / bouteille</th>
-          <th>Valeur stock</th>
+          <th>Valeur au coût</th>
+          <th>Prix de vente</th>
+          <th>Valeur potentielle</th>
           <th>État</th>
           {% if can_adjust %}<th class="text-end">Action</th>{% endif %}
         </tr>
@@ -86,6 +93,8 @@
           <td>{{ product.stock_alert_threshold }} bouteille(s)</td>
           <td>{{ "{:,.0f}".format(product.valuation_unit_cost) }} {{ bar.currency }}</td>
           <td><strong>{{ "{:,.0f}".format(item.value) }} {{ bar.currency }}</strong></td>
+          <td><strong>{{ "{:,.0f}".format(product.sale_price) }} {{ bar.currency }}</strong></td>
+          <td><strong>{{ "{:,.0f}".format(item.sale_value) }} {{ bar.currency }}</strong></td>
           <td>
             {% if item.is_out %}
               <span class="stock-state stock-state-out">Rupture</span>

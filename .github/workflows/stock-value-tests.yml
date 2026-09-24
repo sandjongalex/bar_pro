@@ -1,0 +1,27 @@
+name: Stock sale value tests
+
+on:
+  push:
+    paths:
+      - 'app/stock.py'
+      - 'app/templates/stock.html'
+      - 'tests/test_stock_sale_value.py'
+      - '.github/workflows/stock-value-tests.yml'
+  pull_request:
+    paths:
+      - 'app/stock.py'
+      - 'app/templates/stock.html'
+      - 'tests/test_stock_sale_value.py'
+      - '.github/workflows/stock-value-tests.yml'
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r requirements.txt
+      - name: Stock sale value
+        run: pytest -q tests/test_stock_sale_value.py
