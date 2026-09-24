@@ -4,28 +4,36 @@ on:
   push:
     paths:
       - 'app/cashier_web.py'
+      - 'app/cashier_workspace_web.py'
       - 'app/checkout_web.py'
       - 'app/finance_web.py'
       - 'app/templates/cashier_session.html'
       - 'app/templates/cashier_daily.html'
+      - 'app/templates/cashier_workspace.html'
+      - 'app/templates/cashier_workspace_v2.html'
       - 'app/templates/checkout.html'
       - 'app/static/checkout.css'
       - 'app/__init__.py'
       - 'tests/test_cashier_session.py'
+      - 'tests/test_cashier_workspace.py'
       - 'tests/test_checkout_queue.py'
       - 'tests/test_finance.py'
       - '.github/workflows/cashier-tests.yml'
   pull_request:
     paths:
       - 'app/cashier_web.py'
+      - 'app/cashier_workspace_web.py'
       - 'app/checkout_web.py'
       - 'app/finance_web.py'
       - 'app/templates/cashier_session.html'
       - 'app/templates/cashier_daily.html'
+      - 'app/templates/cashier_workspace.html'
+      - 'app/templates/cashier_workspace_v2.html'
       - 'app/templates/checkout.html'
       - 'app/static/checkout.css'
       - 'app/__init__.py'
       - 'tests/test_cashier_session.py'
+      - 'tests/test_cashier_workspace.py'
       - 'tests/test_checkout_queue.py'
       - 'tests/test_finance.py'
       - '.github/workflows/cashier-tests.yml'
@@ -41,6 +49,8 @@ jobs:
       - run: pip install -r requirements.txt
       - name: Run cashier session tests
         run: pytest -q tests/test_cashier_session.py
+      - name: Run cashier workspace tests
+        run: pytest -q tests/test_cashier_workspace.py
       - name: Run three-stage checkout queue tests
         run: pytest -q tests/test_checkout_queue.py
       - name: Keep finance web regression covered
