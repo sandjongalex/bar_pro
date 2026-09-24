@@ -3,7 +3,7 @@
 {% set stock_active = endpoint.startswith('catalog.') or endpoint.startswith('stock.') or endpoint.startswith('inventories.') %}
 {% set purchases_active = endpoint.startswith('purchases_web.') or endpoint.startswith('supplier_debts_web.') %}
 {% set finance_active = endpoint.startswith('cashier_web.') or endpoint.startswith('cashier_returns_web.') or endpoint.startswith('cashier_handovers_web.') or endpoint.startswith('cashier_history_web.') or endpoint.startswith('finance_web.') or endpoint.startswith('expenses_web.') or endpoint.startswith('customers_web.') or endpoint.startswith('reports_web.') %}
-{% set team_active = endpoint.startswith('staff_web.') %}
+{% set team_active = endpoint.startswith('staff_web.') or endpoint.startswith('shifts_web.') %}
 {% set settings_active = endpoint == 'bars.web_detail' %}
 
 <nav class="app-nav" aria-label="Navigation de l'application">
@@ -33,6 +33,11 @@
       <a class="nav-link {% if endpoint.startswith('cashier_web.') %}active{% endif %}" href="{{ url_for('cashier_web.session', bar_id=nav_bar_id) }}">
         <span class="nav-icon">■</span><span class="nav-link-text">Session / clôture</span>
       </a>
+      {% if nav_can('shifts.read', nav_bar_id) %}
+      <a class="nav-link {% if endpoint.startswith('shifts_web.') %}active{% endif %}" href="{{ url_for('shifts_web.manage', bar_id=nav_bar_id) }}">
+        <span class="nav-icon">⏱</span><span class="nav-link-text">Personnel en service</span>
+      </a>
+      {% endif %}
     </div>
 
   {% elif role == 'SERVER' %}
@@ -133,13 +138,18 @@
     </details>
     {% endif %}
 
-    {% if nav_bar_id and nav_can('staff.read', nav_bar_id) %}
+    {% if nav_bar_id and (nav_can('staff.read', nav_bar_id) or nav_can('shifts.read', nav_bar_id)) %}
     <details class="nav-group" {% if team_active %}open{% endif %}>
       <summary class="nav-group-summary {% if team_active %}active{% endif %}">
         <span class="nav-icon">U</span><span class="nav-link-text">Équipe</span><span class="nav-chevron">⌄</span>
       </summary>
       <div class="nav-group-links">
+        {% if nav_can('staff.read', nav_bar_id) %}
         <a class="nav-sublink {% if endpoint.startswith('staff_web.') %}active{% endif %}" href="{{ url_for('staff_web.manage', bar_id=nav_bar_id) }}">Personnel</a>
+        {% endif %}
+        {% if nav_can('shifts.read', nav_bar_id) %}
+        <a class="nav-sublink {% if endpoint.startswith('shifts_web.') %}active{% endif %}" href="{{ url_for('shifts_web.manage', bar_id=nav_bar_id) }}">Personnel en service</a>
+        {% endif %}
       </div>
     </details>
     {% endif %}
