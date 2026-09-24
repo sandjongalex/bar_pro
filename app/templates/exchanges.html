@@ -1,0 +1,60 @@
+{% extends 'layout.html' %}
+{% block title %}Échanges de boissons · {{ bar.name }}{% endblock %}
+{% block content %}
+<div class="page-header"><div><p class="eyebrow">Sans facture</p><h1>Échanges de boissons</h1>
+<p>Rapportez les bouteilles fermées à la caisse. La caissière valide le remplacement et encaisse le supplément éventuel en espèces.</p></div></div>
+{% if can_post %}<a class="btn btn-outline-secondary mb-3" href="{{ url_for('cashier_returns_web.manage', bar_id=bar.id) }}">Retours et remboursements sur facture</a>{% endif %}
+<section class="card p-3 mb-4"><h2 class="h5">Nouvel échange</h2>
+<p class="text-muted">Les prix du catalogue sont retenus lors de la demande. Un remplacement moins cher n'est pas disponible pour le moment.</p>
+<form method="post" id="exchange-form">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="request"><input type="hidden" name="reference" value="{{ reference }}">
+{% if can_post %}<label class="form-label" for="staff_id">Serveuse</label><select class="form-select mb-3" name="staff_id" id="staff_id" required><option value="">Choisir la serveuse</option>{% for s in staff %}<option value="{{ s.id }}">{{ s.user.display_name }}</option>{% endfor %}</select>{% endif %}
+<div class="row g-3">
+{% for key, label in [('returned', 'Boisson rapportée'), ('replacement', 'Boisson de remplacement')] %}
+<div class="col-md-6"><label class="form-label" for="{{ key }}_id">{{ label }}</label>
+<select class="form-select" name="{{ key }}_id" id="{{ key }}_id" required><option value="">Choisir une boisson</option>{% for product in products %}<option value="{{ product.id }}" data-price="{{ product.sale_price }}">{{ product.name }} — {{ product.sale_price }} {{ bar.currency }}</option>{% endfor %}</select>
+<label class="form-label mt-2" for="{{ key }}_quantity">Nombre de bouteilles</label><input class="form-control" id="{{ key }}_quantity" name="{{ key }}_quantity" type="number" min="1" step="1" max="999999" value="1" required></div>
+{% endfor %}</div>
+<p class="alert alert-info mt-3" id="exchange-quote" aria-live="polite">Choisissez les deux boissons pour voir le supplément.</p>
+<label class="form-label" for="reason">Motif</label><input class="form-control mb-3" name="reason" id="reason" maxlength="500" value="Changement demandé par le client" required>
+<button class="btn btn-primary" type="submit">Demander l'échange</button>
+</form></section>
+<section><h2 class="h4">{% if can_post %}Demandes et historique{% else %}Mes échanges{% endif %}</h2>
+{% for item, server_name, cashier_name in rows %}
+<article class="card p-3 mb-3">
+<div class="d-flex justify-content-between flex-wrap gap-2"><strong>{{ item.reference }}</strong><span>{{ {'PENDING':'En attente', 'POSTED':'Validé', 'CANCELLED':'Annulé'}[item.status] }}</span></div>
+<p class="text-muted">{{ server_name }} · {{ local_display(item.created_at) }}</p>
+<p><strong>Rapporté :</strong> {{ item.returned_quantity }} × {{ item.returned_name }} ({{ item.returned_price }} {{ item.currency }}/bouteille)<br>
+<strong>Remplacement :</strong> {{ item.replacement_quantity }} × {{ item.replacement_name }} ({{ item.replacement_price }} {{ item.currency }}/bouteille)</p>
+<p><strong>Supplément {% if item.status == 'POSTED' %}encaissé{% else %}à encaisser{% endif %} : {{ item.supplement }} {{ item.currency }}</strong><br>{{ item.reason }}</p>
+{% if item.decided_at %}<p>Traité par {{ cashier_name }} · {{ local_display(item.decided_at) }}</p>{% endif %}
+{% if item.status == 'PENDING' %}
+{% if can_post %}
+<form method="post" class="mb-3">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="post"><input type="hidden" name="exchange_id" value="{{ item.id }}">
+<label class="d-block mb-2"><input type="checkbox" name="bottles_checked" value="yes" required> J'ai reçu les bouteilles fermées et revendables.</label>
+<label class="form-label" for="received-{{ item.id }}">Supplément réellement reçu en espèces ({{ item.currency }})</label>
+<input class="form-control mb-2" id="received-{{ item.id }}" name="amount_received" type="number" min="0" step="0.0001" {% if item.supplement == 0 %}value="0" readonly{% endif %} required>
+<button class="btn btn-success" type="submit">Valider{% if item.supplement > 0 %} et encaisser {{ item.supplement }} {{ item.currency }}{% endif %}</button>
+</form>{% endif %}
+{% if can_post or item.created_by_id == current_user.id %}
+<form method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="cancel"><input type="hidden" name="exchange_id" value="{{ item.id }}"><button class="btn btn-outline-danger" type="submit">Annuler la demande</button></form>
+{% endif %}{% endif %}</article>
+{% else %}<p>Aucun échange enregistré.</p>{% endfor %}
+<nav aria-label="Pages des échanges">{% if page > 1 %}<a class="btn btn-outline-secondary" href="{{ url_for('exchanges_web.manage', bar_id=bar.id, page=page-1) }}">Précédent</a>{% endif %} {% if has_next %}<a class="btn btn-outline-secondary" href="{{ url_for('exchanges_web.manage', bar_id=bar.id, page=page+1) }}">Suivant</a>{% endif %}</nav>
+</section>
+<script>
+(() => {
+ const form = document.getElementById('exchange-form');
+ const quote = document.getElementById('exchange-quote');
+ function update() {
+   const old = form.returned_id.selectedOptions[0], next = form.replacement_id.selectedOptions[0];
+   if (!old.value || !next.value) return;
+   // Preview only; exact amounts are recomputed and persisted by the server.
+   const difference = Number(next.dataset.price) * Number(form.replacement_quantity.value) - Number(old.dataset.price) * Number(form.returned_quantity.value);
+   quote.textContent = difference < 0 ? 'Remplacement moins cher : échange indisponible pour le moment.' : `Supplément à encaisser : ${difference.toLocaleString('fr-FR', {maximumFractionDigits: 4})} {{ bar.currency }}`;
+ }
+ form.addEventListener('input', update);
+})();
+</script>
+{% endblock %}

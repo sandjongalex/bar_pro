@@ -5,6 +5,8 @@ from app.extensions import db
 from app.models import Bar, StaffAssignment
 
 ROLE_ACTIONS = {
+ "exchanges.request":{"SUPER_ADMIN","OWNER","BAR_ADMIN","CASHIER","SERVER"},
+ "exchanges.post":{"SUPER_ADMIN","OWNER","BAR_ADMIN","CASHIER"},
  "catalog.manage":{"SUPER_ADMIN","OWNER","BAR_ADMIN"},
  "suppliers.read":{"SUPER_ADMIN","OWNER","BAR_ADMIN"},
  "suppliers.manage":{"SUPER_ADMIN","OWNER","BAR_ADMIN"},
@@ -41,6 +43,7 @@ ROLE_ACTIONS = {
 WRITES = {"refunds.record","payments.record", "bars.suspend", "bars.reactivate","bars.update_settings","staff.manage","orders.create","orders.edit","orders.deliver"}
 WRITES.update({"catalog.manage", "suppliers.manage", "inventory.adjust", "purchases.manage", "expenses.manage", "cash.operate", "customers.manage", "customer_credit.manage", "cases.manage"})
 WRITES.add("subscriptions.manage")
+WRITES.update({"exchanges.request", "exchanges.post"})
 
 @dataclass(frozen=True)
 class Decision: allowed: bool; reason: str

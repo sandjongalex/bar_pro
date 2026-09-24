@@ -4,7 +4,7 @@ Ce fichier est généré par [`scripts/schema_document.py`](../scripts/schema_do
 Ne pas l'éditer librement : [`tests/test_schema.py`](../tests/test_schema.py) compare exactement
 son contenu à `scripts.schema_document.render()`.
 
-Révision Alembic terminale observée : `c3d4e5f6a7b8`. Le dictionnaire décrit les tables,
+Révision Alembic terminale observée : `c9d0e1f2a3b4`. Le dictionnaire décrit les tables,
 colonnes, clés, contraintes, index et relations dérivables de `app.models`.
 Les types sont compilés pour MySQL et SQLite quand ils diffèrent. Une compilation SQL ou
 un test SQLite ne constitue pas une validation sur serveur MySQL.
@@ -35,8 +35,14 @@ un test SQLite ne constitue pas une validation sur serveur MySQL.
 | `8d3e2f4a5b6c` | `7c2a1b8d9e10` | `8d3e2f4a5b6c_catalog_product_fields.py` | catalog product fields |
 | `9e4f5a6b7c8d` | `8d3e2f4a5b6c` | `9e4f5a6b7c8d_stock_movement_type.py` | stock movement type |
 | `a1b2c3d4e5f6` | `9e4f5a6b7c8d` | `a1b2c3d4e5f6_order_lifecycle.py` | order confirmation and service lifecycle |
+| `a7b8c9d0e1f2` | `f6a7b8c9d0e1` | `a7b8c9d0e1f2_reconcile_inventory_purchase_schema.py` | Reconcile purchase extensions and inventory-period snapshots after f6.  This migration repairs an earlier revision-id collision: two independent files used revision ``e5f6a7b8c9d0``.  Production databases may therefore have either set of schema changes while reporting the same Alembic ancestry.  The upgrade below is intentionally idempotent and creates whichever pieces are missing. |
 | `b2c3d4e5f6a7` | `a1b2c3d4e5f6` | `b2c3d4e5f6a7_payment_amounts.py` | payment tender amounts |
+| `b8c9d0e1f2a3` | `a7b8c9d0e1f2` | `b8c9d0e1f2a3_order_suborders.py` | Add persistent cashier sub-orders awaiting server validation. |
 | `c3d4e5f6a7b8` | `b2c3d4e5f6a7` | `c3d4e5f6a7b8_integrity.py` | Reconcile tender and tenant source integrity without rewriting history. |
+| `c9d0e1f2a3b4` | `b8c9d0e1f2a3` | `c9d0e1f2a3b4_beverage_exchanges.py` | Add invoice-independent bottle exchanges with linked stock and cash journals. |
+| `d4e5f6a7b8c9` | `c3d4e5f6a7b8` | `d4e5f6a7b8c9_customer_credit_cases_notifications.py` | Add customer receivables, returnable cases and persistent notifications. |
+| `e5f6a7b8c9d0` | `d4e5f6a7b8c9` | `e5f6a7b8c9d0_purchase_units_supplier_notes.py` | Add supplier notes and purchase unit/conversion metadata.  Revision ID: e5f6a7b8c9d0 Revises: d4e5f6a7b8c9 |
+| `f6a7b8c9d0e1` | `e5f6a7b8c9d0` | `f6a7b8c9d0e1_default_case_sizes.py` | Backfill default bottles-per-case values for known catalogue products.  Revision ID: f6a7b8c9d0e1 Revises: e5f6a7b8c9d0 |
 
 ## Migrations structurantes
 
@@ -71,6 +77,15 @@ erDiagram
     bars ||--o{ audit_logs : "bar_id"
     bars ||--o{ bar_tables : "bar_id"
     users ||--o{ bars : "owner_id"
+    bars ||--o{ beverage_exchanges : "bar_id"
+    cash_movements ||--o{ beverage_exchanges : "bar_id, cash_movement_id"
+    stock_movements ||--o{ beverage_exchanges : "bar_id, replacement_movement_id"
+    products ||--o{ beverage_exchanges : "bar_id, replacement_product_id"
+    stock_movements ||--o{ beverage_exchanges : "bar_id, return_movement_id"
+    products ||--o{ beverage_exchanges : "bar_id, returned_product_id"
+    staff_assignments ||--o{ beverage_exchanges : "bar_id, staff_assignment_id"
+    users ||--o{ beverage_exchanges : "created_by_id"
+    users ||--o{ beverage_exchanges : "decided_by_id"
     bars ||--o{ cash_handovers : "bar_id"
     cash_sessions ||--o{ cash_handovers : "bar_id, cash_session_id"
     staff_assignments ||--o{ cash_handovers : "bar_id, staff_assignment_id"
@@ -88,6 +103,17 @@ erDiagram
     bars ||--o{ cash_sessions : "bar_id"
     users ||--o{ cash_sessions : "closed_by_id"
     users ||--o{ cash_sessions : "opened_by_id"
+    bars ||--o{ customer_case_entries : "bar_id"
+    customers ||--o{ customer_case_entries : "bar_id, customer_id"
+    orders ||--o{ customer_case_entries : "bar_id, order_id"
+    products ||--o{ customer_case_entries : "bar_id, product_id"
+    users ||--o{ customer_case_entries : "recorded_by_id"
+    bars ||--o{ customer_ledger_entries : "bar_id"
+    cash_sessions ||--o{ customer_ledger_entries : "bar_id, cash_session_id"
+    customers ||--o{ customer_ledger_entries : "bar_id, customer_id"
+    orders ||--o{ customer_ledger_entries : "bar_id, order_id"
+    customer_ledger_entries ||--o{ customer_ledger_entries : "bar_id, reversal_of_id"
+    users ||--o{ customer_ledger_entries : "recorded_by_id"
     bars ||--o{ customers : "bar_id"
     bars ||--o{ expense_categories : "bar_id"
     bars ||--o{ expenses : "bar_id"
@@ -99,9 +125,13 @@ erDiagram
     bars ||--o{ idempotency_records : "bar_id"
     bars ||--o{ inventories : "bar_id"
     users ||--o{ inventories : "created_by_id"
+    bars ||--o{ inventory_line_snapshots : "bar_id"
+    inventory_lines ||--o{ inventory_line_snapshots : "bar_id, inventory_line_id"
     bars ||--o{ inventory_lines : "bar_id"
     inventories ||--o{ inventory_lines : "bar_id, inventory_id"
     products ||--o{ inventory_lines : "bar_id, product_id"
+    bars ||--o{ inventory_period_snapshots : "bar_id"
+    inventories ||--o{ inventory_period_snapshots : "bar_id, inventory_id"
     bars ||--o{ order_lines : "bar_id"
     orders ||--o{ order_lines : "bar_id, order_id"
     products ||--o{ order_lines : "bar_id, product_id"
@@ -116,6 +146,15 @@ erDiagram
     bars ||--o{ order_returns : "bar_id"
     orders ||--o{ order_returns : "bar_id, order_id"
     users ||--o{ order_returns : "created_by_id"
+    bars ||--o{ order_suborder_lines : "bar_id"
+    order_suborders ||--o{ order_suborder_lines : "bar_id, order_id, order_suborder_id"
+    products ||--o{ order_suborder_lines : "bar_id, product_id"
+    bars ||--o{ order_suborders : "bar_id"
+    staff_assignments ||--o{ order_suborders : "bar_id, assigned_staff_id"
+    orders ||--o{ order_suborders : "bar_id, order_id"
+    users ||--o{ order_suborders : "created_by_id"
+    users ||--o{ order_suborders : "delivered_by_id"
+    users ||--o{ order_suborders : "validated_by_id"
     bars ||--o{ orders : "bar_id"
     staff_assignments ||--o{ orders : "bar_id, assigned_staff_id"
     customers ||--o{ orders : "bar_id, customer_id"
@@ -177,6 +216,9 @@ erDiagram
     bars ||--o{ token_revocations : "bar_id"
     api_tokens ||--o{ token_revocations : "bar_id, api_token_id"
     users ||--o{ token_revocations : "revoked_by_id"
+    bars ||--o{ user_notifications : "bar_id"
+    orders ||--o{ user_notifications : "bar_id, order_id"
+    users ||--o{ user_notifications : "user_id"
     users ||--o{ user_sessions : "user_id"
 ```
 
@@ -199,6 +241,15 @@ erDiagram
 | `audit_logs` | `—` | `bar_id` | `bars.id` | `RESTRICT` |
 | `bar_tables` | `—` | `bar_id` | `bars.id` | `RESTRICT` |
 | `bars` | `—` | `owner_id` | `users.id` | `RESTRICT` |
+| `beverage_exchanges` | `—` | `bar_id` | `bars.id` | `RESTRICT` |
+| `beverage_exchanges` | `—` | `bar_id, cash_movement_id` | `cash_movements.bar_id, cash_movements.id` | `RESTRICT` |
+| `beverage_exchanges` | `—` | `bar_id, replacement_movement_id` | `stock_movements.bar_id, stock_movements.id` | `RESTRICT` |
+| `beverage_exchanges` | `—` | `bar_id, replacement_product_id` | `products.bar_id, products.id` | `RESTRICT` |
+| `beverage_exchanges` | `—` | `bar_id, return_movement_id` | `stock_movements.bar_id, stock_movements.id` | `RESTRICT` |
+| `beverage_exchanges` | `—` | `bar_id, returned_product_id` | `products.bar_id, products.id` | `RESTRICT` |
+| `beverage_exchanges` | `—` | `bar_id, staff_assignment_id` | `staff_assignments.bar_id, staff_assignments.id` | `RESTRICT` |
+| `beverage_exchanges` | `—` | `created_by_id` | `users.id` | `RESTRICT` |
+| `beverage_exchanges` | `—` | `decided_by_id` | `users.id` | `RESTRICT` |
 | `cash_handovers` | `—` | `bar_id` | `bars.id` | `RESTRICT` |
 | `cash_handovers` | `—` | `bar_id, cash_session_id` | `cash_sessions.bar_id, cash_sessions.id` | `RESTRICT` |
 | `cash_handovers` | `—` | `bar_id, staff_assignment_id` | `staff_assignments.bar_id, staff_assignments.id` | `RESTRICT` |
@@ -216,6 +267,17 @@ erDiagram
 | `cash_sessions` | `—` | `bar_id` | `bars.id` | `RESTRICT` |
 | `cash_sessions` | `—` | `closed_by_id` | `users.id` | `RESTRICT` |
 | `cash_sessions` | `—` | `opened_by_id` | `users.id` | `RESTRICT` |
+| `customer_case_entries` | `—` | `bar_id` | `bars.id` | `RESTRICT` |
+| `customer_case_entries` | `—` | `bar_id, customer_id` | `customers.bar_id, customers.id` | `RESTRICT` |
+| `customer_case_entries` | `—` | `bar_id, order_id` | `orders.bar_id, orders.id` | `RESTRICT` |
+| `customer_case_entries` | `—` | `bar_id, product_id` | `products.bar_id, products.id` | `RESTRICT` |
+| `customer_case_entries` | `—` | `recorded_by_id` | `users.id` | `RESTRICT` |
+| `customer_ledger_entries` | `—` | `bar_id` | `bars.id` | `RESTRICT` |
+| `customer_ledger_entries` | `—` | `bar_id, cash_session_id` | `cash_sessions.bar_id, cash_sessions.id` | `RESTRICT` |
+| `customer_ledger_entries` | `—` | `bar_id, customer_id` | `customers.bar_id, customers.id` | `RESTRICT` |
+| `customer_ledger_entries` | `—` | `bar_id, order_id` | `orders.bar_id, orders.id` | `RESTRICT` |
+| `customer_ledger_entries` | `—` | `bar_id, reversal_of_id` | `customer_ledger_entries.bar_id, customer_ledger_entries.id` | `RESTRICT` |
+| `customer_ledger_entries` | `—` | `recorded_by_id` | `users.id` | `RESTRICT` |
 | `customers` | `—` | `bar_id` | `bars.id` | `RESTRICT` |
 | `expense_categories` | `—` | `bar_id` | `bars.id` | `RESTRICT` |
 | `expenses` | `—` | `bar_id` | `bars.id` | `RESTRICT` |
@@ -227,9 +289,13 @@ erDiagram
 | `idempotency_records` | `—` | `bar_id` | `bars.id` | `RESTRICT` |
 | `inventories` | `—` | `bar_id` | `bars.id` | `RESTRICT` |
 | `inventories` | `—` | `created_by_id` | `users.id` | `RESTRICT` |
+| `inventory_line_snapshots` | `—` | `bar_id` | `bars.id` | `RESTRICT` |
+| `inventory_line_snapshots` | `—` | `bar_id, inventory_line_id` | `inventory_lines.bar_id, inventory_lines.id` | `RESTRICT` |
 | `inventory_lines` | `—` | `bar_id` | `bars.id` | `RESTRICT` |
 | `inventory_lines` | `—` | `bar_id, inventory_id` | `inventories.bar_id, inventories.id` | `RESTRICT` |
 | `inventory_lines` | `—` | `bar_id, product_id` | `products.bar_id, products.id` | `RESTRICT` |
+| `inventory_period_snapshots` | `—` | `bar_id` | `bars.id` | `RESTRICT` |
+| `inventory_period_snapshots` | `—` | `bar_id, inventory_id` | `inventories.bar_id, inventories.id` | `RESTRICT` |
 | `order_lines` | `—` | `bar_id` | `bars.id` | `RESTRICT` |
 | `order_lines` | `—` | `bar_id, order_id` | `orders.bar_id, orders.id` | `RESTRICT` |
 | `order_lines` | `—` | `bar_id, product_id` | `products.bar_id, products.id` | `RESTRICT` |
@@ -244,6 +310,15 @@ erDiagram
 | `order_returns` | `—` | `bar_id` | `bars.id` | `RESTRICT` |
 | `order_returns` | `—` | `bar_id, order_id` | `orders.bar_id, orders.id` | `RESTRICT` |
 | `order_returns` | `—` | `created_by_id` | `users.id` | `RESTRICT` |
+| `order_suborder_lines` | `—` | `bar_id` | `bars.id` | `RESTRICT` |
+| `order_suborder_lines` | `—` | `bar_id, order_id, order_suborder_id` | `order_suborders.bar_id, order_suborders.order_id, order_suborders.id` | `RESTRICT` |
+| `order_suborder_lines` | `—` | `bar_id, product_id` | `products.bar_id, products.id` | `RESTRICT` |
+| `order_suborders` | `—` | `bar_id` | `bars.id` | `RESTRICT` |
+| `order_suborders` | `—` | `bar_id, assigned_staff_id` | `staff_assignments.bar_id, staff_assignments.id` | `RESTRICT` |
+| `order_suborders` | `—` | `bar_id, order_id` | `orders.bar_id, orders.id` | `RESTRICT` |
+| `order_suborders` | `—` | `created_by_id` | `users.id` | `RESTRICT` |
+| `order_suborders` | `—` | `delivered_by_id` | `users.id` | `RESTRICT` |
+| `order_suborders` | `—` | `validated_by_id` | `users.id` | `RESTRICT` |
 | `orders` | `—` | `bar_id` | `bars.id` | `RESTRICT` |
 | `orders` | `—` | `bar_id, assigned_staff_id` | `staff_assignments.bar_id, staff_assignments.id` | `RESTRICT` |
 | `orders` | `—` | `bar_id, customer_id` | `customers.bar_id, customers.id` | `RESTRICT` |
@@ -305,6 +380,9 @@ erDiagram
 | `token_revocations` | `—` | `bar_id` | `bars.id` | `RESTRICT` |
 | `token_revocations` | `—` | `bar_id, api_token_id` | `api_tokens.bar_id, api_tokens.id` | `RESTRICT` |
 | `token_revocations` | `—` | `revoked_by_id` | `users.id` | `RESTRICT` |
+| `user_notifications` | `—` | `bar_id` | `bars.id` | `RESTRICT` |
+| `user_notifications` | `—` | `bar_id, order_id` | `orders.bar_id, orders.id` | `RESTRICT` |
+| `user_notifications` | `—` | `user_id` | `users.id` | `RESTRICT` |
 | `user_sessions` | `—` | `user_id` | `users.id` | `RESTRICT` |
 
 ## Dictionnaire physique
@@ -413,6 +491,57 @@ erDiagram
 - INDEX `ix_bars_owner_id` : `owner_id`.
 - INDEX `ix_bars_owner_status` : `owner_id, status, id`.
 
+### `beverage_exchanges`
+
+| Colonne | Type | NULL | PK | Default ORM | Default serveur | Calcul |
+| --- | --- | --- | --- | --- | --- | --- |
+| `id` | MySQL `BIGINT` / SQLite `INTEGER` | non | oui | — | — | — |
+| `reference` | VARCHAR(64) | non | non | — | — | — |
+| `status` | VARCHAR(16) | non | non | 'PENDING' | — | — |
+| `staff_assignment_id` | MySQL `BIGINT` / SQLite `INTEGER` | non | non | — | — | — |
+| `returned_product_id` | MySQL `BIGINT` / SQLite `INTEGER` | non | non | — | — | — |
+| `replacement_product_id` | MySQL `BIGINT` / SQLite `INTEGER` | non | non | — | — | — |
+| `returned_name` | VARCHAR(160) | non | non | — | — | — |
+| `replacement_name` | VARCHAR(160) | non | non | — | — | — |
+| `returned_quantity` | NUMERIC(20, 6) | non | non | — | — | — |
+| `replacement_quantity` | NUMERIC(20, 6) | non | non | — | — | — |
+| `returned_price` | NUMERIC(19, 4) | non | non | — | — | — |
+| `replacement_price` | NUMERIC(19, 4) | non | non | — | — | — |
+| `supplement` | NUMERIC(19, 4) | non | non | — | — | — |
+| `currency` | VARCHAR(3) | non | non | — | — | — |
+| `reason` | VARCHAR(500) | non | non | — | — | — |
+| `created_by_id` | MySQL `BIGINT` / SQLite `INTEGER` | non | non | — | — | — |
+| `decided_by_id` | MySQL `BIGINT` / SQLite `INTEGER` | oui | non | — | — | — |
+| `decided_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | oui | non | — | — | — |
+| `return_movement_id` | MySQL `BIGINT` / SQLite `INTEGER` | oui | non | — | — | — |
+| `replacement_movement_id` | MySQL `BIGINT` / SQLite `INTEGER` | oui | non | — | — | — |
+| `cash_movement_id` | MySQL `BIGINT` / SQLite `INTEGER` | oui | non | — | — | — |
+| `bar_id` | MySQL `BIGINT` / SQLite `INTEGER` | non | non | — | — | — |
+| `created_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | non | non | utcnow | — | — |
+| `updated_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | non | non | utcnow | — | — |
+
+- PK : `id`.
+- CHECK `ck_beverage_exchanges_decision` : `(status = 'PENDING' AND decided_by_id IS NULL AND decided_at IS NULL) OR (status <> 'PENDING' AND decided_by_id IS NOT NULL AND decided_at IS NOT NULL)`.
+- CHECK `ck_beverage_exchanges_journals` : `(status = 'POSTED' AND return_movement_id IS NOT NULL AND replacement_movement_id IS NOT NULL AND ((supplement = 0 AND cash_movement_id IS NULL) OR (supplement > 0 AND cash_movement_id IS NOT NULL))) OR (status <> 'POSTED' AND return_movement_id IS NULL AND replacement_movement_id IS NULL AND cash_movement_id IS NULL)`.
+- CHECK `ck_beverage_exchanges_status` : `status IN ('PENDING','POSTED','CANCELLED')`.
+- CHECK `ck_beverage_exchanges_values` : `returned_product_id <> replacement_product_id AND returned_quantity > 0 AND replacement_quantity > 0 AND returned_price >= 0 AND replacement_price >= 0 AND supplement >= 0`.
+- FK `—` : `bar_id` → `bars.id` ; ON DELETE `RESTRICT`.
+- FK `—` : `bar_id, cash_movement_id` → `cash_movements.bar_id, cash_movements.id` ; ON DELETE `RESTRICT`.
+- FK `—` : `bar_id, replacement_movement_id` → `stock_movements.bar_id, stock_movements.id` ; ON DELETE `RESTRICT`.
+- FK `—` : `bar_id, replacement_product_id` → `products.bar_id, products.id` ; ON DELETE `RESTRICT`.
+- FK `—` : `bar_id, return_movement_id` → `stock_movements.bar_id, stock_movements.id` ; ON DELETE `RESTRICT`.
+- FK `—` : `bar_id, returned_product_id` → `products.bar_id, products.id` ; ON DELETE `RESTRICT`.
+- FK `—` : `bar_id, staff_assignment_id` → `staff_assignments.bar_id, staff_assignments.id` ; ON DELETE `RESTRICT`.
+- FK `—` : `created_by_id` → `users.id` ; ON DELETE `RESTRICT`.
+- FK `—` : `decided_by_id` → `users.id` ; ON DELETE `RESTRICT`.
+- UNIQUE `uq_beverage_exchanges_bar_id_id` : `bar_id, id`.
+- UNIQUE `uq_beverage_exchanges_cash` : `bar_id, cash_movement_id`.
+- UNIQUE `uq_beverage_exchanges_reference` : `bar_id, reference`.
+- UNIQUE `uq_beverage_exchanges_replacement` : `bar_id, replacement_movement_id`.
+- UNIQUE `uq_beverage_exchanges_return` : `bar_id, return_movement_id`.
+- INDEX `ix_beverage_exchanges_bar_created` : `bar_id, created_at, id`.
+- INDEX `ix_beverage_exchanges_bar_id` : `bar_id`.
+
 ### `cash_handovers`
 
 | Colonne | Type | NULL | PK | Default ORM | Default serveur | Calcul |
@@ -520,6 +649,74 @@ erDiagram
 - UNIQUE `uq_cash_sessions_reference` : `bar_id, reference`.
 - INDEX `ix_cash_sessions_bar_created` : `bar_id, created_at, id`.
 - INDEX `ix_cash_sessions_bar_id` : `bar_id`.
+
+### `customer_case_entries`
+
+| Colonne | Type | NULL | PK | Default ORM | Default serveur | Calcul |
+| --- | --- | --- | --- | --- | --- | --- |
+| `id` | MySQL `BIGINT` / SQLite `INTEGER` | non | oui | — | — | — |
+| `customer_id` | MySQL `BIGINT` / SQLite `INTEGER` | non | non | — | — | — |
+| `product_id` | MySQL `BIGINT` / SQLite `INTEGER` | non | non | — | — | — |
+| `order_id` | MySQL `BIGINT` / SQLite `INTEGER` | oui | non | — | — | — |
+| `quantity_delta` | INTEGER | non | non | — | — | — |
+| `reason` | VARCHAR(500) | non | non | — | — | — |
+| `occurred_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | non | non | — | — | — |
+| `recorded_by_id` | MySQL `BIGINT` / SQLite `INTEGER` | non | non | — | — | — |
+| `bar_id` | MySQL `BIGINT` / SQLite `INTEGER` | non | non | — | — | — |
+| `created_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | non | non | utcnow | — | — |
+| `updated_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | non | non | utcnow | — | — |
+
+- PK : `id`.
+- CHECK `ck_customer_case_quantity` : `quantity_delta <> 0`.
+- FK `—` : `bar_id` → `bars.id` ; ON DELETE `RESTRICT`.
+- FK `—` : `bar_id, customer_id` → `customers.bar_id, customers.id` ; ON DELETE `RESTRICT`.
+- FK `—` : `bar_id, order_id` → `orders.bar_id, orders.id` ; ON DELETE `RESTRICT`.
+- FK `—` : `bar_id, product_id` → `products.bar_id, products.id` ; ON DELETE `RESTRICT`.
+- FK `—` : `recorded_by_id` → `users.id` ; ON DELETE `RESTRICT`.
+- UNIQUE `uq_customer_case_entries_bar_id_id` : `bar_id, id`.
+- INDEX `ix_customer_case_customer_product` : `bar_id, customer_id, product_id, id`.
+- INDEX `ix_customer_case_entries_bar_created` : `bar_id, created_at, id`.
+- INDEX `ix_customer_case_entries_bar_id` : `bar_id`.
+
+### `customer_ledger_entries`
+
+| Colonne | Type | NULL | PK | Default ORM | Default serveur | Calcul |
+| --- | --- | --- | --- | --- | --- | --- |
+| `id` | MySQL `BIGINT` / SQLite `INTEGER` | non | oui | — | — | — |
+| `customer_id` | MySQL `BIGINT` / SQLite `INTEGER` | non | non | — | — | — |
+| `order_id` | MySQL `BIGINT` / SQLite `INTEGER` | oui | non | — | — | — |
+| `reference` | VARCHAR(64) | non | non | — | — | — |
+| `entry_kind` | VARCHAR(16) | non | non | — | — | — |
+| `amount_delta` | NUMERIC(19, 4) | non | non | — | — | — |
+| `currency` | VARCHAR(3) | non | non | — | — | — |
+| `method` | VARCHAR(16) | oui | non | — | — | — |
+| `provider_code` | VARCHAR(32) | oui | non | — | — | — |
+| `provider_transaction_id` | VARCHAR(128) | oui | non | — | — | — |
+| `cash_session_id` | MySQL `BIGINT` / SQLite `INTEGER` | oui | non | — | — | — |
+| `reversal_of_id` | MySQL `BIGINT` / SQLite `INTEGER` | oui | non | — | — | — |
+| `reason` | VARCHAR(500) | non | non | — | — | — |
+| `occurred_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | non | non | — | — | — |
+| `recorded_by_id` | MySQL `BIGINT` / SQLite `INTEGER` | non | non | — | — | — |
+| `bar_id` | MySQL `BIGINT` / SQLite `INTEGER` | non | non | — | — | — |
+| `created_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | non | non | utcnow | — | — |
+| `updated_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | non | non | utcnow | — | — |
+
+- PK : `id`.
+- CHECK `ck_customer_ledger_amount` : `amount_delta <> 0`.
+- CHECK `ck_customer_ledger_kind` : `entry_kind IN ('CREDIT_SALE','PAYMENT','REVERSAL','ADJUSTMENT')`.
+- FK `—` : `bar_id` → `bars.id` ; ON DELETE `RESTRICT`.
+- FK `—` : `bar_id, cash_session_id` → `cash_sessions.bar_id, cash_sessions.id` ; ON DELETE `RESTRICT`.
+- FK `—` : `bar_id, customer_id` → `customers.bar_id, customers.id` ; ON DELETE `RESTRICT`.
+- FK `—` : `bar_id, order_id` → `orders.bar_id, orders.id` ; ON DELETE `RESTRICT`.
+- FK `—` : `bar_id, reversal_of_id` → `customer_ledger_entries.bar_id, customer_ledger_entries.id` ; ON DELETE `RESTRICT`.
+- FK `—` : `recorded_by_id` → `users.id` ; ON DELETE `RESTRICT`.
+- UNIQUE `uq_customer_ledger_entries_bar_id_id` : `bar_id, id`.
+- UNIQUE `uq_customer_ledger_reference` : `bar_id, reference`.
+- UNIQUE `uq_customer_ledger_reversal` : `bar_id, reversal_of_id`.
+- INDEX `ix_customer_ledger_customer_time` : `bar_id, customer_id, occurred_at, id`.
+- INDEX `ix_customer_ledger_entries_bar_created` : `bar_id, created_at, id`.
+- INDEX `ix_customer_ledger_entries_bar_id` : `bar_id`.
+- INDEX `ix_customer_ledger_order` : `bar_id, order_id, id`.
 
 ### `customers`
 
@@ -647,6 +844,32 @@ erDiagram
 - INDEX `ix_inventories_bar_created` : `bar_id, created_at, id`.
 - INDEX `ix_inventories_bar_id` : `bar_id`.
 
+### `inventory_line_snapshots`
+
+| Colonne | Type | NULL | PK | Default ORM | Default serveur | Calcul |
+| --- | --- | --- | --- | --- | --- | --- |
+| `id` | MySQL `BIGINT` / SQLite `INTEGER` | non | oui | — | — | — |
+| `inventory_line_id` | MySQL `BIGINT` / SQLite `INTEGER` | non | non | — | — | — |
+| `opening_quantity` | NUMERIC(20, 6) | non | non | 0 | — | — |
+| `purchase_quantity` | NUMERIC(20, 6) | non | non | 0 | — | — |
+| `theoretical_quantity` | NUMERIC(20, 6) | non | non | 0 | — | — |
+| `sale_price_snapshot` | NUMERIC(19, 4) | non | non | 0 | — | — |
+| `theoretical_sold_quantity` | NUMERIC(20, 6) | non | non | 0 | — | — |
+| `theoretical_sales_amount` | NUMERIC(19, 4) | non | non | 0 | — | — |
+| `note` | VARCHAR(500) | oui | non | — | — | — |
+| `bar_id` | MySQL `BIGINT` / SQLite `INTEGER` | non | non | — | — | — |
+| `created_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | non | non | utcnow | — | — |
+| `updated_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | non | non | utcnow | — | — |
+
+- PK : `id`.
+- CHECK `ck_inventory_line_snapshot_nonnegative` : `opening_quantity >= 0 AND purchase_quantity >= 0 AND theoretical_quantity >= 0 AND sale_price_snapshot >= 0`.
+- FK `—` : `bar_id` → `bars.id` ; ON DELETE `RESTRICT`.
+- FK `—` : `bar_id, inventory_line_id` → `inventory_lines.bar_id, inventory_lines.id` ; ON DELETE `RESTRICT`.
+- UNIQUE `uq_inventory_line_snapshot_line` : `bar_id, inventory_line_id`.
+- UNIQUE `uq_inventory_line_snapshots_bar_id_id` : `bar_id, id`.
+- INDEX `ix_inventory_line_snapshots_bar_created` : `bar_id, created_at, id`.
+- INDEX `ix_inventory_line_snapshots_bar_id` : `bar_id`.
+
 ### `inventory_lines`
 
 | Colonne | Type | NULL | PK | Default ORM | Default serveur | Calcul |
@@ -672,6 +895,33 @@ erDiagram
 - UNIQUE `uq_inventory_lines_product` : `bar_id, inventory_id, product_id`.
 - INDEX `ix_inventory_lines_bar_created` : `bar_id, created_at, id`.
 - INDEX `ix_inventory_lines_bar_id` : `bar_id`.
+
+### `inventory_period_snapshots`
+
+| Colonne | Type | NULL | PK | Default ORM | Default serveur | Calcul |
+| --- | --- | --- | --- | --- | --- | --- |
+| `id` | MySQL `BIGINT` / SQLite `INTEGER` | non | oui | — | — | — |
+| `inventory_id` | MySQL `BIGINT` / SQLite `INTEGER` | non | non | — | — | — |
+| `period_start_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | oui | non | — | — | — |
+| `period_end_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | non | non | — | — | — |
+| `theoretical_sales_amount` | NUMERIC(19, 4) | non | non | 0 | — | — |
+| `expenses_amount` | NUMERIC(19, 4) | non | non | 0 | — | — |
+| `credit_sales_amount` | NUMERIC(19, 4) | non | non | 0 | — | — |
+| `expected_cash_amount` | NUMERIC(19, 4) | non | non | 0 | — | — |
+| `recorded_net_amount` | NUMERIC(19, 4) | non | non | 0 | — | — |
+| `cash_difference_amount` | NUMERIC(19, 4) | non | non | 0 | — | — |
+| `bar_id` | MySQL `BIGINT` / SQLite `INTEGER` | non | non | — | — | — |
+| `created_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | non | non | utcnow | — | — |
+| `updated_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | non | non | utcnow | — | — |
+
+- PK : `id`.
+- CHECK `ck_inventory_period_dates` : `period_start_at IS NULL OR period_end_at > period_start_at`.
+- FK `—` : `bar_id` → `bars.id` ; ON DELETE `RESTRICT`.
+- FK `—` : `bar_id, inventory_id` → `inventories.bar_id, inventories.id` ; ON DELETE `RESTRICT`.
+- UNIQUE `uq_inventory_period_inventory` : `bar_id, inventory_id`.
+- UNIQUE `uq_inventory_period_snapshots_bar_id_id` : `bar_id, id`.
+- INDEX `ix_inventory_period_snapshots_bar_created` : `bar_id, created_at, id`.
+- INDEX `ix_inventory_period_snapshots_bar_id` : `bar_id`.
 
 ### `order_lines`
 
@@ -767,6 +1017,85 @@ erDiagram
 - UNIQUE `uq_order_returns_reference` : `bar_id, reference`.
 - INDEX `ix_order_returns_bar_created` : `bar_id, created_at, id`.
 - INDEX `ix_order_returns_bar_id` : `bar_id`.
+
+### `order_suborder_lines`
+
+| Colonne | Type | NULL | PK | Default ORM | Default serveur | Calcul |
+| --- | --- | --- | --- | --- | --- | --- |
+| `id` | MySQL `BIGINT` / SQLite `INTEGER` | non | oui | — | — | — |
+| `order_suborder_id` | MySQL `BIGINT` / SQLite `INTEGER` | non | non | — | — | — |
+| `order_id` | MySQL `BIGINT` / SQLite `INTEGER` | non | non | — | — | — |
+| `product_id` | MySQL `BIGINT` / SQLite `INTEGER` | non | non | — | — | — |
+| `line_no` | MySQL `INTEGER UNSIGNED` / SQLite `INTEGER` | non | non | — | — | — |
+| `product_name_snapshot` | VARCHAR(160) | non | non | — | — | — |
+| `unit_snapshot` | VARCHAR(16) | non | non | — | — | — |
+| `quantity` | NUMERIC(20, 6) | non | non | — | — | — |
+| `note` | VARCHAR(500) | oui | non | — | — | — |
+| `unit_sale_price_snapshot` | NUMERIC(19, 4) | non | non | — | — | — |
+| `unit_cost_snapshot` | NUMERIC(19, 4) | non | non | — | — | — |
+| `subtotal_amount` | NUMERIC(19, 4) | non | non | — | — | — |
+| `discount_amount` | NUMERIC(19, 4) | non | non | 0 | — | — |
+| `tax_amount` | NUMERIC(19, 4) | non | non | 0 | — | — |
+| `total_amount` | NUMERIC(19, 4) | non | non | — | — | — |
+| `bar_id` | MySQL `BIGINT` / SQLite `INTEGER` | non | non | — | — | — |
+| `created_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | non | non | utcnow | — | — |
+| `updated_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | non | non | utcnow | — | — |
+
+- PK : `id`.
+- CHECK `ck_order_suborder_lines_amounts` : `line_no > 0 AND quantity > 0 AND unit_sale_price_snapshot >= 0 AND unit_cost_snapshot >= 0 AND subtotal_amount >= 0 AND discount_amount >= 0 AND tax_amount >= 0 AND discount_amount <= subtotal_amount AND total_amount = subtotal_amount-discount_amount+tax_amount`.
+- FK `—` : `bar_id` → `bars.id` ; ON DELETE `RESTRICT`.
+- FK `—` : `bar_id, order_id, order_suborder_id` → `order_suborders.bar_id, order_suborders.order_id, order_suborders.id` ; ON DELETE `RESTRICT`.
+- FK `—` : `bar_id, product_id` → `products.bar_id, products.id` ; ON DELETE `RESTRICT`.
+- UNIQUE `uq_order_suborder_lines_bar_id_id` : `bar_id, id`.
+- UNIQUE `uq_order_suborder_lines_id_product` : `bar_id, id, product_id`.
+- UNIQUE `uq_order_suborder_lines_no` : `bar_id, order_suborder_id, line_no`.
+- INDEX `ix_order_suborder_lines_bar_created` : `bar_id, created_at, id`.
+- INDEX `ix_order_suborder_lines_bar_id` : `bar_id`.
+
+### `order_suborders`
+
+| Colonne | Type | NULL | PK | Default ORM | Default serveur | Calcul |
+| --- | --- | --- | --- | --- | --- | --- |
+| `id` | MySQL `BIGINT` / SQLite `INTEGER` | non | oui | — | — | — |
+| `order_id` | MySQL `BIGINT` / SQLite `INTEGER` | non | non | — | — | — |
+| `sequence_no` | MySQL `INTEGER UNSIGNED` / SQLite `INTEGER` | non | non | — | — | — |
+| `assigned_staff_id` | MySQL `BIGINT` / SQLite `INTEGER` | oui | non | — | — | — |
+| `status` | VARCHAR(24) | non | non | 'PENDING_VALIDATION' | — | — |
+| `delivery_status` | VARCHAR(16) | non | non | 'PENDING' | — | — |
+| `currency` | VARCHAR(3) | non | non | — | — | — |
+| `subtotal_amount` | NUMERIC(19, 4) | non | non | 0 | — | — |
+| `discount_amount` | NUMERIC(19, 4) | non | non | 0 | — | — |
+| `tax_amount` | NUMERIC(19, 4) | non | non | 0 | — | — |
+| `total_amount` | NUMERIC(19, 4) | non | non | 0 | — | — |
+| `note` | VARCHAR(500) | oui | non | — | — | — |
+| `created_by_id` | MySQL `BIGINT` / SQLite `INTEGER` | non | non | — | — | — |
+| `validated_by_id` | MySQL `BIGINT` / SQLite `INTEGER` | oui | non | — | — | — |
+| `validated_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | oui | non | — | — | — |
+| `rejected_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | oui | non | — | — | — |
+| `delivered_by_id` | MySQL `BIGINT` / SQLite `INTEGER` | oui | non | — | — | — |
+| `delivered_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | oui | non | — | — | — |
+| `cancelled_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | oui | non | — | — | — |
+| `bar_id` | MySQL `BIGINT` / SQLite `INTEGER` | non | non | — | — | — |
+| `created_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | non | non | utcnow | — | — |
+| `updated_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | non | non | utcnow | — | — |
+
+- PK : `id`.
+- CHECK `ck_order_suborders_amounts` : `subtotal_amount >= 0 AND discount_amount >= 0 AND tax_amount >= 0 AND discount_amount <= subtotal_amount AND total_amount = subtotal_amount-discount_amount+tax_amount`.
+- CHECK `ck_order_suborders_delivery_status` : `delivery_status IN ('PENDING','DELIVERED')`.
+- CHECK `ck_order_suborders_sequence` : `sequence_no > 0`.
+- CHECK `ck_order_suborders_status` : `status IN ('PENDING_VALIDATION','VALIDATED','REJECTED','CANCELLED')`.
+- FK `—` : `bar_id` → `bars.id` ; ON DELETE `RESTRICT`.
+- FK `—` : `bar_id, assigned_staff_id` → `staff_assignments.bar_id, staff_assignments.id` ; ON DELETE `RESTRICT`.
+- FK `—` : `bar_id, order_id` → `orders.bar_id, orders.id` ; ON DELETE `RESTRICT`.
+- FK `—` : `created_by_id` → `users.id` ; ON DELETE `RESTRICT`.
+- FK `—` : `delivered_by_id` → `users.id` ; ON DELETE `RESTRICT`.
+- FK `—` : `validated_by_id` → `users.id` ; ON DELETE `RESTRICT`.
+- UNIQUE `uq_order_suborders_bar_id_id` : `bar_id, id`.
+- UNIQUE `uq_order_suborders_order_id` : `bar_id, order_id, id`.
+- UNIQUE `uq_order_suborders_sequence` : `bar_id, order_id, sequence_no`.
+- INDEX `ix_order_suborders_bar_created` : `bar_id, created_at, id`.
+- INDEX `ix_order_suborders_bar_id` : `bar_id`.
+- INDEX `ix_order_suborders_order_status` : `bar_id, order_id, status, sequence_no`.
 
 ### `orders`
 
@@ -934,9 +1263,16 @@ erDiagram
 | `bar_id` | MySQL `BIGINT` / SQLite `INTEGER` | non | non | — | — | — |
 | `created_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | non | non | utcnow | — | — |
 | `updated_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | non | non | utcnow | — | — |
+| `purchase_unit` | VARCHAR(16) | non | non | — | — | — |
+| `purchase_quantity` | NUMERIC(20, 6) | non | non | — | — | — |
+| `units_per_case_snapshot` | INTEGER | oui | non | — | — | — |
+| `purchase_unit_price_snapshot` | NUMERIC(19, 4) | non | non | — | — | — |
 
 - PK : `id`.
 - CHECK `ck_purchase_lines_amounts` : `line_no > 0 AND quantity > 0 AND unit_cost_snapshot >= 0 AND subtotal_amount >= 0 AND discount_amount >= 0 AND tax_amount >= 0 AND discount_amount <= subtotal_amount AND total_amount = subtotal_amount-discount_amount+tax_amount`.
+- CHECK `ck_purchase_lines_case_size` : `(purchase_unit = 'BOTTLE' AND units_per_case_snapshot IS NULL) OR (purchase_unit = 'CASE' AND units_per_case_snapshot IS NOT NULL AND units_per_case_snapshot > 0)`.
+- CHECK `ck_purchase_lines_purchase_quantity` : `purchase_quantity > 0`.
+- CHECK `ck_purchase_lines_purchase_unit` : `purchase_unit IN ('CASE','BOTTLE')`.
 - FK `—` : `bar_id` → `bars.id` ; ON DELETE `RESTRICT`.
 - FK `—` : `bar_id, product_id` → `products.bar_id, products.id` ; ON DELETE `RESTRICT`.
 - FK `—` : `bar_id, purchase_id` → `purchases.bar_id, purchases.id` ; ON DELETE `RESTRICT`.
@@ -967,6 +1303,8 @@ erDiagram
 | `bar_id` | MySQL `BIGINT` / SQLite `INTEGER` | non | non | — | — | — |
 | `created_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | non | non | utcnow | — | — |
 | `updated_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | non | non | utcnow | — | — |
+| `purchase_date` | DATE | non | non | — | — | — |
+| `notes` | VARCHAR(500) | oui | non | — | — | — |
 
 - PK : `id`.
 - CHECK `ck_purchases_amounts` : `subtotal_amount >= 0 AND discount_amount >= 0 AND tax_amount >= 0 AND total_amount = subtotal_amount - discount_amount + tax_amount AND discount_amount <= subtotal_amount`.
@@ -1261,6 +1599,7 @@ erDiagram
 | `bar_id` | MySQL `BIGINT` / SQLite `INTEGER` | non | non | — | — | — |
 | `created_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | non | non | utcnow | — | — |
 | `updated_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | non | non | utcnow | — | — |
+| `note` | VARCHAR(500) | oui | non | — | — | — |
 
 - PK : `id`.
 - FK `—` : `bar_id` → `bars.id` ; ON DELETE `RESTRICT`.
@@ -1290,6 +1629,30 @@ erDiagram
 - UNIQUE `uq_token_revocations_token` : `bar_id, api_token_id`.
 - INDEX `ix_token_revocations_bar_created` : `bar_id, created_at, id`.
 - INDEX `ix_token_revocations_bar_id` : `bar_id`.
+
+### `user_notifications`
+
+| Colonne | Type | NULL | PK | Default ORM | Default serveur | Calcul |
+| --- | --- | --- | --- | --- | --- | --- |
+| `id` | MySQL `BIGINT` / SQLite `INTEGER` | non | oui | — | — | — |
+| `bar_id` | MySQL `BIGINT` / SQLite `INTEGER` | non | non | — | — | — |
+| `user_id` | MySQL `BIGINT` / SQLite `INTEGER` | non | non | — | — | — |
+| `order_id` | MySQL `BIGINT` / SQLite `INTEGER` | oui | non | — | — | — |
+| `kind` | VARCHAR(32) | non | non | — | — | — |
+| `title` | VARCHAR(160) | non | non | — | — | — |
+| `body` | VARCHAR(500) | non | non | — | — | — |
+| `read_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | oui | non | — | — | — |
+| `created_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | non | non | utcnow | — | — |
+| `updated_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | non | non | utcnow | — | — |
+
+- PK : `id`.
+- FK `—` : `bar_id` → `bars.id` ; ON DELETE `RESTRICT`.
+- FK `—` : `bar_id, order_id` → `orders.bar_id, orders.id` ; ON DELETE `RESTRICT`.
+- FK `—` : `user_id` → `users.id` ; ON DELETE `RESTRICT`.
+- INDEX `ix_user_notifications_bar_id` : `bar_id`.
+- INDEX `ix_user_notifications_bar_order` : `bar_id, order_id, id`.
+- INDEX `ix_user_notifications_user_id` : `user_id`.
+- INDEX `ix_user_notifications_user_unread` : `user_id, read_at, created_at, id`.
 
 ### `user_sessions`
 

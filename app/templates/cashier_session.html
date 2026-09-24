@@ -72,7 +72,7 @@
       </div>
       <div class="cash-breakdown mt-4">
         <div><span>Fonds initial</span><strong>{{ "{:,.0f}".format(session.opening_amount) }} {{ session.currency }}</strong></div>
-        <div><span>Ventes espèces</span><strong>+ {{ "{:,.0f}".format(movement_breakdown.cash_sales) }} {{ session.currency }}</strong></div>
+        <div><span>Ventes et suppléments espèces</span><strong>+ {{ "{:,.0f}".format(movement_breakdown.cash_sales) }} {{ session.currency }}</strong></div>
         <div><span>Remboursements espèces</span><strong>- {{ "{:,.0f}".format(movement_breakdown.cash_refunds) }} {{ session.currency }}</strong></div>
         <div><span>Remises reçues</span><strong>+ {{ "{:,.0f}".format(movement_breakdown.handovers) }} {{ session.currency }}</strong></div>
         <div><span>Dépôts manuels</span><strong>+ {{ "{:,.0f}".format(movement_breakdown.deposits) }} {{ session.currency }}</strong></div>

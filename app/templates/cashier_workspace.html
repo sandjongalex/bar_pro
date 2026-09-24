@@ -2,6 +2,8 @@
 {% block title %}Caisse rapide · {{ bar.name }} · Bar Manager Pro{% endblock %}
 {% block header %}Caisse rapide · {{ bar.name }}{% endblock %}
 {% block content %}
+<a class="btn btn-primary mb-3" href="{{ url_for('exchanges_web.manage', bar_id=bar.id) }}">Échanger une boisson sans facture</a>
+
 <style>
 .cashier-order-actions{display:flex;flex-wrap:wrap;gap:8px;padding:8px 12px 12px;border-bottom:1px solid var(--line)}.cashier-order-actions form{margin:0}.cashier-order-actions .btn{min-height:44px;display:inline-flex;align-items:center;justify-content:center}
 
