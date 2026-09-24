@@ -59,7 +59,7 @@ def _message(code):
         "stock_alert_threshold": "Le seuil d'alerte doit être un nombre positif ou nul.",
         "INITIAL_ALREADY_RECORDED": "Le stock initial de ce produit a déjà été enregistré.",
         "INVALID_DIRECTION": "La quantité de stock initial doit être supérieure à zéro.",
-        "INVALID_IMAGE_TYPE": "La photo doit être au format JPG, PNG ou WebP.",
+        "INVALID_IMAGE_TYPE": "La photo doit être au format JPG, JPEG, JFIF, PNG ou WebP.",
         "INVALID_IMAGE": "Le fichier sélectionné n'est pas une image valide.",
         "IMAGE_TOO_LARGE": "La photo dépasse la taille maximale de 4 Mo.",
         "FORBIDDEN": "Vous n'êtes pas autorisé à modifier le catalogue.",
@@ -99,6 +99,29 @@ def product_image(bar_id, key):
     if not item:
         raise LookupError("NOT_FOUND")
     return send_from_directory(str(product_image_directory()), key, conditional=True, max_age=86400)
+
+
+@catalog_bp.get("/image-map")
+@login_required
+def product_image_map(bar_id):
+    """Return image URLs for active products visible to the current bar employee."""
+    permissions.require(current_user, "catalog.read", bar_id)
+    rows = db.session.execute(
+        select(Product.id, Product.image_key).where(
+            Product.bar_id == bar_id,
+            Product.is_active.is_(True),
+            Product.image_key.is_not(None),
+        )
+    ).all()
+    return jsonify(
+        {
+            "images": {
+                str(product_id): url_for("catalog.product_image", bar_id=bar_id, key=image_key)
+                for product_id, image_key in rows
+                if image_key
+            }
+        }
+    )
 
 
 @catalog_bp.route("", methods=["GET", "POST"])
