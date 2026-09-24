@@ -1,6 +1,6 @@
 from decimal import Decimal, InvalidOperation
 
-from flask import Blueprint, flash, jsonify, redirect, render_template, request, url_for
+from flask import Blueprint, flash, jsonify, redirect, render_template, request, send_from_directory, url_for
 from flask_login import current_user, login_required
 from sqlalchemy import select
 
@@ -16,6 +16,7 @@ from app.catalog_services import (
 from app.extensions import db
 from app.models import Bar, Product, StockBalance
 from app.permissions import permissions
+from app.product_images import delete_product_image, product_image_directory
 from app.stock_service import StockError, stock_service
 
 catalog_bp = Blueprint("catalog", __name__, url_prefix="/bars/<int:bar_id>/catalog")
@@ -28,9 +29,18 @@ def output(item):
         "name": item.name,
         "sku": item.sku,
         "category_id": str(item.category_id),
+        "base_unit": item.base_unit,
         "sale_price": str(item.sale_price),
+        "valuation_unit_cost": str(item.valuation_unit_cost),
+        "stock_alert_threshold": str(item.stock_alert_threshold),
+        "units_per_case": item.units_per_case,
         "is_active": item.is_active,
         "image_key": item.image_key,
+        "image_url": (
+            url_for("catalog.product_image", bar_id=item.bar_id, key=item.image_key)
+            if item.image_key
+            else None
+        ),
     }
 
 
@@ -49,6 +59,9 @@ def _message(code):
         "stock_alert_threshold": "Le seuil d'alerte doit être un nombre positif ou nul.",
         "INITIAL_ALREADY_RECORDED": "Le stock initial de ce produit a déjà été enregistré.",
         "INVALID_DIRECTION": "La quantité de stock initial doit être supérieure à zéro.",
+        "INVALID_IMAGE_TYPE": "La photo doit être au format JPG, PNG ou WebP.",
+        "INVALID_IMAGE": "Le fichier sélectionné n'est pas une image valide.",
+        "IMAGE_TOO_LARGE": "La photo dépasse la taille maximale de 4 Mo.",
         "FORBIDDEN": "Vous n'êtes pas autorisé à modifier le catalogue.",
         "NOT_FOUND": "Élément introuvable.",
     }
@@ -63,6 +76,29 @@ def _decimal_or_zero(value):
     if result < 0:
         raise ValueError("INITIAL_QUANTITY")
     return result
+
+
+def _product_form_data():
+    return {
+        "category_id": request.form.get("category_id"),
+        "sku": request.form.get("sku", ""),
+        "name": request.form.get("name", ""),
+        "base_unit": request.form.get("base_unit", "unité"),
+        "sale_price": request.form.get("sale_price", "0"),
+        "valuation_unit_cost": request.form.get("valuation_unit_cost", "0"),
+        "stock_alert_threshold": request.form.get("stock_alert_threshold", "0"),
+        "units_per_case": request.form.get("units_per_case", ""),
+    }
+
+
+@catalog_bp.get("/images/<path:key>")
+@login_required
+def product_image(bar_id, key):
+    permissions.require(current_user, "catalog.read", bar_id)
+    item = Product.query.filter_by(bar_id=bar_id, image_key=key).first()
+    if not item:
+        raise LookupError("NOT_FOUND")
+    return send_from_directory(str(product_image_directory()), key, conditional=True, max_age=86400)
 
 
 @catalog_bp.route("", methods=["GET", "POST"])
@@ -80,6 +116,9 @@ def web_list(bar_id):
             raise PermissionError("FORBIDDEN")
 
         action = request.form.get("action", "")
+        created_image_key = None
+        replacement_image_key = None
+        old_image_key = None
         try:
             if action == "category_create":
                 create_category(current_user, bar_id, request.form.get("category_name", ""))
@@ -100,17 +139,10 @@ def web_list(bar_id):
                 item = create_product(
                     current_user,
                     bar_id,
-                    {
-                        "category_id": request.form.get("category_id"),
-                        "sku": request.form.get("sku", ""),
-                        "name": request.form.get("name", ""),
-                        "base_unit": request.form.get("base_unit", "unité"),
-                        "sale_price": request.form.get("sale_price", "0"),
-                        "valuation_unit_cost": request.form.get("valuation_unit_cost", "0"),
-                        "stock_alert_threshold": request.form.get("stock_alert_threshold", "0"),
-                        "units_per_case": request.form.get("units_per_case", ""),
-                    },
+                    _product_form_data(),
+                    request.files.get("image"),
                 )
+                created_image_key = item.image_key
                 initial_quantity = _decimal_or_zero(request.form.get("initial_quantity", "0"))
                 if initial_quantity > 0:
                     stock_service.move(
@@ -124,6 +156,28 @@ def web_list(bar_id):
                 db.session.commit()
                 flash(f"{item.name} a été ajouté au catalogue.", "success")
 
+            elif action == "product_update":
+                product_id = int(request.form.get("product_id", "0"))
+                existing = Product.query.filter_by(bar_id=bar_id, id=product_id).first()
+                if not existing:
+                    raise LookupError("NOT_FOUND")
+                old_image_key = existing.image_key
+                data = _product_form_data()
+                data["remove_image"] = request.form.get("remove_image") == "yes"
+                item = update_product(
+                    current_user,
+                    bar_id,
+                    product_id,
+                    data,
+                    request.files.get("image"),
+                )
+                if item.image_key != old_image_key:
+                    replacement_image_key = item.image_key
+                db.session.commit()
+                if old_image_key and old_image_key != item.image_key:
+                    delete_product_image(old_image_key)
+                flash(f"{item.name} a été modifié avec succès.", "success")
+
             elif action in {"product_enable", "product_disable"}:
                 item = update_product(
                     current_user,
@@ -132,13 +186,20 @@ def web_list(bar_id):
                     {"is_active": action == "product_enable"},
                 )
                 db.session.commit()
-                flash(f"{item.name} a été mis à jour.", "success")
+                flash(
+                    f"{item.name} a été {'réactivé' if item.is_active else 'archivé'}. L'historique est conservé.",
+                    "success",
+                )
 
             else:
                 raise ValueError("INVALID_ACTION")
 
         except (PermissionError, LookupError, ValueError, TypeError, StockError) as exc:
             db.session.rollback()
+            if created_image_key:
+                delete_product_image(created_image_key)
+            if replacement_image_key and replacement_image_key != old_image_key:
+                delete_product_image(replacement_image_key)
             if str(exc) == "INITIAL_QUANTITY":
                 flash("Le stock initial doit être un nombre positif ou nul.", "danger")
             else:
@@ -222,6 +283,7 @@ def api_list(bar_id):
 @api_catalog_bp.post("")
 @api_required
 def api_create(bar_id):
+    image = None
     try:
         item = create_product(
             request.api_user,
@@ -229,17 +291,71 @@ def api_create(bar_id):
             request.form or request.get_json(),
             request.files.get("image"),
         )
+        image = item.image_key
         db.session.commit()
         return jsonify({"success": True, "data": output(item), "meta": {}}), 201
     except (PermissionError, LookupError, ValueError) as exc:
         db.session.rollback()
+        if image:
+            delete_product_image(image)
         return jsonify(
             {
                 "success": False,
                 "error": {
                     "code": "BUSINESS_RULE_VIOLATION",
-                    "message": "Données invalides",
+                    "message": _message(exc),
                     "details": None,
                 },
             }
+        ), 400
+
+
+@api_catalog_bp.patch("/<int:product_id>")
+@api_required
+def api_update(bar_id, product_id):
+    existing = Product.query.filter_by(bar_id=bar_id, id=product_id).first()
+    if not existing:
+        return jsonify({"success": False, "error": {"code": "NOT_FOUND", "message": "Introuvable", "details": None}}), 404
+    old_image = existing.image_key
+    new_image = None
+    try:
+        data = dict(request.form or request.get_json() or {})
+        if str(data.get("remove_image", "")).lower() in {"1", "true", "yes"}:
+            data["remove_image"] = True
+        item = update_product(
+            request.api_user,
+            bar_id,
+            product_id,
+            data,
+            request.files.get("image"),
+        )
+        if item.image_key != old_image:
+            new_image = item.image_key
+        db.session.commit()
+        if old_image and old_image != item.image_key:
+            delete_product_image(old_image)
+        return jsonify({"success": True, "data": output(item), "meta": {}})
+    except (PermissionError, LookupError, ValueError) as exc:
+        db.session.rollback()
+        if new_image and new_image != old_image:
+            delete_product_image(new_image)
+        return jsonify(
+            {"success": False, "error": {"code": "BUSINESS_RULE_VIOLATION", "message": _message(exc), "details": None}}
+        ), 400
+
+
+@api_catalog_bp.delete("/<int:product_id>")
+@api_required
+def api_archive(bar_id, product_id):
+    try:
+        item = update_product(request.api_user, bar_id, product_id, {"is_active": False})
+        db.session.commit()
+        return jsonify({"success": True, "data": output(item), "meta": {}})
+    except PermissionError:
+        db.session.rollback()
+        return jsonify({"success": False, "error": {"code": "NOT_FOUND", "message": "Introuvable", "details": None}}), 404
+    except (LookupError, ValueError) as exc:
+        db.session.rollback()
+        return jsonify(
+            {"success": False, "error": {"code": "BUSINESS_RULE_VIOLATION", "message": _message(exc), "details": None}}
         ), 400
