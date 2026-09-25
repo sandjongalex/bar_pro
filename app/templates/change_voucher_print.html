@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Bon de monnaie {{ voucher.code }}</title>
+  <style>
+    *{box-sizing:border-box}body{margin:0;background:#eef1ef;font-family:Arial,sans-serif;color:#111}.toolbar{display:flex;gap:8px;justify-content:center;padding:16px}.toolbar a,.toolbar button{border:0;border-radius:9px;padding:10px 14px;font-weight:700;cursor:pointer;text-decoration:none;background:#fff;color:#173b2e}.toolbar button{background:#173b2e;color:#fff}.ticket{width:58mm;max-width:100%;margin:0 auto 24px;background:#fff;padding:5mm 4mm;box-shadow:0 8px 30px rgba(0,0,0,.12)}.center{text-align:center}.brand{font-size:18px;font-weight:900}.subtitle{font-size:12px;font-weight:800;margin-top:4px}.dash{border-top:1px dashed #222;margin:10px 0}.amount{font-size:22px;font-weight:900;margin:8px 0}.code{font-size:14px;font-weight:900;letter-spacing:.06em;word-break:break-all}.row{display:flex;justify-content:space-between;gap:8px;font-size:10px;margin:5px 0}.row span:first-child{color:#555}.note{font-size:9px;line-height:1.35;text-align:center;margin-top:10px}.status{display:inline-block;padding:4px 8px;border:1px solid #111;border-radius:999px;font-size:9px;font-weight:800;margin-top:5px}@media print{body{background:#fff}.toolbar{display:none}.ticket{margin:0;box-shadow:none;width:58mm;page-break-after:avoid}@page{size:58mm auto;margin:0}}
+  </style>
+</head>
+<body>
+  <div class="toolbar"><a href="{{ url_for('change_vouchers_web.manage', bar_id=bar.id) }}">← Bons</a><a href="{{ url_for('cashier_workspace_web.workspace', bar_id=bar.id) }}">Caisse</a><button onclick="window.print()">Imprimer</button></div>
+  <main class="ticket">
+    <div class="center"><div class="brand">{{ bar.name|upper }}</div><div class="subtitle">BON DE MONNAIE</div></div>
+    <div class="dash"></div>
+    <div class="center"><div class="amount">{{ "{:,.0f}".format(voucher.balance_amount) }} {{ voucher.currency }}</div><div>Solde disponible</div><div class="code">{{ voucher.code }}</div><span class="status">{{ {'ACTIVE':'ACTIF','PARTIAL':'PARTIEL','SETTLED':'SOLDÉ','CANCELLED':'ANNULÉ'}.get(voucher.status,voucher.status) }}</span></div>
+    <div class="dash"></div>
+    <div class="row"><span>Montant initial</span><strong>{{ "{:,.0f}".format(voucher.initial_amount) }} {{ voucher.currency }}</strong></div>
+    <div class="row"><span>Date</span><strong>{{ voucher.issued_at.strftime('%d/%m/%Y %H:%M') if voucher.issued_at else '-' }}</strong></div>
+    {% if payment %}<div class="row"><span>Facture origine</span><strong>#{{ voucher.origin_order_id }}</strong></div>{% endif %}
+    <div class="row"><span>Caissière</span><strong>{{ issuer.display_name if issuer else '-' }}</strong></div>
+    {% if voucher.customer_name %}<div class="row"><span>Client</span><strong>{{ voucher.customer_name }}</strong></div>{% endif %}
+    {% if voucher.customer_phone %}<div class="row"><span>Téléphone</span><strong>{{ voucher.customer_phone }}</strong></div>{% endif %}
+    {% if transactions %}
+      <div class="dash"></div>
+      <div class="center" style="font-size:9px;font-weight:800">MOUVEMENTS</div>
+      {% for tx in transactions %}<div class="row"><span>{{ 'Utilisé' if tx.kind == 'REDEEM' else 'Remboursé' }}</span><strong>-{{ "{:,.0f}".format(tx.amount) }}</strong></div>{% endfor %}
+    {% endif %}
+    <div class="dash"></div>
+    <div class="note">Présentez ce bon à KAPE BAR pour l'utiliser sur une prochaine facture ou recevoir le solde en espèces. Le code et le solde enregistrés dans l'application font foi.</div>
+  </main>
+</body>
+</html>
