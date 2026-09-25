@@ -14,6 +14,16 @@ branch_labels = None
 depends_on = None
 
 
+OLD_TENDER_CHECK = (
+    "amount = amount_applied AND amount_applied > 0 AND change_given >= 0 "
+    "AND amount_presented = amount_applied + change_given"
+)
+NEW_TENDER_CHECK = (
+    "amount = amount_applied AND amount_applied > 0 AND change_given >= 0 "
+    "AND amount_presented >= amount_applied + change_given"
+)
+
+
 def _types():
     dialect = op.get_bind().dialect.name
     id_type = sa.Integer() if dialect == "sqlite" else sa.BigInteger()
@@ -24,6 +34,15 @@ def _types():
 def upgrade():
     id_type, dt_type = _types()
     money = sa.Numeric(19, 4)
+
+    # A historical payment assumed every franc above the invoice amount had
+    # already been handed back to the customer.  A change voucher deliberately
+    # allows part of that tender to remain physically in the drawer as a
+    # customer liability.  The service layer still enforces the exact identity
+    # presented = applied + actual_change + voucher_amount atomically.
+    with op.batch_alter_table("payments") as batch:
+        batch.drop_constraint("ck_payments_tender", type_="check")
+        batch.create_check_constraint("ck_payments_tender", NEW_TENDER_CHECK)
 
     op.create_table(
         "change_vouchers",
@@ -154,3 +173,7 @@ def downgrade():
     op.drop_index("ix_change_vouchers_bar_status", table_name="change_vouchers")
     op.drop_index("ix_change_vouchers_bar_id", table_name="change_vouchers")
     op.drop_table("change_vouchers")
+
+    with op.batch_alter_table("payments") as batch:
+        batch.drop_constraint("ck_payments_tender", type_="check")
+        batch.create_check_constraint("ck_payments_tender", OLD_TENDER_CHECK)
