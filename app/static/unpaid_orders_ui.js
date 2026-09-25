@@ -15,6 +15,8 @@
   const pendingNode = document.querySelector('[data-unpaid-pending-delivery]');
   const partialNode = document.querySelector('[data-unpaid-partial]');
   const dueNode = document.querySelector('[data-unpaid-due]');
+  const mergeForm = document.querySelector('[data-merge-form]');
+  const mergeSubmit = document.querySelector('[data-merge-submit]');
   const money = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0 });
 
   let knownIds = new Set(Array.from(grid.querySelectorAll('[data-unpaid-order-id]')).map((node) => String(node.dataset.unpaidOrderId)));
@@ -31,6 +33,17 @@
   function quantity(value) {
     const number = Number(value || 0);
     return Number.isInteger(number) ? String(number) : String(number).replace(/\.0+$/, '');
+  }
+
+  function selectedMergeIds() {
+    return new Set(Array.from(grid.querySelectorAll('[data-merge-checkbox]:checked')).map((node) => String(node.value)));
+  }
+
+  function refreshMergeButton() {
+    if (!mergeSubmit) return;
+    const count = grid.querySelectorAll('[data-merge-checkbox]:checked').length;
+    mergeSubmit.disabled = count < 2;
+    mergeSubmit.textContent = count >= 2 ? `Fusionner ${count} commandes` : 'Fusionner la sélection';
   }
 
   function ageLabel(value) {
@@ -70,7 +83,7 @@
       </section>`;
   }
 
-  function orderCard(order) {
+  function orderCard(order, selectedIds) {
     const age = ageLabel(order.posted_at);
     const partial = order.payment_status === 'PARTIAL';
     const blocked = Boolean(order.payment_blocked);
@@ -90,6 +103,9 @@
       : (order.action_url
         ? `<a class="btn btn-primary" href="${escapeHtml(order.action_url)}">Encaisser →</a>`
         : '<span class="unpaid-watch">À suivre avec la caisse</span>');
+    const mergePick = role !== 'SERVER'
+      ? `<label class="merge-pick"><input type="checkbox" form="mergeForm" name="order_ids" value="${escapeHtml(order.id)}" data-merge-checkbox ${blocked ? 'disabled' : ''} ${selectedIds.has(String(order.id)) && !blocked ? 'checked' : ''}> Ajouter à la fusion</label>`
+      : '';
 
     return `
       <article class="unpaid-card ${partial ? 'is-partial' : ''} ${blocked ? 'is-pending-delivery' : ''} ${age.aging ? 'is-aging' : ''}" data-unpaid-order-id="${escapeHtml(order.id)}" data-posted-at="${escapeHtml(order.posted_at || '')}">
@@ -97,6 +113,7 @@
           <div><small>${escapeHtml(displayLabel)}</small><strong>${escapeHtml(displayName)}</strong></div>
           <span class="unpaid-status">${escapeHtml(status)}</span>
         </div>
+        ${mergePick}
         <div class="unpaid-card-meta"><strong>${escapeHtml(order.reference)}</strong><span>${escapeHtml(order.server_name || 'Comptoir')}</span><span data-unpaid-age>${escapeHtml(age.text)}</span></div>
         <div class="unpaid-lines">${lineHtml}</div>
         ${pendingHtml}
@@ -124,6 +141,7 @@
 
   function apply(payload) {
     const orders = Array.isArray(payload?.orders) ? payload.orders : [];
+    const selectedIds = selectedMergeIds();
     const nextPendingIds = new Set();
     orders.forEach((order) => {
       (Array.isArray(order.pending_deliveries) ? order.pending_deliveries : []).forEach((delivery) => {
@@ -131,7 +149,8 @@
       });
     });
 
-    grid.innerHTML = orders.map(orderCard).join('');
+    grid.innerHTML = orders.map((order) => orderCard(order, selectedIds)).join('');
+    refreshMergeButton();
     if (empty) empty.hidden = orders.length !== 0;
     if (countNode) countNode.textContent = String(payload?.stats?.count ?? orders.length);
     if (pendingNode) pendingNode.textContent = String(payload?.stats?.pending_delivery ?? nextPendingIds.size);
@@ -176,11 +195,21 @@
     }
   }
 
+  grid.addEventListener('change', (event) => {
+    if (event.target && event.target.matches('[data-merge-checkbox]')) refreshMergeButton();
+  });
+  if (mergeForm) {
+    mergeForm.addEventListener('submit', (event) => {
+      if (grid.querySelectorAll('[data-merge-checkbox]:checked').length < 2) event.preventDefault();
+    });
+  }
+
   document.addEventListener('visibilitychange', () => {
     if (!document.hidden) poll();
   });
   window.setInterval(refreshAges, 60000);
   window.setInterval(poll, 4000);
   refreshAges();
+  refreshMergeButton();
   poll();
 })();
