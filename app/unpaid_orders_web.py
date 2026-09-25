@@ -279,11 +279,17 @@ def _payload(bar_id: int, staff_filter: str | None = None):
         ]
         delivered_lines.extend(additions["delivered"])
 
+        invoice_name = (order.customer_name_snapshot or "").strip()
+        table_name = (order.table_label_snapshot or "").strip()
+        display_name = invoice_name or table_name or "COMPTOIR"
+
         rows.append(
             {
                 "id": order.id,
                 "reference": order.reference,
-                "table": order.table_label_snapshot or "Sans table",
+                "invoice_name": invoice_name,
+                "display_name": display_name,
+                "table": table_name or "Sans table",
                 "server_name": person_name,
                 "payment_status": order.payment_status,
                 "currency": order.currency,
