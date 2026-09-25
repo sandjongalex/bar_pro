@@ -41,7 +41,8 @@
 
   function enhanceCashPayment() {
     const form = document.getElementById('cashierPaymentForm');
-    if (!form || form.dataset.changeVoucherReady === '1') return;
+    const base = workspaceBase();
+    if (!form || !base || form.dataset.changeVoucherReady === '1') return;
 
     const presented = document.getElementById('cashierPresentedInput');
     const applied = document.getElementById('cashierApplied');
@@ -140,7 +141,9 @@
         actual.setCustomValidity('La monnaie rendue ne peut pas dépasser la monnaie due.');
         actual.reportValidity();
         actual.setCustomValidity('');
+        return;
       }
+      form.action = `${base}pay`;
     });
 
     refresh(true);
