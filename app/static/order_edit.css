@@ -32,6 +32,10 @@
 .order-edit-lock{padding:12px;border:1px solid #eadfbe;border-radius:11px;background:#fff8e8;color:#745b1e;font-size:.75rem;line-height:1.4}
 .cashier-order-edit-host{margin:12px 0}
 .cashier-pay-title .order-edit-toggle{min-height:38px}
+/* On the standalone detail page the generic cashier editor is injected after
+   the state summary inside a flex header; keep the editor on its own row. */
+.order-detail-actions-head{flex-wrap:wrap}
+.order-detail-actions-head>.order-edit-editor{flex:1 0 100%;width:100%}
 
 @media(max-width:767px){
   .order-edit-editor{margin-top:10px;padding:11px;border-radius:12px}
