@@ -12,6 +12,7 @@ from app.extensions import db, limiter
 from app.finance_totals import order_balance
 from app.models import Bar, CashSession, Order, StaffAssignment, User
 from app.order_line_views import effective_lines_by_order
+from app.order_merge_service import order_merge_service
 from app.order_suborder_models import OrderSuborder, OrderSuborderLine
 from app.order_suborder_service import order_suborder_service
 from app.permissions import permissions
@@ -332,6 +333,94 @@ def monitor(bar_id: int):
         is_server=payload["mode"] == "SERVER",
         is_cashier=payload["mode"] == "CASHIER",
     )
+
+
+@bp.post("/merge")
+@login_required
+def merge_preview(bar_id: int):
+    assignment = _assignment(bar_id)
+    if assignment is not None and assignment.role == "SERVER":
+        abort(404)
+    permissions.require(current_user, "payments.read", bar_id)
+    bar = db.session.get(Bar, bar_id)
+    if not bar:
+        abort(404)
+    try:
+        summary = order_merge_service.summary(current_user, bar_id, request.form.getlist("order_ids"))
+    except LookupError:
+        db.session.rollback()
+        abort(404)
+    except (PermissionError, ValueError, TypeError) as exc:
+        db.session.rollback()
+        messages = {
+            "MERGE_REQUIRES_MULTIPLE_ORDERS": "Sélectionnez au moins deux commandes à fusionner.",
+            "INVALID_MERGE_SELECTION": "La sélection de commandes est invalide.",
+            "ORDER_NOT_PAYABLE": "Une des commandes sélectionnées n'est pas encore prête à être encaissée.",
+            "ORDER_ALREADY_PAID": "Une des commandes sélectionnées est déjà soldée.",
+            "MERGE_CURRENCY_MISMATCH": "Les commandes sélectionnées n'utilisent pas la même devise.",
+        }
+        flash(messages.get(str(exc), "Impossible de fusionner ces commandes."), "danger")
+        return redirect(url_for("unpaid_orders_web.monitor", bar_id=bar_id))
+
+    open_sessions = list(
+        db.session.scalars(
+            select(CashSession)
+            .where(CashSession.bar_id == bar_id, CashSession.status == "OPEN")
+            .order_by(CashSession.id.desc())
+        )
+    )
+    return render_template(
+        "unpaid_order_merge.html",
+        bar=bar,
+        summary=summary,
+        open_sessions=open_sessions,
+    )
+
+
+@bp.post("/merge/payment")
+@login_required
+def merge_payment(bar_id: int):
+    assignment = _assignment(bar_id)
+    if assignment is not None and assignment.role == "SERVER":
+        abort(404)
+    permissions.require(current_user, "payments.record", bar_id)
+    try:
+        result = order_merge_service.record_payment(
+            current_user,
+            bar_id,
+            request.form.getlist("order_ids"),
+            request.form.get("method", ""),
+            request.form.get("amount_applied", ""),
+            presented=request.form.get("amount_presented", ""),
+            cash_session_id=request.form.get("cash_session_id", ""),
+            provider_code=(request.form.get("provider_code", "").strip() or None),
+            provider_transaction_id=(request.form.get("provider_transaction_id", "").strip() or None),
+        )
+        db.session.commit()
+        flash(
+            f"Fusion encaissée : {result['amount']:,.0f} {result['currency']} répartis sur {len(result['allocations'])} commande(s).",
+            "success",
+        )
+    except LookupError:
+        db.session.rollback()
+        abort(404)
+    except (PermissionError, ValueError, TypeError) as exc:
+        db.session.rollback()
+        messages = {
+            "MERGE_REQUIRES_MULTIPLE_ORDERS": "Sélectionnez au moins deux commandes à fusionner.",
+            "INVALID_MERGE_SELECTION": "La sélection de commandes est invalide.",
+            "ORDER_NOT_PAYABLE": "Une commande doit d'abord être entièrement livrée.",
+            "ORDER_ALREADY_PAID": "Une des commandes sélectionnées est déjà soldée.",
+            "PAYMENT_LIMIT_EXCEEDED": "Le montant dépasse le reste total à payer.",
+            "INVALID_PAYMENT_AMOUNTS": "Vérifiez le montant à affecter et le montant reçu.",
+            "INVALID_METHOD": "Le mode de paiement sélectionné est invalide.",
+            "CASH_LOCATION_REQUIRED": "Sélectionnez une caisse ouverte pour les espèces.",
+            "CASH_SESSION_REQUIRED": "Ouvrez d'abord une session de caisse.",
+            "CASH_SESSION_NOT_OPEN": "La caisse sélectionnée n'est plus ouverte.",
+            "PROVIDER_REFERENCE_REQUIRED": "Renseignez le prestataire et la référence Mobile Money.",
+        }
+        flash(messages.get(str(exc), "Impossible d'encaisser cette fusion."), "danger")
+    return redirect(url_for("unpaid_orders_web.monitor", bar_id=bar_id))
 
 
 @bp.post("/<int:order_id>/suborders/<int:suborder_id>/confirm-delivery")
