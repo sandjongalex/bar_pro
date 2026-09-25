@@ -6,8 +6,21 @@ ASCII transliteration avoids depending on a clone's accented-character table.
 import base64
 import textwrap
 import unicodedata
+from decimal import Decimal
+from types import SimpleNamespace
 
 WIDTH = 32
+
+
+class ReceiptPrintOptions(str):
+    """Backward-compatible detailed intent with extra print choices for the UI."""
+
+    def __new__(cls, detailed, cumulative, cumulative_lines):
+        value = super().__new__(cls, detailed)
+        value.detailed = detailed
+        value.cumulative = cumulative
+        value.cumulative_lines = cumulative_lines
+        return value
 
 
 def printable(value):
@@ -22,9 +35,44 @@ def number(value):
     return format(value, ",f").rstrip("0").rstrip(".") if "." in format(value, "f") else format(value, ",f")
 
 
-def rawbt_receipt(*, bar, order, lines, payments, refunds, balance, server_name,
-                  customer_name, payment_times, refund_times, payment_labels,
-                  sale_time, issued_at):
+def cumulative_receipt_lines(lines):
+    """Group identical products sold at the same unit price for a compact invoice.
+
+    The unit price is part of the grouping key so a product sold at two different
+    prices is never silently merged into a mathematically ambiguous line.
+    """
+    grouped = {}
+    ordered_keys = []
+
+    for line in lines:
+        unit_price = Decimal(str(line.unit_sale_price_snapshot))
+        key = (
+            getattr(line, "product_id", None),
+            str(line.product_name_snapshot),
+            str(getattr(line, "unit_snapshot", "")),
+            unit_price,
+        )
+        if key not in grouped:
+            grouped[key] = SimpleNamespace(
+                product_id=getattr(line, "product_id", None),
+                product_name_snapshot=line.product_name_snapshot,
+                unit_snapshot=getattr(line, "unit_snapshot", ""),
+                quantity=Decimal("0"),
+                unit_sale_price_snapshot=unit_price,
+                total_amount=Decimal("0"),
+            )
+            ordered_keys.append(key)
+
+        item = grouped[key]
+        item.quantity += Decimal(str(line.quantity))
+        item.total_amount += Decimal(str(line.total_amount))
+
+    return [grouped[key] for key in ordered_keys]
+
+
+def _rawbt_receipt_intent(*, bar, order, lines, payments, refunds, balance, server_name,
+                          customer_name, payment_times, refund_times, payment_labels,
+                          sale_time, issued_at, mode_label):
     rows = []
 
     def add(value):
@@ -44,6 +92,7 @@ def rawbt_receipt(*, bar, order, lines, payments, refunds, balance, server_name,
     if bar.phone:
         add(f"Tel: {bar.phone}")
     add("RECU DE VENTE")
+    add(mode_label)
     rule()
     add(f"Commande: {order.reference}")
     if customer_name:
@@ -92,5 +141,35 @@ def rawbt_receipt(*, bar, order, lines, payments, refunds, balance, server_name,
     # Initialize, select normal font A and left alignment. No cutter on mobile printers.
     payload = b"\x1b@\x1b!\x00\x1ba\x00" + text.encode("ascii")
     encoded = base64.b64encode(payload).decode("ascii")
-    intent = "intent:base64," + encoded + "#Intent;scheme=rawbt;package=ru.a402d.rawbtprinter;end;"
-    return intent
+    return "intent:base64," + encoded + "#Intent;scheme=rawbt;package=ru.a402d.rawbtprinter;end;"
+
+
+def rawbt_receipt(*, bar, order, lines, payments, refunds, balance, server_name,
+                  customer_name, payment_times, refund_times, payment_labels,
+                  sale_time, issued_at):
+    cumulative_lines = cumulative_receipt_lines(lines)
+    common = dict(
+        bar=bar,
+        order=order,
+        payments=payments,
+        refunds=refunds,
+        balance=balance,
+        server_name=server_name,
+        customer_name=customer_name,
+        payment_times=payment_times,
+        refund_times=refund_times,
+        payment_labels=payment_labels,
+        sale_time=sale_time,
+        issued_at=issued_at,
+    )
+    detailed = _rawbt_receipt_intent(
+        lines=lines,
+        mode_label="FACTURE DETAILLEE",
+        **common,
+    )
+    cumulative = _rawbt_receipt_intent(
+        lines=cumulative_lines,
+        mode_label="FACTURE CUMULEE",
+        **common,
+    )
+    return ReceiptPrintOptions(detailed, cumulative, cumulative_lines)
