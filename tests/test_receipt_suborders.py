@@ -1,0 +1,96 @@
+import base64
+import html
+import re
+
+from app.extensions import db
+from app.models import Product
+from app.order_suborder_service import order_suborder_service
+from app.stock_service import stock_service
+from test_cashier_complete_flow import _login
+from test_workflows import env, order
+
+
+def _rawbt_text(page_text: str) -> str:
+    link = html.unescape(
+        re.search(r'data-rawbt-intent="([^"]+)"', page_text).group(1)
+    )
+    encoded, _ = link.removeprefix("intent:base64,").split("#Intent;")
+    payload = base64.b64decode(encoded)
+    return payload[8:].decode("ascii")
+
+
+def test_printed_receipt_refreshes_with_validated_suborder(env):
+    app, owner, bar, _, base_product, server, _, _ = env
+    extra = Product(
+        bar_id=bar.id,
+        category_id=base_product.category_id,
+        name="Booster ajout facture",
+        sku="BOOSTER-RECEIPT",
+        base_unit="bottle",
+        sale_price=150,
+        valuation_unit_cost=75,
+    )
+    db.session.add(extra)
+    db.session.flush()
+    stock_service.move(owner, bar.id, extra.id, "INITIAL", 10, "Opening stock")
+
+    value = order(env, actor=server)
+    addition = order_suborder_service.create_server_addition(
+        server,
+        bar.id,
+        value.id,
+        [{"product_id": extra.id, "quantity": 1}],
+        "Deuxième tournée",
+    )
+    db.session.commit()
+
+    assert addition.status == "VALIDATED"
+    assert value.total_amount == 350
+
+    order_suborder_service.deliver_by_cashier(
+        owner,
+        bar.id,
+        value.id,
+        addition.id,
+    )
+    db.session.commit()
+
+    client = app.test_client()
+    _login(client, owner.email)
+    page = client.get(f"/bars/{bar.id}/checkout/orders/{value.id}/receipt")
+
+    assert page.status_code == 200
+    assert "Booster ajout facture" in page.text
+    assert "350" in page.text
+
+    ticket = _rawbt_text(page.text)
+    assert "Booster ajout facture" in ticket
+    assert "Total commande: 350 FCFA" in ticket
+
+
+def test_receipt_does_not_show_unvalidated_suborder(env):
+    app, owner, bar, _, base_product, server, _, _ = env
+    value = order(env, actor=server)
+
+    # A cashier-created addition is intentionally not part of the invoice until
+    # the assigned server validates it.  This guards against printing products
+    # that the invoice total does not yet include.
+    addition = order_suborder_service.create_cashier_addition(
+        owner,
+        bar.id,
+        value.id,
+        [{"product_id": base_product.id, "quantity": 1}],
+        "En attente validation serveuse",
+    )
+    db.session.commit()
+    assert addition.status == "PENDING_VALIDATION"
+    assert value.total_amount == 200
+
+    client = app.test_client()
+    _login(client, owner.email)
+    page = client.get(f"/bars/{bar.id}/checkout/orders/{value.id}/receipt")
+
+    assert page.status_code == 200
+    ticket = _rawbt_text(page.text)
+    assert ticket.count("Water") == 1
+    assert "Total commande: 200 FCFA" in ticket
