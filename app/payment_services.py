@@ -33,7 +33,7 @@ class PaymentService:
             if not opened:
                 raise ValueError("CASH_SESSION_REQUIRED")
 
-    def record(self, actor, bar_id, order_id, reference, method, presented, applied, change=0, cash_session_id=None, staff_assignment_id=None, provider_code=None, provider_transaction_id=None):
+    def record(self, actor, bar_id, order_id, reference, method, presented, applied, change=0, cash_session_id=None, staff_assignment_id=None, provider_code=None, provider_transaction_id=None, voucher_amount=0):
         permissions.require(actor, "payments.record", bar_id)
         self._require_cashier_session(actor, bar_id)
         order = db.session.scalar(select(Order).where(Order.id == order_id, Order.bar_id == bar_id).with_for_update())
@@ -55,8 +55,8 @@ class PaymentService:
             # The invoice already includes the server-added amount, but the stock
             # must not leave the bar until the cashier acknowledges physical delivery.
             raise ValueError("ORDER_NOT_PAYABLE")
-        presented, applied, change = map(number, (presented, applied, change))
-        if applied <= 0 or change < 0 or presented != applied + change:
+        presented, applied, change, voucher_amount = map(number, (presented, applied, change, voucher_amount))
+        if applied <= 0 or change < 0 or voucher_amount < 0 or presented != applied + change + voucher_amount:
             raise ValueError("INVALID_PAYMENT_AMOUNTS")
         if method not in {"CASH", "CARD", "MOBILE_MONEY", "BANK_TRANSFER"}:
             raise ValueError("INVALID_METHOD")
@@ -76,7 +76,7 @@ class PaymentService:
                 raise ValueError("CURRENCY_MISMATCH")
             if staff_assignment_id is not None and cash_service.staff(bar_id, staff_assignment_id).ended_at is not None:
                 raise ValueError("STAFF_ASSIGNMENT_ENDED")
-        elif cash_session_id is not None or staff_assignment_id is not None or change != 0:
+        elif cash_session_id is not None or staff_assignment_id is not None or change != 0 or voucher_amount != 0:
             raise ValueError("INVALID_NONCASH_PAYMENT")
 
         was_paid = order.payment_status == "PAID"
