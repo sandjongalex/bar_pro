@@ -63,7 +63,10 @@
   document.head.appendChild(style);
 
   if (label) label.textContent = 'Montant donné par le client';
+  presentedInput.value = '';
+  presentedInput.setAttribute('value', '');
   presentedInput.setAttribute('autocomplete', 'off');
+  presentedInput.setAttribute('placeholder', 'Saisir le montant');
   presentedInput.setAttribute('aria-describedby', 'cashPresentedHelp');
 
   const help = document.createElement('div');
@@ -176,7 +179,6 @@
     state.hidden = !visibleCashTools;
 
     if (current === 'CASH') {
-      if (!presentedInput.value) presentedInput.value = String(due);
       syncCash();
     } else if (current === 'MIXED') {
       syncMixed();
