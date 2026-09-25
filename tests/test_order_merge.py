@@ -11,16 +11,19 @@ from test_workflows import env
 
 
 def test_grouped_payment_allocates_oldest_first_without_moving_stock(env):
-    _, owner, bar, _, product, server, _, _ = env
+    _, owner, bar, _, product, _, _, _ = env
 
+    # The merge service is what this test exercises.  Create the source orders
+    # as the owner so employee shift/on-duty rules do not become an unrelated
+    # prerequisite of the grouped-payment test.
     first = order_service.create(
-        server,
+        owner,
         bar.id,
         "MERGE-001",
         [{"product_id": product.id, "quantity": 1}],
     )
     second = order_service.create(
-        server,
+        owner,
         bar.id,
         "MERGE-002",
         [{"product_id": product.id, "quantity": 2}],
@@ -70,9 +73,9 @@ def test_grouped_payment_allocates_oldest_first_without_moving_stock(env):
 
 
 def test_grouped_payment_requires_two_distinct_orders(env):
-    _, owner, bar, _, product, server, _, _ = env
+    _, owner, bar, _, product, _, _, _ = env
     order = order_service.create(
-        server,
+        owner,
         bar.id,
         "MERGE-SINGLE",
         [{"product_id": product.id, "quantity": 1}],
