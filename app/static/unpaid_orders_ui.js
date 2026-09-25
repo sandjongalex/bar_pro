@@ -76,6 +76,9 @@
     const blocked = Boolean(order.payment_blocked);
     const lines = Array.isArray(order.lines) ? order.lines : [];
     const pending = Array.isArray(order.pending_deliveries) ? order.pending_deliveries : [];
+    const invoiceName = String(order.invoice_name || '').trim();
+    const displayName = order.display_name || invoiceName || order.table || 'COMPTOIR';
+    const displayLabel = invoiceName ? 'Facture / repère' : 'Table';
     const lineHtml = lines.map((line) => `
       <div><span>${escapeHtml(quantity(line.quantity))} × ${escapeHtml(line.name)}</span><strong>${money.format(Number(line.total_amount || 0))}</strong></div>
     `).join('');
@@ -91,7 +94,7 @@
     return `
       <article class="unpaid-card ${partial ? 'is-partial' : ''} ${blocked ? 'is-pending-delivery' : ''} ${age.aging ? 'is-aging' : ''}" data-unpaid-order-id="${escapeHtml(order.id)}" data-posted-at="${escapeHtml(order.posted_at || '')}">
         <div class="unpaid-card-head">
-          <div><small>Table</small><strong>${escapeHtml(order.table || 'Sans table')}</strong></div>
+          <div><small>${escapeHtml(displayLabel)}</small><strong>${escapeHtml(displayName)}</strong></div>
           <span class="unpaid-status">${escapeHtml(status)}</span>
         </div>
         <div class="unpaid-card-meta"><strong>${escapeHtml(order.reference)}</strong><span>${escapeHtml(order.server_name || 'Comptoir')}</span><span data-unpaid-age>${escapeHtml(age.text)}</span></div>
