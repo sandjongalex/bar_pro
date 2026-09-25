@@ -174,4 +174,4 @@ def test_paid_order_detail_hides_editor_and_offers_return_path(env):
     template = open("app/templates/order_detail.html", encoding="utf-8").read()
     assert "order.payment_status != 'PAID'" in template
     assert "Retour / remboursement" in template
-    assert "Commande totalement payée ne se modifie plus directement" in template
+    assert "commande totalement payée ne se modifie plus directement" in template
