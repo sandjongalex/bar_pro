@@ -19,6 +19,7 @@ from app.extensions import db
 from app.finance_totals import order_balance
 from app.models import Bar, CashSession, Customer, Order, OrderLine, Payment, Refund, StaffAssignment, User
 from app.order_services import order_service
+from app.order_suborder_models import OrderSuborder, OrderSuborderLine
 from app.payment_services import payment_service
 from app.permissions import permissions
 
@@ -136,6 +137,56 @@ def _message(code) -> str:
     return messages.get(str(code), "Opération refusée. Vérifiez les informations saisies.")
 
 
+def _receipt_lines(bar_id: int, order_id: int):
+    """Return original order lines plus every validated sub-order line on the invoice.
+
+    A sub-order remains a distinct historical record.  It is only part of the
+    customer invoice once its business status is VALIDATED; pending/rejected/
+    cancelled additions must therefore never leak onto the receipt.
+    """
+    lines = list(
+        db.session.scalars(
+            select(OrderLine)
+            .where(OrderLine.bar_id == bar_id, OrderLine.order_id == order_id)
+            .order_by(OrderLine.line_no, OrderLine.id)
+        )
+    )
+
+    suborders = list(
+        db.session.scalars(
+            select(OrderSuborder)
+            .where(
+                OrderSuborder.bar_id == bar_id,
+                OrderSuborder.order_id == order_id,
+                OrderSuborder.status == "VALIDATED",
+            )
+            .order_by(OrderSuborder.sequence_no, OrderSuborder.id)
+        )
+    )
+    if not suborders:
+        return lines
+
+    sequence_by_id = {item.id: item.sequence_no for item in suborders}
+    addition_lines = list(
+        db.session.scalars(
+            select(OrderSuborderLine).where(
+                OrderSuborderLine.bar_id == bar_id,
+                OrderSuborderLine.order_id == order_id,
+                OrderSuborderLine.order_suborder_id.in_(sequence_by_id),
+            )
+        )
+    )
+    addition_lines.sort(
+        key=lambda line: (
+            sequence_by_id.get(line.order_suborder_id, 0),
+            line.line_no,
+            line.id,
+        )
+    )
+    lines.extend(addition_lines)
+    return lines
+
+
 @bp.get("/orders/<int:order_id>/receipt")
 @login_required
 def receipt(bar_id: int, order_id: int):
@@ -149,13 +200,7 @@ def receipt(bar_id: int, order_id: int):
     if not order or order.status == "DRAFT":
         raise LookupError("NOT_FOUND")
 
-    lines = list(
-        db.session.scalars(
-            select(OrderLine)
-            .where(OrderLine.bar_id == bar_id, OrderLine.order_id == order_id)
-            .order_by(OrderLine.line_no, OrderLine.id)
-        )
-    )
+    lines = _receipt_lines(bar_id, order_id)
     payments = list(
         db.session.scalars(
             select(Payment)
