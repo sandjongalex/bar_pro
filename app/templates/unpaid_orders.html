@@ -64,7 +64,7 @@
   {% for order in payload.orders %}
   <article class="unpaid-card {% if order.payment_status == 'PARTIAL' %}is-partial{% endif %} {% if order.payment_blocked %}is-pending-delivery{% endif %}" data-unpaid-order-id="{{ order.id }}" data-posted-at="{{ order.posted_at or '' }}">
     <div class="unpaid-card-head">
-      <div><small>Table</small><strong>{{ order.table }}</strong></div>
+      <div><small>{{ 'Facture / repère' if order.invoice_name else 'Table' }}</small><strong>{{ order.display_name }}</strong></div>
       <span class="unpaid-status">{% if order.payment_blocked %}Livraison à confirmer{% else %}{{ 'Partiellement payée' if order.payment_status == 'PARTIAL' else 'Impayée' }}{% endif %}</span>
     </div>
     <div class="unpaid-card-meta">
