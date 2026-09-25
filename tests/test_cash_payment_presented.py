@@ -92,3 +92,12 @@ def test_cashier_ui_derives_applied_amount_from_money_given():
     assert "Math.min(received, due)" in script
     assert "cash-presented-quick" in script
     assert "cash_payment_ui.js" in layout
+
+
+def test_cashier_money_given_field_starts_empty():
+    script = Path("app/static/cash_payment_ui.js").read_text(encoding="utf-8")
+
+    assert "presentedInput.value = '';" in script
+    assert "presentedInput.setAttribute('value', '');" in script
+    assert "Saisir le montant" in script
+    assert "presentedInput.value = String(due)" not in script
