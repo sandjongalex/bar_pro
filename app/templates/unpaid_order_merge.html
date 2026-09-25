@@ -1,0 +1,79 @@
+{% extends 'layout.html' %}
+{% block title %}Fusion de commandes · {{ bar.name }} · Bar Manager Pro{% endblock %}
+{% block header %}Fusion de commandes · {{ bar.name }}{% endblock %}
+{% block content %}
+<style>
+.merge-wrap{max-width:920px;margin:0 auto}.merge-hero,.merge-card,.merge-payment{background:#fff;border:1px solid #dfe8e3;border-radius:18px;padding:18px;margin-bottom:16px}.merge-hero h1{margin:4px 0 8px}.merge-list{display:grid;gap:10px}.merge-row{display:grid;grid-template-columns:1fr auto;gap:12px;padding:12px;border:1px solid #e7ece9;border-radius:14px}.merge-row small{display:block;color:var(--muted);margin-top:3px}.merge-total{display:flex;justify-content:space-between;align-items:end;gap:12px;border-top:1px solid #e7ece9;margin-top:14px;padding-top:14px}.merge-total strong{font-size:1.45rem}.merge-payment form{display:grid;gap:12px}.merge-payment .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.merge-payment label{display:block;font-weight:800;font-size:.78rem;margin-bottom:5px}.merge-payment input,.merge-payment select{width:100%;min-height:46px}.merge-actions{display:flex;gap:10px;flex-wrap:wrap}.merge-actions .btn{min-height:46px;display:inline-flex;align-items:center;justify-content:center;text-decoration:none}@media(max-width:700px){.merge-payment .grid{grid-template-columns:1fr}.merge-actions .btn{width:100%}}
+</style>
+<div class="merge-wrap">
+  <section class="merge-hero">
+    <p class="eyebrow mb-2">Encaissement groupé</p>
+    <h1>{{ summary.orders|length }} commandes fusionnées</h1>
+    <p>Les commandes restent indépendantes pour le stock, les retours et les performances du personnel. Seul l'encaissement est regroupé.</p>
+  </section>
+
+  <section class="merge-card">
+    <div class="merge-list">
+      {% for item in summary.orders %}
+      <div class="merge-row">
+        <div>
+          <strong>{{ item.order.customer_name_snapshot or item.order.table_label_snapshot or 'COMPTOIR' }}</strong>
+          <small>{{ item.order.reference }}{% if item.order.payment_status == 'PARTIAL' %} · paiement partiel{% endif %}</small>
+        </div>
+        <strong>{{ "{:,.0f}".format(item.amount_due|float) }} {{ item.order.currency }}</strong>
+      </div>
+      {% endfor %}
+    </div>
+    <div class="merge-total">
+      <div><small>Reste total à encaisser</small></div>
+      <strong>{{ "{:,.0f}".format(summary.total_due|float) }} {{ summary.currency }}</strong>
+    </div>
+  </section>
+
+  <section class="merge-payment">
+    <h2>Encaisser la fusion</h2>
+    <form method="post" action="{{ url_for('unpaid_orders_web.merge_payment', bar_id=bar.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      {% for item in summary.orders %}<input type="hidden" name="order_ids" value="{{ item.order.id }}">{% endfor %}
+      <div class="grid">
+        <div>
+          <label for="method">Mode de paiement</label>
+          <select class="form-select" name="method" id="method" required>
+            <option value="CASH">Espèces</option>
+            <option value="MOBILE_MONEY">Mobile Money</option>
+            <option value="CARD">Carte</option>
+            <option value="BANK_TRANSFER">Virement</option>
+          </select>
+        </div>
+        <div>
+          <label for="amount_applied">Montant à affecter</label>
+          <input class="form-control" type="number" min="1" max="{{ summary.total_due }}" step="1" id="amount_applied" name="amount_applied" value="{{ summary.total_due }}" required>
+        </div>
+        <div>
+          <label for="amount_presented">Montant reçu en espèces</label>
+          <input class="form-control" type="number" min="0" step="1" id="amount_presented" name="amount_presented" value="{{ summary.total_due }}">
+        </div>
+        <div>
+          <label for="cash_session_id">Caisse espèces</label>
+          <select class="form-select" id="cash_session_id" name="cash_session_id">
+            <option value="">Sélectionner la caisse</option>
+            {% for session in open_sessions %}<option value="{{ session.id }}">Caisse #{{ session.id }}</option>{% endfor %}
+          </select>
+        </div>
+        <div>
+          <label for="provider_code">Prestataire Mobile Money</label>
+          <input class="form-control" id="provider_code" name="provider_code" placeholder="MTN, Orange…">
+        </div>
+        <div>
+          <label for="provider_transaction_id">Référence transaction</label>
+          <input class="form-control" id="provider_transaction_id" name="provider_transaction_id" placeholder="Référence Mobile Money">
+        </div>
+      </div>
+      <div class="merge-actions">
+        <button class="btn btn-primary" type="submit">Encaisser la fusion</button>
+        <a class="btn btn-light border" href="{{ url_for('unpaid_orders_web.monitor', bar_id=bar.id) }}">Annuler</a>
+      </div>
+    </form>
+  </section>
+</div>
+{% endblock %}
