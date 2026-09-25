@@ -3,8 +3,13 @@
 {% block header %}Détail de la commande{% endblock %}
 {% block content %}
 <style>
-.order-detail-shell{max-width:980px;margin:0 auto}.order-detail-back{display:inline-flex;align-items:center;gap:6px;text-decoration:none;font-weight:750;margin-bottom:14px}.order-detail-hero{display:flex;justify-content:space-between;gap:18px;align-items:flex-start;padding:18px;border:1px solid #dfe8e3;border-radius:18px;background:linear-gradient(135deg,#fff 0%,#f7fbf9 100%)}.order-detail-hero h1{font-size:1.45rem;margin:2px 0 6px;text-transform:uppercase;letter-spacing:.02em}.order-detail-system-ref{font-size:.65rem;color:var(--muted);margin-top:2px}.order-detail-meta{display:flex;flex-wrap:wrap;gap:7px;margin-top:10px}.order-detail-pill{display:inline-flex;align-items:center;padding:5px 9px;border-radius:999px;background:#eef5f1;font-size:.68rem;font-weight:800}.order-detail-pill.success{background:#e9f8ef;color:#257444}.order-detail-pill.warning{background:#fff4dd;color:#936411}.order-detail-pill.danger{background:#fff0f0;color:#a23b3b}.order-detail-total{text-align:right;white-space:nowrap}.order-detail-total span{display:block;font-size:.68rem;color:var(--muted)}.order-detail-total strong{font-size:1.35rem}.order-detail-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:14px}.order-detail-stat{padding:13px;border:1px solid #e4ebe7;border-radius:14px;background:#fff}.order-detail-stat span{display:block;font-size:.67rem;color:var(--muted);margin-bottom:3px}.order-detail-stat strong{font-size:1rem}.order-detail-card{margin-top:14px;padding:17px;border:1px solid #e1e9e5;border-radius:17px;background:#fff}.order-detail-card-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:12px}.order-detail-card-head h2{font-size:1rem;margin:0}.order-detail-card-head p{margin:3px 0 0;color:var(--muted);font-size:.7rem}.order-detail-lines{border-top:1px solid #edf1ef}.order-detail-line{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;padding:11px 0;border-bottom:1px solid #edf1ef}.order-detail-line-copy strong,.order-detail-line-copy small{display:block}.order-detail-line-copy strong{font-size:.82rem}.order-detail-line-copy small{font-size:.66rem;color:var(--muted);margin-top:2px}.order-detail-line-money{text-align:right}.order-detail-line-money strong{display:block;font-size:.8rem}.order-detail-line-money small{font-size:.64rem;color:var(--muted)}.order-detail-note{margin-top:12px;padding:11px 12px;border-radius:12px;background:#f7f9f8;font-size:.73rem}.order-detail-suborder{margin-top:12px;padding:14px;border:1px solid #e1e8e4;border-radius:14px;background:#fbfdfc}.order-detail-suborder-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}.order-detail-suborder-head h3{font-size:.88rem;margin:0}.order-detail-suborder-state{display:flex;flex-wrap:wrap;gap:6px;margin-top:5px}.order-detail-empty{padding:16px;text-align:center;color:var(--muted);font-size:.75rem;border:1px dashed #d9e3de;border-radius:13px}.order-detail-footer{display:flex;justify-content:flex-end;margin-top:16px}@media(max-width:680px){.order-detail-hero{display:block;padding:15px}.order-detail-total{text-align:left;margin-top:13px}.order-detail-stats{grid-template-columns:1fr}.order-detail-card{padding:14px}.order-detail-suborder-head{display:block}.order-detail-suborder-head>.text-end{text-align:left!important;margin-top:8px}.order-detail-footer .btn{width:100%}}
+.order-detail-shell{max-width:980px;margin:0 auto}.order-detail-back{display:inline-flex;align-items:center;gap:6px;text-decoration:none;font-weight:750;margin-bottom:14px}.order-detail-hero{display:flex;justify-content:space-between;gap:18px;align-items:flex-start;padding:18px;border:1px solid #dfe8e3;border-radius:18px;background:linear-gradient(135deg,#fff 0%,#f7fbf9 100%)}.order-detail-hero h1{font-size:1.45rem;margin:2px 0 6px;text-transform:uppercase;letter-spacing:.02em}.order-detail-system-ref{font-size:.65rem;color:var(--muted);margin-top:2px}.order-detail-meta{display:flex;flex-wrap:wrap;gap:7px;margin-top:10px}.order-detail-pill{display:inline-flex;align-items:center;padding:5px 9px;border-radius:999px;background:#eef5f1;font-size:.68rem;font-weight:800}.order-detail-pill.success{background:#e9f8ef;color:#257444}.order-detail-pill.warning{background:#fff4dd;color:#936411}.order-detail-pill.danger{background:#fff0f0;color:#a23b3b}.order-detail-total{text-align:right;white-space:nowrap}.order-detail-total span{display:block;font-size:.68rem;color:var(--muted)}.order-detail-total strong{font-size:1.35rem}.order-detail-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:14px}.order-detail-stat{padding:13px;border:1px solid #e4ebe7;border-radius:14px;background:#fff}.order-detail-stat span{display:block;font-size:.67rem;color:var(--muted);margin-bottom:3px}.order-detail-stat strong{font-size:1rem}.order-detail-card{margin-top:14px;padding:17px;border:1px solid #e1e9e5;border-radius:17px;background:#fff}.order-detail-card-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:12px}.order-detail-card-head h2{font-size:1rem;margin:0}.order-detail-card-head p{margin:3px 0 0;color:var(--muted);font-size:.7rem}.order-detail-actions-card{border-color:#d8e7df;background:linear-gradient(180deg,#fff,#fbfdfc)}.order-detail-actions-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}.order-detail-actions-head h2{font-size:1rem;margin:0}.order-detail-actions-head p{margin:3px 0 0;color:var(--muted);font-size:.7rem}.order-detail-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:13px}.order-detail-actions form{margin:0}.order-detail-actions .btn{min-height:42px;display:inline-flex;align-items:center;justify-content:center;font-weight:800}.order-detail-edit-hint{margin-top:12px;padding:11px 12px;border:1px solid #f0deb0;border-radius:12px;background:#fff8e8;color:#6f5618;font-size:.72rem;line-height:1.45}.order-detail-paid-hint{margin-top:12px;padding:11px 12px;border:1px solid #d9e6df;border-radius:12px;background:#f6faf8;color:#52635b;font-size:.72rem;line-height:1.45}.cashier-pay-title{display:flex;align-items:center;justify-content:space-between;gap:10px}.cashier-order-summary{font-size:.72rem;color:var(--muted);margin-top:8px}.order-detail-lines{border-top:1px solid #edf1ef}.order-detail-line{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;padding:11px 0;border-bottom:1px solid #edf1ef}.order-detail-line-copy strong,.order-detail-line-copy small{display:block}.order-detail-line-copy strong{font-size:.82rem}.order-detail-line-copy small{font-size:.66rem;color:var(--muted);margin-top:2px}.order-detail-line-money{text-align:right}.order-detail-line-money strong{display:block;font-size:.8rem}.order-detail-line-money small{font-size:.64rem;color:var(--muted)}.order-detail-note{margin-top:12px;padding:11px 12px;border-radius:12px;background:#f7f9f8;font-size:.73rem}.order-detail-suborder{margin-top:12px;padding:14px;border:1px solid #e1e8e4;border-radius:14px;background:#fbfdfc}.order-detail-suborder-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}.order-detail-suborder-head h3{font-size:.88rem;margin:0}.order-detail-suborder-state{display:flex;flex-wrap:wrap;gap:6px;margin-top:5px}.order-detail-empty{padding:16px;text-align:center;color:var(--muted);font-size:.75rem;border:1px dashed #d9e3de;border-radius:13px}.order-detail-footer{display:flex;justify-content:flex-end;margin-top:16px}@media(max-width:680px){.order-detail-hero{display:block;padding:15px}.order-detail-total{text-align:left;margin-top:13px}.order-detail-stats{grid-template-columns:1fr}.order-detail-card{padding:14px}.order-detail-actions-head{display:block}.order-detail-actions{display:grid;grid-template-columns:1fr}.order-detail-actions .btn,.order-detail-actions form,.order-detail-actions form .btn{width:100%}.cashier-pay-title{align-items:flex-start;flex-direction:column}.order-detail-suborder-head{display:block}.order-detail-suborder-head>.text-end{text-align:left!important;margin-top:8px}.order-detail-footer .btn{width:100%}}
 </style>
+
+{% set active_order = order.status in ['DRAFT', 'CONFIRMED', 'SERVED'] %}
+{% set cashier_editable = is_cashier and active_order and order.payment_status != 'PAID' %}
+{% set server_editable = is_server and order.status == 'DRAFT' and order.payment_status != 'PAID' %}
+{% set detail_editable = cashier_editable or server_editable %}
 
 <div class="order-detail-shell">
   <a class="order-detail-back" href="{{ return_url }}">← Retour aux commandes</a>
@@ -43,9 +48,71 @@
     <div class="order-detail-stat"><span>Sous-commandes</span><strong>{{ suborders|length }}</strong></div>
   </section>
 
+  {% if is_cashier or server_editable %}
+  <section class="order-detail-card order-detail-actions-card" {% if detail_editable %}id="paymentPanel"{% endif %} data-order-detail-actions data-order-id="{{ order.id }}">
+    {% if detail_editable %}
+    <div hidden aria-hidden="true">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="order_id" value="{{ order.id }}">
+    </div>
+    {% endif %}
+
+    <div class="order-detail-actions-head">
+      <div class="{% if detail_editable %}cashier-pay-title{% endif %}">
+        <div>
+          <p class="eyebrow mb-1">Actions</p>
+          <h2>Que voulez-vous faire ?</h2>
+        </div>
+      </div>
+      <div class="cashier-order-summary">
+        {% if order.status == 'DRAFT' %}Commande en attente de livraison.
+        {% elif order.payment_status == 'PAID' %}Commande soldée : les produits sont verrouillés.
+        {% elif order.payment_status == 'PARTIAL' %}Commande livrée avec paiement partiel.
+        {% else %}Commande livrée et encore à encaisser.{% endif %}
+      </div>
+    </div>
+
+    <div class="order-detail-actions">
+      {% if is_cashier and order.status == 'DRAFT' %}
+      <form method="post" action="{{ url_for('cashier_workspace_web.workspace', bar_id=bar.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="action" value="deliver">
+        <input type="hidden" name="order_id" value="{{ order.id }}">
+        <button class="btn btn-primary" type="submit">✓ Livrer la commande</button>
+      </form>
+      {% endif %}
+
+      {% if is_cashier and order.status in ['CONFIRMED', 'SERVED'] and balance.amount_due > 0 %}
+      <a class="btn btn-primary" href="{{ url_for('cashier_workspace_web.workspace', bar_id=bar.id, order_id=order.id, focus='payment') }}#paymentPanel">💰 Payer / encaisser</a>
+      {% endif %}
+
+      {% if is_cashier and order.status in ['CONFIRMED', 'SERVED'] %}
+      <a class="btn btn-outline-primary" href="{{ url_for('checkout_web.receipt', bar_id=bar.id, order_id=order.id) }}" target="_blank" rel="noopener">🖨 Imprimer</a>
+      {% endif %}
+
+      {% if is_cashier and order.assigned_staff_id and active_order and order.payment_status != 'PAID' %}
+      <a class="btn btn-light border" href="{{ url_for('suborders_web.new_suborder', bar_id=bar.id, order_id=order.id) }}">＋ Ajouter une sous-commande</a>
+      {% endif %}
+
+      {% if is_cashier and order.payment_status == 'PAID' and order.status in ['CONFIRMED', 'SERVED'] %}
+      <a class="btn btn-outline-danger" href="{{ url_for('cashier_returns_web.manage', bar_id=bar.id, order_id=order.id) }}">↩ Retour / remboursement</a>
+      {% endif %}
+    </div>
+
+    {% if cashier_editable and order.status in ['CONFIRMED', 'SERVED'] %}
+    <div class="order-detail-edit-hint">
+      <strong>Commande déjà livrée :</strong> utilisez « Modifier » pour diminuer une quantité ou supprimer une bière. La quantité retirée est enregistrée comme retour et remise au stock ; l'historique de la commande reste conservé.
+      {% if order.payment_status == 'PARTIAL' %}<br>Le nouveau total ne pourra pas devenir inférieur au montant déjà encaissé.{% endif %}
+    </div>
+    {% elif is_cashier and order.payment_status == 'PAID' %}
+    <div class="order-detail-paid-hint">Une commande totalement payée ne se modifie plus directement. Utilisez « Retour / remboursement » pour garder une trace financière correcte.</div>
+    {% endif %}
+  </section>
+  {% endif %}
+
   <section class="order-detail-card">
     <div class="order-detail-card-head">
-      <div><p class="eyebrow mb-1">Bloc 1</p><h2>Commande initiale</h2><p>Les lignes d'origine restent séparées des ajouts.</p></div>
+      <div><p class="eyebrow mb-1">Bloc 1</p><h2>Commande initiale</h2><p>Les lignes d'origine restent séparées des ajouts et des corrections.</p></div>
       <div class="text-end"><strong>{{ "{:,.0f}".format(original_total) }} {{ order.currency }}</strong></div>
     </div>
 
