@@ -2,6 +2,7 @@
 from decimal import Decimal
 from sqlalchemy import select, func
 
+from app.change_voucher_models import ChangeVoucherTransaction
 from app.customer_models import CustomerLedgerEntry
 from app.extensions import db
 from app.models import Payment, Refund, OrderReturn
@@ -25,10 +26,20 @@ def order_balance(order, update=False):
         )
         or 0
     )
+    voucher_credit = Decimal(
+        db.session.scalar(
+            select(func.coalesce(func.sum(ChangeVoucherTransaction.amount), 0)).where(
+                ChangeVoucherTransaction.bar_id == order.bar_id,
+                ChangeVoucherTransaction.target_order_id == order.id,
+                ChangeVoucherTransaction.kind == "REDEEM",
+            )
+        )
+        or 0
+    )
     sale = Decimal(0) if order.status == "CANCELLED" else Decimal(order.total_amount) - credits
     net = paid - refunded
     financed = max(customer_credit, Decimal(0))
-    settled = net + financed
+    settled = net + financed + voucher_credit
     if update:
         order.payment_status = "PAID" if settled >= sale else "PARTIAL" if settled else "UNPAID"
     return dict(
@@ -36,6 +47,7 @@ def order_balance(order, update=False):
         total_refunded=refunded,
         return_credit=credits,
         customer_credit=financed,
+        change_voucher_credit=voucher_credit,
         net_sale=sale,
         net_paid=net,
         net_settled=settled,
