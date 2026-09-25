@@ -4,12 +4,14 @@
 {% block content %}
 <style>
 .order-detail-shell{max-width:980px;margin:0 auto}.order-detail-back{display:inline-flex;align-items:center;gap:6px;text-decoration:none;font-weight:750;margin-bottom:14px}.order-detail-hero{display:flex;justify-content:space-between;gap:18px;align-items:flex-start;padding:18px;border:1px solid #dfe8e3;border-radius:18px;background:linear-gradient(135deg,#fff 0%,#f7fbf9 100%)}.order-detail-hero h1{font-size:1.45rem;margin:2px 0 6px;text-transform:uppercase;letter-spacing:.02em}.order-detail-system-ref{font-size:.65rem;color:var(--muted);margin-top:2px}.order-detail-meta{display:flex;flex-wrap:wrap;gap:7px;margin-top:10px}.order-detail-pill{display:inline-flex;align-items:center;padding:5px 9px;border-radius:999px;background:#eef5f1;font-size:.68rem;font-weight:800}.order-detail-pill.success{background:#e9f8ef;color:#257444}.order-detail-pill.warning{background:#fff4dd;color:#936411}.order-detail-pill.danger{background:#fff0f0;color:#a23b3b}.order-detail-total{text-align:right;white-space:nowrap}.order-detail-total span{display:block;font-size:.68rem;color:var(--muted)}.order-detail-total strong{font-size:1.35rem}.order-detail-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:14px}.order-detail-stat{padding:13px;border:1px solid #e4ebe7;border-radius:14px;background:#fff}.order-detail-stat span{display:block;font-size:.67rem;color:var(--muted);margin-bottom:3px}.order-detail-stat strong{font-size:1rem}.order-detail-card{margin-top:14px;padding:17px;border:1px solid #e1e9e5;border-radius:17px;background:#fff}.order-detail-card-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:12px}.order-detail-card-head h2{font-size:1rem;margin:0}.order-detail-card-head p{margin:3px 0 0;color:var(--muted);font-size:.7rem}.order-detail-actions-card{border-color:#d8e7df;background:linear-gradient(180deg,#fff,#fbfdfc)}.order-detail-actions-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}.order-detail-actions-head h2{font-size:1rem;margin:0}.order-detail-actions-head p{margin:3px 0 0;color:var(--muted);font-size:.7rem}.order-detail-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:13px}.order-detail-actions form{margin:0}.order-detail-actions .btn{min-height:42px;display:inline-flex;align-items:center;justify-content:center;font-weight:800}.order-detail-edit-hint{margin-top:12px;padding:11px 12px;border:1px solid #f0deb0;border-radius:12px;background:#fff8e8;color:#6f5618;font-size:.72rem;line-height:1.45}.order-detail-paid-hint{margin-top:12px;padding:11px 12px;border:1px solid #d9e6df;border-radius:12px;background:#f6faf8;color:#52635b;font-size:.72rem;line-height:1.45}.cashier-pay-title{display:flex;align-items:center;justify-content:space-between;gap:10px}.cashier-order-summary{font-size:.72rem;color:var(--muted);margin-top:8px}.order-detail-lines{border-top:1px solid #edf1ef}.order-detail-line{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;padding:11px 0;border-bottom:1px solid #edf1ef}.order-detail-line-copy strong,.order-detail-line-copy small{display:block}.order-detail-line-copy strong{font-size:.82rem}.order-detail-line-copy small{font-size:.66rem;color:var(--muted);margin-top:2px}.order-detail-line-money{text-align:right}.order-detail-line-money strong{display:block;font-size:.8rem}.order-detail-line-money small{font-size:.64rem;color:var(--muted)}.order-detail-note{margin-top:12px;padding:11px 12px;border-radius:12px;background:#f7f9f8;font-size:.73rem}.order-detail-suborder{margin-top:12px;padding:14px;border:1px solid #e1e8e4;border-radius:14px;background:#fbfdfc}.order-detail-suborder-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}.order-detail-suborder-head h3{font-size:.88rem;margin:0}.order-detail-suborder-state{display:flex;flex-wrap:wrap;gap:6px;margin-top:5px}.order-detail-empty{padding:16px;text-align:center;color:var(--muted);font-size:.75rem;border:1px dashed #d9e3de;border-radius:13px}.order-detail-footer{display:flex;justify-content:flex-end;margin-top:16px}@media(max-width:680px){.order-detail-hero{display:block;padding:15px}.order-detail-total{text-align:left;margin-top:13px}.order-detail-stats{grid-template-columns:1fr}.order-detail-card{padding:14px}.order-detail-actions-head{display:block}.order-detail-actions{display:grid;grid-template-columns:1fr}.order-detail-actions .btn,.order-detail-actions form,.order-detail-actions form .btn{width:100%}.cashier-pay-title{align-items:flex-start;flex-direction:column}.order-detail-suborder-head{display:block}.order-detail-suborder-head>.text-end{text-align:left!important;margin-top:8px}.order-detail-footer .btn{width:100%}}
+.server-invoice-launch{margin-top:12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}.server-invoice-launch .btn{font-weight:800}.server-invoice-launch small{color:var(--muted);font-size:.7rem}.server-invoice-preview[hidden]{display:none!important}.server-invoice-preview{scroll-margin-top:90px;border-color:#cfe2d8;background:#f7fbf9}.server-invoice-preview-head{display:flex;justify-content:space-between;align-items:flex-start;gap:14px}.server-invoice-preview-head h2{font-size:1rem;margin:0}.server-invoice-preview-head p{margin:4px 0 0;font-size:.72rem;color:var(--muted)}.server-invoice-mode-buttons{display:flex;gap:7px;flex-wrap:wrap;margin:14px 0}.server-invoice-mode-buttons .btn{font-weight:800}.server-invoice-mode-buttons .btn.active{background:#123d33;color:#fff;border-color:#123d33}.server-invoice-ticket{width:58mm;max-width:100%;margin:0 auto;background:#fff;border:1px solid #dce5e0;border-radius:10px;padding:5mm 4mm;box-shadow:0 8px 22px rgba(0,0,0,.06);color:#111}.server-invoice-ticket-head{text-align:center}.server-invoice-ticket-head strong{display:block;font-size:1rem}.server-invoice-ticket-head small{display:block;font-size:.62rem;color:#666;line-height:1.45}.server-invoice-mode-label{margin-top:4px!important;font-weight:800!important;color:#222!important;text-transform:uppercase}.server-invoice-rule{border:0;border-top:1px dashed #777;margin:8px 0}.server-invoice-meta{display:grid;gap:4px}.server-invoice-meta-row{display:flex;justify-content:space-between;gap:8px;font-size:.62rem}.server-invoice-meta-row strong{text-align:right;overflow-wrap:anywhere}.server-invoice-items{width:100%;border-collapse:collapse;table-layout:fixed}.server-invoice-items[hidden]{display:none!important}.server-invoice-items th{font-size:.52rem;text-transform:uppercase;color:#555;border-bottom:1px solid #bbb;padding:4px 1px;text-align:left}.server-invoice-items td{font-size:.59rem;padding:5px 1px;border-bottom:1px dotted #ddd;vertical-align:top;overflow-wrap:anywhere}.server-invoice-items th:nth-child(2),.server-invoice-items td:nth-child(2){width:14%;text-align:center}.server-invoice-items th:nth-child(3),.server-invoice-items td:nth-child(3),.server-invoice-items th:nth-child(4),.server-invoice-items td:nth-child(4){width:22%;text-align:right}.server-invoice-section-row td{font-weight:800;background:#f7f9f8;text-align:left!important}.server-invoice-empty-row{text-align:center!important;color:#777;padding:10px 2px!important}.server-invoice-totals{display:grid;gap:4px}.server-invoice-total-row{display:flex;justify-content:space-between;gap:8px;font-size:.62rem}.server-invoice-total-row strong{text-align:right}.server-invoice-total-row.grand{font-size:.72rem;font-weight:800}.server-invoice-readonly{margin-top:12px;padding:9px 10px;border:1px solid #efd69b;border-radius:11px;background:#fff8e5;color:#72571a;font-size:.68rem;line-height:1.4}.server-invoice-status{margin-top:9px;padding:6px;border:1px solid #333;text-align:center;font-size:.64rem;font-weight:800}.server-invoice-close{white-space:nowrap}@media(max-width:680px){.server-invoice-preview-head{display:block}.server-invoice-close{margin-top:10px;width:100%}.server-invoice-mode-buttons{display:grid;grid-template-columns:1fr 1fr}.server-invoice-mode-buttons .btn{width:100%}}@media print{.server-invoice-preview,.server-invoice-launch{display:none!important}}
 </style>
 
 {% set active_order = order.status in ['DRAFT', 'CONFIRMED', 'SERVED'] %}
 {% set cashier_editable = is_cashier and active_order and order.payment_status != 'PAID' %}
 {% set server_editable = is_server and order.status == 'DRAFT' and order.payment_status != 'PAID' %}
 {% set detail_editable = cashier_editable or server_editable %}
+{% set display_currency = 'FCFA' if order.currency in ['XAF', 'XOF'] else order.currency %}
 
 <div class="order-detail-shell">
   <a class="order-detail-back" href="{{ return_url }}">← Retour aux commandes</a>
@@ -47,6 +49,13 @@
     <div class="order-detail-stat"><span>Reste à payer</span><strong>{{ "{:,.0f}".format(balance.amount_due) }} {{ order.currency }}</strong></div>
     <div class="order-detail-stat"><span>Sous-commandes</span><strong>{{ suborders|length }}</strong></div>
   </section>
+
+  {% if is_server %}
+  <div class="server-invoice-launch">
+    <button class="btn btn-outline-primary" type="button" data-server-invoice-open aria-controls="serverInvoicePreview" aria-expanded="false">👁 Aperçu de la facture</button>
+    <small>Consultation uniquement · l’impression reste réservée à la caisse.</small>
+  </div>
+  {% endif %}
 
   {% if is_cashier or server_editable %}
   <section class="order-detail-card order-detail-actions-card" {% if detail_editable %}id="paymentPanel"{% endif %} data-order-detail-actions data-order-id="{{ order.id }}">
@@ -107,6 +116,104 @@
     {% elif is_cashier and order.payment_status == 'PAID' %}
     <div class="order-detail-paid-hint">Une commande totalement payée ne se modifie plus directement. Utilisez « Retour / remboursement » pour garder une trace financière correcte.</div>
     {% endif %}
+  </section>
+  {% endif %}
+
+  {% if is_server %}
+  <section class="order-detail-card server-invoice-preview" id="serverInvoicePreview" data-server-invoice-preview data-currency="{{ display_currency }}" hidden>
+    <div class="server-invoice-preview-head">
+      <div>
+        <p class="eyebrow mb-1">Aperçu client</p>
+        <h2>Facture en lecture seule</h2>
+        <p>Choisissez la présentation cumulée ou détaillée. Cet écran ne contient aucune commande d’impression.</p>
+      </div>
+      <button class="btn btn-light border server-invoice-close" type="button" data-server-invoice-close>Fermer</button>
+    </div>
+
+    <div class="server-invoice-mode-buttons" role="group" aria-label="Mode d’aperçu de facture">
+      <button class="btn btn-outline-primary" type="button" data-server-invoice-mode="cumulative" aria-pressed="false">Facture cumulée</button>
+      <button class="btn btn-outline-primary active" type="button" data-server-invoice-mode="detailed" aria-pressed="true">Facture détaillée</button>
+    </div>
+
+    <div class="server-invoice-ticket" aria-label="Aperçu non imprimable de la facture">
+      <div class="server-invoice-ticket-head">
+        <strong>{{ bar.name }}</strong>
+        {% if bar.address %}<small>{{ bar.address }}</small>{% endif %}
+        {% if bar.phone %}<small>Tél. {{ bar.phone }}</small>{% endif %}
+        <small>Reçu de vente</small>
+        <small class="server-invoice-mode-label" data-server-invoice-mode-label>Facture détaillée</small>
+      </div>
+
+      <hr class="server-invoice-rule">
+      <div class="server-invoice-meta">
+        <div class="server-invoice-meta-row"><span>Commande</span><strong>{{ order.reference }}</strong></div>
+        <div class="server-invoice-meta-row"><span>Facture / table</span><strong>{{ order.customer_name_snapshot or order.table_label_snapshot or 'COMPTOIR' }}</strong></div>
+        <div class="server-invoice-meta-row"><span>Serveuse</span><strong>{{ assigned_staff_name }}</strong></div>
+      </div>
+      <hr class="server-invoice-rule">
+
+      <table class="server-invoice-items" data-server-invoice-table="detailed" aria-label="Facture détaillée">
+        <thead><tr><th>Article</th><th>Qté</th><th>PU</th><th>Total</th></tr></thead>
+        <tbody>
+          <tr class="server-invoice-section-row"><td colspan="4">Commande initiale</td></tr>
+          {% for line in lines %}
+          <tr data-server-invoice-line
+              data-product-id="{{ line.product_id }}"
+              data-product-name="{{ line.product_name_snapshot }}"
+              data-unit="{{ line.unit_snapshot }}"
+              data-unit-price="{{ line.unit_sale_price_snapshot }}"
+              data-quantity="{{ line.quantity }}"
+              data-total="{{ line.total_amount }}">
+            <td>{{ line.product_name_snapshot }}</td>
+            <td>{{ "{:,.0f}".format(line.quantity) }}</td>
+            <td>{{ "{:,.0f}".format(line.unit_sale_price_snapshot) }}</td>
+            <td>{{ "{:,.0f}".format(line.total_amount) }}</td>
+          </tr>
+          {% endfor %}
+
+          {% for suborder in suborders %}
+            {% if suborder.status == 'VALIDATED' %}
+            {% set preview_sub_lines = suborder_lines_by_id.get(suborder.id, []) %}
+            <tr class="server-invoice-section-row"><td colspan="4">Sous-commande {{ suborder.sequence_no }}</td></tr>
+              {% for line in preview_sub_lines %}
+              <tr data-server-invoice-line
+                  data-product-id="{{ line.product_id }}"
+                  data-product-name="{{ line.product_name_snapshot }}"
+                  data-unit="{{ line.unit_snapshot }}"
+                  data-unit-price="{{ line.unit_sale_price_snapshot }}"
+                  data-quantity="{{ line.quantity }}"
+                  data-total="{{ line.total_amount }}">
+                <td>{{ line.product_name_snapshot }}</td>
+                <td>{{ "{:,.0f}".format(line.quantity) }}</td>
+                <td>{{ "{:,.0f}".format(line.unit_sale_price_snapshot) }}</td>
+                <td>{{ "{:,.0f}".format(line.total_amount) }}</td>
+              </tr>
+              {% endfor %}
+            {% endif %}
+          {% endfor %}
+        </tbody>
+      </table>
+
+      <table class="server-invoice-items" data-server-invoice-table="cumulative" aria-label="Facture cumulée" hidden>
+        <thead><tr><th>Article</th><th>Qté</th><th>PU</th><th>Total</th></tr></thead>
+        <tbody data-server-invoice-cumulative-body></tbody>
+      </table>
+
+      <hr class="server-invoice-rule">
+      <div class="server-invoice-totals">
+        <div class="server-invoice-total-row"><span>Total commande</span><strong>{{ "{:,.0f}".format(order.total_amount) }} {{ display_currency }}</strong></div>
+        {% if balance.return_credit > 0 %}<div class="server-invoice-total-row"><span>Retours / avoirs</span><strong>- {{ "{:,.0f}".format(balance.return_credit) }} {{ display_currency }}</strong></div>{% endif %}
+        <div class="server-invoice-total-row grand"><span>Net à régler</span><strong>{{ "{:,.0f}".format(balance.net_sale) }} {{ display_currency }}</strong></div>
+        <div class="server-invoice-total-row"><span>Réglé / financé</span><strong>{{ "{:,.0f}".format(balance.net_settled) }} {{ display_currency }}</strong></div>
+        <div class="server-invoice-total-row grand"><span>Reste à payer</span><strong>{{ "{:,.0f}".format(balance.amount_due) }} {{ display_currency }}</strong></div>
+      </div>
+
+      <div class="server-invoice-status">
+        {% if order.status == 'CANCELLED' %}COMMANDE ANNULÉE{% elif balance.amount_due == 0 and balance.customer_credit > 0 %}À CRÉDIT{% elif balance.amount_due == 0 %}PAYÉE{% elif balance.net_settled > 0 %}PAIEMENT PARTIEL{% else %}À PAYER{% endif %}
+      </div>
+    </div>
+
+    <div class="server-invoice-readonly"><strong>Lecture seule :</strong> la serveuse peut vérifier la facture cumulée ou détaillée, mais l’impression et RawBT restent réservés à la caissière.</div>
   </section>
   {% endif %}
 
@@ -179,4 +286,9 @@
 
   <div class="order-detail-footer"><a class="btn btn-primary" href="{{ return_url }}">Retour aux commandes</a></div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+{% if is_server %}<script src="{{ url_for('static', filename='server_invoice_preview.js') }}" defer></script>{% endif %}
 {% endblock %}

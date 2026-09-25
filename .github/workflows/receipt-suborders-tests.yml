@@ -8,9 +8,12 @@ on:
       - 'app/order_suborder_service.py'
       - 'app/receipt_printing.py'
       - 'app/static/receipt_print.js'
+      - 'app/static/server_invoice_preview.js'
       - 'app/templates/checkout_receipt.html'
+      - 'app/templates/order_detail.html'
       - 'tests/test_receipt_suborders.py'
       - 'tests/test_receipt_rawbt.py'
+      - 'tests/test_server_receipt_preview.py'
       - '.github/workflows/receipt-suborders-tests.yml'
   workflow_dispatch:
 
@@ -24,4 +27,4 @@ jobs:
           python-version: '3.12'
       - run: pip install -r requirements.txt
       - name: Run receipt and sub-order regression tests
-        run: python -m pytest tests/test_receipt_suborders.py tests/test_receipt_rawbt.py -q
+        run: python -m pytest tests/test_receipt_suborders.py tests/test_receipt_rawbt.py tests/test_server_receipt_preview.py -q
