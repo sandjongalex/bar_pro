@@ -7,6 +7,7 @@ on:
       - 'app/order_suborder_models.py'
       - 'app/order_suborder_service.py'
       - 'app/receipt_printing.py'
+      - 'app/static/receipt_print.js'
       - 'app/templates/checkout_receipt.html'
       - 'tests/test_receipt_suborders.py'
       - 'tests/test_receipt_rawbt.py'
