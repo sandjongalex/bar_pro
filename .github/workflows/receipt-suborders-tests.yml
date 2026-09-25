@@ -1,0 +1,26 @@
+name: Receipt sub-order tests
+
+on:
+  pull_request:
+    paths:
+      - 'app/checkout_web.py'
+      - 'app/order_suborder_models.py'
+      - 'app/order_suborder_service.py'
+      - 'app/receipt_printing.py'
+      - 'app/templates/checkout_receipt.html'
+      - 'tests/test_receipt_suborders.py'
+      - 'tests/test_receipt_rawbt.py'
+      - '.github/workflows/receipt-suborders-tests.yml'
+  workflow_dispatch:
+
+jobs:
+  pytest:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r requirements.txt
+      - name: Run receipt and sub-order regression tests
+        run: python -m pytest tests/test_receipt_suborders.py tests/test_receipt_rawbt.py tests/test_order_suborder_service.py -q
