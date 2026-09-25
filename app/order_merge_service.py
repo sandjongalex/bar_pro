@@ -1,7 +1,7 @@
 """Grouped checkout for several already-delivered orders.
 
 A merge is intentionally a payment view, not a mutation of historical order
-lines.  Stock has already moved when each order was delivered, so grouped
+lines. Stock has already moved when each order was delivered, so grouped
 checkout only validates compatible orders and allocates one customer payment
 across their existing balances.
 """
@@ -128,7 +128,6 @@ class OrderMergeService:
                 raise ValueError("CASH_LOCATION_REQUIRED")
             overall_change = presented_amount - amount
         else:
-            presented_amount = amount
             overall_change = Decimal("0")
             cash_session_id = None
 
@@ -148,6 +147,16 @@ class OrderMergeService:
             is_last_chunk = chunk == remaining
             change = overall_change if method == "CASH" and is_last_chunk else Decimal("0")
             chunk_presented = chunk + change if method == "CASH" else chunk
+
+            # The external Mobile Money transaction is one customer payment,
+            # while our accounting allocation creates several Payment rows.
+            # Provider identifiers are therefore stored once (on allocation 1)
+            # to respect the unique provider transaction constraint.
+            allocation_provider_code = provider_code if method == "MOBILE_MONEY" and index == 1 else None
+            allocation_provider_transaction_id = (
+                provider_transaction_id if method == "MOBILE_MONEY" and index == 1 else None
+            )
+
             payment = payment_service.record(
                 actor,
                 bar_id,
@@ -158,8 +167,8 @@ class OrderMergeService:
                 chunk,
                 change,
                 cash_session_id=int(cash_session_id) if method == "CASH" else None,
-                provider_code=provider_code,
-                provider_transaction_id=provider_transaction_id,
+                provider_code=allocation_provider_code,
+                provider_transaction_id=allocation_provider_transaction_id,
             )
             allocations.append(
                 {
