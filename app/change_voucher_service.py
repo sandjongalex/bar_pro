@@ -15,6 +15,7 @@ from sqlalchemy import select
 from app.audit import record
 from app.cash_services import cash_service
 from app.change_voucher_models import ChangeVoucher, ChangeVoucherTransaction
+from app.customer_services import notify_server
 from app.extensions import db
 from app.finance_totals import order_balance
 from app.models import Order, Payment, utcnow
@@ -117,6 +118,7 @@ class ChangeVoucherService:
         db.session.add(voucher)
         db.session.flush()
 
+        cash_source = {"manual_kind": "VOUCHER_ISSUE"} if payment.cash_session_id is not None else {}
         cash_service.entry(
             actor,
             bar_id,
@@ -125,7 +127,7 @@ class ChangeVoucherService:
             f"Bon de monnaie {voucher.code} · monnaie non rendue",
             session_id=payment.cash_session_id,
             staff_id=payment.staff_assignment_id,
-            manual_kind="CHANGE_VOUCHER_ISSUE",
+            **cash_source,
         )
         record(
             actor,
@@ -180,6 +182,7 @@ class ChangeVoucherService:
         if applied > maximum:
             raise ValueError("VOUCHER_AMOUNT_EXCEEDED")
 
+        was_paid = order.payment_status == "PAID"
         transaction = ChangeVoucherTransaction(
             bar_id=bar_id,
             voucher_id=voucher.id,
@@ -197,6 +200,13 @@ class ChangeVoucherService:
         self._refresh_status(voucher)
         db.session.flush()
         order_balance(order, update=True)
+        if not was_paid and order.payment_status == "PAID":
+            notify_server(
+                order,
+                "PAYMENT_VALIDATED",
+                "Paiement validé",
+                f"La commande {order.reference} a été entièrement réglée, bon de monnaie inclus.",
+            )
         record(
             actor,
             bar_id,
@@ -232,7 +242,7 @@ class ChangeVoucherService:
             voucher.currency,
             f"Remboursement bon de monnaie {voucher.code}",
             session_id=cash_session_id,
-            manual_kind="CHANGE_VOUCHER_REFUND",
+            manual_kind="VOUCHER_REFUND",
         )
         transaction = ChangeVoucherTransaction(
             bar_id=bar_id,
