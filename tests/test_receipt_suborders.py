@@ -6,11 +6,12 @@ from sqlalchemy import select
 
 from app.extensions import db
 from app.models import Product, StaffAssignment, utcnow
+from app.order_services import order_service
 from app.order_suborder_service import order_suborder_service
 from app.shift_models import EmployeeShift
 from app.stock_service import stock_service
 from test_cashier_complete_flow import _login
-from test_workflows import env, order
+from test_workflows import env
 
 
 def _rawbt_text(page_text: str) -> str:
@@ -46,6 +47,20 @@ def _put_server_on_duty(owner, bar, server):
     return assignment
 
 
+def _server_order(owner, bar, server, product, reference="RECEIPT-SUBORDER"):
+    value = order_service.create(
+        server,
+        bar.id,
+        reference,
+        [{"product_id": product.id, "quantity": 2}],
+    )
+    # The serveuse creates the order; delivery of the initial round remains a
+    # cashier/manager action under the current role rules.
+    order_service.confirm(owner, bar.id, value.id)
+    db.session.flush()
+    return value
+
+
 def test_printed_receipt_refreshes_with_validated_suborder(env):
     app, owner, bar, _, base_product, server, _, _ = env
     _put_server_on_duty(owner, bar, server)
@@ -63,7 +78,7 @@ def test_printed_receipt_refreshes_with_validated_suborder(env):
     db.session.flush()
     stock_service.move(owner, bar.id, extra.id, "INITIAL", 10, "Opening stock")
 
-    value = order(env, actor=server)
+    value = _server_order(owner, bar, server, base_product)
     addition = order_suborder_service.create_server_addition(
         server,
         bar.id,
@@ -100,7 +115,13 @@ def test_printed_receipt_refreshes_with_validated_suborder(env):
 def test_receipt_does_not_show_unvalidated_suborder(env):
     app, owner, bar, _, base_product, server, _, _ = env
     _put_server_on_duty(owner, bar, server)
-    value = order(env, actor=server)
+    value = _server_order(
+        owner,
+        bar,
+        server,
+        base_product,
+        reference="RECEIPT-PENDING-SUBORDER",
+    )
 
     # A cashier-created addition is intentionally not part of the invoice until
     # the assigned server validates it.  This guards against printing products
