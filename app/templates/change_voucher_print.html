@@ -27,7 +27,7 @@
       {% for tx in transactions %}<div class="row"><span>{{ 'Utilisé' if tx.kind == 'REDEEM' else 'Remboursé' }}</span><strong>-{{ "{:,.0f}".format(tx.amount) }}</strong></div>{% endfor %}
     {% endif %}
     <div class="dash"></div>
-    <div class="note">Présentez ce bon à KAPE BAR pour l'utiliser sur une prochaine facture ou recevoir le solde en espèces. Le code et le solde enregistrés dans l'application font foi.</div>
+    <div class="note">Présentez ce bon à {{ bar.name }} pour l'utiliser sur une prochaine facture ou recevoir le solde en espèces. Le code et le solde enregistrés dans l'application font foi.</div>
   </main>
 </body>
 </html>
