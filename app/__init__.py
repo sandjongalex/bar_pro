@@ -25,6 +25,7 @@ from app.cashier_handovers_web import bp as cashier_handovers_web_bp
 from app.cashier_history_web import bp as cashier_history_web_bp
 from app.cashier_workspace_web import bp as cashier_workspace_web_bp
 from app.cashier_invoices_web import bp as cashier_invoices_web_bp
+from app.change_vouchers_web import bp as change_vouchers_web_bp
 from app.customers_web import bp as customers_web_bp
 from app.expenses_web import bp as expenses_web_bp
 from app.inventories import api_inventories_bp, inventories_bp
@@ -57,6 +58,7 @@ def create_app(config_name: str | None = None, test_config: dict[str, Any] | Non
     from app import inventory_period_models  # noqa: F401 - inventory period reconciliation metadata
     from app import order_suborder_models  # noqa: F401 - cashier sub-orders and validation metadata
     from app import shift_models  # noqa: F401 - employee attendance/on-duty metadata
+    from app import change_voucher_models  # noqa: F401 - customer change-voucher liability metadata
     _register_blueprints(app)
     _register_template_context(app)
     app.jinja_env.finalize = _template_finalize
@@ -112,6 +114,7 @@ def _register_blueprints(app: Flask) -> None:
     app.register_blueprint(cashier_web_bp)
     app.register_blueprint(cashier_workspace_web_bp)
     app.register_blueprint(cashier_invoices_web_bp)
+    app.register_blueprint(change_vouchers_web_bp)
     app.register_blueprint(cashier_returns_web_bp)
     app.register_blueprint(cashier_exchanges_web_bp)
     app.register_blueprint(cashier_handovers_web_bp)

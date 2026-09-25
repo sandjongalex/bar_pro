@@ -1,0 +1,31 @@
+name: Change voucher tests
+
+on:
+  pull_request:
+    paths:
+      - 'app/change_voucher_models.py'
+      - 'app/change_voucher_service.py'
+      - 'app/change_vouchers_web.py'
+      - 'app/payment_services.py'
+      - 'app/finance_totals.py'
+      - 'app/static/change_voucher_ui.js'
+      - 'app/templates/change_vouchers.html'
+      - 'app/templates/change_voucher_print.html'
+      - 'app/templates/layout.html'
+      - 'app/__init__.py'
+      - 'migrations/versions/d0e1f2a3b4c5_change_vouchers.py'
+      - 'tests/test_change_vouchers.py'
+      - '.github/workflows/change-voucher-tests.yml'
+  workflow_dispatch:
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r requirements.txt
+      - name: Run change-voucher, cash-payment and finance tests
+        run: python -m pytest tests/test_change_vouchers.py tests/test_cash_payment_presented.py tests/test_finance.py -q
