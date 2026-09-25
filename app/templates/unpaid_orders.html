@@ -61,12 +61,13 @@
 </div>
 
 {% if not is_server %}
-<form method="post" action="{{ url_for('unpaid_orders_web.merge_preview', bar_id=bar.id) }}" data-merge-form>
+<form id="mergeForm" method="post" action="{{ url_for('unpaid_orders_web.merge_preview', bar_id=bar.id) }}" data-merge-form>
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   <section class="merge-toolbar">
     <div><strong>Fusionner plusieurs commandes</strong><small>Sélectionnez au moins 2 commandes prêtes à encaisser.</small></div>
     <button class="btn btn-primary" type="submit" data-merge-submit disabled>Fusionner la sélection</button>
   </section>
+</form>
 {% endif %}
 
 <section class="unpaid-grid" data-unpaid-grid>
@@ -77,7 +78,7 @@
       <span class="unpaid-status">{% if order.payment_blocked %}Livraison à confirmer{% else %}{{ 'Partiellement payée' if order.payment_status == 'PARTIAL' else 'Impayée' }}{% endif %}</span>
     </div>
     {% if not is_server %}
-    <label class="merge-pick"><input type="checkbox" name="order_ids" value="{{ order.id }}" data-merge-checkbox {% if order.payment_blocked %}disabled{% endif %}> Ajouter à la fusion</label>
+    <label class="merge-pick"><input type="checkbox" form="mergeForm" name="order_ids" value="{{ order.id }}" data-merge-checkbox {% if order.payment_blocked %}disabled{% endif %}> Ajouter à la fusion</label>
     {% endif %}
     <div class="unpaid-card-meta">
       <strong>{{ order.reference }}</strong>
@@ -122,7 +123,5 @@
   </article>
   {% endfor %}
 </section>
-
-{% if not is_server %}</form>{% endif %}
 {% endblock %}
 {% block scripts %}<script src="{{ url_for('static', filename='unpaid_orders_ui.js') }}" defer></script>{% endblock %}
