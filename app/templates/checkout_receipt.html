@@ -8,20 +8,23 @@
     :root { color-scheme: light; }
     * { box-sizing: border-box; }
     body { margin: 0; background: #f1f3f2; color: #111; font-family: Arial, Helvetica, sans-serif; }
-    .toolbar { max-width: 420px; margin: 18px auto 10px; display: flex; flex-wrap: wrap; gap: 8px; padding: 0 10px; }
+    .toolbar { max-width: 520px; margin: 18px auto 10px; display: flex; flex-wrap: wrap; gap: 8px; padding: 0 10px; }
     .toolbar a, .toolbar button { border: 1px solid #c8cfcc; background: #fff; color: #111; border-radius: 8px; padding: 9px 12px; font-weight: 700; text-decoration: none; cursor: pointer; }
     .toolbar button { background: #123d33; color: #fff; border-color: #123d33; }
+    .toolbar button.secondary { background: #fff; color: #123d33; }
     .receipt { width: 58mm; max-width: calc(100vw - 20px); margin: 0 auto 24px; background: #fff; padding: 6mm 5mm; box-shadow: 0 8px 30px rgba(0,0,0,.08); }
     .center { text-align: center; }
     .brand { font-size: 20px; font-weight: 800; letter-spacing: .03em; }
     .muted { color: #666; font-size: 11px; line-height: 1.4; }
+    .mode-label { margin-top: 3px; font-weight: 800; color: #222; text-transform: uppercase; letter-spacing: .04em; }
     .rule { border: 0; border-top: 1px dashed #777; margin: 10px 0; }
     .meta, .totals { display: grid; gap: 5px; }
     .row { display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; font-size: 11px; }
     .row strong { text-align: right; min-width: 0; overflow-wrap: anywhere; }
     .items td, .brand, .muted { overflow-wrap: anywhere; }
-    .print-help { max-width: 420px; margin: 10px auto; padding: 0 10px; font-size: 13px; }
+    .print-help { max-width: 520px; margin: 10px auto; padding: 0 10px; font-size: 13px; }
     .items { width: 100%; border-collapse: collapse; table-layout: fixed; }
+    .items[hidden] { display: none !important; }
     .items th { font-size: 9px; text-transform: uppercase; color: #555; border-bottom: 1px solid #bbb; padding: 5px 2px; text-align: left; }
     .items td { font-size: 10.5px; padding: 6px 2px; vertical-align: top; border-bottom: 1px dotted #ddd; }
     .items th:nth-child(2), .items td:nth-child(2) { width: 14%; text-align: center; }
@@ -41,11 +44,12 @@
 <body>
   <div class="toolbar no-print">
     <a href="{{ url_for('checkout_web.checkout', bar_id=bar.id, order_id=order.id) }}">← Retour caisse</a>
-    <button type="button" id="print-receipt" data-rawbt-intent="{{ rawbt_intent }}">Imprimer le reçu</button>
-    <button type="button" id="print-browser">Impression classique / PDF</button>
+    <button type="button" class="print-receipt" id="print-cumulative" data-print-mode="cumulative" data-rawbt-intent="{{ rawbt_intent.cumulative }}">Facture cumulée</button>
+    <button type="button" class="print-receipt secondary" id="print-detailed" data-print-mode="detailed" data-rawbt-intent="{{ rawbt_intent.detailed }}">Facture détaillée</button>
+    <button type="button" class="secondary" id="print-browser">Impression classique / PDF</button>
   </div>
 
-  <p class="print-help no-print" id="print-help" role="status">Ticket 58 mm. Sur Android, le bouton ouvre RawBT. Vérifiez que votre imprimante est connectée.</p>
+  <p class="print-help no-print" id="print-help" role="status">Choisissez Facture cumulée ou Facture détaillée. Sur Android, le bouton ouvre RawBT.</p>
 
   <main class="receipt">
     <header class="center">
@@ -53,6 +57,7 @@
       {% if bar.address %}<div class="muted">{{ bar.address }}</div>{% endif %}
       {% if bar.phone %}<div class="muted">Tél. {{ bar.phone }}</div>{% endif %}
       <div class="muted">Reçu de vente</div>
+      <div class="muted mode-label" id="receipt-mode-label">Facture détaillée</div>
     </header>
 
     <hr class="rule">
@@ -67,10 +72,24 @@
 
     <hr class="rule">
 
-    <table class="items" aria-label="Détails de la commande">
+    <table class="items receipt-lines" data-receipt-mode="detailed" aria-label="Facture détaillée">
       <thead><tr><th>Article</th><th>Qté</th><th>PU</th><th>Total</th></tr></thead>
       <tbody>
         {% for line in lines %}
+        <tr>
+          <td>{{ line.product_name_snapshot }}</td>
+          <td>{{ "{:,.0f}".format(line.quantity) }}</td>
+          <td>{{ "{:,.0f}".format(line.unit_sale_price_snapshot) }}</td>
+          <td>{{ "{:,.0f}".format(line.total_amount) }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    <table class="items receipt-lines" data-receipt-mode="cumulative" aria-label="Facture cumulée" hidden>
+      <thead><tr><th>Article</th><th>Qté</th><th>PU</th><th>Total</th></tr></thead>
+      <tbody>
+        {% for line in rawbt_intent.cumulative_lines %}
         <tr>
           <td>{{ line.product_name_snapshot }}</td>
           <td>{{ "{:,.0f}".format(line.quantity) }}</td>
