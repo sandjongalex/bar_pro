@@ -2,9 +2,12 @@ import base64
 import html
 import re
 
+from sqlalchemy import select
+
 from app.extensions import db
-from app.models import Product
+from app.models import Product, StaffAssignment, utcnow
 from app.order_suborder_service import order_suborder_service
+from app.shift_models import EmployeeShift
 from app.stock_service import stock_service
 from test_cashier_complete_flow import _login
 from test_workflows import env, order
@@ -19,8 +22,34 @@ def _rawbt_text(page_text: str) -> str:
     return payload[8:].decode("ascii")
 
 
+def _put_server_on_duty(owner, bar, server):
+    assignment = db.session.scalar(
+        select(StaffAssignment).where(
+            StaffAssignment.bar_id == bar.id,
+            StaffAssignment.user_id == server.id,
+            StaffAssignment.role == "SERVER",
+            StaffAssignment.ended_at.is_(None),
+        )
+    )
+    assert assignment is not None
+    db.session.add(
+        EmployeeShift(
+            bar_id=bar.id,
+            staff_assignment_id=assignment.id,
+            role_snapshot="SERVER",
+            status="OPEN",
+            started_at=utcnow(),
+            started_by_id=owner.id,
+        )
+    )
+    db.session.flush()
+    return assignment
+
+
 def test_printed_receipt_refreshes_with_validated_suborder(env):
     app, owner, bar, _, base_product, server, _, _ = env
+    _put_server_on_duty(owner, bar, server)
+
     extra = Product(
         bar_id=bar.id,
         category_id=base_product.category_id,
@@ -70,6 +99,7 @@ def test_printed_receipt_refreshes_with_validated_suborder(env):
 
 def test_receipt_does_not_show_unvalidated_suborder(env):
     app, owner, bar, _, base_product, server, _, _ = env
+    _put_server_on_duty(owner, bar, server)
     value = order(env, actor=server)
 
     # A cashier-created addition is intentionally not part of the invoice until
