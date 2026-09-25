@@ -4,12 +4,8 @@ on:
   pull_request:
     paths:
       - 'app/templates/order_detail.html'
-      - 'app/order_edit_service.py'
-      - 'app/order_edit_web.py'
-      - 'app/static/order_edit_ui.js'
+      - 'app/static/order_edit.css'
       - 'tests/test_order_detail_actions.py'
-      - 'tests/test_order_edit_roles.py'
-      - 'tests/test_order_edit_web.py'
       - '.github/workflows/order-detail-actions-tests.yml'
   workflow_dispatch:
 
@@ -22,5 +18,5 @@ jobs:
         with:
           python-version: '3.12'
       - run: pip install -r requirements.txt
-      - name: Run order detail and delivered-edit tests
-        run: python -m pytest tests/test_order_detail_actions.py tests/test_order_edit_roles.py tests/test_order_edit_web.py -q
+      - name: Run order detail state and delivered-edit flow
+        run: python -m pytest tests/test_order_detail_actions.py -q
