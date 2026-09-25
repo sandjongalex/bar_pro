@@ -1,0 +1,23 @@
+name: Cash payment presented tests
+
+on:
+  pull_request:
+    paths:
+      - 'app/static/cash_payment_ui.js'
+      - 'app/templates/layout.html'
+      - 'app/payment_services.py'
+      - 'tests/test_cash_payment_presented.py'
+      - '.github/workflows/cash-payment-presented-tests.yml'
+  workflow_dispatch:
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r requirements.txt
+      - name: Run cash amount presented tests
+        run: python -m pytest tests/test_cash_payment_presented.py -q
