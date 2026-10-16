@@ -1,0 +1,167 @@
+/* Bar Manager Pro — Light SaaS Premium. Scoped exclusively to dashboard screens. */
+body:has(.dashboard-page) {
+ --ds-page:#f6f9f7;--ds-surface:#fff;--ds-surface-subtle:#f6faf7;
+ --ds-surface-elevated:#fff;--ds-text:#17251d;--ds-text-secondary:#617369;
+ --ds-text-muted:#728379;--ds-border:#e2ebe5;--ds-border-strong:#cbded1;
+ --ds-primary:#16a34a;--ds-primary-rgb:22,163,74;--ds-primary-strong:#107c39;
+ --ds-primary-soft:#e8f8ee;--brand:#16a34a;--brand-dark:#107c39;
+ --brand-soft:#e8f8ee;--ink:#17251d;--muted:#617369;--line:#e2ebe5;
+ --surface:#fff;--page:#f6f9f7;--accent:#16a34a;
+ background:#f6f9f7;color:#17251d;
+}
+body:has(.dashboard-page) .app-main{background:#f7faf8;color:#17251d}
+body:has(.dashboard-page) .topbar{background:rgba(255,255,255,.96);color:#24372b;border-bottom:1px solid #e2eae4;box-shadow:0 2px 14px rgba(27,75,49,.025)}
+body:has(.dashboard-page) .topbar a{color:#24543a}
+body:has(.dashboard-page) .sidebar{
+ background:linear-gradient(180deg,#fff,#f8fcfa);color:#213c2c;
+ border-right:1px solid #e4ebe6;box-shadow:none
+}
+body:has(.dashboard-page) .sidebar .brand-block,
+body:has(.dashboard-page) .sidebar .brand-block strong{color:#1c3325}
+body:has(.dashboard-page) .sidebar .brand-block small,
+body:has(.dashboard-page) .sidebar .sidebar-context span,
+body:has(.dashboard-page) .sidebar .user-mini small{color:#71877a}
+body:has(.dashboard-page) .sidebar .sidebar-context{
+ background:#f3faf6;border:1px solid #e1f0e6;color:#1f4d32
+}
+body:has(.dashboard-page) .sidebar .sidebar-context strong,
+body:has(.dashboard-page) .sidebar .user-mini strong{color:#183a27}
+body:has(.dashboard-page) .sidebar .brand-mark{background:#e7f8ed;color:#129442;box-shadow:none}
+body:has(.dashboard-page) .sidebar .nav-link,
+body:has(.dashboard-page) .sidebar .nav-group-summary{color:#496452}
+body:has(.dashboard-page) .sidebar .nav-link:hover,
+body:has(.dashboard-page) .sidebar .nav-group-summary:hover{background:#edf8f1;color:#126a34}
+body:has(.dashboard-page) .sidebar .nav-link.active,
+body:has(.dashboard-page) .sidebar .nav-group-summary[aria-expanded=true]{
+ background:#e5f6eb;color:#087434;border:1px solid #cbead6;
+ box-shadow:inset 3px 0 #16a34a
+}
+body:has(.dashboard-page) .sidebar .nav-sublink{color:#506756}
+body:has(.dashboard-page) .sidebar .sidebar-footer{border-top:1px solid #e5eee8}
+body:has(.dashboard-page) .sidebar .user-avatar{background:#e2f4e9;color:#0e8340}
+body:has(.dashboard-page) .mobile-nav,
+body:has(.dashboard-page) .context-nav,
+body:has(.dashboard-page) .global-mobile-bottom{background:#fff;color:#26432e;border-color:#e2ebe5}
+body:has(.dashboard-page) .content-area:has(> .dashboard-page){
+ max-width:1650px;padding:clamp(14px,2.1vw,30px);
+ background:radial-gradient(circle at 82% 6%,rgba(126,232,162,.11),transparent 33%),#f7faf8;
+ border-radius:0;overflow:visible;box-shadow:none
+}
+body:has(.dashboard-page) .content-area:has(> .dashboard-page)::before,
+body:has(.dashboard-page) .content-area:has(> .dashboard-page)::after{display:none}
+.dashboard-page{
+ --light-card:#fff;--light-border:#e4eee7;
+ --light-shadow:0 6px 22px rgba(27,74,44,.045);
+ color:#17251d;gap:clamp(18px,2.1vw,30px)
+}
+.dashboard-page .dashboard-hero{
+ display:grid;grid-template-columns:minmax(0,1fr) minmax(190px,auto);
+ gap:1.4rem;align-items:center;padding:clamp(24px,3vw,46px);
+ background:linear-gradient(112deg,#fff 8%,#f3fbf5 100%);
+ border:1px solid #e6f0e9;border-radius:24px;
+ box-shadow:var(--light-shadow);overflow:hidden
+}
+.dashboard-page .dashboard-hero::after,
+.dashboard-page .dashboard-hero-glow{
+ background:radial-gradient(circle,rgba(94,217,137,.22),transparent 74%);
+ pointer-events:none
+}
+.dashboard-page .dashboard-hero .eyebrow{color:#0d8f44}
+.dashboard-page .dashboard-greeting{font-size:1rem;color:#536f5e!important}
+.dashboard-page .dashboard-hero h1{
+ color:#18241d;font-size:clamp(2.05rem,3.3vw,3.5rem);letter-spacing:-.055em;
+ font-weight:850;line-height:1.04;max-width:none
+}
+.dashboard-page .dashboard-hero p:not(.eyebrow){color:#5f7366}
+.dashboard-page .dashboard-date{color:#467657!important;display:flex;align-items:center;gap:.45rem}
+.dashboard-page .dashboard-date svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.8}
+.dashboard-page .dashboard-live-dot{background:#16a34a;box-shadow:0 0 0 4px #e5f7eb}
+.dashboard-page .dashboard-hero-actions{justify-self:end;max-width:340px;width:100%;align-items:stretch}
+.dashboard-page .dashboard-bar-selector,.dashboard-page .hero-badge{
+ background:#fff;border:1px solid #dbe9df;color:#207643;
+ box-shadow:0 4px 16px rgba(25,85,48,.05);border-radius:15px
+}
+.dashboard-page .dashboard-bar-selector label{color:#667d6c}
+.dashboard-page .dashboard-bar-selector .form-select{background-color:#fff;color:#22372a;border:1px solid #dae9df;border-radius:9px;padding:.55rem 2rem .55rem .75rem}
+.dashboard-page .dashboard-section-heading h2{color:#1c3324;font-weight:800}
+.dashboard-page .dashboard-section-heading .eyebrow{color:#158f45}
+.dashboard-page .depot-stats-grid{grid-template-columns:repeat(4,minmax(0,1fr));gap:clamp(11px,1.3vw,20px)}
+.dashboard-page .depot-stat-card,.dashboard-page .dashboard-alert-counter,
+.dashboard-page .dashboard-alert-panel,.dashboard-page .dashboard-chart-card,
+.dashboard-page .panel-card,.dashboard-page .inventory-control-card,
+.dashboard-page .inventory-stock-control,.dashboard-page .dashboard-activity-card,
+.dashboard-page .stat-card{
+ background:#fff;border:1px solid var(--light-border);border-radius:19px;
+ box-shadow:var(--light-shadow);-webkit-backdrop-filter:none;backdrop-filter:none
+}
+.dashboard-page .depot-stat-card{min-height:180px;overflow:hidden}
+.dashboard-page .depot-stat-accent{width:0;flex-basis:0}
+.dashboard-page .depot-stat-card::before{background:linear-gradient(135deg,rgba(229,248,236,.45),transparent 64%)}
+.dashboard-page .depot-stat-card::after{background:radial-gradient(circle,rgba(60,207,115,.1),transparent 72%)}
+.dashboard-page .depot-stat-content{padding:clamp(16px,1.5vw,22px);gap:.55rem}
+.dashboard-page .depot-stat-symbol{
+ width:43px;height:43px;background:#e8f8ee;border:1px solid #dcf2e4;
+ color:#16a34a;box-shadow:none;border-radius:13px
+}
+.dashboard-page .depot-stat-label{font-size:.78rem;color:#5c7062;letter-spacing:0;text-transform:none;min-height:0}
+.dashboard-page .depot-stat-value{font-size:clamp(1.42rem,2.1vw,2.3rem);color:#15271b;line-height:1.15}
+.dashboard-page .depot-stat-value small{color:#577864;font-size:.6rem}
+.dashboard-page .depot-stat-helper{color:#688070;font-size:.76rem}
+.dashboard-page .dashboard-alert-summary{grid-template-columns:repeat(6,minmax(0,1fr));gap:clamp(8px,1vw,14px)}
+.dashboard-page .dashboard-alert-counter{min-height:115px;color:#1f3527;padding:15px}
+.dashboard-page .dashboard-alert-counter strong{color:#183d27}
+.dashboard-page .dashboard-alert-counter small{color:#617a69}
+.dashboard-page .dashboard-alert-counter:hover{background:#f5fbf7;border-color:#bce2cb;color:#136b39}
+.dashboard-page .alert-counter-icon{background:#e7f8ec;color:#139a46;border:0}
+.dashboard-page .dashboard-alert-panel-head,.dashboard-page .dashboard-chart-head{
+ background:#fcfefd;border-bottom:1px solid #e8f0ea;color:#172f20;
+}
+.dashboard-page .dashboard-alert-panel-head h3,.dashboard-page .dashboard-chart-head h3{color:#1d3423}
+.dashboard-page .dashboard-alert-panel-head>a,.dashboard-page .alert-action-link{color:#138c43}
+.dashboard-page .dashboard-alert-row{color:#25402b;border-bottom-color:#edf3ef}
+.dashboard-page .dashboard-alert-row:hover,.dashboard-page .dashboard-activity-row:hover{background:#f5fbf7}
+.dashboard-page .dashboard-alert-row small,.dashboard-page .alert-kicker{color:#778779}
+.dashboard-page .alert-value{color:#28432f}.dashboard-page .alert-value.is-warning{color:#9b6a13}.dashboard-page .alert-value.is-danger{color:#be3552}
+.dashboard-page .dashboard-chart-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:1rem}
+.dashboard-page .dashboard-chart-card-wide{grid-column:1/-1}
+.dashboard-page .dashboard-chart-canvas{background:#fff;height:345px}
+.dashboard-page .dashboard-chart-canvas-products{height:360px}
+.dashboard-page .dashboard-chart-canvas-trend{height:360px}
+.dashboard-page .dashboard-chart-badge,.dashboard-page .hero-badge{
+ background:#e9f8ee;border:1px solid #d5efdd;color:#14883e
+}
+.dashboard-page .dashboard-chart-empty,.dashboard-page .dashboard-alert-empty{color:#667c6a}
+.dashboard-page .dashboard-definition-note,.dashboard-page .admin-notice{
+ background:#eff9f2;border:1px solid #dbefdf;color:#50715a;border-radius:15px
+}
+.dashboard-page .dashboard-definition-note strong,.dashboard-page .admin-notice strong{color:#146e37}
+.dashboard-page .table{--bs-table-bg:#fff;--bs-table-color:#26402d;--bs-table-border-color:#e3ece5;--bs-table-hover-bg:#f2faf5;--bs-table-hover-color:#193720;color:#26402d}
+.dashboard-page .table th{background:#f6faf7;color:#607467;border-color:#e4eee6}
+.dashboard-page .table td{background:#fff;color:#2b4032;border-color:#e7efe9}
+.dashboard-page .dashboard-activity-row{color:#29452f;border-bottom-color:#e4eee7}
+.dashboard-page .dashboard-activity-time,.dashboard-page .inventory-control-card>span{color:#68806f}
+.dashboard-page .inventory-control-card strong,.dashboard-page .inventory-stock-summary strong{color:#193420}
+.dashboard-page .inventory-control-card small,.dashboard-page .inventory-stock-summary small{color:#68806f}
+.dashboard-page .status-pill.status-active{background:#e6f7ea;color:#16763c}
+.dashboard-page .status-pill.status-suspended{background:#fff3df;color:#96651b}
+.dashboard-page .btn-primary{
+ --bs-btn-bg:#16a34a;--bs-btn-color:#fff;--bs-btn-border-color:#16a34a;
+ --bs-btn-hover-bg:#107c39;--bs-btn-hover-color:#fff;--bs-btn-hover-border-color:#107c39;
+ --bs-btn-active-bg:#0c6a30;--bs-btn-active-color:#fff;
+}
+.dashboard-page .btn-outline-primary{
+ --bs-btn-bg:#fff;--bs-btn-color:#14883f;--bs-btn-border-color:#9ccdaf;
+ --bs-btn-hover-bg:#16a34a;--bs-btn-hover-color:#fff;--bs-btn-hover-border-color:#16a34a
+}
+.dashboard-page .btn-outline-danger{--bs-btn-color:#be3552;--bs-btn-border-color:#e4afbe;--bs-btn-hover-bg:#be3552;--bs-btn-hover-color:#fff}
+.dashboard-page :is(a,button,input,select):focus-visible{outline:3px solid #0e9950;outline-offset:3px}
+body:has(.dashboard-page) .ds-dialog{background:#fff;color:#24392a}
+body:has(.dashboard-page) .ds-dialog .form-control{background:#fff;color:#21382a}
+@media(max-width:1500px){.dashboard-page .dashboard-alert-summary{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:1350px){.dashboard-page .depot-stats-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:1100px){.dashboard-page .dashboard-chart-grid{grid-template-columns:1fr}.dashboard-page .dashboard-chart-card-wide{grid-column:auto}}
+@media(max-width:900px){.dashboard-page .depot-stats-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.dashboard-page .dashboard-alert-grid{grid-template-columns:1fr}}
+@media(max-width:768px){.dashboard-page .dashboard-hero{grid-template-columns:1fr}.dashboard-page .dashboard-hero-actions{justify-self:stretch;max-width:none}.dashboard-page .dashboard-alert-summary{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:428px){.dashboard-page .depot-stats-grid{grid-template-columns:1fr}.dashboard-page .depot-stat-card{min-height:148px}.dashboard-page .dashboard-hero h1{font-size:2rem}}
+@media(max-width:360px){.dashboard-page .dashboard-alert-summary{grid-template-columns:1fr}.dashboard-page .dashboard-chart-canvas{height:300px}}
+@media(prefers-reduced-motion:reduce){.dashboard-page .depot-stat-card{transition:none}.dashboard-page .depot-stat-card:hover{transform:none}}
