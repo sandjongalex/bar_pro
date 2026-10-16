@@ -47,3 +47,141 @@
 @media(max-width:390px){.dashboard-page .depot-stats-grid{grid-template-columns:1fr}.dashboard-page .dashboard-alert-summary{grid-template-columns:repeat(2,minmax(0,1fr))}.dashboard-page .dashboard-alert-counter{padding:11px}.dashboard-page .dashboard-chart-head{align-items:flex-start}}
 @media(max-width:349px){.dashboard-page .dashboard-alert-summary{grid-template-columns:1fr}}
 @media(prefers-reduced-motion:reduce){.dashboard-page .depot-stat-card,.dashboard-page .dashboard-alert-counter{transition:none}.dashboard-page .depot-stat-card:hover{transform:none}}
+
+
+/* MINT GLASS V2 — visible frosted panels over decorative mint ambience.
+   Layering: the decorative background sits behind translucent panels.
+   Content (text/buttons/forms) stays fully opaque for readability. */
+.content-area:has(.dashboard-page) {
+  position:relative;
+  isolation:isolate;
+  max-width:1740px;
+  overflow:clip;
+  padding-top:clamp(1rem,2.3vw,2.3rem);
+  background:
+    radial-gradient(ellipse 46% 26% at 87% 11%, rgba(34,183,140,.19), transparent 100%),
+    radial-gradient(ellipse 35% 28% at 6% 35%, rgba(121,224,185,.25), transparent 100%),
+    radial-gradient(ellipse 45% 28% at 78% 77%, rgba(143,215,189,.18), transparent 100%),
+    linear-gradient(146deg,#e4f7ed 0%,#f3fbf6 44%,#dff2e9 100%);
+  border-radius:clamp(16px,2vw,28px);
+}
+.content-area:has(.dashboard-page)::before,
+.content-area:has(.dashboard-page)::after {
+  content:"";position:absolute;pointer-events:none;border-radius:50%;z-index:-1;
+}
+.content-area:has(.dashboard-page)::before {
+  width:clamp(190px,26vw,480px);height:clamp(190px,26vw,480px);
+  top:11%;right:-8%;background:radial-gradient(circle at 35% 35%,rgba(37,193,147,.38),rgba(37,193,147,.13) 55%,transparent 73%);
+  filter:blur(9px);
+}
+.content-area:has(.dashboard-page)::after {
+  width:clamp(180px,28vw,490px);height:clamp(180px,28vw,490px);
+  top:43%;left:-12%;background:radial-gradient(circle,rgba(56,171,132,.24),rgba(112,218,172,.08) 60%,transparent 76%);
+  filter:blur(13px);
+}
+.dashboard-page {
+  --mint-glass:rgba(255,255,255,.53);
+  --mint-glass-heavy:rgba(255,255,255,.66);
+  --mint-edge:rgba(255,255,255,.86);
+  --mint-shadow:0 12px 36px rgba(11,94,68,.11),inset 0 1px 0 rgba(255,255,255,.65);
+  position:relative;display:flow-root;min-width:0;
+}
+.dashboard-page .dashboard-hero {
+  position:relative;overflow:hidden;isolation:isolate;
+  padding:clamp(1.3rem,3vw,2.8rem);
+  background:linear-gradient(115deg,rgba(255,255,255,.73),rgba(229,255,243,.48));
+  border:1px solid var(--mint-edge);box-shadow:0 18px 52px rgba(13,105,79,.13),inset 0 1px 0 #fff;
+  border-radius:26px;
+}
+.dashboard-page .dashboard-hero::after {
+  content:"";position:absolute;right:-68px;top:-112px;width:330px;height:330px;
+  border-radius:50%;pointer-events:none;z-index:-1;
+  background:radial-gradient(circle,rgba(18,165,118,.28),rgba(112,224,170,.09) 60%,transparent 71%);
+}
+.dashboard-page .dashboard-hero .eyebrow {color:#0f725f}
+.dashboard-page .dashboard-hero h1 {color:#103e30;letter-spacing:-.043em}
+.dashboard-page .dashboard-hero p:not(.eyebrow) {color:#455e53}
+.dashboard-page .dashboard-bar-selector,
+.dashboard-page .depot-stat-card,
+.dashboard-page .dashboard-alert-counter,
+.dashboard-page .dashboard-alert-panel,
+.dashboard-page .dashboard-chart-card,
+.dashboard-page .inventory-control-card,
+.dashboard-page .inventory-stock-control,
+.dashboard-page .dashboard-activity-card,
+.dashboard-page .stat-card,
+.dashboard-page .panel-card {
+  background:var(--mint-glass);
+  border:1px solid var(--mint-edge);
+  box-shadow:var(--mint-shadow);
+  -webkit-backdrop-filter:blur(22px) saturate(155%);
+  backdrop-filter:blur(22px) saturate(155%);
+}
+.dashboard-page .dashboard-bar-selector {background:var(--mint-glass-heavy);border-radius:16px;}
+.dashboard-page .depot-stat-card {border-radius:21px;min-height:172px;}
+.dashboard-page .depot-stat-card::before {
+  z-index:0;background:linear-gradient(138deg,rgba(255,255,255,.58),transparent 62%);
+}
+.dashboard-page .depot-stat-content {z-index:1;position:relative;gap:.55rem}
+.dashboard-page .depot-stat-accent{position:relative;z-index:1}
+.dashboard-page .depot-stat-symbol {height:42px;width:42px;border-radius:13px;background:rgba(255,255,255,.76);box-shadow:inset 0 0 0 1px rgba(15,114,95,.08)}
+.dashboard-page .depot-stat-symbol svg {width:22px;height:22px}
+.dashboard-page .depot-stat-value {color:#153f32;font-size:clamp(1.4rem,2.2vw,2.24rem);line-height:1.12}
+.dashboard-page .depot-stat-value small {font-size:.63rem;letter-spacing:0}
+.dashboard-page .depot-stat-label {color:#446558}
+.dashboard-page .depot-stat-helper {color:#5b796b}
+.dashboard-page .dashboard-section-heading h2 {color:#183f33}
+.dashboard-page .dashboard-alert-counter {border-radius:18px;min-height:118px;}
+.dashboard-page .dashboard-alert-counter strong {color:#143f31;}
+.dashboard-page .dashboard-alert-counter small {color:#496a5c}
+.dashboard-page .alert-counter-icon {background:rgba(255,255,255,.8);border:1px solid rgba(15,114,95,.09);width:36px;height:36px}
+.dashboard-page .dashboard-alert-panel,
+.dashboard-page .dashboard-chart-card {border-radius:22px}
+.dashboard-page .dashboard-alert-panel-head,
+.dashboard-page .dashboard-chart-head {background:rgba(255,255,255,.43);border-bottom:1px solid rgba(255,255,255,.82)}
+.dashboard-page .dashboard-alert-row {border-bottom:1px solid rgba(255,255,255,.66)}
+.dashboard-page .dashboard-chart-canvas {background:rgba(255,255,255,.13)}
+.dashboard-page .dashboard-definition-note {
+  border:1px solid rgba(255,255,255,.85);background:rgba(255,255,255,.43);
+  box-shadow:0 8px 26px rgba(19,103,77,.05);border-radius:16px;
+}
+.dashboard-page .dashboard-chart-badge,.dashboard-page .hero-badge{
+  border:1px solid rgba(15,114,95,.14);background:rgba(255,255,255,.77);color:#0b5c4b;
+}
+.dashboard-page .dashboard-chart-empty,.dashboard-page .dashboard-alert-empty {color:#4d6c5c}
+.dashboard-page .btn-primary {--bs-btn-bg:#0f725f;--bs-btn-border-color:#0f725f;--bs-btn-color:#fff;--bs-btn-hover-bg:#0b3f36;--bs-btn-hover-border-color:#0b3f36;--bs-btn-hover-color:#fff;}
+.dashboard-page .btn-outline-primary {--bs-btn-bg:rgba(255,255,255,.77);--bs-btn-color:#0b5c4b;--bs-btn-border-color:rgba(15,114,95,.36);--bs-btn-hover-bg:#0f725f;--bs-btn-hover-color:#fff;}
+/* The inventory and recent activity partials render after dashboard.html, in layout.html. */
+.content-area:has(.dashboard-page) > .dashboard-section .inventory-control-card,
+.content-area:has(.dashboard-page) > .dashboard-section .inventory-stock-control,
+.content-area:has(.dashboard-page) > .dashboard-section .dashboard-activity-card,
+.content-area:has(.dashboard-page) > .dashboard-section .dashboard-alert-panel {
+  background:rgba(255,255,255,.62);border-color:rgba(255,255,255,.84);
+  -webkit-backdrop-filter:blur(18px) saturate(150%);backdrop-filter:blur(18px) saturate(150%);
+  box-shadow:var(--mint-shadow);
+}
+@supports not ((-webkit-backdrop-filter:blur(1px)) or (backdrop-filter:blur(1px))) {
+  .dashboard-page .dashboard-hero,
+  .dashboard-page .dashboard-bar-selector,
+  .dashboard-page .depot-stat-card,
+  .dashboard-page .dashboard-alert-counter,
+  .dashboard-page .dashboard-alert-panel,
+  .dashboard-page .dashboard-chart-card,
+  .dashboard-page .inventory-control-card,
+  .dashboard-page .dashboard-activity-card,
+  .dashboard-page .panel-card,
+  .dashboard-page .stat-card,
+  .content-area:has(.dashboard-page) > .dashboard-section .inventory-control-card {background:#fafffc;}
+}
+@media(max-width:767.98px){
+  .content-area:has(.dashboard-page){border-radius:16px;padding-inline:clamp(10px,3vw,16px)}
+  .dashboard-page .dashboard-hero{border-radius:20px}
+  .dashboard-page .depot-stat-card{min-height:152px}
+}
+@media(max-width:390px){.dashboard-page .depot-stat-card{min-height:135px}}
+@media(prefers-reduced-transparency:reduce){
+  .dashboard-page .dashboard-hero,
+  .dashboard-page .depot-stat-card,
+  .dashboard-page .dashboard-chart-card,
+  .dashboard-page .dashboard-alert-panel{background:#fafffc;backdrop-filter:none;-webkit-backdrop-filter:none}
+}
