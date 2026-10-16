@@ -1,0 +1,32 @@
+{
+  "id": "/",
+  "name": "Bar Manager Pro",
+  "short_name": "Bar Pro",
+  "description": "Gestion des ventes, stocks, commandes et caisse de vos établissements.",
+  "lang": "fr",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f3f7f5",
+  "theme_color": "#0f725f",
+  "icons": [
+    {
+      "src": "/static/icons/barpro-192.svg",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/static/icons/barpro-512.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/static/icons/barpro-maskable.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ]
+}
