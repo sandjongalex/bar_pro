@@ -1,0 +1,26 @@
+{
+  "id": "/",
+  "name": "Bar Manager Pro",
+  "short_name": "Bar Pro",
+  "description": "Gestion de bar, ventes, caisse et stocks",
+  "lang": "fr",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f4f7fb",
+  "theme_color": "#142b48",
+  "icons": [
+    {
+      "src": "/static/icons/pwa-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/static/icons/pwa-maskable.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ]
+}
