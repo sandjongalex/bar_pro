@@ -55,8 +55,7 @@
   {% if nav_can('bars.reset', active_bar.id) %}
   <dialog
     id="dashboard-reset-dialog"
-    class="panel-card p-0 border-0 rounded-4 shadow text-start"
-    style="width:min(560px,calc(100% - 2rem));max-width:560px;"
+    class="panel-card ds-dialog p-0 border-0 rounded-4 shadow text-start"
   >
     <div class="panel-header border-bottom">
       <div>
@@ -88,7 +87,6 @@
       </form>
     </div>
   </dialog>
-  <style>dialog::backdrop { background: rgba(15, 23, 42, .58); }</style>
   {% endif %}
 
   <div class="depot-stats-grid">
