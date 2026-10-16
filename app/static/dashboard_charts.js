@@ -9,8 +9,8 @@
     return;
   }
 
-  const styles = getComputedStyle(document.documentElement);
-  const brand = '#20d9d1';
+  const styles = getComputedStyle(document.body);
+  const brand = styles.getPropertyValue('--ds-primary').trim() || '#20d9d1';
   const accent = '#9364f5';
   const ink = '#e4f1ff';
   const muted = '#b6c9e4';
