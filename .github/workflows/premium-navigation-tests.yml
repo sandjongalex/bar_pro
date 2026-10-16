@@ -1,0 +1,30 @@
+name: Premium navigation regression tests
+on:
+  pull_request:
+    paths:
+      - 'app/templates/layout.html'
+      - 'app/templates/_app_navigation.html'
+      - 'app/static/navigation.css'
+      - 'app/static/design-system.css'
+      - 'tests/test_role_navigation.py'
+      - 'tests/test_shift_navigation.py'
+      - '.github/workflows/premium-navigation-tests.yml'
+  push:
+    paths:
+      - 'app/templates/layout.html'
+      - 'app/templates/_app_navigation.html'
+      - 'app/static/navigation.css'
+      - 'tests/test_role_navigation.py'
+      - 'tests/test_shift_navigation.py'
+      - '.github/workflows/premium-navigation-tests.yml'
+jobs:
+  navigation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r requirements.txt
+      - name: Role navigation regression
+        run: pytest -q tests/test_role_navigation.py tests/test_shift_navigation.py
