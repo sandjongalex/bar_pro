@@ -55,11 +55,11 @@ def test_login_form_success_error_and_logout_still_work(tmp_path):
         "password": "correct-password",
     })
     assert valid.status_code == 302
-    assert valid.headers["Location"].endswith("/")
+    assert valid.headers["Location"].endswith("/dashboard")
     with client.session_transaction() as session:
         assert "_user_id" in session
 
-    logout_page = client.get("/")
+    logout_page = client.get("/dashboard")
     assert logout_page.status_code == 200
     logout_token = _csrf(logout_page.get_data(as_text=True))
     logout = client.post("/logout", data={"csrf_token": logout_token})
