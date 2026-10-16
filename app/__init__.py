@@ -60,6 +60,8 @@ def create_app(config_name: str | None = None, test_config: dict[str, Any] | Non
     from app import shift_models  # noqa: F401 - employee attendance/on-duty metadata
     from app import change_voucher_models  # noqa: F401 - customer change-voucher liability metadata
     _register_blueprints(app)
+    from app.pwa import bp as pwa_bp
+    app.register_blueprint(pwa_bp)
     _register_template_context(app)
     app.jinja_env.finalize = _template_finalize
     _register_error_handlers(app)
