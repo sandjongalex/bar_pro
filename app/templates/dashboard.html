@@ -1,7 +1,9 @@
 {% extends 'layout.html' %}
 {% block title %}Tableau de bord · Bar Manager Pro{% endblock %}
 {% block header %}Tableau de bord{% endblock %}
+{% block page_styles %}<link href="{{ url_for('static', filename='dashboard_premium.css') }}" rel="stylesheet">{% endblock %}
 {% block content %}
+<div class="dashboard-page">
 <section class="dashboard-hero">
   <div>
     <p class="eyebrow mb-2">Vue d'ensemble</p>
@@ -99,6 +101,7 @@
       <article class="depot-stat-card depot-tone-{{ tone }}">
         <div class="depot-stat-accent" aria-hidden="true"></div>
         <div class="depot-stat-content">
+          <span class="depot-stat-symbol" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="7" width="18" height="14" rx="2"/><path d="M7 7V4h10v3M7 13h10M7 17h6"/></svg></span>
           <span class="depot-stat-label">{{ label }}</span>
           <strong class="depot-stat-value">
             {% if kind == 'money' %}
@@ -133,12 +136,12 @@
   </div>
 
   <div class="dashboard-alert-summary">
-    <a class="dashboard-alert-counter" href="{{ url_for('stock.history', bar_id=active_bar.id) }}"><span class="alert-counter-icon">▤</span><strong>{{ operational_alerts.counts.low_stock }}</strong><small>Stocks faibles</small></a>
-    <a class="dashboard-alert-counter" href="{{ url_for('checkout_web.checkout', bar_id=active_bar.id) }}"><span class="alert-counter-icon">⌛</span><strong>{{ operational_alerts.counts.pending_orders }}</strong><small>Commandes à traiter</small></a>
-    <a class="dashboard-alert-counter" href="{{ url_for('supplier_debts_web.manage', bar_id=active_bar.id) }}"><span class="alert-counter-icon">₣</span><strong>{{ operational_alerts.counts.supplier_debts }}</strong><small>Achats à régler</small></a>
-    <a class="dashboard-alert-counter" href="{{ url_for('inventories.listing', bar_id=active_bar.id) }}"><span class="alert-counter-icon">≣</span><strong>{{ operational_alerts.counts.inventory_drafts }}</strong><small>Inventaires brouillons</small></a>
-    <a class="dashboard-alert-counter" href="{{ url_for('finance_web.desk', bar_id=active_bar.id) }}"><span class="alert-counter-icon">±</span><strong>{{ operational_alerts.counts.cash_differences }}</strong><small>Écarts de caisse</small></a>
-    <a class="dashboard-alert-counter" href="#dashboard-notifications"><span class="alert-counter-icon">●</span><strong>{{ operational_alerts.counts.unread_notifications }}</strong><small>Notifications non lues</small></a>
+    <a class="dashboard-alert-counter" href="{{ url_for('stock.history', bar_id=active_bar.id) }}"><span class="alert-counter-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d='M4 4h16v16H4zM8 9h8M8 13h8M8 17h5'/></svg></span><strong>{{ operational_alerts.counts.low_stock }}</strong><small>Stocks faibles</small></a>
+    <a class="dashboard-alert-counter" href="{{ url_for('checkout_web.checkout', bar_id=active_bar.id) }}"><span class="alert-counter-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d='M6 3h12M6 21h12M7 3c0 5 5 5 5 9s-5 4-5 9M17 3c0 5-5 5-5 9s5 4 5 9'/></svg></span><strong>{{ operational_alerts.counts.pending_orders }}</strong><small>Commandes à traiter</small></a>
+    <a class="dashboard-alert-counter" href="{{ url_for('supplier_debts_web.manage', bar_id=active_bar.id) }}"><span class="alert-counter-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d='M6 3h12M6 3v18M6 12h10M3 17h12'/></svg></span><strong>{{ operational_alerts.counts.supplier_debts }}</strong><small>Achats à régler</small></a>
+    <a class="dashboard-alert-counter" href="{{ url_for('inventories.listing', bar_id=active_bar.id) }}"><span class="alert-counter-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d='M4 5h16M4 10h16M4 15h16M4 20h16'/></svg></span><strong>{{ operational_alerts.counts.inventory_drafts }}</strong><small>Inventaires brouillons</small></a>
+    <a class="dashboard-alert-counter" href="{{ url_for('finance_web.desk', bar_id=active_bar.id) }}"><span class="alert-counter-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d='M12 3v12M6 9h12M6 20h12'/></svg></span><strong>{{ operational_alerts.counts.cash_differences }}</strong><small>Écarts de caisse</small></a>
+    <a class="dashboard-alert-counter" href="#dashboard-notifications"><span class="alert-counter-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d='M5 5h14v12H8l-3 3zM9 10h6'/></svg></span><strong>{{ operational_alerts.counts.unread_notifications }}</strong><small>Notifications non lues</small></a>
   </div>
 
   <div class="dashboard-alert-grid mt-3">
@@ -299,6 +302,7 @@
   </div>
   {% endif %}
 </section>
+</div>
 {% endblock %}
 
 {% block scripts %}

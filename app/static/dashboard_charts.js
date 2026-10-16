@@ -10,11 +10,11 @@
   }
 
   const styles = getComputedStyle(document.documentElement);
-  const brand = styles.getPropertyValue('--brand').trim() || '#0f5c4d';
+  const brand = styles.getPropertyValue('--ds-primary').trim() || '#0F725F';
   const accent = styles.getPropertyValue('--accent').trim() || '#f2b544';
-  const ink = styles.getPropertyValue('--ink').trim() || '#17231f';
-  const muted = styles.getPropertyValue('--muted').trim() || '#6f7d78';
-  const line = styles.getPropertyValue('--line').trim() || '#e5ebe8';
+  const ink = styles.getPropertyValue('--ds-text').trim() || '#172B25';
+  const muted = styles.getPropertyValue('--ds-text-secondary').trim() || '#667A72';
+  const line = styles.getPropertyValue('--ds-border').trim() || '#DDE8E3';
   const receiptsColor = '#3478c7';
   const expensesColor = '#c94d4d';
   const currency = data.currency || 'XAF';
@@ -25,6 +25,12 @@
 
   Chart.defaults.color = muted;
   Chart.defaults.font.family = getComputedStyle(document.body).fontFamily;
+  Chart.defaults.animation = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? false : { duration: 350 };
+  Chart.defaults.plugins.tooltip.backgroundColor = '#12392F';
+  Chart.defaults.plugins.tooltip.titleColor = '#FFFFFF';
+  Chart.defaults.plugins.tooltip.bodyColor = '#FFFFFF';
+  Chart.defaults.plugins.tooltip.cornerRadius = 10;
+  Chart.defaults.plugins.tooltip.padding = 12;
 
   const topCanvas = document.getElementById('topProductsChart');
   if (topCanvas && data.top_products?.labels?.length) {

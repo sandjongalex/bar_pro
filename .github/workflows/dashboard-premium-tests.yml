@@ -1,0 +1,16 @@
+name: Dashboard premium regression checks
+on:
+  push:
+    paths: ['app/templates/dashboard.html','app/templates/layout.html','app/static/dashboard_premium.css','app/static/dashboard_charts.js','tests/test_dashboard_premium.py','.github/workflows/dashboard-premium-tests.yml']
+  pull_request:
+    paths: ['app/templates/dashboard.html','app/templates/layout.html','app/static/dashboard_premium.css','app/static/dashboard_charts.js','tests/test_dashboard_premium.py','.github/workflows/dashboard-premium-tests.yml']
+jobs:
+  dashboard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r requirements.txt
+      - run: pytest -q tests/test_dashboard_premium.py tests/test_dashboard_reset_button.py
