@@ -1,0 +1,114 @@
+/* Finance SaaS reference pass — scoped dashboard presentation only.
+   Overlay on midnight theme. No fabricated UI widgets, data or actions. */
+body:has(.dashboard-page) .sidebar {
+  margin:10px 0 10px 10px;
+  height:calc(100vh - 20px);
+  min-height:calc(100vh - 20px);
+  border:1px solid rgba(58,123,205,.55);
+  border-radius:18px;
+  box-shadow:inset 0 1px rgba(104,179,255,.12),0 0 25px rgba(20,89,192,.12);
+}
+body:has(.dashboard-page) .sidebar .brand-block{padding:16px 10px 8px}
+body:has(.dashboard-page) .sidebar .brand-mark{background:linear-gradient(145deg,#167ee4,#3ddbea);color:#f2fcff;box-shadow:0 0 18px rgba(26,158,255,.26)}
+body:has(.dashboard-page) .sidebar .nav-link,
+body:has(.dashboard-page) .sidebar .nav-group-summary{border-radius:12px}
+body:has(.dashboard-page) .sidebar .nav-link.active,
+body:has(.dashboard-page) .sidebar .nav-group-summary[aria-expanded="true"] {
+  background:linear-gradient(115deg,#1658a0,#0d3158);
+  box-shadow:inset 0 1px rgba(138,203,255,.18),0 0 21px rgba(9,113,241,.28);
+  color:#fff;border:1px solid #3583d5;
+}
+body:has(.dashboard-page) .topbar{box-shadow:0 3px 20px rgba(0,7,24,.16)}
+body:has(.dashboard-page) .content-area:has(> .dashboard-page){
+  max-width:1700px;
+  padding:clamp(13px,1.7vw,26px);
+  background:linear-gradient(180deg,#061328,#07162e 45%,#061229);
+}
+.dashboard-page{
+  --fin-cyan:#24c8ff;--fin-teal:#25daca;--fin-purple:#9565f7;
+  --fin-border:rgba(53,121,201,.57);
+  --fin-card:linear-gradient(142deg,rgba(15,43,78,.97),rgba(5,24,50,.94));
+  --fin-card-shadow:inset 0 1px 0 rgba(148,207,255,.12),0 10px 32px rgba(0,8,32,.4);
+  row-gap:clamp(16px,1.9vw,25px);
+}
+.dashboard-page .dashboard-hero{
+  display:grid;grid-template-columns:minmax(0,1fr) minmax(190px,auto);
+  padding:clamp(.9rem,2vw,1.9rem) clamp(1rem,2.3vw,2.15rem);
+  background:linear-gradient(115deg,rgba(11,30,56,.86),rgba(9,26,53,.76));
+  border-color:rgba(62,117,178,.24);box-shadow:none;border-radius:18px;
+}
+.dashboard-page .dashboard-greeting{font-size:.99rem;color:#b2c8e6!important;letter-spacing:.01em;margin:.1rem 0 .2rem!important}
+.dashboard-page .dashboard-hero h1{font-size:clamp(1.85rem,3.2vw,3rem);max-width:none;line-height:1.06}
+.dashboard-page .dashboard-hero p:not(.eyebrow){margin-top:.55rem;color:#98b3d2}
+.dashboard-page .dashboard-hero .eyebrow{font-size:.67rem;letter-spacing:.16em;color:#59b9f0}
+.dashboard-page .dashboard-date{display:inline-flex;align-items:center;gap:.45rem;font-size:.86rem;color:#b9d6ef!important}
+.dashboard-page .dashboard-date svg{height:16px;width:16px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round}
+.dashboard-page .dashboard-hero-actions{max-width:325px;justify-self:end;min-width:0}
+.dashboard-page .dashboard-hero-actions .btn{white-space:normal}
+.dashboard-page .dashboard-bar-selector{
+  padding:.85rem 1rem;border:1px solid var(--fin-border);
+  background:linear-gradient(145deg,rgba(18,48,86,.98),rgba(8,32,61,.95));
+  border-radius:14px;box-shadow:var(--fin-card-shadow);
+}
+.dashboard-page .dashboard-section-heading{margin-bottom:.9rem}
+.dashboard-page .dashboard-section-heading h2{color:#f3f9ff;letter-spacing:-.025em}
+.dashboard-page .depot-stats-grid{grid-template-columns:repeat(4,minmax(0,1fr));gap:clamp(10px,1.25vw,18px)}
+.dashboard-page .depot-stat-card{
+  min-height:178px;border:1px solid var(--fin-border);border-radius:17px;
+  background:var(--fin-card);box-shadow:var(--fin-card-shadow);
+  position:relative;overflow:hidden;transition:transform .18s ease,box-shadow .18s ease,border-color .18s ease;
+}
+.dashboard-page .depot-stat-card:nth-child(4n+1){--kpi-glow:rgba(20,152,255,.18)}
+.dashboard-page .depot-stat-card:nth-child(4n+2){--kpi-glow:rgba(37,218,202,.14)}
+.dashboard-page .depot-stat-card:nth-child(4n+3){--kpi-glow:rgba(149,101,247,.16)}
+.dashboard-page .depot-stat-card:nth-child(4n){--kpi-glow:rgba(33,209,180,.14)}
+.dashboard-page .depot-stat-card::after{
+  content:"";pointer-events:none;position:absolute;inset:auto -20px -48px auto;width:180px;height:130px;
+  background:radial-gradient(circle,var(--kpi-glow),transparent 70%);
+}
+.dashboard-page .depot-stat-accent{width:0;flex-basis:0}
+.dashboard-page .depot-stat-content{padding:clamp(16px,1.5vw,23px)}
+.dashboard-page .depot-stat-symbol{height:41px;width:41px;border:1px solid rgba(77,165,236,.2);background:rgba(23,106,159,.23);color:#36d5f1;box-shadow:0 0 17px rgba(30,178,231,.11)}
+.dashboard-page .depot-stat-card:nth-child(4n+3) .depot-stat-symbol{color:#b696ff;background:rgba(149,101,247,.14)}
+.dashboard-page .depot-stat-card:nth-child(4n) .depot-stat-symbol{color:#5fe7d3;background:rgba(37,218,202,.12)}
+.dashboard-page .depot-stat-label{color:#b3c9e6;font-weight:650;font-size:.77rem;min-height:0;letter-spacing:0;text-transform:none}
+.dashboard-page .depot-stat-value{color:#f5faff;font-size:clamp(1.4rem,1.95vw,2rem);letter-spacing:-.02em}
+.dashboard-page .depot-stat-helper{color:#98bad9;font-size:.77rem}
+.dashboard-page .dashboard-alert-summary{grid-template-columns:repeat(6,minmax(0,1fr));gap:clamp(8px,1vw,15px)}
+.dashboard-page .dashboard-alert-counter{
+  min-height:125px;gap:.38rem;padding:16px;border:1px solid rgba(52,110,169,.55);
+  border-radius:16px;background:var(--fin-card);box-shadow:var(--fin-card-shadow);
+}
+.dashboard-page .dashboard-alert-counter strong{color:#eafaff}
+.dashboard-page .alert-counter-icon{height:33px;width:33px;border:0;background:rgba(28,103,165,.2);color:#4cceff}
+.dashboard-page .dashboard-alert-grid,.dashboard-page .dashboard-chart-grid{gap:clamp(12px,1.45vw,20px)}
+.dashboard-page .dashboard-alert-panel,.dashboard-page .dashboard-chart-card,
+.dashboard-page .dashboard-activity-card,.dashboard-page .panel-card,
+.dashboard-page .inventory-control-card,.dashboard-page .stat-card{
+  border:1px solid rgba(53,121,201,.52);border-radius:17px;
+  background:var(--fin-card);box-shadow:var(--fin-card-shadow);
+}
+.dashboard-page .dashboard-alert-panel-head,.dashboard-page .dashboard-chart-head{
+  background:linear-gradient(130deg,rgba(22,57,98,.55),rgba(12,35,67,.45));
+  border-bottom:1px solid rgba(64,119,185,.3);min-height:70px
+}
+.dashboard-page .dashboard-chart-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+.dashboard-page .dashboard-chart-card-wide{grid-column:1/-1}
+.dashboard-page .dashboard-chart-canvas{height:350px;background:transparent}
+.dashboard-page .dashboard-chart-canvas-products{height:365px}
+.dashboard-page .dashboard-chart-canvas-trend{height:375px}
+.dashboard-page .dashboard-chart-badge{color:#b4d6f9;background:#132b4e;border-color:#315984}
+.dashboard-page .dashboard-definition-note{background:#102b4d;border-color:#2c517a;color:#b7cfe6}
+.dashboard-page .dashboard-alert-empty,.dashboard-page .dashboard-chart-empty{color:#b6c9e1}
+.dashboard-page .dashboard-alert-row:hover,.dashboard-page .dashboard-activity-row:hover{background:rgba(41,96,151,.13)}
+.dashboard-page .status-badge,.dashboard-page .status-pill{border:1px solid rgba(134,171,217,.15)}
+.dashboard-page :is(a,button,select,input):focus-visible{outline:3px solid #24c8ff;outline-offset:3px}
+@media(hover:hover){.dashboard-page .depot-stat-card:hover{transform:translateY(-2px);border-color:#379bdd;box-shadow:0 0 25px rgba(22,143,255,.17),var(--fin-card-shadow)}}
+@media(max-width:1500px){.dashboard-page .dashboard-alert-summary{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:1350px){.dashboard-page .depot-stats-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:1100px){.dashboard-page .dashboard-chart-grid{grid-template-columns:1fr}.dashboard-page .dashboard-chart-card-wide{grid-column:auto}}
+@media(max-width:900px){.dashboard-page .depot-stats-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.dashboard-page .dashboard-alert-grid{grid-template-columns:1fr}}
+@media(max-width:768px){.dashboard-page .dashboard-hero{grid-template-columns:1fr}.dashboard-page .dashboard-hero-actions{max-width:none;justify-self:stretch}.dashboard-page .dashboard-alert-summary{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:428px){.dashboard-page .depot-stats-grid{grid-template-columns:1fr}.dashboard-page .depot-stat-card{min-height:155px}.dashboard-page .dashboard-hero h1{font-size:1.9rem}}
+@media(max-width:360px){.dashboard-page .dashboard-alert-summary{grid-template-columns:1fr}.dashboard-page .dashboard-chart-canvas{height:300px}}
+@media(prefers-reduced-motion:reduce){.dashboard-page .depot-stat-card{transition:none}.dashboard-page .depot-stat-card:hover{transform:none}}

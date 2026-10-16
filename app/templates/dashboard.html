@@ -1,16 +1,18 @@
 {% extends 'layout.html' %}
 {% block title %}Tableau de bord · Bar Manager Pro{% endblock %}
 {% block header %}Tableau de bord{% endblock %}
-{% block page_styles %}<link href="{{ url_for('static', filename='dashboard_premium.css') }}" rel="stylesheet"><link href="{{ url_for('static', filename='dashboard_midnight.css') }}" rel="stylesheet">{% endblock %}
+{% block page_styles %}<link href="{{ url_for('static', filename='dashboard_premium.css') }}" rel="stylesheet"><link href="{{ url_for('static', filename='dashboard_midnight.css') }}" rel="stylesheet"><link href="{{ url_for('static', filename='dashboard_fintech_reference.css') }}" rel="stylesheet">{% endblock %}
 {% block content %}
 <div class="dashboard-page">
 <section class="dashboard-hero" aria-label="Bienvenue et établissement actif">
   <div class="dashboard-hero-glow" aria-hidden="true"></div>
   <div>
     <p class="eyebrow mb-2"><span class="dashboard-live-dot" aria-hidden="true"></span> Espace de pilotage · Vue d’ensemble</p>
-    <h1>Bonjour, {{ current_user.display_name }}</h1>
+    <p class="dashboard-greeting">Bonjour, {{ current_user.display_name }} <span aria-hidden="true">👋</span></p>
+    <h1>Tableau de bord</h1>
     {% if active_bar and dashboard_data %}
-      <p>Suivi opérationnel de <strong>{{ active_bar.name }}</strong> pour le {{ dashboard_data.local_date.strftime('%d/%m/%Y') }}.</p>
+      <p>Suivez les performances et les opérations de <strong>{{ active_bar.name }}</strong>.</p>
+      <p class="dashboard-date"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4M17 3v4M3 10h18"/></svg>{{ dashboard_data.local_date.strftime('%d/%m/%Y') }}</p>
     {% else %}
       <p>Retrouvez ici vos établissements et les actions correspondant à votre rôle.</p>
     {% endif %}
