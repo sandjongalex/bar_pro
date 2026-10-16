@@ -616,3 +616,76 @@ dialog.ds-dialog::backdrop {
   .glass-card,
   .glass-panel { background: var(--ds-surface); }
 }
+
+
+/* Dark-theme compatibility for legacy Bootstrap utilities and common app modules */
+[data-theme="dark"] .bg-white,
+[data-bs-theme="dark"] .bg-white {
+  background-color: var(--ds-surface) !important;
+}
+[data-theme="dark"] .bg-light,
+[data-bs-theme="dark"] .bg-light {
+  background-color: var(--ds-surface-subtle) !important;
+}
+[data-theme="dark"] .text-secondary,
+[data-bs-theme="dark"] .text-secondary {
+  color: var(--ds-text-secondary) !important;
+}
+[data-theme="dark"] .border,
+[data-theme="dark"] .border-top,
+[data-theme="dark"] .border-bottom,
+[data-bs-theme="dark"] .border,
+[data-bs-theme="dark"] .border-top,
+[data-bs-theme="dark"] .border-bottom {
+  border-color: var(--ds-border) !important;
+}
+[data-theme="dark"] .btn-light,
+[data-bs-theme="dark"] .btn-light {
+  --bs-btn-color: var(--ds-text);
+  --bs-btn-bg: var(--ds-surface-subtle);
+  --bs-btn-border-color: var(--ds-border);
+  --bs-btn-hover-color: var(--ds-text);
+  --bs-btn-hover-bg: #193129;
+  --bs-btn-hover-border-color: var(--ds-border-strong);
+}
+[data-theme="dark"] .table-active > *,
+[data-bs-theme="dark"] .table-active > * {
+  --bs-table-bg-state: rgba(var(--ds-primary-rgb), .12);
+  color: var(--ds-text);
+}
+[data-theme="dark"] .app-nav-drawer-head,
+[data-theme="dark"] .drawer-user-card,
+[data-theme="dark"] .nav-menu-trigger,
+[data-theme="dark"] .context-back,
+[data-bs-theme="dark"] .app-nav-drawer-head,
+[data-bs-theme="dark"] .drawer-user-card,
+[data-bs-theme="dark"] .nav-menu-trigger,
+[data-bs-theme="dark"] .context-back {
+  background: var(--ds-surface);
+  border-color: var(--ds-border);
+  color: var(--ds-text);
+}
+[data-theme="dark"] .app-nav-drawer .app-nav .nav-link,
+[data-theme="dark"] .app-nav-drawer .nav-group-summary,
+[data-bs-theme="dark"] .app-nav-drawer .app-nav .nav-link,
+[data-bs-theme="dark"] .app-nav-drawer .nav-group-summary {
+  background: var(--ds-surface);
+  border-color: var(--ds-border);
+  color: var(--ds-text-secondary);
+}
+[data-theme="dark"] .dashboard-alert-panel-head,
+[data-theme="dark"] .dashboard-definition-note,
+[data-bs-theme="dark"] .dashboard-alert-panel-head,
+[data-bs-theme="dark"] .dashboard-definition-note {
+  background: var(--ds-surface-subtle);
+  border-color: var(--ds-border);
+  color: var(--ds-text-secondary);
+}
+[data-theme="dark"] .dashboard-alert-row,
+[data-bs-theme="dark"] .dashboard-alert-row {
+  border-bottom-color: var(--ds-border);
+}
+[data-theme="dark"] .dashboard-alert-empty,
+[data-bs-theme="dark"] .dashboard-alert-empty {
+  color: var(--ds-text-secondary);
+}
