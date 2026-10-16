@@ -2,6 +2,7 @@
 {% block title %}Tableau de bord · Bar Manager Pro{% endblock %}
 {% block header %}Tableau de bord{% endblock %}
 {% block content %}
+<link href="{{ url_for('static', filename='dashboard_kpi_charts.css') }}" rel="stylesheet">
 <section class="dashboard-hero">
   <div>
     <p class="eyebrow mb-2">Vue d'ensemble</p>
@@ -117,6 +118,37 @@
     {% endfor %}
   </div>
 
+
+  <div class="dashboard-kpi-charts mt-3" aria-label="Visualisation des indicateurs clés">
+    <article class="dashboard-kpi-chart-card">
+      <div class="dashboard-kpi-chart-heading">
+        <div><span class="eyebrow">Flux financiers</span><h3>Indicateurs monétaires</h3></div>
+        <small>Valeurs réelles du tableau de bord · {{ dashboard_data.currency }}</small>
+      </div>
+      <div class="dashboard-kpi-chart-area"><canvas id="kpiFinanceChart" role="img" aria-label="Comparaison des ventes, encaissements, dépenses, dettes et bénéfice"></canvas></div>
+    </article>
+    <article class="dashboard-kpi-chart-card">
+      <div class="dashboard-kpi-chart-heading">
+        <div><span class="eyebrow">Stocks</span><h3>Valorisation du stock</h3></div>
+        <small>Achat et vente · {{ dashboard_data.currency }}</small>
+      </div>
+      <div class="dashboard-kpi-chart-area"><canvas id="kpiStockChart" role="img" aria-label="Comparaison de la valeur du stock à l'achat et à la vente"></canvas></div>
+    </article>
+  </div>
+  <script id="dashboard-kpi-data" type="application/json">{{ {
+    "currency": dashboard_data.currency,
+    "finance": [
+      dashboard_data.values.today_sales|string,
+      dashboard_data.values.today_receipts|string,
+      dashboard_data.values.today_expenses|string,
+      dashboard_data.values.supplier_debt|string,
+      dashboard_data.values.estimated_profit|string
+    ],
+    "stock": [
+      dashboard_data.values.stock_purchase_value|string,
+      dashboard_data.values.stock_sale_value|string
+    ]
+  }|tojson }}</script>
   <div class="dashboard-definition-note mt-3">
     <strong>Lecture des chiffres :</strong>
     <span>« Ventes du jour » inclut les commandes soldées par paiement ou par crédit client. « Total encaissé » contient uniquement l'argent réellement reçu, net des remboursements.</span>
@@ -304,8 +336,13 @@
 {% endblock %}
 
 {% block scripts %}
-{% if chart_data %}
+{% if dashboard_data or chart_data %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+{% endif %}
+{% if dashboard_data %}
+<script src="{{ url_for('static', filename='dashboard_kpi_charts.js') }}" defer></script>
+{% endif %}
+{% if chart_data %}
 <script id="dashboard-chart-data" type="application/json">{{ chart_data|tojson }}</script>
 <script src="{{ url_for('static', filename='dashboard_charts.js') }}" defer></script>
 {% endif %}
