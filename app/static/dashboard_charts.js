@@ -18,6 +18,15 @@
   const receiptsColor = '#3478c7';
   const expensesColor = '#c94d4d';
   const currency = data.currency || 'XAF';
+  const compact = window.matchMedia('(max-width: 640px)').matches;
+  const wrapLabel = (value, limit = 20) => {
+    const str = String(value ?? '');
+    if (str.length <= limit) return str;
+    const words = str.split(/\\s+/); const lines = []; let part = '';
+    words.forEach((word) => { if (part && (part + ' ' + word).length > limit) { lines.push(part); part = word; } else { part = part ? part + ' ' + word : word; } });
+    if (part) lines.push(part);
+    return lines.slice(0, 3);
+  };
 
   const money = new Intl.NumberFormat('fr-FR', {
     maximumFractionDigits: 0,
@@ -66,7 +75,7 @@
           },
           y: {
             grid: { display: false },
-            ticks: { color: ink, font: { weight: '600' } },
+            ticks: { color: ink, font: { weight: '600' }, callback: function(value) { return wrapLabel(this.getLabelForValue(value), compact ? 13 : 22); } },
           },
         },
       },
@@ -133,7 +142,7 @@
           },
         },
         scales: {
-          x: { grid: { display: false } },
+          x: { grid: { display: false }, ticks: { autoSkip: true, maxRotation: compact ? 35 : 0 } },
           y: {
             beginAtZero: true,
             stacked: true,
@@ -207,7 +216,7 @@
         scales: {
           x: {
             grid: { display: false },
-            ticks: { color: ink, font: { weight: '600' } },
+            ticks: { color: ink, font: { weight: '600' }, maxRotation: compact ? 35 : 0 },
           },
           y: {
             beginAtZero: true,
