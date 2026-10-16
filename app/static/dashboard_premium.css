@@ -185,3 +185,92 @@
   .dashboard-page .dashboard-chart-card,
   .dashboard-page .dashboard-alert-panel{background:#fafffc;backdrop-filter:none;-webkit-backdrop-filter:none}
 }
+
+
+/* Dashboard SaaS V3: compositional redesign, applied after legacy styles.
+   The decor is behind glass surfaces; controls and text remain fully opaque. */
+.content-area:has(> .dashboard-page) {
+  --dash-emerald:#0f725f;--dash-ink:#123b30;--dash-mint:#e3f6ed;
+  background:
+    radial-gradient(ellipse 35% 21% at 95% 7%,rgba(36,187,141,.28),transparent 100%),
+    radial-gradient(ellipse 40% 26% at 0% 43%,rgba(51,183,137,.2),transparent 100%),
+    radial-gradient(ellipse 52% 27% at 92% 87%,rgba(122,221,181,.26),transparent 100%),
+    linear-gradient(135deg,#daf3e5,#ecfaf2 36%,#e0f4ea 80%,#d5efe3);
+  padding:clamp(12px,2vw,32px);
+  border-radius:24px;
+}
+.dashboard-page{display:grid;gap:clamp(1rem,1.8vw,1.7rem)}
+.dashboard-page .dashboard-hero {
+  position:relative;display:grid;grid-template-columns:minmax(0,1.6fr) minmax(200px,.8fr);
+  align-items:center;gap:clamp(1.2rem,2.7vw,2.7rem);
+  background:linear-gradient(120deg,rgba(255,255,255,.8),rgba(224,252,238,.43));
+  border:1px solid rgba(255,255,255,.95);
+  border-radius:28px;
+  padding:clamp(1.35rem,3.5vw,3.3rem);
+  box-shadow:0 20px 60px rgba(8,91,63,.13),inset 0 1px rgba(255,255,255,.9);
+  -webkit-backdrop-filter:blur(24px) saturate(160%);
+  backdrop-filter:blur(24px) saturate(160%);
+  overflow:hidden;
+}
+.dashboard-page .dashboard-hero-glow {position:absolute;pointer-events:none;width:clamp(170px,30vw,420px);aspect-ratio:1;border-radius:50%;right:-9%;top:-75%;background:radial-gradient(circle,rgba(45,202,151,.29),transparent 74%)}
+.dashboard-page .dashboard-hero>div:not(.dashboard-hero-glow){position:relative;z-index:1}
+.dashboard-page .dashboard-hero h1{font-size:clamp(1.75rem,3vw,3rem);letter-spacing:-.05em;font-weight:850;color:#123b30;max-width:19ch}
+.dashboard-page .dashboard-hero .eyebrow{display:flex;align-items:center;gap:.5rem;letter-spacing:.12em}
+.dashboard-live-dot{height:8px;width:8px;border-radius:50%;background:#16865d;box-shadow:0 0 0 4px rgba(22,134,93,.12);flex:0 0 8px}
+.dashboard-page .dashboard-hero-actions{display:flex;flex-direction:column;align-items:stretch;justify-content:center;min-width:0;margin:0}
+.dashboard-page .dashboard-hero-actions>.btn,.dashboard-page .dashboard-bar-selector{width:100%;max-width:100%;min-width:0}
+.dashboard-page .dashboard-hero-actions .hero-badge{text-align:center;padding:1rem;max-width:100%;overflow-wrap:anywhere}
+.dashboard-page .dashboard-bar-selector{padding:1rem 1.15rem}
+.dashboard-page .dashboard-bar-selector select{width:100%}
+.dashboard-page .dashboard-section{min-width:0;margin-top:0!important}
+.dashboard-page .dashboard-section-heading{margin-bottom:1rem;padding-inline:.25rem}
+.dashboard-page .dashboard-section-heading h2{font-size:clamp(1.16rem,1.5vw,1.55rem);font-weight:850}
+.dashboard-page .depot-stats-grid{grid-template-columns:repeat(auto-fit,minmax(min(100%,205px),1fr));gap:clamp(.75rem,1.15vw,1.15rem)}
+.dashboard-page .depot-stat-card{min-height:195px;border-radius:24px;box-shadow:0 12px 30px rgba(10,97,73,.10),inset 0 1px rgba(255,255,255,.88);transition:transform .2s ease,box-shadow .2s ease;overflow:hidden}
+.dashboard-page .depot-stat-card:after{content:"";position:absolute;right:-44px;top:-46px;width:115px;height:115px;background:radial-gradient(circle, color-mix(in srgb,var(--card-tone,#0f725f) 18%,transparent),transparent 73%);pointer-events:none}
+.dashboard-page .depot-stat-content{padding:clamp(1rem,1.5vw,1.45rem);justify-content:flex-start;gap:.6rem;width:100%}
+.dashboard-page .depot-stat-symbol{height:45px;width:45px;background:rgba(255,255,255,.74);border:1px solid rgba(255,255,255,.9);box-shadow:0 4px 12px rgba(15,114,95,.05)}
+.dashboard-page .depot-stat-label{font-size:.71rem;letter-spacing:.08em;min-height:1.6rem;color:#456c5c}
+.dashboard-page .depot-stat-value{font-size:clamp(1.38rem,2vw,2.3rem);overflow-wrap:anywhere;word-break:normal;line-height:1.17;color:#113f30}
+.dashboard-page .depot-stat-value small{display:inline;font-size:.61rem;font-weight:800;color:#507265;letter-spacing:.04em}
+.dashboard-page .depot-stat-helper{margin-top:auto;color:#577769;font-size:.76rem}
+.dashboard-page .dashboard-alert-summary{grid-template-columns:repeat(auto-fit,minmax(min(100%,165px),1fr));gap:.9rem}
+.dashboard-page .dashboard-alert-counter{min-height:140px;padding:1rem;gap:.4rem;border-radius:22px;box-shadow:0 9px 25px rgba(10,97,73,.07),inset 0 1px #fff}
+.dashboard-page .dashboard-alert-counter strong{font-size:clamp(1.45rem,2vw,1.9rem)}
+.dashboard-page .dashboard-alert-counter small{font-size:.76rem}
+.dashboard-page .dashboard-alert-counter:hover{background:rgba(255,255,255,.76)}
+.dashboard-page .dashboard-alert-grid{gap:1rem}
+.dashboard-page .dashboard-alert-panel,.dashboard-page .dashboard-chart-card{border-radius:24px;box-shadow:0 15px 35px rgba(10,97,73,.08),inset 0 1px rgba(255,255,255,.8)}
+.dashboard-page .dashboard-alert-panel-head,.dashboard-page .dashboard-chart-head{padding:clamp(1rem,1.6vw,1.35rem);min-height:85px}
+.dashboard-page .dashboard-chart-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:1rem}
+.dashboard-page .dashboard-chart-card-wide{grid-column:1 / -1}
+.dashboard-page .dashboard-chart-canvas{height:340px;min-height:0;padding:clamp(.85rem,1.4vw,1.35rem)}
+.dashboard-page .dashboard-chart-canvas-products{height:365px}
+.dashboard-page .dashboard-chart-canvas-trend{height:340px}
+.dashboard-page .dashboard-chart-canvas canvas{display:block;width:100%!important;height:100%!important}
+.dashboard-page .dashboard-chart-empty{min-height:240px}
+.dashboard-page .dashboard-definition-note{border-radius:18px;padding:1rem 1.15rem}
+.dashboard-page .inventory-control-grid{grid-template-columns:repeat(auto-fit,minmax(min(100%,210px),1fr))}
+.dashboard-page .inventory-control-card,.dashboard-page .dashboard-activity-card{background:rgba(255,255,255,.55);border:1px solid rgba(255,255,255,.88);-webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px);box-shadow:0 12px 30px rgba(10,97,73,.08)}
+.dashboard-page .dashboard-activity-row,.dashboard-page .dashboard-alert-row{overflow-wrap:anywhere}
+.dashboard-page .dashboard-alert-row .text-end{max-width:46%}
+.dashboard-page .dashboard-alert-row .alert-value{white-space:normal;overflow-wrap:anywhere}
+.dashboard-page .dashboard-bar-selector:focus-within{outline:2px solid #f2b544;outline-offset:3px}
+@media(max-width:1279.98px){.dashboard-page .dashboard-hero{grid-template-columns:minmax(0,1fr) minmax(200px,.7fr)}}
+@media(max-width:1100px){.dashboard-page .dashboard-chart-grid{grid-template-columns:1fr}.dashboard-page .dashboard-chart-card-wide{grid-column:auto}}
+@media(max-width:767.98px){
+ .content-area:has(> .dashboard-page){padding:12px;border-radius:16px}
+ .dashboard-page .dashboard-hero{grid-template-columns:1fr;padding:1.35rem;border-radius:22px}
+ .dashboard-page .dashboard-hero h1{max-width:none}
+ .dashboard-page .dashboard-hero-actions{width:100%;align-items:stretch;gap:.6rem}
+ .dashboard-page .depot-stats-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .dashboard-page .depot-stat-card{min-height:175px}
+ .dashboard-page .dashboard-chart-canvas,.dashboard-page .dashboard-chart-canvas-products,.dashboard-page .dashboard-chart-canvas-trend{height:320px}
+ .dashboard-page .dashboard-alert-grid{grid-template-columns:1fr}
+}
+@media(max-width:428px){.dashboard-page .depot-stats-grid{grid-template-columns:1fr}.dashboard-page .depot-stat-card{min-height:153px}.dashboard-page .depot-stat-content{gap:.45rem}}
+@media(max-width:359px){.dashboard-page .dashboard-alert-summary{grid-template-columns:1fr}.dashboard-page .dashboard-chart-canvas{height:290px;padding:.6rem}}
+@media(prefers-reduced-motion:reduce){.dashboard-page .depot-stat-card{transition:none}.dashboard-page .depot-stat-card:hover{transform:none}}
+@supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){
+ .dashboard-page .dashboard-hero,.dashboard-page .depot-stat-card,.dashboard-page .dashboard-chart-card,.dashboard-page .dashboard-alert-panel{background:#fafffc}
+}
