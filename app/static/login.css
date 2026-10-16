@@ -1,0 +1,60 @@
+/* Login-only guardrails. Loaded after Bootstrap, app.css and design-system.css.
+   Do not rely on inherited Bootstrap CSS variables for the critical CTA. */
+.login-page { min-height:100vh; min-height:100dvh; background:#f3f7f5; color:#172b25; }
+.login-shell { min-height:100vh; min-height:100dvh; }
+.login-brand-panel { isolation:isolate; }
+.login-brand-content { width:100%; }
+.login-brand-content h1 { text-wrap:balance; }
+.login-form-panel { min-width:0; }
+.login-card { min-width:0; }
+.login-card .eyebrow { color:#0b5b4c; }
+.login-form .form-control { width:100%; background:#fff; color:#172b25; border:1px solid #cbdcd4; transition:border-color .18s ease,box-shadow .18s ease; }
+.login-form .form-control:focus { border-color:#0f725f; background:#fff; color:#172b25; box-shadow:0 0 0 .23rem rgba(15,114,95,.15); }
+.login-form .form-control::placeholder { color:#73877e; }
+.login-form .password-field { min-width:0; }
+.login-form .password-toggle { right:8px; min-height:42px; min-width:72px; padding:0 8px; border-radius:8px; color:#0b5b4c; }
+.login-form .password-toggle:hover { background:#e8f5ef; }
+.login-form .password-toggle:focus-visible { outline:3px solid #d68a17; outline-offset:2px; }
+.login-page .login-form .login-submit.btn.btn-primary {
+  --bs-btn-bg:#0f725f; --bs-btn-color:#fff; --bs-btn-border-color:#0f725f;
+  --bs-btn-hover-bg:#0b3f36; --bs-btn-hover-color:#fff; --bs-btn-hover-border-color:#0b3f36;
+  --bs-btn-active-bg:#09372f; --bs-btn-active-color:#fff; --bs-btn-active-border-color:#09372f;
+  --bs-btn-disabled-bg:#647f75; --bs-btn-disabled-color:#fff; --bs-btn-disabled-border-color:#647f75;
+  position:relative; display:flex; align-items:center; justify-content:center;
+  width:100%; min-height:56px; padding:.85rem 1.1rem;
+  color:#fff; background:#0f725f; border:1px solid #0f725f;
+  border-radius:12px; box-shadow:0 9px 20px rgba(15,114,95,.16);
+  font-weight:800; line-height:1.35; opacity:1; visibility:visible;
+}
+.login-page .login-form .login-submit.btn.btn-primary:hover:not(:disabled) {
+  color:#fff; background:#0b3f36; border-color:#0b3f36; box-shadow:0 12px 22px rgba(11,63,54,.2);
+}
+.login-page .login-form .login-submit.btn.btn-primary:focus-visible {
+  color:#fff; background:#0f725f; border-color:#0f725f;
+  outline:3px solid #d68a17; outline-offset:3px; box-shadow:0 0 0 5px rgba(214,138,23,.18);
+}
+.login-page .login-form .login-submit.btn.btn-primary:active:not(:disabled) {
+  color:#fff; background:#09372f; border-color:#09372f; transform:none;
+}
+.login-page .login-form .login-submit.btn.btn-primary:disabled {
+  color:#fff; background:#647f75; border-color:#647f75;
+  opacity:1; box-shadow:none; cursor:not-allowed;
+}
+.login-page .login-alert { color:#84252e; background:#fdecef; border:1px solid #edb7be; }
+@media(max-width:991.98px) {
+  .login-form-panel { min-height:100vh; min-height:100dvh; padding:clamp(1rem,4vw,2.5rem); }
+  .login-card { max-width:530px; }
+}
+@media(max-width:480px) {
+  .login-form-panel { align-items:flex-start; padding:clamp(1rem,5vw,1.5rem); }
+  .login-card { margin-block:auto; padding:clamp(1.15rem,4vw,1.55rem); }
+  .login-card h2 { font-size:clamp(1.5rem,6vw,1.9rem); }
+  .login-form .form-control { min-height:52px; }
+}
+@media(max-width:359.98px) {
+  .login-card { padding:1rem; }
+  .login-form .password-field .form-control { padding-right:88px; }
+}
+@media(prefers-reduced-motion:reduce) {
+  .login-form .form-control,.login-page .login-form .login-submit.btn.btn-primary { transition:none; }
+}
