@@ -1,0 +1,49 @@
+/* Premium dashboard v4 — purely presentational, scoped to the dashboard. */
+.dashboard-page .dashboard-hero {align-items:center; flex-wrap:wrap; gap:1.25rem; padding:clamp(1.25rem,2.5vw,2.3rem); border:1px solid var(--ds-border); border-radius:var(--ds-radius-xl); background:linear-gradient(115deg,rgba(232,245,239,.93),rgba(255,255,255,.93));box-shadow:var(--ds-shadow-sm);}
+.dashboard-page .dashboard-hero>div:first-child{min-width:0;flex:1 1 21rem}
+.dashboard-page .dashboard-hero h1{font-size:clamp(1.65rem,3.1vw,2.8rem);line-height:1.15;overflow-wrap:anywhere}
+.dashboard-page .dashboard-hero p{max-width:65ch}
+.dashboard-page .dashboard-hero-actions{min-width:0;max-width:100%;align-items:center}
+.dashboard-page .dashboard-bar-selector{max-width:100%;background:var(--ds-surface-elevated);border-color:var(--ds-border);box-shadow:var(--ds-shadow-xs)}
+.dashboard-page .dashboard-bar-selector .form-select{min-width:0}
+.dashboard-page .dashboard-section-heading{align-items:center;flex-wrap:wrap}
+.dashboard-page .dashboard-section-heading>div{min-width:0}
+.dashboard-page .dashboard-section-heading h2{font-size:clamp(1.12rem,1.65vw,1.45rem);line-height:1.28;overflow-wrap:anywhere}
+.dashboard-page .depot-stats-grid{grid-template-columns:repeat(auto-fit,minmax(min(100%,185px),1fr));gap:clamp(.65rem,1.3vw,1rem)}
+.dashboard-page .depot-stat-card,.dashboard-page .dashboard-chart-card,.dashboard-page .dashboard-alert-panel,.dashboard-page .inventory-control-card,.dashboard-page .panel-card,.dashboard-page .stat-card {background:var(--ds-surface-elevated);border:1px solid var(--ds-border);border-radius:var(--ds-radius-lg);box-shadow:var(--ds-shadow-sm)}
+.dashboard-page .depot-stat-card{min-width:0;min-height:158px;isolation:isolate;transition:border-color .18s ease,transform .18s ease,box-shadow .18s ease}
+.dashboard-page .depot-stat-card:before{content:"";position:absolute;inset:0;background:linear-gradient(140deg,rgba(255,255,255,.34),transparent 75%);pointer-events:none;z-index:-1}
+.dashboard-page .depot-stat-accent{width:4px;flex-basis:4px;background:var(--card-tone,var(--ds-primary))}
+.dashboard-page .depot-stat-content{flex:1;padding:clamp(1rem,1.5vw,1.25rem);gap:.6rem}
+.dashboard-page .depot-stat-label{font-size:.72rem;color:var(--ds-text-secondary)}
+.dashboard-page .depot-stat-value{font-size:clamp(1.25rem,2.15vw,2.1rem);line-height:1.15;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
+.dashboard-page .depot-stat-value small{white-space:normal;color:var(--ds-text-secondary)}
+.dashboard-page .depot-stat-helper{color:var(--ds-text-secondary)}
+.dashboard-page .depot-stat-symbol{width:35px;height:35px;display:flex;align-items:center;justify-content:center;background:var(--ds-primary-soft);color:var(--card-tone,var(--ds-primary));border-radius:11px;margin-bottom:.15rem}
+.dashboard-page .depot-stat-symbol svg,.dashboard-page .alert-counter-icon svg{width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.dashboard-page .dashboard-alert-summary{grid-template-columns:repeat(auto-fit,minmax(min(100%,142px),1fr));gap:.8rem}
+.dashboard-page .dashboard-alert-counter{min-width:0;min-height:112px;border-color:var(--ds-border);background:var(--ds-surface-elevated);box-shadow:var(--ds-shadow-xs);overflow-wrap:anywhere}
+.dashboard-page .dashboard-alert-counter strong{font-variant-numeric:tabular-nums;font-size:clamp(1.3rem,2vw,1.75rem)}
+.dashboard-page .dashboard-alert-counter small{color:var(--ds-text-secondary)}
+.dashboard-page .alert-counter-icon{background:var(--ds-primary-soft);color:var(--ds-primary)}
+.dashboard-page .dashboard-alert-panel-head,.dashboard-page .dashboard-chart-head{background:var(--ds-surface-subtle);border-bottom-color:var(--ds-border);gap:.65rem;flex-wrap:wrap}
+.dashboard-page .dashboard-alert-panel-head>div,.dashboard-page .dashboard-chart-head>div{min-width:0}
+.dashboard-page .dashboard-alert-panel-head a,.dashboard-page .alert-action-link{white-space:normal;overflow-wrap:anywhere}
+.dashboard-page .dashboard-alert-row{min-width:0;border-bottom-color:var(--ds-border);gap:.7rem}
+.dashboard-page .dashboard-alert-row>div{min-width:0;overflow-wrap:anywhere}
+.dashboard-page .dashboard-alert-row .text-end{flex-shrink:0}
+.dashboard-page .dashboard-chart-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:clamp(.8rem,1.5vw,1.1rem)}
+.dashboard-page .dashboard-chart-canvas{min-width:0;min-height:320px}
+.dashboard-page .dashboard-chart-canvas canvas{max-width:100%!important}
+.dashboard-page .dashboard-definition-note{background:var(--ds-primary-soft);color:var(--ds-text-secondary);border-color:var(--ds-border);flex-wrap:wrap}
+.dashboard-page .dashboard-definition-note strong{color:var(--ds-primary-strong)}
+.dashboard-page .dashboard-chart-empty,.dashboard-page .dashboard-alert-empty{color:var(--ds-text-secondary)}
+.dashboard-page a:focus-visible,.dashboard-page button:focus-visible,.dashboard-page select:focus-visible,.dashboard-page summary:focus-visible{outline:3px solid var(--ds-gold);outline-offset:3px}
+.dashboard-page .btn-primary{--bs-btn-color:#fff;--bs-btn-hover-color:#fff;--bs-btn-active-color:#fff}
+.dashboard-page .dashboard-alert-counter:focus-visible{outline:3px solid var(--ds-gold);outline-offset:3px}
+@media(hover:hover){.dashboard-page .depot-stat-card:hover{transform:translateY(-2px);border-color:var(--ds-border-strong);box-shadow:var(--ds-shadow-md)}}
+@media(max-width:1199.98px){.dashboard-page .dashboard-chart-grid{grid-template-columns:1fr}}
+@media(max-width:767.98px){.dashboard-page .dashboard-hero{padding:1.1rem}.dashboard-page .dashboard-hero-actions{width:100%;justify-content:flex-start}.dashboard-page .dashboard-section-heading{align-items:flex-start}.dashboard-page .depot-stats-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.dashboard-page .dashboard-alert-grid{grid-template-columns:1fr}.dashboard-page .dashboard-chart-canvas{min-height:290px}}
+@media(max-width:390px){.dashboard-page .depot-stats-grid{grid-template-columns:1fr}.dashboard-page .dashboard-alert-summary{grid-template-columns:repeat(2,minmax(0,1fr))}.dashboard-page .dashboard-alert-counter{padding:11px}.dashboard-page .dashboard-chart-head{align-items:flex-start}}
+@media(max-width:349px){.dashboard-page .dashboard-alert-summary{grid-template-columns:1fr}}
+@media(prefers-reduced-motion:reduce){.dashboard-page .depot-stat-card,.dashboard-page .dashboard-alert-counter{transition:none}.dashboard-page .depot-stat-card:hover{transform:none}}
