@@ -1,0 +1,16 @@
+name: PWA installation safety tests
+on:
+  push:
+    paths: ['app/static/sw.js','app/static/pwa.js','app/static/manifest.webmanifest','app/templates/layout.html','app/templates/login.html','app/web.py','tests/test_pwa.py','.github/workflows/pwa-tests.yml']
+  pull_request:
+    paths: ['app/static/sw.js','app/static/pwa.js','app/static/manifest.webmanifest','app/templates/layout.html','app/templates/login.html','app/web.py','tests/test_pwa.py','.github/workflows/pwa-tests.yml']
+jobs:
+  pwa:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r requirements.txt
+      - run: pytest -q tests/test_pwa.py tests/test_auth.py
