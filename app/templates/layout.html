@@ -71,6 +71,9 @@
     </div>
 
     <div class="sidebar-footer">
+      <button type="button" class="btn btn-outline-light w-100 mb-3 pwa-install-trigger" data-pwa-install hidden>
+        ⬇ Installer l'application
+      </button>
       <div class="user-mini">
         <span class="user-avatar">{{ (current_user.display_name or 'U')[0]|upper }}</span>
         <div><strong>{{ current_user.display_name }}</strong><small>{{ current_user.category|replace('_',' ')|title }}</small></div>
@@ -92,6 +95,9 @@
         <span class="user-avatar">{{ (current_user.display_name or 'U')[0]|upper }}</span>
         <div><strong>{{ current_user.display_name }}</strong><small>{{ current_user.category|replace('_',' ')|title }}</small></div>
       </div>
+      <button type="button" class="btn btn-primary w-100 mt-3 pwa-install-trigger" data-pwa-install hidden>
+        ⬇ Installer l'application
+      </button>
       <form method="post" action="{{ url_for('auth.web_logout') }}" class="mt-2">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <button class="btn btn-outline-danger w-100" type="submit">Déconnexion</button>
@@ -172,7 +178,18 @@
     {% endif %}
   </div>
 </div>
+<div class="modal fade" id="pwaInstallHelp" tabindex="-1" aria-labelledby="pwaInstallHelpTitle" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered"><div class="modal-content">
+    <div class="modal-header">
+      <h2 class="modal-title fs-5" id="pwaInstallHelpTitle">Installer Bar Manager Pro</h2>
+      <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
+    </div>
+    <div class="modal-body" id="pwaInstallHelpText" role="status"></div>
+    <div class="modal-footer"><button type="button" class="btn btn-primary" data-bs-dismiss="modal">Compris</button></div>
+  </div></div>
+</div>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="{{ url_for('static', filename='pwa_install.js') }}" defer></script>
 <script src="{{ url_for('static', filename='purchases_ui.js') }}" defer></script>
 <script src="{{ url_for('static', filename='product_images_ui.js') }}" defer></script>
 <script src="{{ url_for('static', filename='server_pos_ui.js') }}" defer></script>
