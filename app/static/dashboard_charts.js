@@ -11,12 +11,12 @@
 
   const styles = getComputedStyle(document.body);
   const brand = styles.getPropertyValue('--ds-primary').trim() || '#20d9d1';
-  const accent = '#9364f5';
-  const ink = '#e4f1ff';
-  const muted = '#b6c9e4';
-  const line = 'rgba(114,160,208,.18)';
-  const receiptsColor = '#48a5ff';
-  const expensesColor = '#a06afb';
+  const accent = '#79c999';
+  const ink = '#213c29';
+  const muted = '#62796b';
+  const line = 'rgba(68,121,84,.13)';
+  const receiptsColor = '#22a466';
+  const expensesColor = '#8a9e92';
   const currency = data.currency || 'XAF';
   const compact = window.matchMedia('(max-width: 640px)').matches;
   const areaFill = (context, color) => {
@@ -24,7 +24,7 @@
     const {ctx, chartArea} = chart;
     if (!chartArea) return color;
     const gradient = ctx.createLinearGradient(0, chartArea.top, 0, chartArea.bottom);
-    gradient.addColorStop(0, color === brand ? 'rgba(37,218,202,.24)' : color === receiptsColor ? 'rgba(72,165,255,.18)' : 'rgba(149,101,247,.16)');
+    gradient.addColorStop(0, color === brand ? 'rgba(22,163,74,.18)' : color === receiptsColor ? 'rgba(34,164,102,.13)' : 'rgba(138,158,146,.13)');
     gradient.addColorStop(1, 'rgba(5,17,38,0)');
     return gradient;
   };
@@ -45,7 +45,7 @@
   Chart.defaults.font.family = getComputedStyle(document.body).fontFamily;
   Chart.defaults.borderColor = line;
   Chart.defaults.animation = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? false : { duration: 350 };
-  Chart.defaults.plugins.tooltip.backgroundColor = '#142744';
+  Chart.defaults.plugins.tooltip.backgroundColor = '#183c29';
   Chart.defaults.plugins.tooltip.titleColor = '#FFFFFF';
   Chart.defaults.plugins.tooltip.bodyColor = '#FFFFFF';
   Chart.defaults.plugins.tooltip.cornerRadius = 10;
