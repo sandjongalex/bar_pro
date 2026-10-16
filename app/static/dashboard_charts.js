@@ -9,14 +9,14 @@
     return;
   }
 
-  const styles = getComputedStyle(document.documentElement);
-  const brand = styles.getPropertyValue('--ds-primary').trim() || '#0F725F';
-  const accent = styles.getPropertyValue('--accent').trim() || '#f2b544';
-  const ink = styles.getPropertyValue('--ds-text').trim() || '#172B25';
-  const muted = styles.getPropertyValue('--ds-text-secondary').trim() || '#667A72';
-  const line = styles.getPropertyValue('--ds-border').trim() || '#DDE8E3';
-  const receiptsColor = '#3478c7';
-  const expensesColor = '#c94d4d';
+  const styles = getComputedStyle(document.body);
+  const brand = styles.getPropertyValue('--ds-primary').trim() || '#20d9d1';
+  const accent = '#9364f5';
+  const ink = '#e4f1ff';
+  const muted = '#b6c9e4';
+  const line = 'rgba(114,160,208,.18)';
+  const receiptsColor = '#48a5ff';
+  const expensesColor = '#a06afb';
   const currency = data.currency || 'XAF';
   const compact = window.matchMedia('(max-width: 640px)').matches;
   const wrapLabel = (value, limit = 20) => {
@@ -34,8 +34,9 @@
 
   Chart.defaults.color = muted;
   Chart.defaults.font.family = getComputedStyle(document.body).fontFamily;
+  Chart.defaults.borderColor = line;
   Chart.defaults.animation = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? false : { duration: 350 };
-  Chart.defaults.plugins.tooltip.backgroundColor = '#12392F';
+  Chart.defaults.plugins.tooltip.backgroundColor = '#142744';
   Chart.defaults.plugins.tooltip.titleColor = '#FFFFFF';
   Chart.defaults.plugins.tooltip.bodyColor = '#FFFFFF';
   Chart.defaults.plugins.tooltip.cornerRadius = 10;

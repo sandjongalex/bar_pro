@@ -1,0 +1,112 @@
+
+/* Midnight Finance — reference-inspired navy/cyan SaaS dashboard.
+   Scoped to dashboards only; no controls or business logic are hidden. */
+body:has(.dashboard-page) {
+  --ds-page:#061125;--ds-surface:#0b1c36;--ds-surface-subtle:#102341;
+  --ds-surface-elevated:#102441;--ds-text:#f0f7ff;--ds-text-secondary:#a7bfda;
+  --ds-text-muted:#8faacc;--ds-border:#263e60;--ds-border-strong:#3c638f;
+  --ds-primary:#1ed9d3;--ds-primary-rgb:30,217,211;--ds-primary-strong:#0ca5b7;
+  --ds-primary-soft:#12394e;--brand:#42d9ea;--brand-dark:#1bb9cf;
+  --brand-soft:#153753;--ink:#eff7ff;--muted:#afc2dc;--line:#294362;
+  --surface:#102340;--page:#061125;--accent:#49ddf2;
+  --shadow:0 16px 40px rgba(0,6,22,.28);
+  color:#e9f5ff;background:#051126;
+}
+body:has(.dashboard-page) .app-main {background:linear-gradient(145deg,#07152b,#051025 45%,#071830)}
+body:has(.dashboard-page) .sidebar{background:linear-gradient(180deg,#081b36,#07142a);border-right:1px solid #1c4972}
+body:has(.dashboard-page) .topbar{background:rgba(7,23,46,.96);border-bottom:1px solid #254568;color:#e6f3ff}
+body:has(.dashboard-page) .topbar a,body:has(.dashboard-page) .mobile-nav a{color:#b9e8f5}
+body:has(.dashboard-page) .context-nav,body:has(.dashboard-page) .global-mobile-bottom{background:#0b203c;color:#d7eafa}
+body:has(.dashboard-page) .app-nav .nav-link.active{background:linear-gradient(110deg,#15447d,#0c2a4b);border:1px solid #2c84d5;box-shadow:0 0 19px rgba(38,136,243,.23);color:#fff}
+body:has(.dashboard-page) .content-area:has(> .dashboard-page){
+  background:radial-gradient(ellipse 40% 22% at 95% 4%,rgba(31,119,190,.2),transparent),
+  radial-gradient(ellipse 40% 27% at 6% 48%,rgba(14,75,126,.18),transparent),
+  linear-gradient(145deg,#07162d 0%,#061329 60%,#08192f 100%);
+  border-radius:20px;overflow:visible;
+}
+body:has(.dashboard-page) .content-area:has(> .dashboard-page)::before,
+body:has(.dashboard-page) .content-area:has(> .dashboard-page)::after{opacity:.24}
+.dashboard-page{--mint-glass:rgba(12,31,58,.93);--mint-glass-heavy:rgba(15,38,69,.96);--mint-edge:#294e75;--mint-shadow:0 12px 34px rgba(0,6,24,.32),inset 0 1px 0 rgba(86,164,226,.12);color:#e9f5ff}
+.dashboard-page .dashboard-hero{
+  background:linear-gradient(115deg,rgba(15,38,72,.96),rgba(8,31,57,.94));
+  border:1px solid #2a5888;box-shadow:0 16px 45px rgba(0,5,21,.4);
+}
+.dashboard-page .dashboard-hero::after,.dashboard-page .dashboard-hero-glow{background:radial-gradient(circle,rgba(0,169,250,.25),transparent 72%)}
+.dashboard-page .dashboard-hero h1,.dashboard-page .dashboard-section-heading h2{color:#f3f9ff}
+.dashboard-page .dashboard-hero p:not(.eyebrow){color:#acc3da}
+.dashboard-page .dashboard-hero .eyebrow,.dashboard-page .eyebrow{color:#50d8ed}
+.dashboard-page .dashboard-live-dot{background:#38e1d2;box-shadow:0 0 0 4px rgba(56,225,210,.14)}
+.dashboard-page .dashboard-bar-selector,.dashboard-page .depot-stat-card,
+.dashboard-page .dashboard-alert-counter,.dashboard-page .dashboard-alert-panel,
+.dashboard-page .dashboard-chart-card,.dashboard-page .inventory-control-card,
+.dashboard-page .inventory-stock-control,.dashboard-page .dashboard-activity-card,
+.dashboard-page .stat-card,.dashboard-page .panel-card{
+  background:linear-gradient(145deg,rgba(18,45,79,.95),rgba(8,27,53,.96));
+  border:1px solid #28527d;box-shadow:0 12px 34px rgba(0,5,20,.37),inset 0 1px 0 rgba(102,186,241,.09);
+  -webkit-backdrop-filter:blur(18px);backdrop-filter:blur(18px);
+}
+.dashboard-page .depot-stat-card:nth-child(4n+1){border-color:#237ca9;box-shadow:0 0 20px rgba(0,177,243,.1),inset 0 1px 0 rgba(102,186,241,.14)}
+.dashboard-page .depot-stat-card:nth-child(4n+2){border-color:#256c8c}
+.dashboard-page .depot-stat-card:nth-child(4n+3){border-color:#51508d}
+.dashboard-page .depot-stat-card:before{background:linear-gradient(140deg,rgba(67,148,228,.11),transparent 75%)}
+.dashboard-page .depot-stat-card:after{opacity:.8}
+.dashboard-page .depot-stat-symbol,.dashboard-page .alert-counter-icon{
+  background:rgba(18,74,104,.76);border-color:#315d84;color:#40d8ea;
+}
+.dashboard-page .depot-stat-label,.dashboard-page .depot-stat-helper,
+.dashboard-page .dashboard-alert-counter small{color:#abc2dc}
+.dashboard-page .depot-stat-value,.dashboard-page .dashboard-alert-counter strong{color:#f4fbff;text-shadow:0 1px 12px rgba(70,183,252,.12)}
+.dashboard-page .depot-stat-value small{color:#a9cee5}
+.dashboard-page .dashboard-alert-counter{color:#f2f8ff}
+.dashboard-page .dashboard-alert-counter:hover{background:#15375c;border-color:#399bd3;color:#fff}
+.dashboard-page .dashboard-alert-counter:focus-visible{outline:3px solid #55d6f8}
+.dashboard-page .dashboard-alert-panel-head,.dashboard-page .dashboard-chart-head{
+  background:rgba(15,43,78,.82);border-bottom:1px solid #254b73;color:#eff8ff
+}
+.dashboard-page .dashboard-alert-panel-head h3,.dashboard-page .dashboard-chart-head h3{color:#edf8ff}
+.dashboard-page .dashboard-alert-panel-head>a,.dashboard-page .alert-action-link{color:#56daeb}
+.dashboard-page .dashboard-alert-row{border-bottom-color:#254362;color:#e5f3ff}
+.dashboard-page .dashboard-alert-row small,.dashboard-page .alert-kicker{color:#a5bbd4}
+.dashboard-page .alert-value{color:#e7f9ff}
+.dashboard-page .alert-value.is-warning{color:#ffd084}
+.dashboard-page .alert-value.is-danger{color:#ff959e}
+.dashboard-page .dashboard-alert-empty,.dashboard-page .dashboard-chart-empty{color:#acc2da}
+.dashboard-page .dashboard-chart-canvas{background:rgba(5,19,40,.15)}
+.dashboard-page .dashboard-chart-badge,.dashboard-page .hero-badge{
+  color:#6de7f3;background:#123957;border:1px solid #285f7e
+}
+.dashboard-page .dashboard-definition-note,.dashboard-page .admin-notice{
+  background:#0e2946;border:1px solid #285375;color:#bfcee0
+}
+.dashboard-page .dashboard-definition-note strong,.dashboard-page .admin-notice strong{color:#67e0e8}
+.dashboard-page .dashboard-bar-selector label{color:#bed4eb}
+.dashboard-page .dashboard-bar-selector .form-select{color:#f1f8ff;background-color:#0e2947;border:1px solid #315878;border-radius:9px;padding:.6rem 2rem .6rem .8rem}
+.dashboard-page .dashboard-bar-selector .form-select option{color:#12263f;background:#fff}
+.dashboard-page .dashboard-section .btn-primary,.dashboard-page .dashboard-hero .btn-primary,.dashboard-page .panel-card .btn-primary{
+  --bs-btn-bg:#126da7;--bs-btn-border-color:#2387c2;--bs-btn-color:#fff;
+  --bs-btn-hover-bg:#0a8ba7;--bs-btn-hover-border-color:#20b6d7;--bs-btn-hover-color:#fff
+}
+.dashboard-page .btn-outline-primary{--bs-btn-bg:#102f50;--bs-btn-color:#8ee9f7;--bs-btn-border-color:#387fab;--bs-btn-hover-bg:#175079;--bs-btn-hover-color:#fff}
+.dashboard-page .btn-outline-danger{--bs-btn-color:#ffb4bd;--bs-btn-border-color:#b96378;--bs-btn-hover-bg:#a53d54;--bs-btn-hover-color:#fff}
+.dashboard-page .table{--bs-table-bg:transparent;--bs-table-color:#e3efff;--bs-table-border-color:#254568;--bs-table-hover-color:#fff;--bs-table-hover-bg:#16375a;color:#e3efff}
+.dashboard-page .table th{background:#102c4c;color:#b9d0e9;border-color:#2b5077}
+.dashboard-page .table td{color:#e0edfa;border-color:#233f60}
+.dashboard-page .status-pill.status-active{color:#54ecc6;background:#123e3d}
+.dashboard-page .status-pill.status-suspended{color:#ffd28d;background:#493722}
+.dashboard-page .dashboard-activity-row{color:#e8f3ff;border-bottom-color:#294568}
+.dashboard-page .dashboard-activity-time,.dashboard-page .inventory-control-card>span{color:#b3c8e1}
+.dashboard-page .inventory-control-card strong,.dashboard-page .inventory-stock-summary strong{color:#f2fbff}
+.dashboard-page .inventory-control-card small,.dashboard-page .inventory-stock-summary small{color:#b0c9e1}
+.dashboard-page .dashboard-performance-table-wrap{border-color:#254568}
+.dashboard-page .dashboard-chart-head,.dashboard-page .dashboard-alert-panel-head{flex-wrap:wrap}
+.dashboard-page a:focus-visible,.dashboard-page button:focus-visible{outline:3px solid #5bddfa;outline-offset:3px}
+body:has(.dashboard-page) .ds-dialog{background:#102b49;color:#f4f9ff}
+body:has(.dashboard-page) .ds-dialog .form-control{color:#12283f;background:#fff}
+@media(max-width:767.98px){
+ body:has(.dashboard-page) .content-area:has(> .dashboard-page){padding:10px;border-radius:13px}
+ .dashboard-page .dashboard-hero{padding:1.2rem}
+ .dashboard-page .dashboard-chart-canvas{height:315px}
+}
+@media(prefers-reduced-motion:reduce){
+ .dashboard-page .depot-stat-card,.dashboard-page .dashboard-alert-counter{transition:none}
+}
