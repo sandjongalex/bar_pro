@@ -1,0 +1,26 @@
+name: Login visual regression guards
+on:
+  pull_request:
+    paths:
+      - 'app/templates/login.html'
+      - 'app/static/login.css'
+      - 'app/static/app.css'
+      - 'app/static/design-system.css'
+      - 'tests/test_login_ui.py'
+      - '.github/workflows/login-ui-tests.yml'
+  push:
+    paths:
+      - 'app/templates/login.html'
+      - 'app/static/login.css'
+      - 'tests/test_login_ui.py'
+      - '.github/workflows/login-ui-tests.yml'
+jobs:
+  login:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r requirements.txt
+      - run: pytest -q tests/test_auth.py tests/test_login_ui.py
