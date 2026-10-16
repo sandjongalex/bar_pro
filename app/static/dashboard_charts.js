@@ -19,6 +19,15 @@
   const expensesColor = '#a06afb';
   const currency = data.currency || 'XAF';
   const compact = window.matchMedia('(max-width: 640px)').matches;
+  const areaFill = (context, color) => {
+    const {chart} = context;
+    const {ctx, chartArea} = chart;
+    if (!chartArea) return color;
+    const gradient = ctx.createLinearGradient(0, chartArea.top, 0, chartArea.bottom);
+    gradient.addColorStop(0, color === brand ? 'rgba(37,218,202,.24)' : color === receiptsColor ? 'rgba(72,165,255,.18)' : 'rgba(149,101,247,.16)');
+    gradient.addColorStop(1, 'rgba(5,17,38,0)');
+    return gradient;
+  };
   const wrapLabel = (value, limit = 20) => {
     const str = String(value ?? '');
     if (str.length <= limit) return str;
@@ -174,8 +183,9 @@
             label: 'Ventes',
             data: data.trend_7d.sales,
             borderColor: brand,
-            backgroundColor: brand,
-            pointRadius: 4,
+            backgroundColor: (context) => areaFill(context, brand),
+            fill: true,
+            pointRadius: compact ? 2 : 4,
             pointHoverRadius: 6,
             tension: 0.28,
           },
@@ -183,8 +193,9 @@
             label: 'Encaissements',
             data: data.trend_7d.receipts,
             borderColor: receiptsColor,
-            backgroundColor: receiptsColor,
-            pointRadius: 4,
+            backgroundColor: (context) => areaFill(context, receiptsColor),
+            fill: true,
+            pointRadius: compact ? 2 : 4,
             pointHoverRadius: 6,
             tension: 0.28,
           },
@@ -192,8 +203,9 @@
             label: 'Dépenses',
             data: data.trend_7d.expenses,
             borderColor: expensesColor,
-            backgroundColor: expensesColor,
-            pointRadius: 4,
+            backgroundColor: (context) => areaFill(context, expensesColor),
+            fill: true,
+            pointRadius: compact ? 2 : 4,
             pointHoverRadius: 6,
             tension: 0.28,
           },
