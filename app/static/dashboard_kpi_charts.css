@@ -1,0 +1,10 @@
+
+.dashboard-kpi-charts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.dashboard-kpi-chart-card{min-width:0;background:#fff;border:1px solid var(--line,#dfe7e2);border-radius:18px;box-shadow:0 8px 24px rgba(20,50,32,.045);overflow:hidden}
+.dashboard-kpi-chart-heading{padding:17px 19px 12px;display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:.5rem;border-bottom:1px solid #edf2ef}
+.dashboard-kpi-chart-heading h3{font-size:1.05rem;font-weight:800;color:#233c2c;margin:.15rem 0 0}
+.dashboard-kpi-chart-heading small{color:#60746a;font-size:.75rem}
+.dashboard-kpi-chart-area{height:300px;padding:18px 14px;position:relative}
+.dashboard-kpi-chart-area canvas{display:block;max-width:100%;max-height:100%}
+@media(max-width:1050px){.dashboard-kpi-charts{grid-template-columns:1fr}}
+@media(max-width:480px){.dashboard-kpi-chart-area{height:280px;padding:12px 8px}.dashboard-kpi-chart-heading{padding:15px}}
