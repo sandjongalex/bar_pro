@@ -1,6 +1,6 @@
 """Minimal non-business HTTP blueprints."""
 
-from flask import Blueprint, abort, jsonify, redirect, render_template, request, url_for
+from flask import Blueprint, abort, jsonify, redirect, render_template, request, url_for, send_from_directory, current_app, make_response
 from flask_login import current_user, login_required
 from sqlalchemy import select
 from flask_limiter.util import get_remote_address
@@ -11,6 +11,15 @@ from app.extensions import db
 
 web_bp = Blueprint("web", __name__)
 api_bp = Blueprint("api", __name__, url_prefix="/api/v1")
+
+
+@web_bp.get("/sw.js")
+def service_worker():
+    """Serve the service worker at origin root, allowing the full PWA scope."""
+    response = make_response(send_from_directory(current_app.static_folder, "sw.js", mimetype="application/javascript"))
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    response.headers["Service-Worker-Allowed"] = "/"
+    return response
 
 
 @web_bp.get("/")
