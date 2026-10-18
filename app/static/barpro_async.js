@@ -69,7 +69,8 @@
 
     const duration = type === 'success' ? 3000 : type === 'error' ? 10000 : 5000;
     noticeTimer = root.setTimeout(() => {
-      if (region.firstElementChild === item) item.remove();
+      if (region.firstElementChild !== item) return;
+      item.remove();
       noticeTimer = null;
     }, duration);
     return item;
