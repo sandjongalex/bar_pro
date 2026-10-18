@@ -125,7 +125,9 @@ def test_closed_session_and_foreign_bar_cannot_collect(env):
 def test_simultaneous_same_payment_intent_is_applied_at_most_once(env):
     client1, cashier, session, order, url, token1 = _ready(env)
     client2 = env[0].test_client()
-    assert _login(client2, cashier.email).status_code == 302
+    # Share the authenticated session cookie; the fixture holds an app context
+    # where a second GET /login may redirect as already authenticated.
+    client2.set_cookie("session", client1.get_cookie("session").value)
     token2 = _csrf(client2.get(f"{url}?order_id={order.id}"))
     barrier = Barrier(2)
 
