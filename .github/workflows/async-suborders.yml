@@ -1,0 +1,40 @@
+name: Async suborders safety
+
+on:
+  pull_request:
+    paths:
+      - 'app/suborder_web.py'
+      - 'app/order_suborder_service.py'
+      - 'app/orders.py'
+      - 'app/unpaid_orders_web.py'
+      - 'app/templates/suborder_builder.html'
+      - 'app/templates/cashier_suborders.html'
+      - 'app/templates/_server_pending_suborders.html'
+      - 'app/templates/unpaid_orders.html'
+      - 'app/static/suborders_live.js'
+      - 'app/static/unpaid_orders_ui.js'
+      - 'tests/test_async_suborders.py'
+      - '.github/workflows/async-suborders.yml'
+  push:
+    paths:
+      - 'app/suborder_web.py'
+      - 'app/static/suborders_live.js'
+      - 'tests/test_async_suborders.py'
+      - '.github/workflows/async-suborders.yml'
+
+jobs:
+  suborder-regressions:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: python -m pip install -r requirements.txt
+      - run: node --check app/static/suborders_live.js
+      - run: node --check app/static/unpaid_orders_ui.js
+      - run: python -m compileall -q app/suborder_web.py app/unpaid_orders_web.py app/orders.py
+      - run: python -m pytest -q tests/test_async_suborders.py tests/test_order_suborder_service.py tests/test_order_suborder_ui.py tests/test_order_suborder_web.py tests/test_cashier_delivery_confirmation.py

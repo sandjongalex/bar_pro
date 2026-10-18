@@ -79,7 +79,7 @@
     `).join('');
     const note = delivery.note ? `<p class="unpaid-pending-note">Note : ${escapeHtml(delivery.note)}</p>` : '';
     const confirmation = delivery.confirm_url
-      ? `<form class="unpaid-delivery-form" method="post" action="${escapeHtml(delivery.confirm_url)}">
+      ? `<form class="unpaid-delivery-form" data-bp-ajax="json" method="post" action="${escapeHtml(delivery.confirm_url)}">
           <input type="hidden" name="csrf_token" value="${escapeHtml(csrfToken)}">
           <input type="hidden" name="staff" value="${escapeHtml(staffFilter)}">
           <button class="btn btn-primary" type="submit">✓ Confirmer que j'ai livré</button>
@@ -291,6 +291,10 @@
     }
   }
 
+  grid.addEventListener('barpro:async-success', event => {
+    if (!event.target?.matches?.('.unpaid-delivery-form')) return;
+    void poll(true);
+  });
   grid.addEventListener('change', (event) => {
     if (event.target && event.target.matches('[data-merge-checkbox]')) {
       mergeConflict = '';

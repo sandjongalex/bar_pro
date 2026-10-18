@@ -1,7 +1,12 @@
 """Focused web workflows for server/cashier sub-orders."""
 from __future__ import annotations
 
-from flask import Blueprint, abort, flash, redirect, render_template, request, url_for
+from hashlib import sha256
+import json
+
+from flask import Blueprint, abort, flash, jsonify, redirect, render_template, request, url_for
+from sqlalchemy.exc import IntegrityError
+from app.async_ui import wants_async_web_response, web_json_response
 from flask_login import current_user, login_required
 from sqlalchemy import select
 
@@ -119,6 +124,11 @@ def new_suborder(bar_id: int, order_id: int):
 
     order = _active_order(bar_id, order_id)
     if not order:
+        if wants_async_web_response():
+            return web_json_response(
+                error={"code": "ORDER_NOT_EDITABLE", "message": _message("ORDER_NOT_EDITABLE")},
+                message=_message("ORDER_NOT_EDITABLE"), status=404,
+            )
         abort(404)
 
     if assignment.role == "SERVER":
@@ -130,7 +140,13 @@ def new_suborder(bar_id: int, order_id: int):
     else:
         permissions.require(current_user, "orders.deliver", bar_id)
         if _open_cash_session(bar_id) is None:
-            flash("Ouvrez votre caisse avant de servir une sous-commande.", "info")
+            message = "Ouvrez votre caisse avant de servir une sous-commande."
+            if wants_async_web_response():
+                return web_json_response(
+                    error={"code": "CASH_SESSION_REQUIRED", "message": message},
+                    message=message, status=409,
+                )
+            flash(message, "info")
             return redirect(url_for("cashier_web.session", bar_id=bar_id))
         if order.assigned_staff_id is None:
             abort(404)
@@ -148,40 +164,56 @@ def new_suborder(bar_id: int, order_id: int):
         back_url = url_for("cashier_workspace_web.workspace", bar_id=bar_id, order_id=order.id)
 
     if request.method == "POST":
+        async_web = wants_async_web_response()
         try:
             if mode == "server":
                 suborder = order_suborder_service.create_server_addition(
-                    current_user,
-                    bar_id,
-                    order.id,
-                    _cart_lines(),
+                    current_user, bar_id, order.id, _cart_lines(),
                     note=(request.form.get("note") or "").strip() or None,
                 )
-                db.session.commit()
-                flash(
-                    f"Sous-commande {suborder.sequence_no} envoyée à la caisse. Elle reste séparée de la commande initiale.",
-                    "success",
+                message = (
+                    f"Sous-commande {suborder.sequence_no} envoyée à la caisse. "
+                    "Elle reste séparée de la commande initiale."
                 )
             else:
                 suborder = order_suborder_service.create_cashier_addition(
-                    current_user,
-                    bar_id,
-                    order.id,
-                    _cart_lines(),
+                    current_user, bar_id, order.id, _cart_lines(),
                     note=(request.form.get("note") or "").strip() or None,
                 )
-                db.session.commit()
-                flash(
-                    f"Sous-commande {suborder.sequence_no} servie. La serveuse doit maintenant la valider.",
-                    "success",
+                message = f"Sous-commande {suborder.sequence_no} servie. La serveuse doit maintenant la valider."
+            db.session.commit()
+            if async_web:
+                return web_json_response(
+                    data={"id": suborder.id, "order_id": suborder.order_id,
+                          "sequence_no": suborder.sequence_no, "status": suborder.status,
+                          "delivery_status": suborder.delivery_status,
+                          "order_total": str(order.total_amount)},
+                    message=message,
                 )
+            flash(message, "success")
             return redirect(back_url)
         except LookupError:
             db.session.rollback()
+            if async_web:
+                return web_json_response(
+                    error={"code": "NOT_FOUND", "message": _message("NOT_FOUND")},
+                    message=_message("NOT_FOUND"), status=404,
+                )
             abort(404)
-        except (PermissionError, ValueError, TypeError) as exc:
+        except (PermissionError, ValueError, TypeError, IntegrityError) as exc:
             db.session.rollback()
-            flash(_message(exc), "danger")
+            code = "SUBORDER_CONFLICT" if isinstance(exc, IntegrityError) else str(exc)
+            message = ("Un ajout concurrent a modifié la commande. Vérifiez le suivi avant de réessayer."
+                       if code == "SUBORDER_CONFLICT" else _message(code))
+            if async_web:
+                status = 403 if isinstance(exc, PermissionError) else (
+                    409 if isinstance(exc, IntegrityError) else 422
+                )
+                return web_json_response(
+                    error={"code": code, "message": message},
+                    message=message, status=status,
+                )
+            flash(message, "danger")
 
     bar = db.session.get(Bar, bar_id)
     if not bar:
@@ -209,29 +241,61 @@ def cashier_queue(bar_id: int):
     permissions.require(current_user, "orders.deliver", bar_id)
 
     if _open_cash_session(bar_id) is None:
-        flash("Ouvrez votre caisse avant de traiter les sous-commandes.", "info")
+        message = "Ouvrez votre caisse avant de traiter les sous-commandes."
+        if wants_async_web_response():
+            return web_json_response(
+                error={"code": "CASH_SESSION_REQUIRED", "message": message},
+                message=message, status=409,
+            )
+        flash(message, "info")
         return redirect(url_for("cashier_web.session", bar_id=bar_id))
 
     if request.method == "POST":
+        async_web = wants_async_web_response()
         order_id = request.form.get("order_id", type=int)
         suborder_id = request.form.get("suborder_id", type=int)
         if not order_id or not suborder_id:
+            if async_web:
+                return web_json_response(
+                    error={"code": "NOT_FOUND", "message": _message("NOT_FOUND")},
+                    message=_message("NOT_FOUND"), status=404,
+                )
             abort(404)
         try:
             suborder = order_suborder_service.deliver_by_cashier(
-                current_user,
-                bar_id,
-                order_id,
-                suborder_id,
+                current_user, bar_id, order_id, suborder_id,
             )
             db.session.commit()
-            flash(f"Sous-commande {suborder.sequence_no} livrée. Stock mis à jour.", "success")
+            message = f"Sous-commande {suborder.sequence_no} livrée. Stock mis à jour."
+            if async_web:
+                return web_json_response(
+                    data={"id": suborder.id, "order_id": suborder.order_id,
+                          "status": suborder.status,
+                          "delivery_status": suborder.delivery_status},
+                    message=message,
+                )
+            flash(message, "success")
         except LookupError:
             db.session.rollback()
+            if async_web:
+                return web_json_response(
+                    error={"code": "NOT_FOUND", "message": _message("NOT_FOUND")},
+                    message=_message("NOT_FOUND"), status=404,
+                )
             abort(404)
-        except (PermissionError, ValueError, TypeError) as exc:
+        except (PermissionError, ValueError, TypeError, IntegrityError) as exc:
             db.session.rollback()
-            flash(_message(exc), "danger")
+            code = "SUBORDER_CONFLICT" if isinstance(exc, IntegrityError) else str(exc)
+            message = ("Livraison modifiée simultanément. Actualisez la liste."
+                       if code == "SUBORDER_CONFLICT" else _message(code))
+            if async_web:
+                status = 403 if isinstance(exc, PermissionError) else (
+                    409 if code in {"SUBORDER_CONFLICT", "SUBORDER_ALREADY_DELIVERED"} else 422
+                )
+                return web_json_response(
+                    error={"code": code, "message": message}, message=message, status=status,
+                )
+            flash(message, "danger")
         return redirect(url_for("suborders_web.cashier_queue", bar_id=bar_id))
 
     bar = db.session.get(Bar, bar_id)
@@ -315,3 +379,167 @@ def cashier_queue(bar_id: int):
         server_name_by_order=server_name_by_order,
         active_orders=active_orders,
     )
+
+
+def _live_json(payload):
+    """ETag-aware snapshots, always scoped to the requesting employee and bar."""
+    response = jsonify(payload)
+    checksum = sha256(json.dumps(payload, ensure_ascii=False, sort_keys=True).encode("utf-8")).hexdigest()
+    response.set_etag(checksum)
+    response.cache_control.no_store = True
+    response.make_conditional(request)
+    return response
+
+
+def _live_lines(bar_id: int, ids: list[int]):
+    by_id = {item_id: [] for item_id in ids}
+    if ids:
+        for line in db.session.scalars(
+            select(OrderSuborderLine)
+            .where(OrderSuborderLine.bar_id == bar_id, OrderSuborderLine.order_suborder_id.in_(ids))
+            .order_by(OrderSuborderLine.order_suborder_id, OrderSuborderLine.line_no, OrderSuborderLine.id)
+        ):
+            by_id[line.order_suborder_id].append({
+                "name": line.product_name_snapshot,
+                "quantity": str(line.quantity),
+                "total": str(line.total_amount),
+            })
+    return by_id
+
+
+def _suborder_row(item, lines):
+    return {
+        "id": item.id, "order_id": item.order_id,
+        "sequence_no": item.sequence_no, "status": item.status,
+        "delivery_status": item.delivery_status,
+        "total": str(item.total_amount), "currency": item.currency,
+        "note": item.note or "", "lines": lines.get(item.id, []),
+    }
+
+
+@bp.get("/bars/<int:bar_id>/orders/<int:order_id>/suborders/data")
+@login_required
+def order_suborders_data(bar_id: int, order_id: int):
+    assignment = _assignment(bar_id)
+    if not assignment or assignment.role not in {"SERVER", "CASHIER"}:
+        abort(404)
+    order = db.session.scalar(select(Order).where(Order.bar_id == bar_id, Order.id == order_id))
+    if not order:
+        abort(404)
+    if assignment.role == "SERVER":
+        permissions.require(current_user, "orders.edit", bar_id)
+        if order.assigned_staff_id != assignment.id:
+            abort(404)
+    else:
+        permissions.require(current_user, "orders.deliver", bar_id)
+        if _open_cash_session(bar_id) is None or order.assigned_staff_id is None:
+            abort(404)
+    suborders = list(db.session.scalars(
+        select(OrderSuborder).where(
+            OrderSuborder.bar_id == bar_id, OrderSuborder.order_id == order.id,
+        ).order_by(OrderSuborder.id.desc()).limit(40)
+    ))
+    lines = _live_lines(bar_id, [item.id for item in suborders])
+    return _live_json({
+        "order_id": order.id, "order_total": str(order.total_amount),
+        "suborders": [_suborder_row(item, lines) for item in suborders],
+    })
+
+
+@bp.get("/bars/<int:bar_id>/cashier/suborders/data")
+@login_required
+def cashier_suborders_data(bar_id: int):
+    assignment = _assignment(bar_id)
+    if not assignment or assignment.role != "CASHIER":
+        abort(404)
+    permissions.require(current_user, "orders.deliver", bar_id)
+    if _open_cash_session(bar_id) is None:
+        abort(404)
+    suborders = list(db.session.scalars(
+        select(OrderSuborder).where(
+            OrderSuborder.bar_id == bar_id,
+            OrderSuborder.status == "VALIDATED",
+            OrderSuborder.delivery_status == "PENDING",
+        ).order_by(OrderSuborder.id.asc()).limit(100)
+    ))
+    lines = _live_lines(bar_id, [item.id for item in suborders])
+    orders_by_id = {item.id: item for item in db.session.scalars(
+        select(Order).where(
+            Order.bar_id == bar_id, Order.id.in_({item.order_id for item in suborders}),
+        )
+    )} if suborders else {}
+    staff_ids = {order.assigned_staff_id for order in orders_by_id.values() if order.assigned_staff_id}
+    staff = {item.id: item for item in db.session.scalars(
+        select(StaffAssignment).where(StaffAssignment.bar_id == bar_id, StaffAssignment.id.in_(staff_ids))
+    )} if staff_ids else {}
+    user_ids = {item.user_id for item in staff.values()}
+    users = {item.id: item for item in db.session.scalars(
+        select(User).where(User.id.in_(user_ids))
+    )} if user_ids else {}
+    pending = []
+    for item in suborders:
+        parent = orders_by_id.get(item.order_id)
+        staff_assignment = staff.get(parent.assigned_staff_id) if parent else None
+        user = users.get(staff_assignment.user_id) if staff_assignment else None
+        pending.append({
+            **_suborder_row(item, lines),
+            "display_name": (
+                (parent.customer_name_snapshot or parent.table_label_snapshot or "COMPTOIR")
+                if parent else "COMPTOIR"
+            ),
+            "reference": parent.reference if parent else "",
+            "server_name": user.display_name if user else "Serveuse",
+        })
+    active_orders = list(db.session.scalars(
+        select(Order).where(
+            Order.bar_id == bar_id,
+            Order.assigned_staff_id.is_not(None),
+            Order.status.in_(["DRAFT", "CONFIRMED", "SERVED"]),
+            Order.payment_status.in_(["UNPAID", "PARTIAL"]),
+        ).order_by(Order.id.desc()).limit(80)
+    ))
+    return _live_json({
+        "pending": pending,
+        "active_orders": [{
+            "id": order.id,
+            "name": order.customer_name_snapshot or order.table_label_snapshot or "COMPTOIR",
+            "reference": order.reference,
+            "total": str(order.total_amount),
+            "currency": order.currency,
+            "payment_status": order.payment_status,
+            "add_url": url_for("suborders_web.new_suborder", bar_id=bar_id, order_id=order.id),
+        } for order in active_orders],
+    })
+
+
+@bp.get("/bars/<int:bar_id>/orders/suborders/pending/data")
+@login_required
+def server_pending_suborders_data(bar_id: int):
+    assignment = _assignment(bar_id)
+    if not assignment or assignment.role != "SERVER":
+        abort(404)
+    permissions.require(current_user, "orders.edit", bar_id)
+    pending = list(db.session.scalars(
+        select(OrderSuborder).where(
+            OrderSuborder.bar_id == bar_id,
+            OrderSuborder.assigned_staff_id == assignment.id,
+            OrderSuborder.status == "PENDING_VALIDATION",
+        ).order_by(OrderSuborder.id.desc()).limit(20)
+    ))
+    lines = _live_lines(bar_id, [item.id for item in pending])
+    parents = {item.id: item for item in db.session.scalars(
+        select(Order).where(
+            Order.bar_id == bar_id,
+            Order.assigned_staff_id == assignment.id,
+            Order.id.in_({item.order_id for item in pending}),
+        )
+    )} if pending else {}
+    return _live_json({"pending": [{
+        **_suborder_row(item, lines),
+        "display_name": (
+            parents[item.order_id].customer_name_snapshot
+            or parents[item.order_id].table_label_snapshot
+            or "COMPTOIR"
+        ) if item.order_id in parents else "COMPTOIR",
+        "reference": parents[item.order_id].reference if item.order_id in parents else "",
+    } for item in pending]})

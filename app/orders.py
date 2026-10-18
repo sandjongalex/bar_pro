@@ -384,7 +384,8 @@ def quick(bar_id):
                 )
                 if async_web:
                     return web_json_response(
-                        data={"id": suborder.id, "order_id": suborder.order_id},
+                        data={"id": suborder.id, "order_id": suborder.order_id,
+                              "status": suborder.status, "delivery_status": suborder.delivery_status},
                         message=success_message,
                     )
                 flash(success_message, "success")
