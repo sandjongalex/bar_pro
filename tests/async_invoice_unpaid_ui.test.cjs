@@ -45,7 +45,8 @@ test('invoice filters update URL without navigation and use conditional JSON sna
   };
   const fetch = async (url, options) => {
     calls.push({url, options});
-    if (calls.length > 1) return {status:304};
+    if (calls.length === 2) return {status:304};
+    if (calls.length === 3) throw new TypeError('Network unavailable');
     return {
       status:200, ok:true, headers:{get(name) {
         return name === 'Content-Type' ? 'application/json' : name === 'ETag' ? '"invoice-etag"' : null;
@@ -72,6 +73,9 @@ test('invoice filters update URL without navigation and use conditional JSON sna
   assert.equal(calls[1].options.headers['If-None-Match'], '"invoice-etag"');
   assert.equal(results.innerHTML, 'unchanged');
   assert.match(statusText.textContent, /aucune modification/);
+  await window.refreshCashierInvoices();
+  assert.match(statusText.textContent, /Mise à jour différée/);
+  assert.equal(results.innerHTML, 'unchanged');
 });
 
 test('unpaid keyed poll preserves selected DOM, uses ETag and warns when selected order disappears', async () => {
