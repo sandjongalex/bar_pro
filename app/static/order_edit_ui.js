@@ -226,7 +226,8 @@
 
     host.hidden = false;
     host.classList.add('is-loading');
-    host.innerHTML = '<div class="small text-secondary p-2">Chargement de la commande…</div>';
+    host.setAttribute('aria-busy', 'true');
+    host.innerHTML = window.BarProSkeleton?.editor() || '<div class="small text-secondary p-2" role="status">Chargement de la commande…</div>';
     button.setAttribute('aria-expanded', 'true');
 
     try {
@@ -249,6 +250,7 @@
       renderLocked(host, 'Connexion indisponible. Réessayez dans quelques secondes.');
     } finally {
       host.classList.remove('is-loading');
+      host.removeAttribute('aria-busy');
     }
   }
 
