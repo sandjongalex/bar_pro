@@ -299,6 +299,7 @@ def manage(bar_id: int):
         orders=orders,
         balances=balances,
         selected_order_id=selected_order_id,
+        new_intent_key=lambda: secrets.token_urlsafe(32),
         q=q,
     )
 
