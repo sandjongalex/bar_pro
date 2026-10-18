@@ -1,8 +1,10 @@
 (function () {
   'use strict';
 
+  function init() {
   const form = document.getElementById('cashierPaymentForm');
-  if (!form) return;
+  if (!form || form.dataset.cashPaymentInitialized === '1') return;
+  form.dataset.cashPaymentInitialized = '1';
 
   const dueInput = document.getElementById('cashierDue');
   const appliedInput = document.getElementById('cashierApplied');
@@ -60,7 +62,10 @@
     .cash-payment-state.waiting{background:#f2f5f3;color:#68756f}
     @media(max-width:480px){.cash-presented-quick{grid-template-columns:1fr 1fr}.cash-presented-quick button{min-height:46px;font-size:.78rem}}
   `;
-  document.head.appendChild(style);
+  if (!document.getElementById('cashPaymentStyles')) {
+    style.id = 'cashPaymentStyles';
+    document.head.appendChild(style);
+  }
 
   if (label) label.textContent = 'Montant donné par le client';
   presentedInput.value = '';
@@ -209,4 +214,8 @@
   });
 
   syncMode();
+  }
+  window.BarProCashPayment = Object.freeze({ init });
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+  else init();
 })();
