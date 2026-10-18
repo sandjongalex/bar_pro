@@ -3,6 +3,9 @@
 {% block header %}Tableau de bord{% endblock %}
 {% block content %}
 <link href="{{ url_for('static', filename='dashboard_kpi_charts.css') }}" rel="stylesheet">
+{% if owner_bento %}
+<link href="{{ url_for('static', filename='owner_bento.css') }}" rel="stylesheet">
+{% endif %}
 <section class="dashboard-hero">
   <div>
     <p class="eyebrow mb-2">Vue d'ensemble</p>
@@ -29,6 +32,10 @@
     {% if current_user.category == 'SUPER_ADMIN' %}<a class="btn btn-primary" href="{{ url_for('bars.web_create') }}">＋ Créer un bar</a>{% endif %}
   </div>
 </section>
+
+{% if owner_bento %}
+{% include '_owner_bento_overview.html' %}
+{% endif %}
 
 {% if current_user.category == 'SUPER_ADMIN' %}
 <div class="admin-notice"><div><strong>Mode supervision activé</strong><span>Les indicateurs affichés correspondent uniquement à l'établissement sélectionné.</span></div></div>
@@ -336,11 +343,15 @@
 {% endblock %}
 
 {% block scripts %}
-{% if dashboard_data or chart_data %}
+{% if dashboard_data or chart_data or owner_bento %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 {% endif %}
 {% if dashboard_data %}
 <script src="{{ url_for('static', filename='dashboard_kpi_charts.js') }}" defer></script>
+{% endif %}
+{% if owner_bento %}
+<script id="owner-bento-chart-data" type="application/json">{{ owner_bento.chart|tojson }}</script>
+<script src="{{ url_for('static', filename='owner_bento.js') }}" defer></script>
 {% endif %}
 {% if chart_data %}
 <script id="dashboard-chart-data" type="application/json">{{ chart_data|tojson }}</script>
