@@ -79,3 +79,33 @@
   .server-order-card-head{display:grid;grid-template-columns:minmax(0,1fr) auto}.server-order-status-row{display:grid;grid-template-columns:1fr}.server-order-reference{max-width:100%;padding-top:0}
   .server-order-inline-controls{grid-template-columns:1fr}
 }
+
+
+/* Server order micro-interactions. Only the server cart receives these styles. */
+.server-pos-layout .pos-qty-control input[name="quantity"] {
+  transition: transform 120ms cubic-bezier(.18, .85, .35, 1.35);
+  transform-origin: center;
+}
+.server-pos-layout .pos-qty-control input.server-qty-bounce {
+  transform: scale(1.1);
+}
+.server-pos-layout .pos-confirm {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: .55rem;
+  min-height: 48px;
+}
+.server-pos-layout .pos-confirm.server-submit-ready {
+  background-color: #e9f8ef;
+  border-color: #76cb9b;
+  color: #126c3e;
+}
+@media (prefers-reduced-motion: reduce) {
+  .server-pos-layout .pos-qty-control input[name="quantity"] {
+    transition: none;
+  }
+  .server-pos-layout .pos-qty-control input.server-qty-bounce {
+    transform: none;
+  }
+}

@@ -1,0 +1,37 @@
+name: Server order UX micro-animations
+
+on:
+  push:
+    paths:
+      - 'app/static/server_order_animations.js'
+      - 'app/static/server_pos.css'
+      - 'app/templates/layout.html'
+      - 'app/templates/order_quick.html'
+      - 'tests/test_server_micro_animations.py'
+      - 'tests/server_order_animations.test.cjs'
+      - '.github/workflows/server-order-micro-animations.yml'
+  pull_request:
+    paths:
+      - 'app/static/server_order_animations.js'
+      - 'app/static/server_pos.css'
+      - 'app/templates/layout.html'
+      - 'app/templates/order_quick.html'
+      - 'tests/test_server_micro_animations.py'
+      - 'tests/server_order_animations.test.cjs'
+      - '.github/workflows/server-order-micro-animations.yml'
+
+jobs:
+  server-order-ux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -r requirements.txt
+      - run: python -m pytest -q tests/test_server_micro_animations.py tests/test_employee_shifts.py tests/test_shift_navigation.py
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: node --check app/static/server_order_animations.js
+      - run: node --test tests/server_order_animations.test.cjs
