@@ -1,7 +1,12 @@
 """Focused web workflows for server/cashier sub-orders."""
 from __future__ import annotations
 
-from flask import Blueprint, abort, flash, redirect, render_template, request, url_for
+from hashlib import sha256
+import json
+
+from flask import Blueprint, abort, flash, jsonify, redirect, render_template, request, url_for
+from sqlalchemy.exc import IntegrityError
+from app.async_ui import wants_async_web_response, web_json_response
 from flask_login import current_user, login_required
 from sqlalchemy import select
 
@@ -148,40 +153,56 @@ def new_suborder(bar_id: int, order_id: int):
         back_url = url_for("cashier_workspace_web.workspace", bar_id=bar_id, order_id=order.id)
 
     if request.method == "POST":
+        async_web = wants_async_web_response()
         try:
             if mode == "server":
                 suborder = order_suborder_service.create_server_addition(
-                    current_user,
-                    bar_id,
-                    order.id,
-                    _cart_lines(),
+                    current_user, bar_id, order.id, _cart_lines(),
                     note=(request.form.get("note") or "").strip() or None,
                 )
-                db.session.commit()
-                flash(
-                    f"Sous-commande {suborder.sequence_no} envoyée à la caisse. Elle reste séparée de la commande initiale.",
-                    "success",
+                message = (
+                    f"Sous-commande {suborder.sequence_no} envoyée à la caisse. "
+                    "Elle reste séparée de la commande initiale."
                 )
             else:
                 suborder = order_suborder_service.create_cashier_addition(
-                    current_user,
-                    bar_id,
-                    order.id,
-                    _cart_lines(),
+                    current_user, bar_id, order.id, _cart_lines(),
                     note=(request.form.get("note") or "").strip() or None,
                 )
-                db.session.commit()
-                flash(
-                    f"Sous-commande {suborder.sequence_no} servie. La serveuse doit maintenant la valider.",
-                    "success",
+                message = f"Sous-commande {suborder.sequence_no} servie. La serveuse doit maintenant la valider."
+            db.session.commit()
+            if async_web:
+                return web_json_response(
+                    data={"id": suborder.id, "order_id": suborder.order_id,
+                          "sequence_no": suborder.sequence_no, "status": suborder.status,
+                          "delivery_status": suborder.delivery_status,
+                          "order_total": str(order.total_amount)},
+                    message=message,
                 )
+            flash(message, "success")
             return redirect(back_url)
         except LookupError:
             db.session.rollback()
+            if async_web:
+                return web_json_response(
+                    error={"code": "NOT_FOUND", "message": _message("NOT_FOUND")},
+                    message=_message("NOT_FOUND"), status=404,
+                )
             abort(404)
-        except (PermissionError, ValueError, TypeError) as exc:
+        except (PermissionError, ValueError, TypeError, IntegrityError) as exc:
             db.session.rollback()
-            flash(_message(exc), "danger")
+            code = "SUBORDER_CONFLICT" if isinstance(exc, IntegrityError) else str(exc)
+            message = ("Un ajout concurrent a modifié la commande. Vérifiez le suivi avant de réessayer."
+                       if code == "SUBORDER_CONFLICT" else _message(code))
+            if async_web:
+                status = 403 if isinstance(exc, PermissionError) else (
+                    409 if isinstance(exc, IntegrityError) else 422
+                )
+                return web_json_response(
+                    error={"code": code, "message": message},
+                    message=message, status=status,
+                )
+            flash(message, "danger")
 
     bar = db.session.get(Bar, bar_id)
     if not bar:
@@ -213,25 +234,51 @@ def cashier_queue(bar_id: int):
         return redirect(url_for("cashier_web.session", bar_id=bar_id))
 
     if request.method == "POST":
+        async_web = wants_async_web_response()
         order_id = request.form.get("order_id", type=int)
         suborder_id = request.form.get("suborder_id", type=int)
         if not order_id or not suborder_id:
+            if async_web:
+                return web_json_response(
+                    error={"code": "NOT_FOUND", "message": _message("NOT_FOUND")},
+                    message=_message("NOT_FOUND"), status=404,
+                )
             abort(404)
         try:
             suborder = order_suborder_service.deliver_by_cashier(
-                current_user,
-                bar_id,
-                order_id,
-                suborder_id,
+                current_user, bar_id, order_id, suborder_id,
             )
             db.session.commit()
-            flash(f"Sous-commande {suborder.sequence_no} livrée. Stock mis à jour.", "success")
+            message = f"Sous-commande {suborder.sequence_no} livrée. Stock mis à jour."
+            if async_web:
+                return web_json_response(
+                    data={"id": suborder.id, "order_id": suborder.order_id,
+                          "status": suborder.status,
+                          "delivery_status": suborder.delivery_status},
+                    message=message,
+                )
+            flash(message, "success")
         except LookupError:
             db.session.rollback()
+            if async_web:
+                return web_json_response(
+                    error={"code": "NOT_FOUND", "message": _message("NOT_FOUND")},
+                    message=_message("NOT_FOUND"), status=404,
+                )
             abort(404)
-        except (PermissionError, ValueError, TypeError) as exc:
+        except (PermissionError, ValueError, TypeError, IntegrityError) as exc:
             db.session.rollback()
-            flash(_message(exc), "danger")
+            code = "SUBORDER_CONFLICT" if isinstance(exc, IntegrityError) else str(exc)
+            message = ("Livraison modifiée simultanément. Actualisez la liste."
+                       if code == "SUBORDER_CONFLICT" else _message(code))
+            if async_web:
+                status = 403 if isinstance(exc, PermissionError) else (
+                    409 if code in {"SUBORDER_CONFLICT", "SUBORDER_ALREADY_DELIVERED"} else 422
+                )
+                return web_json_response(
+                    error={"code": code, "message": message}, message=message, status=status,
+                )
+            flash(message, "danger")
         return redirect(url_for("suborders_web.cashier_queue", bar_id=bar_id))
 
     bar = db.session.get(Bar, bar_id)
