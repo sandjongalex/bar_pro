@@ -4,7 +4,7 @@
 .order-edit-toggle{white-space:nowrap}
 .order-edit-editor{margin-top:12px;padding:13px;border:1px solid var(--line);border-radius:13px;background:#fafcfb}
 .order-edit-editor[hidden]{display:none!important}
-.order-edit-editor.is-loading{opacity:.72;pointer-events:none}
+.order-edit-editor.is-loading{pointer-events:none}
 .order-edit-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:10px}
 .order-edit-head strong{display:block;font-size:.84rem;color:var(--ink)}
 .order-edit-head small{display:block;margin-top:2px;color:var(--muted);font-size:.68rem;line-height:1.35}
