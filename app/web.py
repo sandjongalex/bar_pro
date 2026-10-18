@@ -106,6 +106,12 @@ def dashboard():
     inventory_control = dashboard_inventory_control(current_user, active_bar.id) if active_bar else None
     activity_data = dashboard_activity(current_user, active_bar.id) if active_bar else None
 
+    owner_bento = None
+    if current_user.category == "OWNER":
+        from app.owner_bento_dashboard import owner_bento_overview
+
+        owner_bento = owner_bento_overview(current_user, reportable_bars)
+
     notifications = list(
         db.session.scalars(
             select(UserNotification)
@@ -122,6 +128,7 @@ def dashboard():
         dashboard_data=dashboard_data,
         operational_alerts=operational_alerts,
         chart_data=chart_data,
+        owner_bento=owner_bento,
         inventory_control=inventory_control,
         activity_data=activity_data,
         assignments=assignments,
