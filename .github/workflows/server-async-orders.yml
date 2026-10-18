@@ -59,3 +59,19 @@ jobs:
           python-version: '3.12'
       - run: python -m pip install -r requirements.txt
       - run: python -m pytest -q
+
+  schema-export-temporary:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -r requirements.txt
+      - name: Emit full model dictionary for checked-in synchronization
+        run: |
+          python - <<'PY'
+          import json
+          from scripts.schema_document import render
+          print("BP_SCHEMA_FULL_BEGIN" + json.dumps(render(), ensure_ascii=True) + "BP_SCHEMA_FULL_END")
+          PY
