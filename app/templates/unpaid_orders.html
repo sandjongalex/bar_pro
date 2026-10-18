@@ -20,7 +20,7 @@
   <form method="get">
     <div class="field">
       <label for="staff">Personnel</label>
-      <select class="form-select" id="staff" name="staff" onchange="this.form.submit()">
+      <select class="form-select" id="staff" name="staff">
         <option value="all" {% if payload.staff_filter == 'all' %}selected{% endif %}>Tout le personnel</option>
         {% set cashiers = payload.personnel|selectattr('role', 'equalto', 'CASHIER')|list %}
         {% set servers = payload.personnel|selectattr('role', 'equalto', 'SERVER')|list %}
@@ -67,12 +67,13 @@
     <div><strong>Fusionner plusieurs commandes</strong><small>Sélectionnez au moins 2 commandes prêtes à encaisser.</small></div>
     <button class="btn btn-primary" type="submit" data-merge-submit disabled>Fusionner la sélection</button>
   </section>
+  <p class="alert alert-warning mt-2" data-unpaid-merge-warning role="status" hidden></p>
 </form>
 {% endif %}
 
 <section class="unpaid-grid" data-unpaid-grid>
   {% for order in payload.orders %}
-  <article class="unpaid-card {% if order.payment_status == 'PARTIAL' %}is-partial{% endif %} {% if order.payment_blocked %}is-pending-delivery{% endif %}" data-unpaid-order-id="{{ order.id }}" data-posted-at="{{ order.posted_at or '' }}">
+  <article class="unpaid-card {% if order.payment_status == 'PARTIAL' %}is-partial{% endif %} {% if order.payment_blocked %}is-pending-delivery{% endif %}" data-unpaid-order-id="{{ order.id }}" data-unpaid-signature="{{ order.signature }}" data-unpaid-currency="{{ order.currency }}" data-posted-at="{{ order.posted_at or '' }}">
     <div class="unpaid-card-head">
       <div><small>{{ 'Facture / repère' if order.invoice_name else 'Table' }}</small><strong>{{ order.display_name }}</strong></div>
       <span class="unpaid-status">{% if order.payment_blocked %}Livraison à confirmer{% else %}{{ 'Partiellement payée' if order.payment_status == 'PARTIAL' else 'Impayée' }}{% endif %}</span>
