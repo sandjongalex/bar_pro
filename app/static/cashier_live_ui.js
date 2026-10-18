@@ -139,8 +139,11 @@
           template.innerHTML = cardMarkup(order, selectedId);
           const replacement = template.content.firstElementChild;
           if (replacement) {
+            const atCursor = card === cursor;
             card.replaceWith(replacement);
             card = replacement;
+            // Keep the insertion cursor attached when the current card changes.
+            if (atCursor) cursor = replacement;
             changed = true;
           }
         }
