@@ -8,7 +8,7 @@ import secrets
 from flask import Blueprint, flash, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
 from sqlalchemy import select
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, OperationalError
 
 from app.async_ui import wants_async_web_response, web_json_response
 from app.cash_services import cash_service
@@ -390,6 +390,15 @@ def workspace(bar_id: int):
             flash(message, "success")
             return redirect(refresh_url)
 
+        except OperationalError as exc:
+            db.session.rollback()
+            if not any(term in str(exc).lower() for term in ("database is locked", "deadlock", "lock wait timeout")):
+                raise
+            message = "Une autre opération de caisse est en cours. Vérifiez son résultat avant de réessayer."
+            if async_web:
+                return web_json_response(error={"code": "PAYMENT_BUSY"}, message=message, status=409)
+            flash(message, "danger")
+            return redirect(url_for("cashier_workspace_web.workspace", bar_id=bar_id))
         except (PermissionError, LookupError, ValueError, TypeError, IntegrityError) as exc:
             db.session.rollback()
             if isinstance(exc, IntegrityError):
