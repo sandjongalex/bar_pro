@@ -1,0 +1,60 @@
+name: Cashier async safety
+
+on:
+  push:
+    paths:
+      - 'app/cashier_workspace_web.py'
+      - 'app/checkout_web.py'
+      - 'app/cashier_payment_idempotency.py'
+      - 'app/live_orders_web.py'
+      - 'app/static/cashier_live_ui.js'
+      - 'app/static/cash_payment_ui.js'
+      - 'app/templates/cashier_workspace.html'
+      - 'app/templates/checkout.html'
+      - 'tests/test_cashier_async_safety.py'
+      - 'tests/test_cashier_workspace_async.py'
+      - '.github/workflows/cashier-async-safety.yml'
+  pull_request:
+    paths:
+      - 'app/cashier_workspace_web.py'
+      - 'app/checkout_web.py'
+      - 'app/cashier_payment_idempotency.py'
+      - 'app/live_orders_web.py'
+      - 'app/static/cashier_live_ui.js'
+      - 'app/static/cash_payment_ui.js'
+      - 'app/templates/cashier_workspace.html'
+      - 'app/templates/checkout.html'
+      - 'tests/test_cashier_async_safety.py'
+      - 'tests/test_cashier_workspace_async.py'
+      - '.github/workflows/cashier-async-safety.yml'
+
+jobs:
+  cashier-async:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: pip install -r requirements.txt
+      - name: Financial safety and existing cashier workflows
+        run: >-
+          pytest -q
+          tests/test_cashier_async_safety.py
+          tests/test_cashier_workspace_async.py
+          tests/test_cashier_workspace.py
+          tests/test_cashier_complete_flow.py
+          tests/test_cashier_delivery_confirmation.py
+          tests/test_cash_payment_presented.py
+          tests/test_checkout_queue.py
+          tests/test_server_async_orders.py
+      - name: Client-side syntax
+        run: |
+          node --check app/static/cashier_live_ui.js
+          node --check app/static/cash_payment_ui.js
+          node --check app/static/barpro_async.js
+      - name: Network and async UI regressions
+        run: node --test tests/barpro_async.test.cjs tests/server_async_orders.test.cjs

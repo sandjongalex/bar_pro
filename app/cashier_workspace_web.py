@@ -8,10 +8,11 @@ import secrets
 from flask import Blueprint, flash, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
 from sqlalchemy import select
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, OperationalError
 
 from app.async_ui import wants_async_web_response, web_json_response
 from app.cash_services import cash_service
+from app.cashier_payment_idempotency import claim as claim_payment_intent, complete as complete_payment_intent
 from app.customer_services import customer_service
 from app.extensions import db
 from app.finance_totals import order_balance
@@ -28,6 +29,7 @@ from app.models import (
     User,
 )
 from app.order_services import order_service
+from app.order_line_views import effective_lines_by_order
 from app.payment_services import payment_service
 from app.permissions import permissions
 from app.product_display_order import product_order_expression
@@ -72,12 +74,11 @@ def _cashier_assignment(bar_id: int):
     )
 
 
-def _open_session(bar_id: int):
-    return db.session.scalar(
-        select(CashSession)
-        .where(CashSession.bar_id == bar_id, CashSession.status == "OPEN")
-        .order_by(CashSession.id.desc())
-    )
+def _open_session(bar_id: int, *, lock: bool = False):
+    stmt = (select(CashSession)
+            .where(CashSession.bar_id == bar_id, CashSession.status == "OPEN")
+            .order_by(CashSession.id.desc()))
+    return db.session.scalar(stmt.with_for_update() if lock else stmt)
 
 
 def _cart_lines():
@@ -109,6 +110,9 @@ def _message(code) -> str:
         "INSUFFICIENT_STOCK": "Stock insuffisant pour valider cette vente.",
         "FORBIDDEN": "Opération non autorisée.",
         "NOT_FOUND": "Commande ou produit introuvable.",
+        "PAYMENT_ALREADY_PROCESSED": "Cette opération a déjà été enregistrée. Vérifiez le solde avant une nouvelle saisie.",
+        "IDEMPOTENCY_CONFLICT": "Cette référence a déjà été utilisée avec des montants différents.",
+        "IDEMPOTENCY_KEY_REQUIRED": "Référence de paiement manquante. Rechargez la facture avant de réessayer.",
     }
     return messages.get(str(code), "Opération refusée. Vérifiez les informations saisies.")
 
@@ -169,7 +173,7 @@ def workspace(bar_id: int):
     bar = db.session.get(Bar, bar_id)
     if not bar:
         raise LookupError("NOT_FOUND")
-    session = _open_session(bar_id)
+    session = _open_session(bar_id, lock=request.method == "POST")
     async_web = wants_async_web_response()
     if session is None:
         message = "Ouvrez votre caisse avant de commencer le service."
@@ -186,6 +190,13 @@ def workspace(bar_id: int):
         action = (request.form.get("action") or "").strip()
         order_id = request.form.get("order_id", type=int)
         try:
+            payment_intent = None
+            if action in {"cash_exact", "payment"}:
+                payment_intent = claim_payment_intent(
+                    current_user, bar_id, action,
+                    request.form.get("idempotency_key") or request.form.get("reference"),
+                    request.form, require_key=async_web,
+                )
             if action == "create_sale":
                 order = order_service.create(
                     current_user,
@@ -228,8 +239,8 @@ def workspace(bar_id: int):
                 raise LookupError("NOT_FOUND")
             if order.status not in {"CONFIRMED", "SERVED"}:
                 raise ValueError("ORDER_NOT_PAYABLE")
-            due = Decimal(order_balance(order)["amount_due"] or 0)
-            if due <= 0:
+            due = Decimal(order_balance(order, locking=True)["amount_due"] or 0)
+            if due <= 0 or order.payment_status == "PAID":
                 raise ValueError("ORDER_NOT_PAYABLE")
 
             if action == "cash_exact":
@@ -244,6 +255,7 @@ def workspace(bar_id: int):
                     0,
                     cash_session_id=session.id,
                 )
+                complete_payment_intent(payment_intent, order_id=order.id)
                 db.session.commit()
                 message = f"{order.reference} encaissée en espèces · {due:,.0f} {order.currency}."
                 refresh_url = url_for("cashier_workspace_web.workspace", bar_id=bar_id)
@@ -269,6 +281,7 @@ def workspace(bar_id: int):
                     customer_id,
                     _reference("CRD"),
                 )
+                complete_payment_intent(payment_intent, order_id=order.id)
                 db.session.commit()
                 message = f"{order.reference} soldée à crédit."
                 refresh_url = url_for("cashier_workspace_web.workspace", bar_id=bar_id)
@@ -314,6 +327,7 @@ def workspace(bar_id: int):
                     provider_code=provider_code,
                     provider_transaction_id=provider_transaction_id,
                 )
+                complete_payment_intent(payment_intent, order_id=order.id)
                 db.session.commit()
                 message = f"{order.reference} encaissée en paiement mixte."
                 refresh_url = url_for("cashier_workspace_web.workspace", bar_id=bar_id)
@@ -359,6 +373,7 @@ def workspace(bar_id: int):
                 provider_code=provider_code,
                 provider_transaction_id=provider_transaction_id,
             )
+            complete_payment_intent(payment_intent, order_id=order.id)
             db.session.commit()
             remaining = Decimal(order_balance(db.session.get(Order, order.id))["amount_due"] or 0)
             if remaining > 0:
@@ -375,6 +390,15 @@ def workspace(bar_id: int):
             flash(message, "success")
             return redirect(refresh_url)
 
+        except OperationalError as exc:
+            db.session.rollback()
+            if not any(term in str(exc).lower() for term in ("database is locked", "deadlock", "lock wait timeout")):
+                raise
+            message = "Une autre opération de caisse est en cours. Vérifiez son résultat avant de réessayer."
+            if async_web:
+                return web_json_response(error={"code": "PAYMENT_BUSY"}, message=message, status=409)
+            flash(message, "danger")
+            return redirect(url_for("cashier_workspace_web.workspace", bar_id=bar_id))
         except (PermissionError, LookupError, ValueError, TypeError, IntegrityError) as exc:
             db.session.rollback()
             if isinstance(exc, IntegrityError):
@@ -391,6 +415,10 @@ def workspace(bar_id: int):
                     status = 403
                 elif isinstance(exc, LookupError) and code == "NOT_FOUND":
                     status = 404
+                elif code in {"PAYMENT_ALREADY_PROCESSED", "IDEMPOTENCY_CONFLICT",
+                              "ORDER_NOT_PAYABLE", "ORDER_NOT_DRAFT", "PAYMENT_LIMIT_EXCEEDED",
+                              "CASH_SESSION_REQUIRED"}:
+                    status = 409
                 else:
                     status = 422
             if async_web:
@@ -428,14 +456,7 @@ def workspace(bar_id: int):
         selected_order = waiting_orders[0]
 
     order_ids = [item.id for item in active_orders]
-    lines_by_order = {order_id: [] for order_id in order_ids}
-    if order_ids:
-        for line in db.session.scalars(
-            select(OrderLine)
-            .where(OrderLine.bar_id == bar_id, OrderLine.order_id.in_(order_ids))
-            .order_by(OrderLine.order_id, OrderLine.line_no)
-        ):
-            lines_by_order.setdefault(line.order_id, []).append(line)
+    lines_by_order = effective_lines_by_order(bar_id, order_ids)
 
     balances = {item.id: order_balance(item) for item in active_orders}
 

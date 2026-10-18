@@ -8,34 +8,43 @@ from app.extensions import db
 from app.models import Payment, Refund, OrderReturn
 
 
-def total(model, column, **filters):
+def total(model, column, *, locking=False, **filters):
+    if locking:
+        # Locking reads see committed rows after a concurrent order lock even
+        # under MySQL REPEATABLE READ (regular SUM reads may use an old snapshot).
+        return sum((Decimal(value or 0) for value in db.session.scalars(
+            select(column).select_from(model).filter_by(**filters).with_for_update()
+        )), Decimal(0))
     return db.session.scalar(select(func.coalesce(func.sum(column), 0)).filter_by(**filters).select_from(model))
 
 
-def order_balance(order, update=False):
+def order_balance(order, update=False, *, locking=False):
     keys = dict(bar_id=order.bar_id, order_id=order.id)
-    paid = Decimal(total(Payment, Payment.amount_applied, **keys) or 0)
-    refunded = Decimal(total(Refund, Refund.amount, **keys) or 0)
-    credits = Decimal(total(OrderReturn, OrderReturn.total_amount, status="POSTED", **keys) or 0)
-    customer_credit = Decimal(
-        db.session.scalar(
-            select(func.coalesce(func.sum(CustomerLedgerEntry.amount_delta), 0)).where(
+    paid = Decimal(total(Payment, Payment.amount_applied, locking=locking, **keys) or 0)
+    refunded = Decimal(total(Refund, Refund.amount, locking=locking, **keys) or 0)
+    credits = Decimal(total(OrderReturn, OrderReturn.total_amount, status="POSTED", locking=locking, **keys) or 0)
+    credit_stmt = select(CustomerLedgerEntry.amount_delta).where(
+        CustomerLedgerEntry.bar_id == order.bar_id,
+        CustomerLedgerEntry.order_id == order.id,
+    )
+    customer_credit = (sum((Decimal(value or 0) for value in db.session.scalars(
+        credit_stmt.with_for_update())), Decimal(0)) if locking else Decimal(
+            db.session.scalar(select(func.coalesce(func.sum(CustomerLedgerEntry.amount_delta), 0)).where(
                 CustomerLedgerEntry.bar_id == order.bar_id,
                 CustomerLedgerEntry.order_id == order.id,
-            )
-        )
-        or 0
+            )) or 0))
+    voucher_stmt = select(ChangeVoucherTransaction.amount).where(
+        ChangeVoucherTransaction.bar_id == order.bar_id,
+        ChangeVoucherTransaction.target_order_id == order.id,
+        ChangeVoucherTransaction.kind == "REDEEM",
     )
-    voucher_credit = Decimal(
-        db.session.scalar(
-            select(func.coalesce(func.sum(ChangeVoucherTransaction.amount), 0)).where(
+    voucher_credit = (sum((Decimal(value or 0) for value in db.session.scalars(
+        voucher_stmt.with_for_update())), Decimal(0)) if locking else Decimal(
+            db.session.scalar(select(func.coalesce(func.sum(ChangeVoucherTransaction.amount), 0)).where(
                 ChangeVoucherTransaction.bar_id == order.bar_id,
                 ChangeVoucherTransaction.target_order_id == order.id,
                 ChangeVoucherTransaction.kind == "REDEEM",
-            )
-        )
-        or 0
-    )
+            )) or 0))
     sale = Decimal(0) if order.status == "CANCELLED" else Decimal(order.total_amount) - credits
     net = paid - refunded
     financed = max(customer_credit, Decimal(0))
