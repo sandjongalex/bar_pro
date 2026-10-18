@@ -19,14 +19,14 @@
 <div class="alert alert-{{ category }} mt-3" role="status">{{ message }}</div>
 {% endfor %}
 
-<section class="checkout-stats mt-4" aria-label="Résumé des remises">
+<section data-bp-financial-section="handover-stats" class="checkout-stats mt-4" aria-label="Résumé des remises">
   <article><span>Chez les serveuses</span><strong>{{ "{:,.0f}".format(total_custody) }} {{ bar.currency }}</strong><small>Espèces encore sous garde employé</small></article>
   <article><span>Remises en attente</span><strong>{{ pending_count }}</strong><small>{{ "{:,.0f}".format(pending_amount) }} {{ bar.currency }} à confirmer</small></article>
   <article><span>Reçues ce service</span><strong>{{ "{:,.0f}".format(posted_total) }} {{ bar.currency }}</strong><small>Transférées dans la caisse ouverte</small></article>
   <article><span>Caisse attendue</span><strong>{{ "{:,.0f}".format(drawer_expected) }} {{ bar.currency }}</strong><small>Après remises déjà confirmées</small></article>
 </section>
 
-<div class="row g-4 mt-1">
+<div data-bp-financial-section="handover-servers" class="row g-4 mt-1">
   <div class="col-xl-7">
     <section class="panel-card h-100">
       <div class="panel-header">
@@ -44,8 +44,9 @@
             <td class="text-end"><strong>{{ "{:,.0f}".format(row.custody) }} {{ bar.currency }}</strong></td>
             <td>
               {% if row.custody > 0 %}
-              <form method="post" class="d-flex gap-2 align-items-center flex-wrap">
+              <form method="post" data-bp-ajax="json" data-bp-financial="handovers" class="d-flex gap-2 align-items-center flex-wrap">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="idempotency_key" value="{{ new_intent_key() }}">
                 <input type="hidden" name="action" value="create">
                 <input type="hidden" name="staff_assignment_id" value="{{ row.assignment_id }}">
                 <div class="input-group input-group-sm" style="max-width:180px">
@@ -85,7 +86,7 @@
   </div>
 </div>
 
-<section class="panel-card mt-4">
+<section data-bp-financial-section="handover-pending" class="panel-card mt-4">
   <div class="panel-header">
     <div><p class="eyebrow mb-1">À traiter</p><h2>Remises en attente de confirmation</h2></div>
     <span class="badge text-bg-warning">{{ pending_count }}</span>
@@ -103,14 +104,16 @@
         <div class="text-end"><strong>{{ "{:,.0f}".format(item.amount) }} {{ item.currency }}</strong><small class="d-block text-warning">À compter</small></div>
       </div>
       <div class="d-flex gap-2 mt-3 flex-wrap">
-        <form method="post" class="flex-grow-1">
+        <form method="post" data-bp-ajax="json" data-bp-financial="handovers" class="flex-grow-1">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="idempotency_key" value="{{ new_intent_key() }}">
           <input type="hidden" name="action" value="post">
           <input type="hidden" name="handover_id" value="{{ item.id }}">
           <button class="btn btn-success w-100" type="submit">Confirmer la réception</button>
         </form>
-        <form method="post">
+        <form method="post" data-bp-ajax="json" data-bp-financial="handovers">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="idempotency_key" value="{{ new_intent_key() }}">
           <input type="hidden" name="action" value="cancel">
           <input type="hidden" name="handover_id" value="{{ item.id }}">
           <button class="btn btn-outline-secondary" type="submit">Annuler</button>
@@ -124,7 +127,7 @@
   {% endif %}
 </section>
 
-<section class="panel-card mt-4">
+<section data-bp-financial-section="handover-history" class="panel-card mt-4">
   <div class="panel-header"><div><p class="eyebrow mb-1">Traçabilité</p><h2>Historique du service</h2></div></div>
   {% if handovers %}
   <div class="table-responsive">
