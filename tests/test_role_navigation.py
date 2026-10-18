@@ -99,7 +99,7 @@ def test_server_navigation_is_focused_on_orders_and_unpaid(env):
 
     assert 'data-context-nav' in page.text
     assert 'aria-label="Retour vers Mes commandes"' in page.text
-    assert '#mes-commandes' in page.text
+    assert f'/bars/{bar.id}/orders/mine' in page.text
     assert '<strong>Nouvelle commande</strong>' in page.text
     assert 'aria-label="Raccourcis service"' in page.text
     assert '>＋ Nouvelle commande</a>' in page.text
@@ -123,37 +123,37 @@ def test_server_navigation_is_focused_on_orders_and_unpaid(env):
     assert 'server-cart-dock' in ui_script.text
     assert 'max-width: 980px' in ui_script.text
 
-    # Étape 3 UI: Mes commandes devient un suivi opérationnel en cartes filtrables.
-    assert 'class="panel-card mt-4 server-orders-panel"' in page.text
-    assert 'data-server-order-filter="active"' in page.text
-    assert 'data-server-order-filter="waiting"' in page.text
-    assert 'data-server-order-card' in page.text
-    assert 'data-order-state="waiting"' in page.text
-    assert 'SERVER-NAV-ORDER' in page.text
-    assert 'En attente caisse' in page.text
-    assert '2×' in page.text
-    assert 'Water' in page.text
+    # Mes commandes is a dedicated page, separate from the order-entry POS.
+    assert 'Voir mes commandes →' in page.text
+    assert 'data-server-mine' not in page.text
+    assert f'/bars/{bar.id}/orders/mine' in page.text
+    mine = client.get(f"/bars/{bar.id}/orders/mine")
+    assert mine.status_code == 200
+    assert 'data-server-mine' in mine.text
+    assert 'data-server-mine-filter="active"' in mine.text
+    assert 'data-server-mine-filter="waiting"' in mine.text
+    assert 'data-server-mine-filter="to_pay"' in mine.text
+    assert 'data-server-mine-filter="paid"' in mine.text
+    assert 'data-server-mine-filter="cancelled"' in mine.text
+    assert 'data-server-mine-filter="all"' in mine.text
+    assert 'data-server-order-card' in mine.text
+    assert 'data-order-state="waiting"' in mine.text
+    assert 'SERVER-NAV-ORDER' in mine.text
+    assert 'En attente de la caisse' in mine.text
+    assert '2×' in mine.text
+    assert 'Water' in mine.text
+    assert 'server_orders_page.js' in mine.text
+    assert 'data-bp-ajax="json"' in mine.text
+    assert 'data-server-bottom-link="orders"' in mine.text
+    assert f'/bars/{bar.id}/orders/new#mes-commandes' not in page.text
     assert 'setupOrderFilters' in ui_script.text
-
-    # Étape 4 UI: Note / Annuler sont transformés en éditeurs inline côté serveuse.
     assert 'setupInlineOrderActions' in ui_script.text
-    assert 'server-order-inline-editor' in ui_script.text
     assert 'server-orders-return' in ui_script.text
-    assert 'Confirmer l’annulation' in ui_script.text
     server_css = client.get('/static/server_pos.css')
     assert server_css.status_code == 200
-    assert '.server-order-inline-editor' in server_css.text
-    assert '.server-order-inline-controls' in server_css.text
-
-    # Étape 5 UI: bascule Nouvelle commande / Mes commandes en un toucher.
-    assert 'data-server-bottom-link="new"' in page.text
-    assert 'data-server-bottom-link="orders"' in page.text
-    assert f'/bars/{bar.id}/orders/new#posForm' in page.text
-    assert f'/bars/{bar.id}/orders/new#mes-commandes' in page.text
-    assert 'setupSectionNavigation' in ui_script.text
-    assert 'server-section-switcher' in ui_script.text
-    assert 'data-server-section-link="orders"' in ui_script.text
-    assert '.server-section-switcher' in server_css.text
+    assert '.server-mine-filters' in server_css.text
+    assert '.server-mine-action' in server_css.text
+    assert 'const barId = pathMatch ? pathMatch[1]' in ui_script.text
 
     # Temps réel: statut caisse + stock sont récupérés sans rechargement complet.
     live = client.get(f"/bars/{bar.id}/live/orders")
