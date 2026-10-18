@@ -10,6 +10,7 @@
 
   const refreshEveryMs = 10000;
   const etags = new Map();
+  let renderedKey = null;
   let controller = null;
   let generation = 0;
   let actionInProgress = false;
@@ -114,7 +115,7 @@
     snapshot.searchParams.set('snapshot', '1');
     const key = snapshot.href;
     const headers = { Accept: 'application/json', 'X-Requested-With': 'invoice-auto-refresh' };
-    if (etags.has(key)) headers['If-None-Match'] = etags.get(key);
+    if (renderedKey === key && etags.has(key)) headers['If-None-Match'] = etags.get(key);
     markStatus('syncing', 'Synchronisation…');
     try {
       const response = await fetch(snapshot.href, {
@@ -134,6 +135,7 @@
       if (typeof payload.html !== 'string' || !payload.stats) throw new Error('INVOICE_REFRESH_INVALID_PAYLOAD');
       patchCards(payload.html);
       updateStats(payload.stats);
+      renderedKey = key;
       const tag = response.headers.get('ETag');
       if (tag) etags.set(key, tag);
       const now = new Intl.DateTimeFormat('fr-FR', {hour:'2-digit', minute:'2-digit'}).format(new Date());
