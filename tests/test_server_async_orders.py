@@ -193,3 +193,54 @@ def test_order_edit_ajax_and_html_fallback_and_template_contract(env):
     assert "list.insertBefore(card" in script
     assert "setupInlineOrderActions()" in script
     assert "window.BarProOrderEdit?.setupServerEditors?.()" in script
+
+
+def test_two_waitresses_have_independent_intent_scope_and_live_lists(env):
+    app, owner, bar, _, product, first_waitress, _, _ = env
+    first_client, cashier, first_csrf, same_key = _session(env)
+    first = first_client.post(
+        f"/bars/{bar.id}/orders/new",
+        data=_order_payload(product, same_key, name="Facture A"),
+        headers=_headers(first_csrf),
+    )
+    assert first.status_code == 201
+
+    second_waitress = User(
+        email="async-third-server@example.invalid",
+        display_name="Second waitress", category="EMPLOYEE",
+    )
+    second_waitress.set_password("test-password")
+    db.session.add(second_waitress)
+    db.session.flush()
+    assignment = StaffAssignment(
+        bar_id=bar.id, user_id=second_waitress.id,
+        role="SERVER", started_at=utcnow(),
+    )
+    db.session.add(assignment)
+    db.session.flush()
+    start_shift(cashier, bar.id, assignment.id)
+    db.session.commit()
+
+    second_client = app.test_client()
+    with second_client.session_transaction() as session:
+        session["_user_id"] = str(second_waitress.id)
+        session["_fresh"] = True
+        session["credentials_version"] = second_waitress.credentials_version
+    g.pop("_login_user", None)
+    g.pop("csrf_token", None)
+    page = second_client.get(f"/bars/{bar.id}/orders/new")
+    assert page.status_code == 200
+    csrf = re.search(r'name="csrf_token" value="([^"]+)"', page.text)
+    assert csrf is not None
+
+    # Reusing the exact key on another authenticated actor must not replay
+    # the first waitress's order; uniqueness is (bar, actor, operation, key).
+    second = second_client.post(
+        f"/bars/{bar.id}/orders/new",
+        data=_order_payload(product, same_key, name="Facture B"),
+        headers=_headers(csrf.group(1)),
+    )
+    assert second.status_code == 201, second.text
+    assert second.json["data"]["id"] != first.json["data"]["id"]
+    own_live = second_client.get(f"/bars/{bar.id}/live/orders")
+    assert [order["id"] for order in own_live.json["orders"]] == [second.json["data"]["id"]]
