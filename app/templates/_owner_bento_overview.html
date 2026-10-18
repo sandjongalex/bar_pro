@@ -1,0 +1,148 @@
+{# Owner-only overview; the existing operational dashboard remains below. #}
+<section class="owner-bento mt-4" aria-labelledby="owner-bento-title">
+  <div class="owner-bento-intro d-flex flex-wrap align-items-end justify-content-between gap-3 mb-3">
+    <div>
+      <p class="owner-bento-kicker mb-1">VUE PROPRIÉTAIRE · TOUS MES BARS</p>
+      <h2 class="owner-bento-heading mb-1" id="owner-bento-title">Vue d'ensemble</h2>
+      <p class="owner-bento-muted mb-0">Ventes du jour selon le fuseau horaire de chaque établissement.</p>
+    </div>
+    <span class="owner-bento-period">Aujourd'hui · {{ owner_bento.bar_count }} établissement{{ 's' if owner_bento.bar_count != 1 else '' }}</span>
+  </div>
+
+  <div class="row g-3 align-items-stretch">
+    <div class="col-12 col-xl-8">
+      <article class="owner-bento-card owner-bento-revenue h-100" aria-labelledby="owner-bento-revenue-title">
+        <div class="d-flex align-items-start justify-content-between gap-3">
+          <div>
+            <p class="owner-bento-overline mb-2">SUIVI DES VENTES</p>
+            <h3 id="owner-bento-revenue-title" class="owner-bento-card-title">Chiffre d'affaires global</h3>
+          </div>
+          <span class="owner-bento-revenue-icon" aria-hidden="true">↗</span>
+        </div>
+        {% if owner_bento.mixed_currencies %}
+          <p class="owner-bento-revenue-value mb-2">Multi-devises</p>
+          <p class="owner-bento-revenue-note">Les monnaies différentes ne sont pas additionnées. Consultez le détail par bar ci-dessous.</p>
+        {% else %}
+          <p class="owner-bento-revenue-value mb-0">
+            {{ '{:,.0f}'.format(owner_bento.turnover_today)|replace(',', ' ') }}
+            <small>{{ owner_bento.currency_label }}</small>
+          </p>
+          <p class="owner-bento-revenue-note">Ventes soldées, nettes des retours · tous les bars autorisés</p>
+        {% endif %}
+        <div class="owner-bento-chart-area mt-4">
+          {% if owner_bento.chart.labels %}
+            <canvas id="ownerBentoSalesChart" role="img" aria-label="Tendance des ventes consolidées sur les sept derniers jours"></canvas>
+          {% else %}
+            <p class="owner-bento-chart-empty">Le graphique consolidé n'est pas disponible pour cette sélection.</p>
+          {% endif %}
+        </div>
+        <div class="owner-bento-revenue-footer">
+          <span>7 derniers jours · journée locale de chaque bar</span>
+          {% if active_bar %}
+            <a href="#dashboard-kpis-title">Consulter le détail du bar sélectionné <span aria-hidden="true">↗</span></a>
+          {% endif %}
+        </div>
+      </article>
+    </div>
+
+    <div class="col-12 col-xl-4">
+      <article class="owner-bento-card owner-bento-light owner-bento-stock h-100" aria-labelledby="owner-bento-stock-title">
+        <div class="d-flex align-items-start justify-content-between gap-2 mb-3">
+          <div>
+            <p class="owner-bento-kicker mb-2">INVENTAIRE</p>
+            <h3 id="owner-bento-stock-title" class="owner-bento-card-title">Alertes stocks critiques</h3>
+          </div>
+          <span class="owner-bento-count" aria-label="Nombre total de produits en alerte">{{ owner_bento.critical_stock_count }}</span>
+        </div>
+        <div class="owner-bento-scroll-list">
+          {% for item in owner_bento.critical_stocks %}
+            <div class="owner-bento-stock-item">
+              <div class="owner-bento-item-text">
+                <strong>{{ item.name }}</strong>
+                <small>{{ item.bar_name }}</small>
+              </div>
+              <span class="badge rounded-pill owner-bento-badge {{ 'owner-bento-badge-danger' if item.severity == 'critical' else 'owner-bento-badge-warning' }}">
+                {{ '{:,.0f}'.format(item.quantity)|replace(',', ' ') }} {{ item.unit }}
+              </span>
+            </div>
+          {% else %}
+            <div class="owner-bento-empty">
+              <span class="owner-bento-empty-symbol" aria-hidden="true">✓</span>
+              <p class="mb-0">Aucun produit sous son seuil d'alerte.</p>
+            </div>
+          {% endfor %}
+        </div>
+        {% if owner_bento.critical_stock_count > owner_bento.critical_stocks|length %}
+          <small class="owner-bento-muted d-block mt-3">Et {{ owner_bento.critical_stock_count - owner_bento.critical_stocks|length }} autre(s) produit(s) à surveiller.</small>
+        {% endif %}
+        {% if active_bar %}
+          <a class="owner-bento-card-link" href="{{ url_for('stock.history', bar_id=active_bar.id) }}">Voir le stock du bar sélectionné <span aria-hidden="true">↗</span></a>
+        {% endif %}
+      </article>
+    </div>
+
+    <div class="col-12 col-xl-6">
+      <article class="owner-bento-card owner-bento-light owner-bento-venues h-100" aria-labelledby="owner-bento-venues-title">
+        <div class="d-flex align-items-start justify-content-between gap-3 mb-3">
+          <div>
+            <p class="owner-bento-kicker mb-2">ÉTABLISSEMENTS</p>
+            <h3 id="owner-bento-venues-title" class="owner-bento-card-title">Performances des établissements</h3>
+          </div>
+          <span class="owner-bento-count">{{ owner_bento.bar_count }}</span>
+        </div>
+        <div class="owner-bento-scroll-list">
+          {% for bar in owner_bento.bars %}
+            <a class="owner-bento-venue-item {{ 'owner-bento-current' if active_bar and active_bar.id == bar.id else '' }}"
+               href="{{ url_for('web.dashboard', bar_id=bar.id) }}" aria-label="Afficher le tableau de bord de {{ bar.name }}">
+              <div class="owner-bento-venue-left">
+                <span class="owner-bento-avatar" aria-hidden="true">{{ bar.name[:1]|upper }}</span>
+                <div class="owner-bento-item-text">
+                  <strong>{{ bar.name }}</strong>
+                  <small><span class="owner-bento-status-dot {{ 'is-active' if bar.status == 'ACTIVE' else 'is-suspended' }}" aria-hidden="true"></span>{{ 'Actif' if bar.status == 'ACTIVE' else 'Suspendu' }}</small>
+                </div>
+              </div>
+              <div class="owner-bento-venue-right">
+                <strong>{{ '{:,.0f}'.format(bar.sales_today)|replace(',', ' ') }}</strong>
+                <small>{{ bar.currency }} · aujourd'hui</small>
+              </div>
+            </a>
+          {% else %}
+            <div class="owner-bento-empty">Aucun établissement disponible.</div>
+          {% endfor %}
+        </div>
+      </article>
+    </div>
+
+    <div class="col-12 col-xl-6">
+      <div class="row g-3 h-100">
+        <div class="col-12 col-sm-6">
+          <article class="owner-bento-card owner-bento-light owner-bento-mini h-100" aria-labelledby="owner-bento-server-title">
+            <span class="owner-bento-mini-icon owner-bento-mini-blue" aria-hidden="true">♙</span>
+            <div>
+              <h3 id="owner-bento-server-title" class="owner-bento-mini-title">Serveurs en service</h3>
+              <p class="owner-bento-mini-value mb-1">{{ owner_bento.servers_on_duty }}</p>
+              <small class="owner-bento-muted">Prises de service ouvertes</small>
+            </div>
+          </article>
+        </div>
+        <div class="col-12 col-sm-6">
+          <article class="owner-bento-card owner-bento-light owner-bento-mini h-100" aria-labelledby="owner-bento-cash-title">
+            <span class="owner-bento-mini-icon {{ 'owner-bento-mini-red' if owner_bento.cash_discrepancy_amount else 'owner-bento-mini-green' }}" aria-hidden="true">±</span>
+            <div>
+              <h3 id="owner-bento-cash-title" class="owner-bento-mini-title">Écarts de caisse détectés</h3>
+              {% if owner_bento.cash_discrepancy_amount is none %}
+                <p class="owner-bento-mini-value mb-1">—</p>
+                <small class="owner-bento-muted">À consulter par devise</small>
+              {% else %}
+                <p class="owner-bento-mini-value mb-1 {{ 'owner-bento-danger' if owner_bento.cash_discrepancy_amount else 'owner-bento-success' }}">
+                  {{ '{:,.0f}'.format(owner_bento.cash_discrepancy_amount)|replace(',', ' ') }}
+                </p>
+                <small class="owner-bento-muted">{{ owner_bento.currency_label }} · {{ owner_bento.cash_discrepancy_count }} clôture(s) en écart aujourd'hui</small>
+              {% endif %}
+            </div>
+          </article>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
