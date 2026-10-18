@@ -1329,16 +1329,9 @@ erDiagram
 | `bar_id` | MySQL `BIGINT` / SQLite `INTEGER` | non | non | — | — | — |
 | `created_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | non | non | utcnow | — | — |
 | `updated_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | non | non | utcnow | — | — |
-| `purchase_unit` | VARCHAR(16) | non | non | — | — | — |
-| `purchase_quantity` | NUMERIC(20, 6) | non | non | — | — | — |
-| `units_per_case_snapshot` | INTEGER | oui | non | — | — | — |
-| `purchase_unit_price_snapshot` | NUMERIC(19, 4) | non | non | — | — | — |
 
 - PK : `id`.
 - CHECK `ck_purchase_lines_amounts` : `line_no > 0 AND quantity > 0 AND unit_cost_snapshot >= 0 AND subtotal_amount >= 0 AND discount_amount >= 0 AND tax_amount >= 0 AND discount_amount <= subtotal_amount AND total_amount = subtotal_amount-discount_amount+tax_amount`.
-- CHECK `ck_purchase_lines_case_size` : `(purchase_unit = 'BOTTLE' AND units_per_case_snapshot IS NULL) OR (purchase_unit = 'CASE' AND units_per_case_snapshot IS NOT NULL AND units_per_case_snapshot > 0)`.
-- CHECK `ck_purchase_lines_purchase_quantity` : `purchase_quantity > 0`.
-- CHECK `ck_purchase_lines_purchase_unit` : `purchase_unit IN ('CASE','BOTTLE')`.
 - FK `—` : `bar_id` → `bars.id` ; ON DELETE `RESTRICT`.
 - FK `—` : `bar_id, product_id` → `products.bar_id, products.id` ; ON DELETE `RESTRICT`.
 - FK `—` : `bar_id, purchase_id` → `purchases.bar_id, purchases.id` ; ON DELETE `RESTRICT`.
@@ -1369,8 +1362,6 @@ erDiagram
 | `bar_id` | MySQL `BIGINT` / SQLite `INTEGER` | non | non | — | — | — |
 | `created_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | non | non | utcnow | — | — |
 | `updated_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | non | non | utcnow | — | — |
-| `purchase_date` | DATE | non | non | — | — | — |
-| `notes` | VARCHAR(500) | oui | non | — | — | — |
 
 - PK : `id`.
 - CHECK `ck_purchases_amounts` : `subtotal_amount >= 0 AND discount_amount >= 0 AND tax_amount >= 0 AND total_amount = subtotal_amount - discount_amount + tax_amount AND discount_amount <= subtotal_amount`.
@@ -1665,7 +1656,6 @@ erDiagram
 | `bar_id` | MySQL `BIGINT` / SQLite `INTEGER` | non | non | — | — | — |
 | `created_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | non | non | utcnow | — | — |
 | `updated_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | non | non | utcnow | — | — |
-| `note` | VARCHAR(500) | oui | non | — | — | — |
 
 - PK : `id`.
 - FK `—` : `bar_id` → `bars.id` ; ON DELETE `RESTRICT`.
