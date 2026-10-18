@@ -5,6 +5,7 @@ from flask import Blueprint, abort, flash, redirect, render_template, request, u
 from flask_login import current_user, login_required
 from sqlalchemy import select
 
+from app.async_ui import wants_async_web_response, web_json_response
 from app.extensions import db
 from app.models import (
     Bar,
@@ -207,15 +208,29 @@ def cashier_queue(bar_id: int):
     if assignment is None or assignment.role != "CASHIER":
         abort(404)
     permissions.require(current_user, "orders.deliver", bar_id)
+    async_web = wants_async_web_response()
 
     if _open_cash_session(bar_id) is None:
-        flash("Ouvrez votre caisse avant de traiter les sous-commandes.", "info")
+        message = "Ouvrez votre caisse avant de traiter les sous-commandes."
+        if async_web:
+            return web_json_response(
+                error={"code": "CASH_SESSION_REQUIRED"},
+                message=message,
+                status=409,
+            )
+        flash(message, "info")
         return redirect(url_for("cashier_web.session", bar_id=bar_id))
 
     if request.method == "POST":
         order_id = request.form.get("order_id", type=int)
         suborder_id = request.form.get("suborder_id", type=int)
         if not order_id or not suborder_id:
+            if async_web:
+                return web_json_response(
+                    error={"code": "NOT_FOUND"},
+                    message="La sous-commande demandée n'est plus disponible.",
+                    status=404,
+                )
             abort(404)
         try:
             suborder = order_suborder_service.deliver_by_cashier(
@@ -225,13 +240,35 @@ def cashier_queue(bar_id: int):
                 suborder_id,
             )
             db.session.commit()
-            flash(f"Sous-commande {suborder.sequence_no} livrée. Stock mis à jour.", "success")
+            message = f"Sous-commande {suborder.sequence_no} livrée. Stock mis à jour."
+            if async_web:
+                return web_json_response(
+                    data={
+                        "refresh_url": url_for("suborders_web.cashier_queue", bar_id=bar_id),
+                        "suborder_id": suborder.id,
+                    },
+                    message=message,
+                )
+            flash(message, "success")
         except LookupError:
             db.session.rollback()
+            if async_web:
+                return web_json_response(
+                    error={"code": "NOT_FOUND"},
+                    message="La sous-commande demandée n'est plus disponible.",
+                    status=404,
+                )
             abort(404)
         except (PermissionError, ValueError, TypeError) as exc:
             db.session.rollback()
-            flash(_message(exc), "danger")
+            message = _message(exc)
+            if async_web:
+                return web_json_response(
+                    error={"code": str(exc) or "SUBORDER_OPERATION_FAILED"},
+                    message=message,
+                    status=403 if isinstance(exc, PermissionError) else 422,
+                )
+            flash(message, "danger")
         return redirect(url_for("suborders_web.cashier_queue", bar_id=bar_id))
 
     bar = db.session.get(Bar, bar_id)
