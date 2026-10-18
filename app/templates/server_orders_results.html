@@ -23,7 +23,7 @@
         {% elif state == 'paid' %}<span class="server-order-state paid">✓ Payée</span>
         {% elif state == 'cancelled' %}<span class="server-order-state cancelled">Annulée</span>
         {% else %}<span class="server-order-state">{{ order.status }}</span>{% endif %}
-        <small class="server-order-reference">{{ order.reference }}</small>
+        <small class="server-order-reference">Réf. système : {{ order.reference }}</small>
       </div>
       {% if state == 'to_pay' and order.payment_status == 'PARTIAL' %}
       <div class="server-mine-due">Paiement partiel · Reste : <strong>{{ "{:,.0f}".format(balance.amount_due) }} {{ order.currency }}</strong></div>
