@@ -102,6 +102,8 @@ test('unpaid keyed poll preserves selected DOM, uses ETag and warns when selecte
   const card = {
     dataset:{unpaidOrderId:'1', unpaidSignature:'unchanged', unpaidCurrency:'XAF', postedAt:''},
     checkbox:selected,
+    querySelector() {return null;},
+    classList:{toggle() {}},
     remove() {grid.children = grid.children.filter(node => node !== this);},
   };
   selected.closest = () => card;
