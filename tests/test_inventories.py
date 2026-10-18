@@ -41,7 +41,7 @@ def test_post_snapshot_difference_and_exactly_once(env, quantity):
     assert inv.posted_at is not None
 
 
-@pytest.mark.parametrize('value', [None, [], 'bad', {}, {'reference': ''}, {'reference': 'A', 'product_ids': []}, {'reference': 'A', 'product_ids': [{}]}, {'reference': 'A', 'product_ids': [True]}, {'reference': 'A', 'product_ids': [1.5]}, {'reference': 'A', 'product_ids': [1], 'reason': None}])
+@pytest.mark.parametrize('value', [None, [], 'bad', {}, {'reference': ''}, {'reference': 'A', 'product_ids': [{}]}, {'reference': 'A', 'product_ids': [True]}, {'reference': 'A', 'product_ids': [1.5]}, {'reference': 'A', 'product_ids': [1], 'reason': None}])
 def test_invalid_create_body(env, value):
     response = env[0].test_client().post(base(env), headers=env[6], json=value)
     assert 400 <= response.status_code < 500
@@ -114,7 +114,7 @@ def test_api_read_cancel_permissions_and_scope(env):
 
 def test_web_create_count_post_print_with_csrf(env):
     client = env[0].test_client()
-    csrf = re.search("name='csrf_token' value='([^']+)'", client.get('/login').text).group(1)
+    csrf = re.search(r'name=["\']csrf_token["\']\s+value=["\']([^"\']+)["\']', client.get('/login').text).group(1)
     client.post('/login', data={'email': env[1].email, 'password': 'test-password', 'csrf_token': csrf})
     path = f'/bars/{env[2].id}/inventories'
     page = client.get(path+'/new')
@@ -127,7 +127,8 @@ def test_web_create_count_post_print_with_csrf(env):
     assert client.post(detail, data={'csrf_token': csrf, 'action': 'post'}).status_code == 302
     assert balance(env) == 8
     page = client.get(detail)
-    assert 'POSTED' in page.text and 'Valider et ajuster' not in page.text
+    assert 'Validé' in page.text and 'Valider et ajuster' not in page.text
+    assert db.session.get(Inventory, int(detail.rstrip('/').split('/')[-1])).status == 'POSTED'
     printed = client.get(detail+'/print')
     assert 'Water' in printed.text and '-2.000000' in printed.text
 

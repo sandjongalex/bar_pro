@@ -5,6 +5,7 @@ from sqlalchemy import select
 from app.extensions import db
 from app.models import Bar, Product, ProductCategory, StockBalance
 from app.order_services import order_service
+from app.payment_services import payment_service
 from app.report_services import summary, consolidated
 from app.stock_service import stock_service
 from test_workflows import env, order
@@ -47,9 +48,15 @@ def test_report_math_sales_margin_payments_and_receivable(env):
     order_service.confirm(owner, bar.id, value.id)
     db.session.commit()
     report = summary(owner, bar.id)
+    # A confirmed but unpaid order is a receivable, not recognized paid revenue.
+    assert Decimal(report["sales"]["revenue"]) == 0
+    assert report["receivables"]["orders_total_due"] == "200.0000"
+    payment_service.record(owner, bar.id, value.id, "RPT-PAY", "CARD", 200, 200, 0)
+    db.session.commit()
+    report = summary(owner, bar.id)
     assert report["sales"]["revenue"] == "200.0000"
     assert Decimal(report["sales"]["gross_margin_estimate"]) == Decimal("120")
-    assert report["receivables"]["total_due"] == "200.0000"
+    assert Decimal(report["receivables"]["orders_total_due"]) == 0
 
 
 def test_consolidation_rebuilds_owner_scope_and_excludes_other_owner(env):
@@ -65,6 +72,7 @@ def test_consolidation_rebuilds_owner_scope_and_excludes_other_owner(env):
     stock_service.move(owner, second.id, second_product.id, "INITIAL", 5, "Opening")
     a_order = order_service.create(owner, second.id, "A2-ORDER", [{"product_id": second_product.id, "quantity": 2}])
     order_service.confirm(owner, second.id, a_order.id)
+    payment_service.record(owner, second.id, a_order.id, "A2-CARD", "CARD", 100, 100, 0)
     db.session.commit()
 
     result = consolidated(owner)
@@ -77,9 +85,11 @@ def test_consolidation_rebuilds_owner_scope_and_excludes_other_owner(env):
 
 def test_report_csv_and_print_use_same_values_and_permissions(env):
     app, owner, bar, foreign, product, _, headers, _ = env
-    value=order_service.create(owner,bar.id,"CSV-ORDER",[{"product_id":product.id,"quantity":1}]);order_service.confirm(owner,bar.id,value.id);db.session.commit()
+    value=order_service.create(owner,bar.id,"CSV-ORDER",[{"product_id":product.id,"quantity":1}]);order_service.confirm(owner,bar.id,value.id)
+    payment_service.record(owner,bar.id,value.id,"CSV-CARD","CARD",100,100,0)
+    db.session.commit()
     client=app.test_client(); response=client.get(f"/api/v1/bars/{bar.id}/reports/csv",headers=headers)
     assert response.status_code==200; assert "text/csv" in response.content_type; assert "revenue" in response.data.decode("utf-8-sig"); assert "100.0000" in response.data.decode("utf-8-sig")
     printed=client.get(f"/api/v1/bars/{bar.id}/reports/print",headers=headers)
-    assert printed.status_code==200 and "Rapport opérationnel" in printed.text and "100.0000" in printed.text
+    assert printed.status_code==200 and "Rapport opérationnel" in printed.text and "100 XAF" in printed.text
     assert client.get(f"/api/v1/bars/{foreign.id}/reports/csv",headers=headers).status_code in {403,404}

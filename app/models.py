@@ -226,7 +226,7 @@ for model, sources in (
     for column, target in sources.items():
         model.__table__.append_constraint(ForeignKeyConstraint(["bar_id", column], [f"{target}.bar_id", f"{target}.id"], name=f"fk_{model.__tablename__}_{column}", ondelete="RESTRICT"))
 
-Payment.__table__.append_constraint(CheckConstraint("amount = amount_applied AND amount_applied > 0 AND change_given >= 0 AND amount_presented = amount_applied + change_given", name="ck_payments_tender"))
+Payment.__table__.append_constraint(CheckConstraint("amount = amount_applied AND amount_applied > 0 AND change_given >= 0 AND amount_presented >= amount_applied + change_given", name="ck_payments_tender"))
 StockBalance.__table__.append_constraint(CheckConstraint("quantity >= 0 AND version >= 0", name="ck_stock_balances_nonnegative"))
 StockMovement.__table__.append_constraint(CheckConstraint("movement_type IN ('INITIAL','PURCHASE','SALE','RETURN','LOSS','ADJUSTMENT','INVENTORY_ADJUSTMENT')", name="ck_stock_movement_type"))
 for columns, targets, name in (

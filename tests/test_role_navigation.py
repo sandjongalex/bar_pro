@@ -1,3 +1,4 @@
+from legacy_shift import activate_employee
 import re
 
 from app.extensions import db
@@ -38,6 +39,8 @@ def _cashier(bar):
             started_at=utcnow(),
         )
     )
+    db.session.flush()
+    activate_employee(bar, cashier)
     db.session.commit()
     return cashier
 
@@ -70,6 +73,7 @@ def test_cashier_navigation_only_surfaces_operational_destinations(env):
 
 def test_server_navigation_is_focused_on_orders_and_unpaid(env):
     app, _, bar, _, product, server_user, _, _ = env
+    activate_employee(bar, server_user)
     order_service.create(
         server_user,
         bar.id,

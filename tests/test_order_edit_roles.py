@@ -1,3 +1,4 @@
+from legacy_shift import activate_employee
 from decimal import Decimal
 
 import pytest
@@ -28,6 +29,7 @@ def _cashier(bar):
         )
     )
     db.session.flush()
+    activate_employee(bar, user)
     # Les paiements d'une caissière exigent une session de caisse ouverte.
     # Le test doit respecter cette règle métier au lieu de la contourner.
     cash_service.open(user, bar.id, "EDIT-CASH-SESSION", 0)
@@ -65,6 +67,7 @@ def _stock(bar_id, product_id):
 
 def test_server_can_replace_own_draft_products(env):
     _, _, bar, _, product, server, _, _ = env
+    activate_employee(bar, server)
     second = _second_product(env)
     order = order_service.create(
         server,
@@ -92,6 +95,7 @@ def test_server_can_replace_own_draft_products(env):
 
 def test_server_cannot_edit_after_delivery(env):
     _, owner, bar, _, product, server, _, _ = env
+    activate_employee(bar, server)
     order = order_service.create(
         server,
         bar.id,
@@ -114,6 +118,7 @@ def test_server_cannot_edit_after_delivery(env):
 
 def test_cashier_can_replace_products_on_delivered_unpaid_order(env):
     _, _, bar, _, product, server, _, _ = env
+    activate_employee(bar, server)
     cashier = _cashier(bar)
     second = _second_product(env)
     order = order_service.create(
@@ -143,6 +148,7 @@ def test_cashier_can_replace_products_on_delivered_unpaid_order(env):
 
 def test_cashier_cannot_edit_fully_paid_order(env):
     _, _, bar, _, product, server, _, _ = env
+    activate_employee(bar, server)
     cashier = _cashier(bar)
     order = order_service.create(
         server,
@@ -168,6 +174,7 @@ def test_cashier_cannot_edit_fully_paid_order(env):
 
 def test_partial_payment_cannot_be_reduced_below_settled_amount(env):
     _, _, bar, _, product, server, _, _ = env
+    activate_employee(bar, server)
     cashier = _cashier(bar)
     second = _second_product(env)
     order = order_service.create(

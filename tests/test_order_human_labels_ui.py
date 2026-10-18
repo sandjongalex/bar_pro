@@ -1,3 +1,4 @@
+from legacy_shift import activate_employee
 import re
 
 import pytest
@@ -31,6 +32,7 @@ def _login(client, email, password="test-password"):
 @pytest.mark.parametrize("invoice_name", [None, "VIP Jean · Anniversaire <Paul>"])
 def test_table_name_is_primary_order_label_across_cashier_workflows(env, invoice_name):
     app, _, bar, _, product, server, _, _ = env
+    activate_employee(bar, server)
 
     cashier = User(
         email="human-label-cashier@example.invalid",
@@ -51,6 +53,7 @@ def test_table_name_is_primary_order_label_across_cashier_workflows(env, invoice
     table = BarTable(bar_id=bar.id, label="LÉO", capacity=4)
     db.session.add(table)
     db.session.flush()
+    activate_employee(bar, cashier)
 
     active_order = order_service.create(
         server,
@@ -151,6 +154,7 @@ def test_table_name_is_primary_order_label_across_cashier_workflows(env, invoice
 
 def test_server_can_enter_a_dedicated_invoice_name(env):
     app, _, bar, _, product, server, _, _ = env
+    activate_employee(bar, server)
     table = BarTable(bar_id=bar.id, label="VIP 2", capacity=4)
     db.session.add(table)
     db.session.commit()

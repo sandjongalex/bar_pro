@@ -4,7 +4,7 @@ Ce fichier est généré par [`scripts/schema_document.py`](../scripts/schema_do
 Ne pas l'éditer librement : [`tests/test_schema.py`](../tests/test_schema.py) compare exactement
 son contenu à `scripts.schema_document.render()`.
 
-Révision Alembic terminale observée : `c3d4e5f6a7b8`. Le dictionnaire décrit les tables,
+Révision Alembic terminale observée : `e1f2a3b4c5d6`. Le dictionnaire décrit les tables,
 colonnes, clés, contraintes, index et relations dérivables de `app.models`.
 Les types sont compilés pour MySQL et SQLite quand ils diffèrent. Une compilation SQL ou
 un test SQLite ne constitue pas une validation sur serveur MySQL.
@@ -35,8 +35,16 @@ un test SQLite ne constitue pas une validation sur serveur MySQL.
 | `8d3e2f4a5b6c` | `7c2a1b8d9e10` | `8d3e2f4a5b6c_catalog_product_fields.py` | catalog product fields |
 | `9e4f5a6b7c8d` | `8d3e2f4a5b6c` | `9e4f5a6b7c8d_stock_movement_type.py` | stock movement type |
 | `a1b2c3d4e5f6` | `9e4f5a6b7c8d` | `a1b2c3d4e5f6_order_lifecycle.py` | order confirmation and service lifecycle |
+| `a7b8c9d0e1f2` | `f6a7b8c9d0e1` | `a7b8c9d0e1f2_reconcile_inventory_purchase_schema.py` | Reconcile purchase extensions and inventory-period snapshots after f6.  This migration repairs an earlier revision-id collision: two independent files used revision ``e5f6a7b8c9d0``.  Production databases may therefore have either set of schema changes while reporting the same Alembic ancestry.  The upgrade below is intentionally idempotent and creates whichever pieces are missing. |
 | `b2c3d4e5f6a7` | `a1b2c3d4e5f6` | `b2c3d4e5f6a7_payment_amounts.py` | payment tender amounts |
+| `b8c9d0e1f2a3` | `a7b8c9d0e1f2` | `b8c9d0e1f2a3_order_suborders.py` | Add persistent cashier sub-orders awaiting server validation. |
 | `c3d4e5f6a7b8` | `b2c3d4e5f6a7` | `c3d4e5f6a7b8_integrity.py` | Reconcile tender and tenant source integrity without rewriting history. |
+| `c9d0e1f2a3b4` | `b8c9d0e1f2a3` | `c9d0e1f2a3b4_employee_shifts.py` | Add employee attendance and on-duty shifts. |
+| `d0e1f2a3b4c5` | `c9d0e1f2a3b4` | `d0e1f2a3b4c5_change_vouchers.py` | Add customer change vouchers and settlement journal.  Revision ID: d0e1f2a3b4c5 Revises: c9d0e1f2a3b4 |
+| `d4e5f6a7b8c9` | `c3d4e5f6a7b8` | `d4e5f6a7b8c9_customer_credit_cases_notifications.py` | Add customer receivables, returnable cases and persistent notifications. |
+| `e1f2a3b4c5d6` | `d0e1f2a3b4c5` | `e1f2a3b4c5d6_missing_tenant_indexes.py` | Reconcile tenant indexes declared by newer customer and shift ORM models.  Safe for existing deployments: only missing indexes are created. No table, order, stock or payment data is modified. |
+| `e5f6a7b8c9d0` | `d4e5f6a7b8c9` | `e5f6a7b8c9d0_purchase_units_supplier_notes.py` | Add supplier notes and purchase unit/conversion metadata.  Revision ID: e5f6a7b8c9d0 Revises: d4e5f6a7b8c9 |
+| `f6a7b8c9d0e1` | `e5f6a7b8c9d0` | `f6a7b8c9d0e1_default_case_sizes.py` | Backfill default bottles-per-case values for known catalogue products.  Revision ID: f6a7b8c9d0e1 Revises: e5f6a7b8c9d0 |
 
 ## Migrations structurantes
 
@@ -88,7 +96,31 @@ erDiagram
     bars ||--o{ cash_sessions : "bar_id"
     users ||--o{ cash_sessions : "closed_by_id"
     users ||--o{ cash_sessions : "opened_by_id"
+    bars ||--o{ change_voucher_transactions : "bar_id"
+    cash_sessions ||--o{ change_voucher_transactions : "bar_id, cash_session_id"
+    orders ||--o{ change_voucher_transactions : "bar_id, target_order_id"
+    change_vouchers ||--o{ change_voucher_transactions : "bar_id, voucher_id"
+    users ||--o{ change_voucher_transactions : "recorded_by_id"
+    bars ||--o{ change_vouchers : "bar_id"
+    orders ||--o{ change_vouchers : "bar_id, origin_order_id"
+    payments ||--o{ change_vouchers : "bar_id, origin_payment_id"
+    users ||--o{ change_vouchers : "issued_by_id"
+    bars ||--o{ customer_case_entries : "bar_id"
+    customers ||--o{ customer_case_entries : "bar_id, customer_id"
+    orders ||--o{ customer_case_entries : "bar_id, order_id"
+    products ||--o{ customer_case_entries : "bar_id, product_id"
+    users ||--o{ customer_case_entries : "recorded_by_id"
+    bars ||--o{ customer_ledger_entries : "bar_id"
+    cash_sessions ||--o{ customer_ledger_entries : "bar_id, cash_session_id"
+    customers ||--o{ customer_ledger_entries : "bar_id, customer_id"
+    orders ||--o{ customer_ledger_entries : "bar_id, order_id"
+    customer_ledger_entries ||--o{ customer_ledger_entries : "bar_id, reversal_of_id"
+    users ||--o{ customer_ledger_entries : "recorded_by_id"
     bars ||--o{ customers : "bar_id"
+    bars ||--o{ employee_shifts : "bar_id"
+    staff_assignments ||--o{ employee_shifts : "bar_id, staff_assignment_id"
+    users ||--o{ employee_shifts : "ended_by_id"
+    users ||--o{ employee_shifts : "started_by_id"
     bars ||--o{ expense_categories : "bar_id"
     bars ||--o{ expenses : "bar_id"
     cash_sessions ||--o{ expenses : "bar_id, cash_session_id"
@@ -99,9 +131,13 @@ erDiagram
     bars ||--o{ idempotency_records : "bar_id"
     bars ||--o{ inventories : "bar_id"
     users ||--o{ inventories : "created_by_id"
+    bars ||--o{ inventory_line_snapshots : "bar_id"
+    inventory_lines ||--o{ inventory_line_snapshots : "bar_id, inventory_line_id"
     bars ||--o{ inventory_lines : "bar_id"
     inventories ||--o{ inventory_lines : "bar_id, inventory_id"
     products ||--o{ inventory_lines : "bar_id, product_id"
+    bars ||--o{ inventory_period_snapshots : "bar_id"
+    inventories ||--o{ inventory_period_snapshots : "bar_id, inventory_id"
     bars ||--o{ order_lines : "bar_id"
     orders ||--o{ order_lines : "bar_id, order_id"
     products ||--o{ order_lines : "bar_id, product_id"
@@ -116,6 +152,15 @@ erDiagram
     bars ||--o{ order_returns : "bar_id"
     orders ||--o{ order_returns : "bar_id, order_id"
     users ||--o{ order_returns : "created_by_id"
+    bars ||--o{ order_suborder_lines : "bar_id"
+    order_suborders ||--o{ order_suborder_lines : "bar_id, order_id, order_suborder_id"
+    products ||--o{ order_suborder_lines : "bar_id, product_id"
+    bars ||--o{ order_suborders : "bar_id"
+    staff_assignments ||--o{ order_suborders : "bar_id, assigned_staff_id"
+    orders ||--o{ order_suborders : "bar_id, order_id"
+    users ||--o{ order_suborders : "created_by_id"
+    users ||--o{ order_suborders : "delivered_by_id"
+    users ||--o{ order_suborders : "validated_by_id"
     bars ||--o{ orders : "bar_id"
     staff_assignments ||--o{ orders : "bar_id, assigned_staff_id"
     customers ||--o{ orders : "bar_id, customer_id"
@@ -177,6 +222,9 @@ erDiagram
     bars ||--o{ token_revocations : "bar_id"
     api_tokens ||--o{ token_revocations : "bar_id, api_token_id"
     users ||--o{ token_revocations : "revoked_by_id"
+    bars ||--o{ user_notifications : "bar_id"
+    orders ||--o{ user_notifications : "bar_id, order_id"
+    users ||--o{ user_notifications : "user_id"
     users ||--o{ user_sessions : "user_id"
 ```
 
@@ -185,6 +233,9 @@ erDiagram
 | Table | Attribut | Cible | Direction | Cardinalité ORM |
 | --- | --- | --- | --- | --- |
 | `bars` | `owner` | `users` | `MANYTOONE` | scalaire |
+| `employee_shifts` | `assignment` | `staff_assignments` | `MANYTOONE` | scalaire |
+| `employee_shifts` | `ended_by` | `users` | `MANYTOONE` | scalaire |
+| `employee_shifts` | `started_by` | `users` | `MANYTOONE` | scalaire |
 | `staff_assignments` | `user` | `users` | `MANYTOONE` | scalaire |
 | `users` | `owned_bars` | `bars` | `ONETOMANY` | liste |
 
@@ -216,7 +267,31 @@ erDiagram
 | `cash_sessions` | `—` | `bar_id` | `bars.id` | `RESTRICT` |
 | `cash_sessions` | `—` | `closed_by_id` | `users.id` | `RESTRICT` |
 | `cash_sessions` | `—` | `opened_by_id` | `users.id` | `RESTRICT` |
+| `change_voucher_transactions` | `—` | `bar_id` | `bars.id` | `RESTRICT` |
+| `change_voucher_transactions` | `—` | `bar_id, cash_session_id` | `cash_sessions.bar_id, cash_sessions.id` | `RESTRICT` |
+| `change_voucher_transactions` | `—` | `bar_id, target_order_id` | `orders.bar_id, orders.id` | `RESTRICT` |
+| `change_voucher_transactions` | `—` | `bar_id, voucher_id` | `change_vouchers.bar_id, change_vouchers.id` | `RESTRICT` |
+| `change_voucher_transactions` | `—` | `recorded_by_id` | `users.id` | `RESTRICT` |
+| `change_vouchers` | `—` | `bar_id` | `bars.id` | `RESTRICT` |
+| `change_vouchers` | `—` | `bar_id, origin_order_id` | `orders.bar_id, orders.id` | `RESTRICT` |
+| `change_vouchers` | `—` | `bar_id, origin_payment_id` | `payments.bar_id, payments.id` | `RESTRICT` |
+| `change_vouchers` | `—` | `issued_by_id` | `users.id` | `RESTRICT` |
+| `customer_case_entries` | `—` | `bar_id` | `bars.id` | `RESTRICT` |
+| `customer_case_entries` | `—` | `bar_id, customer_id` | `customers.bar_id, customers.id` | `RESTRICT` |
+| `customer_case_entries` | `—` | `bar_id, order_id` | `orders.bar_id, orders.id` | `RESTRICT` |
+| `customer_case_entries` | `—` | `bar_id, product_id` | `products.bar_id, products.id` | `RESTRICT` |
+| `customer_case_entries` | `—` | `recorded_by_id` | `users.id` | `RESTRICT` |
+| `customer_ledger_entries` | `—` | `bar_id` | `bars.id` | `RESTRICT` |
+| `customer_ledger_entries` | `—` | `bar_id, cash_session_id` | `cash_sessions.bar_id, cash_sessions.id` | `RESTRICT` |
+| `customer_ledger_entries` | `—` | `bar_id, customer_id` | `customers.bar_id, customers.id` | `RESTRICT` |
+| `customer_ledger_entries` | `—` | `bar_id, order_id` | `orders.bar_id, orders.id` | `RESTRICT` |
+| `customer_ledger_entries` | `—` | `bar_id, reversal_of_id` | `customer_ledger_entries.bar_id, customer_ledger_entries.id` | `RESTRICT` |
+| `customer_ledger_entries` | `—` | `recorded_by_id` | `users.id` | `RESTRICT` |
 | `customers` | `—` | `bar_id` | `bars.id` | `RESTRICT` |
+| `employee_shifts` | `—` | `bar_id` | `bars.id` | `RESTRICT` |
+| `employee_shifts` | `—` | `bar_id, staff_assignment_id` | `staff_assignments.bar_id, staff_assignments.id` | `RESTRICT` |
+| `employee_shifts` | `—` | `ended_by_id` | `users.id` | `RESTRICT` |
+| `employee_shifts` | `—` | `started_by_id` | `users.id` | `RESTRICT` |
 | `expense_categories` | `—` | `bar_id` | `bars.id` | `RESTRICT` |
 | `expenses` | `—` | `bar_id` | `bars.id` | `RESTRICT` |
 | `expenses` | `—` | `bar_id, cash_session_id` | `cash_sessions.bar_id, cash_sessions.id` | `RESTRICT` |
@@ -227,9 +302,13 @@ erDiagram
 | `idempotency_records` | `—` | `bar_id` | `bars.id` | `RESTRICT` |
 | `inventories` | `—` | `bar_id` | `bars.id` | `RESTRICT` |
 | `inventories` | `—` | `created_by_id` | `users.id` | `RESTRICT` |
+| `inventory_line_snapshots` | `—` | `bar_id` | `bars.id` | `RESTRICT` |
+| `inventory_line_snapshots` | `—` | `bar_id, inventory_line_id` | `inventory_lines.bar_id, inventory_lines.id` | `RESTRICT` |
 | `inventory_lines` | `—` | `bar_id` | `bars.id` | `RESTRICT` |
 | `inventory_lines` | `—` | `bar_id, inventory_id` | `inventories.bar_id, inventories.id` | `RESTRICT` |
 | `inventory_lines` | `—` | `bar_id, product_id` | `products.bar_id, products.id` | `RESTRICT` |
+| `inventory_period_snapshots` | `—` | `bar_id` | `bars.id` | `RESTRICT` |
+| `inventory_period_snapshots` | `—` | `bar_id, inventory_id` | `inventories.bar_id, inventories.id` | `RESTRICT` |
 | `order_lines` | `—` | `bar_id` | `bars.id` | `RESTRICT` |
 | `order_lines` | `—` | `bar_id, order_id` | `orders.bar_id, orders.id` | `RESTRICT` |
 | `order_lines` | `—` | `bar_id, product_id` | `products.bar_id, products.id` | `RESTRICT` |
@@ -244,6 +323,15 @@ erDiagram
 | `order_returns` | `—` | `bar_id` | `bars.id` | `RESTRICT` |
 | `order_returns` | `—` | `bar_id, order_id` | `orders.bar_id, orders.id` | `RESTRICT` |
 | `order_returns` | `—` | `created_by_id` | `users.id` | `RESTRICT` |
+| `order_suborder_lines` | `—` | `bar_id` | `bars.id` | `RESTRICT` |
+| `order_suborder_lines` | `—` | `bar_id, order_id, order_suborder_id` | `order_suborders.bar_id, order_suborders.order_id, order_suborders.id` | `RESTRICT` |
+| `order_suborder_lines` | `—` | `bar_id, product_id` | `products.bar_id, products.id` | `RESTRICT` |
+| `order_suborders` | `—` | `bar_id` | `bars.id` | `RESTRICT` |
+| `order_suborders` | `—` | `bar_id, assigned_staff_id` | `staff_assignments.bar_id, staff_assignments.id` | `RESTRICT` |
+| `order_suborders` | `—` | `bar_id, order_id` | `orders.bar_id, orders.id` | `RESTRICT` |
+| `order_suborders` | `—` | `created_by_id` | `users.id` | `RESTRICT` |
+| `order_suborders` | `—` | `delivered_by_id` | `users.id` | `RESTRICT` |
+| `order_suborders` | `—` | `validated_by_id` | `users.id` | `RESTRICT` |
 | `orders` | `—` | `bar_id` | `bars.id` | `RESTRICT` |
 | `orders` | `—` | `bar_id, assigned_staff_id` | `staff_assignments.bar_id, staff_assignments.id` | `RESTRICT` |
 | `orders` | `—` | `bar_id, customer_id` | `customers.bar_id, customers.id` | `RESTRICT` |
@@ -305,6 +393,9 @@ erDiagram
 | `token_revocations` | `—` | `bar_id` | `bars.id` | `RESTRICT` |
 | `token_revocations` | `—` | `bar_id, api_token_id` | `api_tokens.bar_id, api_tokens.id` | `RESTRICT` |
 | `token_revocations` | `—` | `revoked_by_id` | `users.id` | `RESTRICT` |
+| `user_notifications` | `—` | `bar_id` | `bars.id` | `RESTRICT` |
+| `user_notifications` | `—` | `bar_id, order_id` | `orders.bar_id, orders.id` | `RESTRICT` |
+| `user_notifications` | `—` | `user_id` | `users.id` | `RESTRICT` |
 | `user_sessions` | `—` | `user_id` | `users.id` | `RESTRICT` |
 
 ## Dictionnaire physique
@@ -521,6 +612,144 @@ erDiagram
 - INDEX `ix_cash_sessions_bar_created` : `bar_id, created_at, id`.
 - INDEX `ix_cash_sessions_bar_id` : `bar_id`.
 
+### `change_voucher_transactions`
+
+| Colonne | Type | NULL | PK | Default ORM | Default serveur | Calcul |
+| --- | --- | --- | --- | --- | --- | --- |
+| `id` | MySQL `BIGINT` / SQLite `INTEGER` | non | oui | — | — | — |
+| `voucher_id` | MySQL `BIGINT` / SQLite `INTEGER` | non | non | — | — | — |
+| `reference` | VARCHAR(64) | non | non | — | — | — |
+| `kind` | VARCHAR(16) | non | non | — | — | — |
+| `amount` | NUMERIC(19, 4) | non | non | — | — | — |
+| `currency` | VARCHAR(3) | non | non | — | — | — |
+| `target_order_id` | MySQL `BIGINT` / SQLite `INTEGER` | oui | non | — | — | — |
+| `cash_session_id` | MySQL `BIGINT` / SQLite `INTEGER` | oui | non | — | — | — |
+| `occurred_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | non | non | utcnow | — | — |
+| `recorded_by_id` | MySQL `BIGINT` / SQLite `INTEGER` | non | non | — | — | — |
+| `bar_id` | MySQL `BIGINT` / SQLite `INTEGER` | non | non | — | — | — |
+| `created_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | non | non | utcnow | — | — |
+| `updated_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | non | non | utcnow | — | — |
+
+- PK : `id`.
+- CHECK `ck_change_voucher_transactions_amount` : `amount > 0`.
+- CHECK `ck_change_voucher_transactions_destination` : `(kind = 'REDEEM' AND target_order_id IS NOT NULL AND cash_session_id IS NULL) OR (kind = 'CASH_REFUND' AND target_order_id IS NULL AND cash_session_id IS NOT NULL)`.
+- CHECK `ck_change_voucher_transactions_kind` : `kind IN ('REDEEM','CASH_REFUND')`.
+- FK `—` : `bar_id` → `bars.id` ; ON DELETE `RESTRICT`.
+- FK `—` : `bar_id, cash_session_id` → `cash_sessions.bar_id, cash_sessions.id` ; ON DELETE `RESTRICT`.
+- FK `—` : `bar_id, target_order_id` → `orders.bar_id, orders.id` ; ON DELETE `RESTRICT`.
+- FK `—` : `bar_id, voucher_id` → `change_vouchers.bar_id, change_vouchers.id` ; ON DELETE `RESTRICT`.
+- FK `—` : `recorded_by_id` → `users.id` ; ON DELETE `RESTRICT`.
+- UNIQUE `uq_change_voucher_transactions_bar_id_id` : `bar_id, id`.
+- UNIQUE `uq_change_voucher_transactions_reference` : `bar_id, reference`.
+- INDEX `ix_change_voucher_transactions_bar_created` : `bar_id, created_at, id`.
+- INDEX `ix_change_voucher_transactions_bar_id` : `bar_id`.
+- INDEX `ix_change_voucher_transactions_order` : `bar_id, target_order_id, kind, id`.
+- INDEX `ix_change_voucher_transactions_voucher` : `bar_id, voucher_id, occurred_at, id`.
+
+### `change_vouchers`
+
+| Colonne | Type | NULL | PK | Default ORM | Default serveur | Calcul |
+| --- | --- | --- | --- | --- | --- | --- |
+| `id` | MySQL `BIGINT` / SQLite `INTEGER` | non | oui | — | — | — |
+| `code` | VARCHAR(32) | non | non | — | — | — |
+| `origin_order_id` | MySQL `BIGINT` / SQLite `INTEGER` | non | non | — | — | — |
+| `origin_payment_id` | MySQL `BIGINT` / SQLite `INTEGER` | non | non | — | — | — |
+| `initial_amount` | NUMERIC(19, 4) | non | non | — | — | — |
+| `balance_amount` | NUMERIC(19, 4) | non | non | — | — | — |
+| `currency` | VARCHAR(3) | non | non | — | — | — |
+| `status` | VARCHAR(16) | non | non | 'ACTIVE' | — | — |
+| `customer_name` | VARCHAR(160) | oui | non | — | — | — |
+| `customer_phone` | VARCHAR(32) | oui | non | — | — | — |
+| `issued_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | non | non | utcnow | — | — |
+| `settled_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | oui | non | — | — | — |
+| `issued_by_id` | MySQL `BIGINT` / SQLite `INTEGER` | non | non | — | — | — |
+| `bar_id` | MySQL `BIGINT` / SQLite `INTEGER` | non | non | — | — | — |
+| `created_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | non | non | utcnow | — | — |
+| `updated_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | non | non | utcnow | — | — |
+
+- PK : `id`.
+- CHECK `ck_change_vouchers_balance` : `balance_amount >= 0 AND balance_amount <= initial_amount`.
+- CHECK `ck_change_vouchers_initial_amount` : `initial_amount > 0`.
+- CHECK `ck_change_vouchers_status` : `status IN ('ACTIVE','PARTIAL','SETTLED','CANCELLED')`.
+- FK `—` : `bar_id` → `bars.id` ; ON DELETE `RESTRICT`.
+- FK `—` : `bar_id, origin_order_id` → `orders.bar_id, orders.id` ; ON DELETE `RESTRICT`.
+- FK `—` : `bar_id, origin_payment_id` → `payments.bar_id, payments.id` ; ON DELETE `RESTRICT`.
+- FK `—` : `issued_by_id` → `users.id` ; ON DELETE `RESTRICT`.
+- UNIQUE `uq_change_vouchers_bar_id_id` : `bar_id, id`.
+- UNIQUE `uq_change_vouchers_code` : `bar_id, code`.
+- UNIQUE `uq_change_vouchers_origin_payment` : `bar_id, origin_payment_id`.
+- INDEX `ix_change_vouchers_bar_created` : `bar_id, created_at, id`.
+- INDEX `ix_change_vouchers_bar_id` : `bar_id`.
+- INDEX `ix_change_vouchers_bar_status` : `bar_id, status, issued_at, id`.
+
+### `customer_case_entries`
+
+| Colonne | Type | NULL | PK | Default ORM | Default serveur | Calcul |
+| --- | --- | --- | --- | --- | --- | --- |
+| `id` | MySQL `BIGINT` / SQLite `INTEGER` | non | oui | — | — | — |
+| `customer_id` | MySQL `BIGINT` / SQLite `INTEGER` | non | non | — | — | — |
+| `product_id` | MySQL `BIGINT` / SQLite `INTEGER` | non | non | — | — | — |
+| `order_id` | MySQL `BIGINT` / SQLite `INTEGER` | oui | non | — | — | — |
+| `quantity_delta` | INTEGER | non | non | — | — | — |
+| `reason` | VARCHAR(500) | non | non | — | — | — |
+| `occurred_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | non | non | — | — | — |
+| `recorded_by_id` | MySQL `BIGINT` / SQLite `INTEGER` | non | non | — | — | — |
+| `bar_id` | MySQL `BIGINT` / SQLite `INTEGER` | non | non | — | — | — |
+| `created_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | non | non | utcnow | — | — |
+| `updated_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | non | non | utcnow | — | — |
+
+- PK : `id`.
+- CHECK `ck_customer_case_quantity` : `quantity_delta <> 0`.
+- FK `—` : `bar_id` → `bars.id` ; ON DELETE `RESTRICT`.
+- FK `—` : `bar_id, customer_id` → `customers.bar_id, customers.id` ; ON DELETE `RESTRICT`.
+- FK `—` : `bar_id, order_id` → `orders.bar_id, orders.id` ; ON DELETE `RESTRICT`.
+- FK `—` : `bar_id, product_id` → `products.bar_id, products.id` ; ON DELETE `RESTRICT`.
+- FK `—` : `recorded_by_id` → `users.id` ; ON DELETE `RESTRICT`.
+- UNIQUE `uq_customer_case_entries_bar_id_id` : `bar_id, id`.
+- INDEX `ix_customer_case_customer_product` : `bar_id, customer_id, product_id, id`.
+- INDEX `ix_customer_case_entries_bar_created` : `bar_id, created_at, id`.
+- INDEX `ix_customer_case_entries_bar_id` : `bar_id`.
+
+### `customer_ledger_entries`
+
+| Colonne | Type | NULL | PK | Default ORM | Default serveur | Calcul |
+| --- | --- | --- | --- | --- | --- | --- |
+| `id` | MySQL `BIGINT` / SQLite `INTEGER` | non | oui | — | — | — |
+| `customer_id` | MySQL `BIGINT` / SQLite `INTEGER` | non | non | — | — | — |
+| `order_id` | MySQL `BIGINT` / SQLite `INTEGER` | oui | non | — | — | — |
+| `reference` | VARCHAR(64) | non | non | — | — | — |
+| `entry_kind` | VARCHAR(16) | non | non | — | — | — |
+| `amount_delta` | NUMERIC(19, 4) | non | non | — | — | — |
+| `currency` | VARCHAR(3) | non | non | — | — | — |
+| `method` | VARCHAR(16) | oui | non | — | — | — |
+| `provider_code` | VARCHAR(32) | oui | non | — | — | — |
+| `provider_transaction_id` | VARCHAR(128) | oui | non | — | — | — |
+| `cash_session_id` | MySQL `BIGINT` / SQLite `INTEGER` | oui | non | — | — | — |
+| `reversal_of_id` | MySQL `BIGINT` / SQLite `INTEGER` | oui | non | — | — | — |
+| `reason` | VARCHAR(500) | non | non | — | — | — |
+| `occurred_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | non | non | — | — | — |
+| `recorded_by_id` | MySQL `BIGINT` / SQLite `INTEGER` | non | non | — | — | — |
+| `bar_id` | MySQL `BIGINT` / SQLite `INTEGER` | non | non | — | — | — |
+| `created_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | non | non | utcnow | — | — |
+| `updated_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | non | non | utcnow | — | — |
+
+- PK : `id`.
+- CHECK `ck_customer_ledger_amount` : `amount_delta <> 0`.
+- CHECK `ck_customer_ledger_kind` : `entry_kind IN ('CREDIT_SALE','PAYMENT','REVERSAL','ADJUSTMENT')`.
+- FK `—` : `bar_id` → `bars.id` ; ON DELETE `RESTRICT`.
+- FK `—` : `bar_id, cash_session_id` → `cash_sessions.bar_id, cash_sessions.id` ; ON DELETE `RESTRICT`.
+- FK `—` : `bar_id, customer_id` → `customers.bar_id, customers.id` ; ON DELETE `RESTRICT`.
+- FK `—` : `bar_id, order_id` → `orders.bar_id, orders.id` ; ON DELETE `RESTRICT`.
+- FK `—` : `bar_id, reversal_of_id` → `customer_ledger_entries.bar_id, customer_ledger_entries.id` ; ON DELETE `RESTRICT`.
+- FK `—` : `recorded_by_id` → `users.id` ; ON DELETE `RESTRICT`.
+- UNIQUE `uq_customer_ledger_entries_bar_id_id` : `bar_id, id`.
+- UNIQUE `uq_customer_ledger_reference` : `bar_id, reference`.
+- UNIQUE `uq_customer_ledger_reversal` : `bar_id, reversal_of_id`.
+- INDEX `ix_customer_ledger_customer_time` : `bar_id, customer_id, occurred_at, id`.
+- INDEX `ix_customer_ledger_entries_bar_created` : `bar_id, created_at, id`.
+- INDEX `ix_customer_ledger_entries_bar_id` : `bar_id`.
+- INDEX `ix_customer_ledger_order` : `bar_id, order_id, id`.
+
 ### `customers`
 
 | Colonne | Type | NULL | PK | Default ORM | Default serveur | Calcul |
@@ -540,6 +769,40 @@ erDiagram
 - INDEX `ix_customers_bar_created` : `bar_id, created_at, id`.
 - INDEX `ix_customers_bar_id` : `bar_id`.
 - INDEX `ix_customers_name` : `bar_id, display_name, id`.
+
+### `employee_shifts`
+
+| Colonne | Type | NULL | PK | Default ORM | Default serveur | Calcul |
+| --- | --- | --- | --- | --- | --- | --- |
+| `id` | MySQL `BIGINT` / SQLite `INTEGER` | non | oui | — | — | — |
+| `staff_assignment_id` | MySQL `BIGINT` / SQLite `INTEGER` | non | non | — | — | — |
+| `role_snapshot` | VARCHAR(16) | non | non | — | — | — |
+| `status` | VARCHAR(16) | non | non | 'OPEN' | — | — |
+| `scheduled_start_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | oui | non | — | — | — |
+| `started_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | non | non | — | — | — |
+| `ended_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | oui | non | — | — | — |
+| `started_by_id` | MySQL `BIGINT` / SQLite `INTEGER` | non | non | — | — | — |
+| `ended_by_id` | MySQL `BIGINT` / SQLite `INTEGER` | oui | non | — | — | — |
+| `open_staff_assignment_id` | MySQL `BIGINT` / SQLite `INTEGER` | oui | non | — | — | CASE WHEN status = 'OPEN' THEN staff_assignment_id ELSE NULL END |
+| `bar_id` | MySQL `BIGINT` / SQLite `INTEGER` | non | non | — | — | — |
+| `created_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | non | non | utcnow | — | — |
+| `updated_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | non | non | utcnow | — | — |
+
+- PK : `id`.
+- CHECK `ck_employee_shifts_close_state` : `(status = 'OPEN' AND ended_at IS NULL AND ended_by_id IS NULL) OR (status = 'CLOSED' AND ended_at IS NOT NULL AND ended_by_id IS NOT NULL)`.
+- CHECK `ck_employee_shifts_dates` : `ended_at IS NULL OR ended_at >= started_at`.
+- CHECK `ck_employee_shifts_role` : `role_snapshot IN ('CASHIER','SERVER')`.
+- CHECK `ck_employee_shifts_status` : `status IN ('OPEN','CLOSED')`.
+- FK `—` : `bar_id` → `bars.id` ; ON DELETE `RESTRICT`.
+- FK `—` : `bar_id, staff_assignment_id` → `staff_assignments.bar_id, staff_assignments.id` ; ON DELETE `RESTRICT`.
+- FK `—` : `ended_by_id` → `users.id` ; ON DELETE `RESTRICT`.
+- FK `—` : `started_by_id` → `users.id` ; ON DELETE `RESTRICT`.
+- UNIQUE `uq_employee_shifts_bar_id_id` : `bar_id, id`.
+- UNIQUE `uq_employee_shifts_one_open_assignment` : `bar_id, open_staff_assignment_id`.
+- INDEX `ix_employee_shifts_assignment_status` : `bar_id, staff_assignment_id, status, started_at, id`.
+- INDEX `ix_employee_shifts_bar_created` : `bar_id, created_at, id`.
+- INDEX `ix_employee_shifts_bar_id` : `bar_id`.
+- INDEX `ix_employee_shifts_bar_status_role` : `bar_id, status, role_snapshot, started_at, id`.
 
 ### `expense_categories`
 
@@ -647,6 +910,32 @@ erDiagram
 - INDEX `ix_inventories_bar_created` : `bar_id, created_at, id`.
 - INDEX `ix_inventories_bar_id` : `bar_id`.
 
+### `inventory_line_snapshots`
+
+| Colonne | Type | NULL | PK | Default ORM | Default serveur | Calcul |
+| --- | --- | --- | --- | --- | --- | --- |
+| `id` | MySQL `BIGINT` / SQLite `INTEGER` | non | oui | — | — | — |
+| `inventory_line_id` | MySQL `BIGINT` / SQLite `INTEGER` | non | non | — | — | — |
+| `opening_quantity` | NUMERIC(20, 6) | non | non | 0 | — | — |
+| `purchase_quantity` | NUMERIC(20, 6) | non | non | 0 | — | — |
+| `theoretical_quantity` | NUMERIC(20, 6) | non | non | 0 | — | — |
+| `sale_price_snapshot` | NUMERIC(19, 4) | non | non | 0 | — | — |
+| `theoretical_sold_quantity` | NUMERIC(20, 6) | non | non | 0 | — | — |
+| `theoretical_sales_amount` | NUMERIC(19, 4) | non | non | 0 | — | — |
+| `note` | VARCHAR(500) | oui | non | — | — | — |
+| `bar_id` | MySQL `BIGINT` / SQLite `INTEGER` | non | non | — | — | — |
+| `created_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | non | non | utcnow | — | — |
+| `updated_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | non | non | utcnow | — | — |
+
+- PK : `id`.
+- CHECK `ck_inventory_line_snapshot_nonnegative` : `opening_quantity >= 0 AND purchase_quantity >= 0 AND theoretical_quantity >= 0 AND sale_price_snapshot >= 0`.
+- FK `—` : `bar_id` → `bars.id` ; ON DELETE `RESTRICT`.
+- FK `—` : `bar_id, inventory_line_id` → `inventory_lines.bar_id, inventory_lines.id` ; ON DELETE `RESTRICT`.
+- UNIQUE `uq_inventory_line_snapshot_line` : `bar_id, inventory_line_id`.
+- UNIQUE `uq_inventory_line_snapshots_bar_id_id` : `bar_id, id`.
+- INDEX `ix_inventory_line_snapshots_bar_created` : `bar_id, created_at, id`.
+- INDEX `ix_inventory_line_snapshots_bar_id` : `bar_id`.
+
 ### `inventory_lines`
 
 | Colonne | Type | NULL | PK | Default ORM | Default serveur | Calcul |
@@ -672,6 +961,33 @@ erDiagram
 - UNIQUE `uq_inventory_lines_product` : `bar_id, inventory_id, product_id`.
 - INDEX `ix_inventory_lines_bar_created` : `bar_id, created_at, id`.
 - INDEX `ix_inventory_lines_bar_id` : `bar_id`.
+
+### `inventory_period_snapshots`
+
+| Colonne | Type | NULL | PK | Default ORM | Default serveur | Calcul |
+| --- | --- | --- | --- | --- | --- | --- |
+| `id` | MySQL `BIGINT` / SQLite `INTEGER` | non | oui | — | — | — |
+| `inventory_id` | MySQL `BIGINT` / SQLite `INTEGER` | non | non | — | — | — |
+| `period_start_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | oui | non | — | — | — |
+| `period_end_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | non | non | — | — | — |
+| `theoretical_sales_amount` | NUMERIC(19, 4) | non | non | 0 | — | — |
+| `expenses_amount` | NUMERIC(19, 4) | non | non | 0 | — | — |
+| `credit_sales_amount` | NUMERIC(19, 4) | non | non | 0 | — | — |
+| `expected_cash_amount` | NUMERIC(19, 4) | non | non | 0 | — | — |
+| `recorded_net_amount` | NUMERIC(19, 4) | non | non | 0 | — | — |
+| `cash_difference_amount` | NUMERIC(19, 4) | non | non | 0 | — | — |
+| `bar_id` | MySQL `BIGINT` / SQLite `INTEGER` | non | non | — | — | — |
+| `created_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | non | non | utcnow | — | — |
+| `updated_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | non | non | utcnow | — | — |
+
+- PK : `id`.
+- CHECK `ck_inventory_period_dates` : `period_start_at IS NULL OR period_end_at > period_start_at`.
+- FK `—` : `bar_id` → `bars.id` ; ON DELETE `RESTRICT`.
+- FK `—` : `bar_id, inventory_id` → `inventories.bar_id, inventories.id` ; ON DELETE `RESTRICT`.
+- UNIQUE `uq_inventory_period_inventory` : `bar_id, inventory_id`.
+- UNIQUE `uq_inventory_period_snapshots_bar_id_id` : `bar_id, id`.
+- INDEX `ix_inventory_period_snapshots_bar_created` : `bar_id, created_at, id`.
+- INDEX `ix_inventory_period_snapshots_bar_id` : `bar_id`.
 
 ### `order_lines`
 
@@ -768,6 +1084,85 @@ erDiagram
 - INDEX `ix_order_returns_bar_created` : `bar_id, created_at, id`.
 - INDEX `ix_order_returns_bar_id` : `bar_id`.
 
+### `order_suborder_lines`
+
+| Colonne | Type | NULL | PK | Default ORM | Default serveur | Calcul |
+| --- | --- | --- | --- | --- | --- | --- |
+| `id` | MySQL `BIGINT` / SQLite `INTEGER` | non | oui | — | — | — |
+| `order_suborder_id` | MySQL `BIGINT` / SQLite `INTEGER` | non | non | — | — | — |
+| `order_id` | MySQL `BIGINT` / SQLite `INTEGER` | non | non | — | — | — |
+| `product_id` | MySQL `BIGINT` / SQLite `INTEGER` | non | non | — | — | — |
+| `line_no` | MySQL `INTEGER UNSIGNED` / SQLite `INTEGER` | non | non | — | — | — |
+| `product_name_snapshot` | VARCHAR(160) | non | non | — | — | — |
+| `unit_snapshot` | VARCHAR(16) | non | non | — | — | — |
+| `quantity` | NUMERIC(20, 6) | non | non | — | — | — |
+| `note` | VARCHAR(500) | oui | non | — | — | — |
+| `unit_sale_price_snapshot` | NUMERIC(19, 4) | non | non | — | — | — |
+| `unit_cost_snapshot` | NUMERIC(19, 4) | non | non | — | — | — |
+| `subtotal_amount` | NUMERIC(19, 4) | non | non | — | — | — |
+| `discount_amount` | NUMERIC(19, 4) | non | non | 0 | — | — |
+| `tax_amount` | NUMERIC(19, 4) | non | non | 0 | — | — |
+| `total_amount` | NUMERIC(19, 4) | non | non | — | — | — |
+| `bar_id` | MySQL `BIGINT` / SQLite `INTEGER` | non | non | — | — | — |
+| `created_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | non | non | utcnow | — | — |
+| `updated_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | non | non | utcnow | — | — |
+
+- PK : `id`.
+- CHECK `ck_order_suborder_lines_amounts` : `line_no > 0 AND quantity > 0 AND unit_sale_price_snapshot >= 0 AND unit_cost_snapshot >= 0 AND subtotal_amount >= 0 AND discount_amount >= 0 AND tax_amount >= 0 AND discount_amount <= subtotal_amount AND total_amount = subtotal_amount-discount_amount+tax_amount`.
+- FK `—` : `bar_id` → `bars.id` ; ON DELETE `RESTRICT`.
+- FK `—` : `bar_id, order_id, order_suborder_id` → `order_suborders.bar_id, order_suborders.order_id, order_suborders.id` ; ON DELETE `RESTRICT`.
+- FK `—` : `bar_id, product_id` → `products.bar_id, products.id` ; ON DELETE `RESTRICT`.
+- UNIQUE `uq_order_suborder_lines_bar_id_id` : `bar_id, id`.
+- UNIQUE `uq_order_suborder_lines_id_product` : `bar_id, id, product_id`.
+- UNIQUE `uq_order_suborder_lines_no` : `bar_id, order_suborder_id, line_no`.
+- INDEX `ix_order_suborder_lines_bar_created` : `bar_id, created_at, id`.
+- INDEX `ix_order_suborder_lines_bar_id` : `bar_id`.
+
+### `order_suborders`
+
+| Colonne | Type | NULL | PK | Default ORM | Default serveur | Calcul |
+| --- | --- | --- | --- | --- | --- | --- |
+| `id` | MySQL `BIGINT` / SQLite `INTEGER` | non | oui | — | — | — |
+| `order_id` | MySQL `BIGINT` / SQLite `INTEGER` | non | non | — | — | — |
+| `sequence_no` | MySQL `INTEGER UNSIGNED` / SQLite `INTEGER` | non | non | — | — | — |
+| `assigned_staff_id` | MySQL `BIGINT` / SQLite `INTEGER` | oui | non | — | — | — |
+| `status` | VARCHAR(24) | non | non | 'PENDING_VALIDATION' | — | — |
+| `delivery_status` | VARCHAR(16) | non | non | 'PENDING' | — | — |
+| `currency` | VARCHAR(3) | non | non | — | — | — |
+| `subtotal_amount` | NUMERIC(19, 4) | non | non | 0 | — | — |
+| `discount_amount` | NUMERIC(19, 4) | non | non | 0 | — | — |
+| `tax_amount` | NUMERIC(19, 4) | non | non | 0 | — | — |
+| `total_amount` | NUMERIC(19, 4) | non | non | 0 | — | — |
+| `note` | VARCHAR(500) | oui | non | — | — | — |
+| `created_by_id` | MySQL `BIGINT` / SQLite `INTEGER` | non | non | — | — | — |
+| `validated_by_id` | MySQL `BIGINT` / SQLite `INTEGER` | oui | non | — | — | — |
+| `validated_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | oui | non | — | — | — |
+| `rejected_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | oui | non | — | — | — |
+| `delivered_by_id` | MySQL `BIGINT` / SQLite `INTEGER` | oui | non | — | — | — |
+| `delivered_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | oui | non | — | — | — |
+| `cancelled_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | oui | non | — | — | — |
+| `bar_id` | MySQL `BIGINT` / SQLite `INTEGER` | non | non | — | — | — |
+| `created_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | non | non | utcnow | — | — |
+| `updated_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | non | non | utcnow | — | — |
+
+- PK : `id`.
+- CHECK `ck_order_suborders_amounts` : `subtotal_amount >= 0 AND discount_amount >= 0 AND tax_amount >= 0 AND discount_amount <= subtotal_amount AND total_amount = subtotal_amount-discount_amount+tax_amount`.
+- CHECK `ck_order_suborders_delivery_status` : `delivery_status IN ('PENDING','DELIVERED')`.
+- CHECK `ck_order_suborders_sequence` : `sequence_no > 0`.
+- CHECK `ck_order_suborders_status` : `status IN ('PENDING_VALIDATION','VALIDATED','REJECTED','CANCELLED')`.
+- FK `—` : `bar_id` → `bars.id` ; ON DELETE `RESTRICT`.
+- FK `—` : `bar_id, assigned_staff_id` → `staff_assignments.bar_id, staff_assignments.id` ; ON DELETE `RESTRICT`.
+- FK `—` : `bar_id, order_id` → `orders.bar_id, orders.id` ; ON DELETE `RESTRICT`.
+- FK `—` : `created_by_id` → `users.id` ; ON DELETE `RESTRICT`.
+- FK `—` : `delivered_by_id` → `users.id` ; ON DELETE `RESTRICT`.
+- FK `—` : `validated_by_id` → `users.id` ; ON DELETE `RESTRICT`.
+- UNIQUE `uq_order_suborders_bar_id_id` : `bar_id, id`.
+- UNIQUE `uq_order_suborders_order_id` : `bar_id, order_id, id`.
+- UNIQUE `uq_order_suborders_sequence` : `bar_id, order_id, sequence_no`.
+- INDEX `ix_order_suborders_bar_created` : `bar_id, created_at, id`.
+- INDEX `ix_order_suborders_bar_id` : `bar_id`.
+- INDEX `ix_order_suborders_order_status` : `bar_id, order_id, status, sequence_no`.
+
 ### `orders`
 
 | Colonne | Type | NULL | PK | Default ORM | Default serveur | Calcul |
@@ -834,7 +1229,7 @@ erDiagram
 | `updated_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | non | non | utcnow | — | — |
 
 - PK : `id`.
-- CHECK `ck_payments_tender` : `amount = amount_applied AND amount_applied > 0 AND change_given >= 0 AND amount_presented = amount_applied + change_given`.
+- CHECK `ck_payments_tender` : `amount = amount_applied AND amount_applied > 0 AND change_given >= 0 AND amount_presented >= amount_applied + change_given`.
 - CHECK `ck_payments_values` : `amount > 0 AND method IN ('CASH','MOBILE_MONEY','CARD','BANK_TRANSFER')`.
 - FK `—` : `bar_id` → `bars.id` ; ON DELETE `RESTRICT`.
 - FK `—` : `bar_id, cash_session_id` → `cash_sessions.bar_id, cash_sessions.id` ; ON DELETE `RESTRICT`.
@@ -934,9 +1329,16 @@ erDiagram
 | `bar_id` | MySQL `BIGINT` / SQLite `INTEGER` | non | non | — | — | — |
 | `created_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | non | non | utcnow | — | — |
 | `updated_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | non | non | utcnow | — | — |
+| `purchase_unit` | VARCHAR(16) | non | non | — | — | — |
+| `purchase_quantity` | NUMERIC(20, 6) | non | non | — | — | — |
+| `units_per_case_snapshot` | INTEGER | oui | non | — | — | — |
+| `purchase_unit_price_snapshot` | NUMERIC(19, 4) | non | non | — | — | — |
 
 - PK : `id`.
 - CHECK `ck_purchase_lines_amounts` : `line_no > 0 AND quantity > 0 AND unit_cost_snapshot >= 0 AND subtotal_amount >= 0 AND discount_amount >= 0 AND tax_amount >= 0 AND discount_amount <= subtotal_amount AND total_amount = subtotal_amount-discount_amount+tax_amount`.
+- CHECK `ck_purchase_lines_case_size` : `(purchase_unit = 'BOTTLE' AND units_per_case_snapshot IS NULL) OR (purchase_unit = 'CASE' AND units_per_case_snapshot IS NOT NULL AND units_per_case_snapshot > 0)`.
+- CHECK `ck_purchase_lines_purchase_quantity` : `purchase_quantity > 0`.
+- CHECK `ck_purchase_lines_purchase_unit` : `purchase_unit IN ('CASE','BOTTLE')`.
 - FK `—` : `bar_id` → `bars.id` ; ON DELETE `RESTRICT`.
 - FK `—` : `bar_id, product_id` → `products.bar_id, products.id` ; ON DELETE `RESTRICT`.
 - FK `—` : `bar_id, purchase_id` → `purchases.bar_id, purchases.id` ; ON DELETE `RESTRICT`.
@@ -967,6 +1369,8 @@ erDiagram
 | `bar_id` | MySQL `BIGINT` / SQLite `INTEGER` | non | non | — | — | — |
 | `created_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | non | non | utcnow | — | — |
 | `updated_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | non | non | utcnow | — | — |
+| `purchase_date` | DATE | non | non | — | — | — |
+| `notes` | VARCHAR(500) | oui | non | — | — | — |
 
 - PK : `id`.
 - CHECK `ck_purchases_amounts` : `subtotal_amount >= 0 AND discount_amount >= 0 AND tax_amount >= 0 AND total_amount = subtotal_amount - discount_amount + tax_amount AND discount_amount <= subtotal_amount`.
@@ -1261,6 +1665,7 @@ erDiagram
 | `bar_id` | MySQL `BIGINT` / SQLite `INTEGER` | non | non | — | — | — |
 | `created_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | non | non | utcnow | — | — |
 | `updated_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | non | non | utcnow | — | — |
+| `note` | VARCHAR(500) | oui | non | — | — | — |
 
 - PK : `id`.
 - FK `—` : `bar_id` → `bars.id` ; ON DELETE `RESTRICT`.
@@ -1290,6 +1695,30 @@ erDiagram
 - UNIQUE `uq_token_revocations_token` : `bar_id, api_token_id`.
 - INDEX `ix_token_revocations_bar_created` : `bar_id, created_at, id`.
 - INDEX `ix_token_revocations_bar_id` : `bar_id`.
+
+### `user_notifications`
+
+| Colonne | Type | NULL | PK | Default ORM | Default serveur | Calcul |
+| --- | --- | --- | --- | --- | --- | --- |
+| `id` | MySQL `BIGINT` / SQLite `INTEGER` | non | oui | — | — | — |
+| `bar_id` | MySQL `BIGINT` / SQLite `INTEGER` | non | non | — | — | — |
+| `user_id` | MySQL `BIGINT` / SQLite `INTEGER` | non | non | — | — | — |
+| `order_id` | MySQL `BIGINT` / SQLite `INTEGER` | oui | non | — | — | — |
+| `kind` | VARCHAR(32) | non | non | — | — | — |
+| `title` | VARCHAR(160) | non | non | — | — | — |
+| `body` | VARCHAR(500) | non | non | — | — | — |
+| `read_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | oui | non | — | — | — |
+| `created_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | non | non | utcnow | — | — |
+| `updated_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | non | non | utcnow | — | — |
+
+- PK : `id`.
+- FK `—` : `bar_id` → `bars.id` ; ON DELETE `RESTRICT`.
+- FK `—` : `bar_id, order_id` → `orders.bar_id, orders.id` ; ON DELETE `RESTRICT`.
+- FK `—` : `user_id` → `users.id` ; ON DELETE `RESTRICT`.
+- INDEX `ix_user_notifications_bar_id` : `bar_id`.
+- INDEX `ix_user_notifications_bar_order` : `bar_id, order_id, id`.
+- INDEX `ix_user_notifications_user_id` : `user_id`.
+- INDEX `ix_user_notifications_user_unread` : `user_id, read_at, created_at, id`.
 
 ### `user_sessions`
 

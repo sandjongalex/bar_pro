@@ -8,6 +8,8 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
 from app.auth import api_required
+from app.async_ui import wants_async_web_response, web_json_response
+from app.server_order_idempotency import create_once, lookup as lookup_order_intent
 from app.extensions import db
 from app.finance_totals import order_balance
 from app.models import Bar, BarTable, Order, OrderLine, Product, ProductCategory, StaffAssignment, StockBalance, User
@@ -68,6 +70,11 @@ def _message(code):
         "NOT_FOUND": "Produit, table ou commande introuvable.",
         "FORBIDDEN": "Vous n'êtes pas autorisé à effectuer cette opération.",
         "BAR_SUSPENDED": "Le bar est suspendu : les ventes sont bloquées.",
+        "IDEMPOTENCY_KEY_REQUIRED": "Identifiant sécurisé de commande absent. Rechargez le formulaire.",
+        "IDEMPOTENCY_CONFLICT": "Ce numéro de tentative correspond à un autre panier. Ne renvoyez pas la commande.",
+        "IDEMPOTENCY_IN_PROGRESS": "Commande en cours de validation. Vérifiez son état avant de réessayer.",
+        "IDEMPOTENCY_RETRY_LATER": "Le serveur traite cette commande. Vérifiez son état avant de réessayer.",
+        "IDEMPOTENCY_RESULT_MISSING": "Reçu introuvable : contactez le responsable avant de renvoyer.",
     }
     return messages.get(str(code), "Opération refusée. Vérifiez la commande.")
 
@@ -207,76 +214,121 @@ def quick(bar_id):
 
     if request.method == "POST":
         action = request.form.get("action", "create")
+        async_web = wants_async_web_response()
         try:
             if action == "create":
                 table_id_raw = request.form.get("table_id", "").strip()
                 table_id = int(table_id_raw) if table_id_raw else None
-                order = order_service.create(
-                    current_user,
-                    bar_id,
-                    request.form.get("reference", "").strip() or _reference(),
-                    _cart_lines(),
-                    table_id=table_id,
-                    notes=request.form.get("notes", "").strip() or None,
-                    invoice_name=request.form.get("invoice_name", "").strip() or None,
-                )
+                lines = _cart_lines()
+                notes = request.form.get("notes", "").strip() or None
+                invoice_name = request.form.get("invoice_name", "").strip() or None
+                custom_reference = request.form.get("reference", "").strip()
+                key = request.form.get("idempotency_key", "").strip()
+
+                def create_order():
+                    return order_service.create(
+                        current_user, bar_id, custom_reference or _reference(), lines,
+                        table_id=table_id, notes=notes, invoice_name=invoice_name,
+                    )
+
+                # Existing HTML forms without a key keep legacy behavior. New
+                # server POS forms persist their key across timeout/reconnect.
+                if is_server and (key or async_web):
+                    payload = {
+                        "reference": custom_reference, "lines": lines,
+                        "table_id": table_id, "notes": notes, "invoice_name": invoice_name,
+                    }
+                    order, replayed = create_once(
+                        current_user, bar_id, key, payload, create_order,
+                    )
+                else:
+                    order = create_order()
+                    replayed = False
+
                 db.session.commit()
                 order_label = order.customer_name_snapshot or order.table_label_snapshot or "COMPTOIR"
-                flash(
-                    f"Facture {order_label} envoyée à la caisse · {order.total_amount:,.0f} {order.currency}.",
-                    "success",
+                success_message = (
+                    f"Facture {order_label} envoyée à la caisse · "
+                    f"{order.total_amount:,.0f} {order.currency}."
                 )
+                if async_web:
+                    return web_json_response(
+                        data={"id": order.id, "reference": order.reference,
+                              "invoice_name": order_label, "replayed": replayed},
+                        message=success_message, status=200 if replayed else 201,
+                    )
+                flash(success_message, "success")
                 if can_pay and not is_server:
                     return redirect(url_for("checkout_web.checkout", bar_id=bar_id, order_id=order.id))
 
             elif action == "note":
                 if not can_edit:
                     raise PermissionError("FORBIDDEN")
+                order_id = int(request.form.get("order_id", "0"))
                 order_service.append_note(
-                    current_user,
-                    bar_id,
-                    int(request.form.get("order_id", "0")),
-                    request.form.get("note", "").strip(),
+                    current_user, bar_id, order_id, request.form.get("note", "").strip(),
                 )
                 db.session.commit()
+                if async_web:
+                    return web_json_response(
+                        data={"id": order_id}, message="Note complémentaire envoyée à la caisse.",
+                    )
                 flash("Note complémentaire envoyée à la caisse.", "success")
 
             elif action == "cancel":
                 if not can_edit:
                     raise PermissionError("FORBIDDEN")
                 order = order_service.cancel(
-                    current_user,
-                    bar_id,
+                    current_user, bar_id,
                     int(request.form.get("order_id", "0")),
                     request.form.get("reason", "").strip(),
                 )
                 db.session.commit()
+                if async_web:
+                    return web_json_response(
+                        data={"id": order.id, "reference": order.reference, "status": order.status},
+                        message=f"Commande {order.reference} annulée.",
+                    )
                 flash(f"Commande {order.reference} annulée.", "success")
 
             elif action == "validate_suborder":
                 if not is_server:
                     raise PermissionError("FORBIDDEN")
                 suborder = order_suborder_service.validate_by_server(
-                    current_user,
-                    bar_id,
+                    current_user, bar_id,
                     int(request.form.get("order_id", "0")),
                     int(request.form.get("suborder_id", "0")),
                 )
                 db.session.commit()
-                flash(
-                    f"Sous-commande {suborder.sequence_no} validée. Elle reste séparée de la commande initiale.",
-                    "success",
+                success_message = (
+                    f"Sous-commande {suborder.sequence_no} validée. "
+                    "Elle reste séparée de la commande initiale."
                 )
-
+                if async_web:
+                    return web_json_response(
+                        data={"id": suborder.id, "order_id": suborder.order_id},
+                        message=success_message,
+                    )
+                flash(success_message, "success")
             else:
                 raise ValueError("INVALID_ACTION")
 
         except (PermissionError, LookupError, ValueError, TypeError, IntegrityError) as exc:
             db.session.rollback()
-            if isinstance(exc, IntegrityError):
-                flash("Cette référence de commande existe déjà. Réessayez.", "danger")
-            else:
-                flash(_message(exc), "danger")
+            code = "DUPLICATE_REFERENCE" if isinstance(exc, IntegrityError) else str(exc)
+            message = ("Cette référence de commande existe déjà. Réessayez."
+                       if code == "DUPLICATE_REFERENCE" else _message(code))
+            if async_web:
+                status = 403 if isinstance(exc, PermissionError) else (
+                    404 if isinstance(exc, LookupError) else (
+                        409 if code in {"DUPLICATE_REFERENCE", "IDEMPOTENCY_CONFLICT",
+                                        "IDEMPOTENCY_IN_PROGRESS", "IDEMPOTENCY_RETRY_LATER",
+                                        "IDEMPOTENCY_RESULT_MISSING"}
+                        else 422))
+                return web_json_response(
+                    error={"code": code, "message": message}, message=message, status=status,
+                )
+            flash(message, "danger")
 
         return redirect(url_for("orders_web.quick", bar_id=bar_id))
 
@@ -395,7 +447,20 @@ def quick(bar_id):
         can_edit=can_edit,
         can_pay=can_pay,
         is_server=is_server,
+        new_request_key=secrets.token_urlsafe(24),
     )
+
+
+@web_bp.get("/async-intents/<key>")
+@login_required
+def async_intent(bar_id, key):
+    permissions.require(current_user, "orders.create", bar_id)
+    result = lookup_order_intent(current_user, bar_id, key)
+    if result is None:
+        return jsonify({"success": False, "error": {"code": "NOT_FOUND"}}), 404
+    if result["state"] == "PROCESSING":
+        return jsonify({"success": False, "error": {"code": "PENDING"}}), 202
+    return jsonify({"success": True, "data": result})
 
 
 @bp.post("")

@@ -34,7 +34,7 @@
 
   function findServerOrderId(card) {
     const input = card.querySelector('.server-order-inline-editor input[name="order_id"], form input[name="order_id"]');
-    return input?.value || '';
+    return card.dataset.serverOrderId || input?.value || '';
   }
 
   function createToggle(label) {
@@ -297,6 +297,7 @@
     button.addEventListener('click', () => openEditor(button, host, orderId, 'cashier'));
   }
 
+  window.BarProOrderEdit = Object.freeze({ setupServerEditors });
   setupServerEditors();
   setupCashierEditor();
 })();

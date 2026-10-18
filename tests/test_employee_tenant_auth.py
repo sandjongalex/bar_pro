@@ -1,3 +1,4 @@
+from legacy_shift import activate_employee
 import re
 
 from app.extensions import db
@@ -37,6 +38,8 @@ def _employee(bar, role, suffix):
         started_at=utcnow(),
     )
     db.session.add(assignment)
+    db.session.flush()
+    activate_employee(bar, user)
     db.session.commit()
     return user, assignment
 
@@ -109,6 +112,7 @@ def test_employee_login_requires_exactly_one_active_assignment(env):
 
 def test_employee_session_is_bound_to_assigned_bar_and_other_bar_is_404(env):
     app, _, bar, foreign, _, server, _, _ = env
+    activate_employee(bar, server)
     assignment = db.session.query(StaffAssignment).filter_by(user_id=server.id, ended_at=None).one()
     client = app.test_client()
     assert _login(client, server.email).status_code == 302
@@ -309,6 +313,7 @@ def test_cashier_cannot_modify_other_bar_order(env):
 
 def test_server_cannot_read_other_bar_order(env):
     app, owner, bar, _, _, server, _, _ = env
+    activate_employee(bar, server)
     second_bar = Bar(
         owner_id=owner.id,
         name="Hidden Server Order Bar",

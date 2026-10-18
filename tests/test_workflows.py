@@ -13,6 +13,7 @@ from app.inventory_services import inventory_service
 from app.order_services import order_service
 from app.payment_services import payment_service
 from app.cash_services import cash_service
+from legacy_shift import activate_employee
 
 @pytest.fixture
 def env(tmp_path):
@@ -41,7 +42,7 @@ def env(tmp_path):
 def order(env,quantity=2,served=False,actor=None):
  _,owner,bar,_,product,_,_,_=env
  value=order_service.create(actor or owner,bar.id,"ORD",[{"product_id":product.id,"quantity":quantity}])
- order_service.confirm(actor or owner,bar.id,value.id)
+ order_service.confirm(owner,bar.id,value.id)  # only cashier/admin may deliver
  if served: order_service.serve(actor or owner,bar.id,value.id)
  db.session.commit();return value
 
@@ -49,9 +50,10 @@ def balance(env):
  return db.session.scalar(select(StockBalance.quantity).where(StockBalance.product_id==env[4].id))
 
 def test_order_server_confirm_serve_and_stock_once(env):
+ activate_employee(env[2], env[5])
  value=order(env,actor=env[5]);assert balance(env)==8
- with pytest.raises(ValueError):order_service.confirm(env[5],env[2].id,value.id)
- order_service.serve(env[5],env[2].id,value.id);db.session.commit()
+ with pytest.raises(ValueError):order_service.confirm(env[1],env[2].id,value.id)
+ order_service.serve(env[1],env[2].id,value.id);db.session.commit()
  assert balance(env)==8
  assert db.session.scalar(select(func.count()).select_from(StockMovement).where(StockMovement.order_line_id.is_not(None)))==1
  with pytest.raises(ValueError):order_service.replace_lines(env[1],value,[])
@@ -154,7 +156,7 @@ def test_suspended_bar_writes_denied(env):
 def test_web_csrf_login_and_foreign_routes(env):
  import re
  client=env[0].test_client();page=client.get("/login")
- csrf=re.search("name='csrf_token' value='([^']+)'",page.text).group(1)
+ csrf=re.search(r'name=["\']csrf_token["\']\s+value=["\']([^"\']+)["\']',page.text).group(1)
  result=client.post("/login",data={"email":env[1].email,"password":"test-password","csrf_token":csrf});assert result.status_code==302
  for suffix in ("catalog","stock","inventories","orders/new"):
   assert client.get(f"/bars/{env[3].id}/{suffix}").status_code==404
@@ -300,15 +302,15 @@ def test_invalid_api_body_never_returns_500(env,payload):
 def test_web_order_form_creates_and_confirms(env):
  import re
  client=env[0].test_client()
- page=client.get("/login");csrf=re.search("name='csrf_token' value='([^']+)'",page.text).group(1)
+ page=client.get("/login");csrf=re.search(r'name=["\']csrf_token["\']\s+value=["\']([^"\']+)["\']',page.text).group(1)
  client.post("/login",data={"email":env[1].email,"password":"test-password","csrf_token":csrf})
  path=f"/bars/{env[2].id}/orders/new"
  page=client.get(path);csrf=re.search('name="csrf_token" value="([^"]+)"',page.text).group(1)
- response=client.post(path,data={"csrf_token":csrf,"reference":"WEB-ORDER",f"quantity_{env[4].id}":2})
+ response=client.post(path,data={"csrf_token":csrf,"reference":"WEB-ORDER","product_id":str(env[4].id),"quantity":"2"},follow_redirects=True)
  assert response.status_code==200,response.text
  assert "WEB-ORDER" in response.text
- assert balance(env)==8
- assert db.session.scalar(select(Order).where(Order.reference=="WEB-ORDER")).status=="CONFIRMED"
+ assert balance(env)==10
+ assert db.session.scalar(select(Order).where(Order.reference=="WEB-ORDER")).status=="DRAFT"
 
 
 def test_every_business_api_route_requires_bearer(env):

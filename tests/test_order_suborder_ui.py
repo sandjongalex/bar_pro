@@ -1,4 +1,6 @@
+from legacy_shift import activate_employee
 import re
+from flask import g
 
 from sqlalchemy import select
 
@@ -28,6 +30,7 @@ def _login(client, email, password="test-password"):
 
 def test_server_and_cashier_have_optimized_suborder_workflows(env):
     app, _, bar, _, product, server, _, _ = env
+    activate_employee(bar, server)
 
     cashier = User(
         email="suborder-ui-cashier@example.invalid",
@@ -46,6 +49,7 @@ def test_server_and_cashier_have_optimized_suborder_workflows(env):
         )
     )
     db.session.flush()
+    activate_employee(bar, cashier)
 
     parent = order_service.create(
         server,
@@ -131,6 +135,19 @@ def test_server_and_cashier_have_optimized_suborder_workflows(env):
     assert "À livrer" in detail_with_suborder.text
     assert "Ajout depuis l&#39;interface serveuse" in detail_with_suborder.text
 
+    # Each actor must end their web session before the shared Flask test context
+    # authenticates a different user (no concurrent current_user leakage).
+    logout = server_client.post(
+        "/logout",
+        data={"csrf_token": _csrf(detail_with_suborder)},
+        follow_redirects=False,
+    )
+    assert logout.status_code == 302
+
+    # The shared, long-lived app context in this legacy fixture keeps g between
+    # synthetic requests. In a real HTTP request g is new; emulate that boundary
+    # before a separate browser session receives its own CSRF token.
+    g.pop("csrf_token", None)
     cashier_client = app.test_client()
     assert _login(cashier_client, cashier.email).status_code == 302
 
