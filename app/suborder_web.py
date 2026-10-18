@@ -124,6 +124,11 @@ def new_suborder(bar_id: int, order_id: int):
 
     order = _active_order(bar_id, order_id)
     if not order:
+        if wants_async_web_response():
+            return web_json_response(
+                error={"code": "ORDER_NOT_EDITABLE", "message": _message("ORDER_NOT_EDITABLE")},
+                message=_message("ORDER_NOT_EDITABLE"), status=404,
+            )
         abort(404)
 
     if assignment.role == "SERVER":
@@ -135,7 +140,13 @@ def new_suborder(bar_id: int, order_id: int):
     else:
         permissions.require(current_user, "orders.deliver", bar_id)
         if _open_cash_session(bar_id) is None:
-            flash("Ouvrez votre caisse avant de servir une sous-commande.", "info")
+            message = "Ouvrez votre caisse avant de servir une sous-commande."
+            if wants_async_web_response():
+                return web_json_response(
+                    error={"code": "CASH_SESSION_REQUIRED", "message": message},
+                    message=message, status=409,
+                )
+            flash(message, "info")
             return redirect(url_for("cashier_web.session", bar_id=bar_id))
         if order.assigned_staff_id is None:
             abort(404)
@@ -230,7 +241,13 @@ def cashier_queue(bar_id: int):
     permissions.require(current_user, "orders.deliver", bar_id)
 
     if _open_cash_session(bar_id) is None:
-        flash("Ouvrez votre caisse avant de traiter les sous-commandes.", "info")
+        message = "Ouvrez votre caisse avant de traiter les sous-commandes."
+        if wants_async_web_response():
+            return web_json_response(
+                error={"code": "CASH_SESSION_REQUIRED", "message": message},
+                message=message, status=409,
+            )
+        flash(message, "info")
         return redirect(url_for("cashier_web.session", bar_id=bar_id))
 
     if request.method == "POST":
