@@ -20,7 +20,7 @@ function start(fetch, overrides = {}) {
     getElementById() { return null; },
     createElement() {
       return {
-        setAttribute() {}, replaceChildren() {}, textContent: '',
+        setAttribute() {}, addEventListener() {}, appendChild() {}, replaceChildren() {}, textContent: '',
         attributes: [], querySelectorAll() { return []; }
       };
     },
