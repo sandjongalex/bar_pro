@@ -1,0 +1,278 @@
+/* Soft Brutalism: high-contrast, deep-grey bar lighting mode.
+   Loaded AFTER feature styles to override legacy hardcoded light surfaces. */
+.theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: .45rem;
+  min-height: 42px;
+  padding: .48rem .8rem;
+  border: 2px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--ink);
+  font-weight: 800;
+  font-size: .78rem;
+  white-space: nowrap;
+  cursor: pointer;
+  touch-action: manipulation;
+  box-shadow: 3px 3px 0 rgba(0,0,0,.12);
+}
+.theme-toggle [data-theme-icon] { font-size: 1.15rem; line-height: 1; }
+.theme-toggle:hover { border-color: var(--brand); color: var(--brand); }
+.theme-toggle:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+.theme-toggle-login { margin-bottom: 1rem; align-self: flex-end; }
+
+/* Critical actions: a visible, sharp edge even under low bar lighting. */
+.btn-danger,.btn-warning,.btn-success {
+  border-width: 2px;
+  font-weight: 800;
+  box-shadow: 3px 3px 0 rgba(0,0,0,.2);
+}
+.btn-danger:focus-visible,.btn-warning:focus-visible,.btn-success:focus-visible,
+.btn-primary:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+
+html[data-bs-theme="dark"] {
+  --theme-panel: #1d1d1d;
+  --theme-surface-raised: #252525;
+  --theme-surface-hover: #303234;
+  --theme-subtle: #b8c1c7;
+  --theme-outline: #4b5054;
+}
+html[data-bs-theme="dark"] body,
+html[data-bs-theme="dark"] .app-body,
+html[data-bs-theme="dark"] .login-page { background: #121212; color: var(--ink); }
+html[data-bs-theme="dark"] .sidebar {
+  background: linear-gradient(180deg,#191d1c,#121513);
+  border-right: 2px solid #424b45;
+}
+html[data-bs-theme="dark"] .topbar {
+  background: rgba(27,27,27,.97);
+  border-bottom: 2px solid var(--theme-outline);
+}
+html[data-bs-theme="dark"] .topbar-kicker,
+html[data-bs-theme="dark"] .text-secondary,
+html[data-bs-theme="dark"] .text-muted { color: var(--muted) !important; }
+html[data-bs-theme="dark"] .mobile-nav,
+html[data-bs-theme="dark"] .app-nav-drawer,
+html[data-bs-theme="dark"] .app-nav-drawer-head,
+html[data-bs-theme="dark"] .drawer-user-card,
+html[data-bs-theme="dark"] .global-mobile-bottom,
+html[data-bs-theme="dark"] .nav-menu-trigger,
+html[data-bs-theme="dark"] .context-nav,
+html[data-bs-theme="dark"] .context-back,
+html[data-bs-theme="dark"] .server-section-switcher {
+  background: var(--theme-panel);
+  color: var(--ink);
+  border-color: var(--theme-outline);
+}
+html[data-bs-theme="dark"] .app-nav-drawer .app-nav .nav-link,
+html[data-bs-theme="dark"] .app-nav-drawer .nav-group-summary,
+html[data-bs-theme="dark"] .app-nav-drawer .nav-sublink,
+html[data-bs-theme="dark"] .global-mobile-bottom a,
+html[data-bs-theme="dark"] .global-mobile-bottom button,
+html[data-bs-theme="dark"] .context-breadcrumb a {
+  background: var(--theme-panel);
+  border-color: var(--theme-outline);
+  color: var(--ink);
+}
+html[data-bs-theme="dark"] .app-nav-drawer .app-nav .nav-link:hover,
+html[data-bs-theme="dark"] .app-nav-drawer .app-nav .nav-link.active,
+html[data-bs-theme="dark"] .app-nav-drawer .nav-group-summary:hover,
+html[data-bs-theme="dark"] .app-nav-drawer .nav-group[open] > .nav-group-summary,
+html[data-bs-theme="dark"] .global-mobile-bottom a.active {
+  background: #24493c;
+  color: #d7ffec;
+}
+
+/* The panels, data rows, customer journeys and dashboard use light hardcodes
+   in several older component stylesheets: unify their night-time surfaces. */
+html[data-bs-theme="dark"] .panel-card,
+html[data-bs-theme="dark"] .stat-card,
+html[data-bs-theme="dark"] .pos-stats article,
+html[data-bs-theme="dark"] .checkout-stats article,
+html[data-bs-theme="dark"] .stock-stats article,
+html[data-bs-theme="dark"] .catalog-stats article,
+html[data-bs-theme="dark"] .unpaid-stats article,
+html[data-bs-theme="dark"] .unpaid-card,
+html[data-bs-theme="dark"] .unpaid-hero,
+html[data-bs-theme="dark"] .reports-kpi,
+html[data-bs-theme="dark"] .reports-note,
+html[data-bs-theme="dark"] .expenses-kpi,
+html[data-bs-theme="dark"] .depot-stat-card,
+html[data-bs-theme="dark"] .dashboard-activity-card,
+html[data-bs-theme="dark"] .dashboard-alert-panel,
+html[data-bs-theme="dark"] .dashboard-bar-selector,
+html[data-bs-theme="dark"] .dashboard-definition-note,
+html[data-bs-theme="dark"] .cash-expected-box,
+html[data-bs-theme="dark"] .cash-variance-preview,
+html[data-bs-theme="dark"] .order-edit-editor,
+html[data-bs-theme="dark"] .order-edit-line,
+html[data-bs-theme="dark"] .exchange-hero,
+html[data-bs-theme="dark"] .exchange-card,
+html[data-bs-theme="dark"] .cashier-sale-panel,
+html[data-bs-theme="dark"] .cashier-pay-panel,
+html[data-bs-theme="dark"] .server-order-card,
+html[data-bs-theme="dark"] .server-order-inline-editor,
+html[data-bs-theme="dark"] .checkout-receipt,
+html[data-bs-theme="dark"] .unpaid-note,
+html[data-bs-theme="dark"] .owner-bento .owner-bento-light,
+html[data-bs-theme="dark"] .bg-white {
+  background: var(--theme-panel) !important;
+  color: var(--ink);
+  border-color: var(--theme-outline) !important;
+}
+html[data-bs-theme="dark"] .pos-toolbar,
+html[data-bs-theme="dark"] .pos-order-meta,
+html[data-bs-theme="dark"] .pos-product,
+html[data-bs-theme="dark"] .pos-qty-control,
+html[data-bs-theme="dark"] .pos-qty-control button,
+html[data-bs-theme="dark"] .pos-category,
+html[data-bs-theme="dark"] .server-table-chip,
+html[data-bs-theme="dark"] .checkout-method,
+html[data-bs-theme="dark"] .checkout-change,
+html[data-bs-theme="dark"] .checkout-order-card:hover,
+html[data-bs-theme="dark"] .checkout-history thead th,
+html[data-bs-theme="dark"] .pos-order-table thead th,
+html[data-bs-theme="dark"] .stock-table thead th,
+html[data-bs-theme="dark"] .catalog-table thead th,
+html[data-bs-theme="dark"] .expenses-table thead th,
+html[data-bs-theme="dark"] .reports-table thead th,
+html[data-bs-theme="dark"] .dashboard-table thead th,
+html[data-bs-theme="dark"] .catalog-toolbar,
+html[data-bs-theme="dark"] .stock-filters,
+html[data-bs-theme="dark"] .cash-breakdown > div,
+html[data-bs-theme="dark"] .order-edit-qty,
+html[data-bs-theme="dark"] .order-edit-qty button,
+html[data-bs-theme="dark"] .server-order-products,
+html[data-bs-theme="dark"] .server-invoice-field,
+html[data-bs-theme="dark"] .server-invoice-live,
+html[data-bs-theme="dark"] .server-order-identity-summary,
+html[data-bs-theme="dark"] .cashier-method,
+html[data-bs-theme="dark"] .cashier-order-summary,
+html[data-bs-theme="dark"] .cashier-fast-cash,
+html[data-bs-theme="dark"] .exchange-summary,
+html[data-bs-theme="dark"] .history-card,
+html[data-bs-theme="dark"] .catalog-table tbody,
+html[data-bs-theme="dark"] .catalog-table tbody tr {
+  background: var(--theme-surface-raised) !important;
+  color: var(--ink);
+  border-color: var(--theme-outline) !important;
+}
+html[data-bs-theme="dark"] .pos-product:hover:not(:disabled),
+html[data-bs-theme="dark"] .server-table-chip:hover,
+html[data-bs-theme="dark"] .checkout-order-card.active,
+html[data-bs-theme="dark"] .pos-category.active,
+html[data-bs-theme="dark"] .checkout-method.active,
+html[data-bs-theme="dark"] .cashier-method.active {
+  background: #284c40 !important;
+  color: #e6fff3;
+  border-color: #80e2c0 !important;
+}
+html[data-bs-theme="dark"] .table {
+  --bs-table-bg: transparent;
+  --bs-table-color: #f4f5f7;
+  --bs-table-border-color: #42464b;
+  --bs-table-striped-color: #f4f5f7;
+  --bs-table-hover-color: #fff;
+  --bs-table-hover-bg: #303234;
+}
+html[data-bs-theme="dark"] .form-control,
+html[data-bs-theme="dark"] .form-select,
+html[data-bs-theme="dark"] .input-group-text,
+html[data-bs-theme="dark"] .form-check-input:not(:checked) {
+  background-color: #292b2d;
+  border-color: #687177;
+  color: #f8fafb;
+}
+html[data-bs-theme="dark"] input::placeholder,
+html[data-bs-theme="dark"] textarea::placeholder { color: #b3bbc1; opacity: 1; }
+html[data-bs-theme="dark"] .form-control:focus,
+html[data-bs-theme="dark"] .form-select:focus {
+  background-color: #303538;
+  border-color: #9cebd0;
+  color: #fff;
+  box-shadow: 0 0 0 .22rem rgba(128,226,192,.20);
+}
+html[data-bs-theme="dark"] .btn-light,
+html[data-bs-theme="dark"] .btn-outline-light {
+  --bs-btn-bg: #292b2d; --bs-btn-color: #f4f5f7;
+  --bs-btn-border-color: #646d72;
+  --bs-btn-hover-bg: #353a3c; --bs-btn-hover-color: #fff;
+  --bs-btn-hover-border-color: #b8c1c7;
+  background: #292b2d;
+  color: #f4f5f7;
+  border-color: #646d72;
+}
+html[data-bs-theme="dark"] .btn-primary {
+  --bs-btn-bg: #80e2c0; --bs-btn-color: #10241d;
+  --bs-btn-border-color: #80e2c0;
+  --bs-btn-hover-bg: #a1f4d4; --bs-btn-hover-color: #10241d;
+  --bs-btn-hover-border-color: #a1f4d4;
+  --bs-btn-active-bg: #66d0ad; --bs-btn-active-color: #10241d;
+  background: #80e2c0; color: #10241d; border-color: #80e2c0;
+}
+html[data-bs-theme="dark"] .btn-outline-primary {
+  --bs-btn-color: #9cebd0;
+  --bs-btn-border-color: #9cebd0;
+  --bs-btn-hover-bg: #24493c; --bs-btn-hover-color: #fff;
+  color: #9cebd0; border-color: #9cebd0;
+}
+html[data-bs-theme="dark"] .btn-danger,
+html[data-bs-theme="dark"] .btn-warning,
+html[data-bs-theme="dark"] .btn-success,
+html[data-bs-theme="dark"] .btn-primary {
+  border-width: 2px;
+  border-style: solid;
+  box-shadow: 3px 3px 0 #060606;
+}
+
+/* Login: keep the brand but make the credentials readable at night. */
+html[data-bs-theme="dark"] .login-form-panel { background: linear-gradient(145deg,#121212,#1b2220); }
+html[data-bs-theme="dark"] .login-card {
+  background: #1e2220;
+  border-color: #56655f;
+  color: var(--ink);
+}
+html[data-bs-theme="dark"] .login-brand-panel {
+  background: linear-gradient(145deg,#10231d,#164432);
+}
+html[data-bs-theme="dark"] .login-form .form-control {
+  background: #292e2c;
+  border: 2px solid #66776f;
+  color: #fff;
+}
+html[data-bs-theme="dark"] .login-form .form-control:focus {
+  background: #303a35;
+  border-color: #a1f4d4;
+}
+html[data-bs-theme="dark"] .login-footer { color: #b7c2bd; }
+html[data-bs-theme="dark"] .login-alert {
+  background: #47262c;
+  border-color: #de7f8d;
+  color: #ffdae1;
+}
+html[data-bs-theme="dark"] .theme-toggle-login { background: #2a312d; }
+
+/* Bento cards have independent light-only tokens. */
+html[data-bs-theme="dark"] .owner-bento {
+  --ob-ink: #f4f5f7;
+  --ob-muted: #b8c1c7;
+  --ob-border: #454e50;
+}
+html[data-bs-theme="dark"] .owner-bento .owner-bento-venue-item:hover,
+html[data-bs-theme="dark"] .owner-bento .owner-bento-current { background: #2a4036; }
+
+/* Preserve previously implemented Liquid Glass rather than turning it opaque. */
+html[data-bs-theme="dark"] .modal-content.modal-liquid-glass {
+  background: rgba(22,34,49,.78);
+  color: #f4f5f7;
+  border-color: rgba(255,255,255,.22);
+}
+@media (max-width: 420px) {
+  .theme-toggle { min-height: 40px; padding: .4rem .55rem; }
+  .topbar .theme-toggle [data-theme-label] { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .theme-toggle { transition: none; }
+}
