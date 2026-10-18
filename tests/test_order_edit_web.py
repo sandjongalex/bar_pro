@@ -1,3 +1,4 @@
+from legacy_shift import activate_employee
 import re
 
 from sqlalchemy import select
@@ -40,6 +41,7 @@ def _cashier(bar):
         )
     )
     db.session.flush()
+    activate_employee(bar, user)
     cash_service.open(user, bar.id, "WEB-EDIT-CASH", 0)
     db.session.commit()
     return user

@@ -31,10 +31,19 @@ def _checks(table):
 
 
 def _tables():
+    # SQL-only MySQL compilation has a mock connection without inspection.
+    # The fresh offline script deterministically creates the inventory tables.
+    if op.get_context().as_sql:
+        return set()
     return set(sa.inspect(op.get_bind()).get_table_names())
 
 
 def _ensure_purchase_extensions():
+    # Revision e5 already creates the supplier/purchase fields in a clean
+    # offline migration chain. Runtime repair is still required for legacy
+    # installations affected by the historical duplicated revision ID.
+    if op.get_context().as_sql:
+        return
     qty = sa.Numeric(20, 6)
     money = sa.Numeric(19, 4)
 

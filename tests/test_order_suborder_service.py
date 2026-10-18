@@ -1,3 +1,4 @@
+from legacy_shift import activate_employee
 from decimal import Decimal
 
 import pytest
@@ -31,6 +32,7 @@ def test_cashier_creates_delivered_pending_suborder_without_merging_parent_lines
         )
     )
     db.session.flush()
+    activate_employee(bar, cashier)
 
     parent = order_service.create(
         server,
@@ -121,6 +123,7 @@ def test_assigned_server_validates_suborder_and_it_stays_separate(env):
         )
     )
     db.session.flush()
+    activate_employee(bar, cashier)
 
     parent = order_service.create(
         server,
@@ -209,6 +212,7 @@ def test_server_creates_multiple_suborders_that_wait_for_cashier_delivery(env):
         )
     )
     db.session.flush()
+    activate_employee(bar, cashier)
 
     parent = order_service.create(
         server,
@@ -308,6 +312,7 @@ def test_cashier_delivers_server_suborders_and_deducts_stock_once(env):
         )
     )
     db.session.flush()
+    activate_employee(bar, cashier)
 
     parent = order_service.create(
         server,

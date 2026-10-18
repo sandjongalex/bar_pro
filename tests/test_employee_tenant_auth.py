@@ -1,3 +1,4 @@
+from legacy_shift import activate_employee
 import re
 
 from app.extensions import db
@@ -37,6 +38,8 @@ def _employee(bar, role, suffix):
         started_at=utcnow(),
     )
     db.session.add(assignment)
+    db.session.flush()
+    activate_employee(bar, user)
     db.session.commit()
     return user, assignment
 

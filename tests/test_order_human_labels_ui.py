@@ -1,3 +1,4 @@
+from legacy_shift import activate_employee
 import re
 
 import pytest
@@ -51,6 +52,7 @@ def test_table_name_is_primary_order_label_across_cashier_workflows(env, invoice
     table = BarTable(bar_id=bar.id, label="LÉO", capacity=4)
     db.session.add(table)
     db.session.flush()
+    activate_employee(bar, cashier)
 
     active_order = order_service.create(
         server,

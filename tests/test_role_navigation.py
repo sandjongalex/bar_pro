@@ -1,3 +1,4 @@
+from legacy_shift import activate_employee
 import re
 
 from app.extensions import db
@@ -38,6 +39,8 @@ def _cashier(bar):
             started_at=utcnow(),
         )
     )
+    db.session.flush()
+    activate_employee(bar, cashier)
     db.session.commit()
     return cashier
 

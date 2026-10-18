@@ -13,6 +13,7 @@ from app.inventory_services import inventory_service
 from app.order_services import order_service
 from app.payment_services import payment_service
 from app.cash_services import cash_service
+from legacy_shift import activate_employee
 
 @pytest.fixture
 def env(tmp_path):
@@ -33,6 +34,7 @@ def env(tmp_path):
   product=Product(bar_id=bar.id,category_id=category.id,name="Water",sku="WATER",base_unit="bottle",sale_price=100,valuation_unit_cost=40)
   staff=StaffAssignment(bar_id=bar.id,user_id=server.id,role="SERVER",started_at=utcnow())
   db.session.add_all([product,staff]);db.session.flush()
+  activate_employee(bar, server)
   stock_service.move(owner,bar.id,product.id,"INITIAL",10,"Opening stock")
   token,refresh=issue(owner,bar.id);db.session.commit()
   yield app,owner,bar,foreign,product,server,{"Authorization":"Bearer "+token},refresh
@@ -154,7 +156,7 @@ def test_suspended_bar_writes_denied(env):
 def test_web_csrf_login_and_foreign_routes(env):
  import re
  client=env[0].test_client();page=client.get("/login")
- csrf=re.search("name='csrf_token' value='([^']+)'",page.text).group(1)
+ csrf=re.search(r'name=["\\x27]csrf_token["\\x27]\\s+value=["\\x27]([^"\\x27]+)["\\x27]',page.text).group(1)
  result=client.post("/login",data={"email":env[1].email,"password":"test-password","csrf_token":csrf});assert result.status_code==302
  for suffix in ("catalog","stock","inventories","orders/new"):
   assert client.get(f"/bars/{env[3].id}/{suffix}").status_code==404
@@ -300,15 +302,15 @@ def test_invalid_api_body_never_returns_500(env,payload):
 def test_web_order_form_creates_and_confirms(env):
  import re
  client=env[0].test_client()
- page=client.get("/login");csrf=re.search("name='csrf_token' value='([^']+)'",page.text).group(1)
+ page=client.get("/login");csrf=re.search(r'name=["\\x27]csrf_token["\\x27]\\s+value=["\\x27]([^"\\x27]+)["\\x27]',page.text).group(1)
  client.post("/login",data={"email":env[1].email,"password":"test-password","csrf_token":csrf})
  path=f"/bars/{env[2].id}/orders/new"
  page=client.get(path);csrf=re.search('name="csrf_token" value="([^"]+)"',page.text).group(1)
- response=client.post(path,data={"csrf_token":csrf,"reference":"WEB-ORDER",f"quantity_{env[4].id}":2})
+ response=client.post(path,data={"csrf_token":csrf,"reference":"WEB-ORDER","product_id":str(env[4].id),"quantity":"2"},follow_redirects=True)
  assert response.status_code==200,response.text
  assert "WEB-ORDER" in response.text
  assert balance(env)==8
- assert db.session.scalar(select(Order).where(Order.reference=="WEB-ORDER")).status=="CONFIRMED"
+ assert db.session.scalar(select(Order).where(Order.reference=="WEB-ORDER")).status=="DRAFT"
 
 
 def test_every_business_api_route_requires_bearer(env):

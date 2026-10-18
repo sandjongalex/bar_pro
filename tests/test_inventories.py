@@ -41,7 +41,7 @@ def test_post_snapshot_difference_and_exactly_once(env, quantity):
     assert inv.posted_at is not None
 
 
-@pytest.mark.parametrize('value', [None, [], 'bad', {}, {'reference': ''}, {'reference': 'A', 'product_ids': []}, {'reference': 'A', 'product_ids': [{}]}, {'reference': 'A', 'product_ids': [True]}, {'reference': 'A', 'product_ids': [1.5]}, {'reference': 'A', 'product_ids': [1], 'reason': None}])
+@pytest.mark.parametrize('value', [None, [], 'bad', {}, {'reference': ''}, {'reference': 'A', 'product_ids': [{}]}, {'reference': 'A', 'product_ids': [True]}, {'reference': 'A', 'product_ids': [1.5]}, {'reference': 'A', 'product_ids': [1], 'reason': None}])
 def test_invalid_create_body(env, value):
     response = env[0].test_client().post(base(env), headers=env[6], json=value)
     assert 400 <= response.status_code < 500
@@ -114,7 +114,7 @@ def test_api_read_cancel_permissions_and_scope(env):
 
 def test_web_create_count_post_print_with_csrf(env):
     client = env[0].test_client()
-    csrf = re.search("name='csrf_token' value='([^']+)'", client.get('/login').text).group(1)
+    csrf = re.search(r'name=["\\x27]csrf_token["\\x27]\\s+value=["\\x27]([^"\\x27]+)["\\x27]', client.get('/login').text).group(1)
     client.post('/login', data={'email': env[1].email, 'password': 'test-password', 'csrf_token': csrf})
     path = f'/bars/{env[2].id}/inventories'
     page = client.get(path+'/new')

@@ -1,3 +1,4 @@
+from legacy_shift import activate_employee
 import re
 
 from sqlalchemy import select
@@ -46,6 +47,7 @@ def test_server_and_cashier_have_optimized_suborder_workflows(env):
         )
     )
     db.session.flush()
+    activate_employee(bar, cashier)
 
     parent = order_service.create(
         server,

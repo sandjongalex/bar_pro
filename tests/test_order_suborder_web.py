@@ -1,3 +1,4 @@
+from legacy_shift import activate_employee
 import re
 from decimal import Decimal
 
@@ -44,6 +45,7 @@ def test_server_sees_and_validates_cashier_suborder_from_workspace(env):
         )
     )
     db.session.flush()
+    activate_employee(bar, cashier)
 
     parent = order_service.create(
         server,

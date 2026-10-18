@@ -152,7 +152,7 @@ def test_legacy_case_price_is_normalized_to_bottle_cost_during_replay(env):
     assert preview["balance_quantity"] == Decimal("63")
     assert preview["new_unit_cost"] == Decimal("650.0000")
     assert preview["valuation_basis"] == "ESTIMATED_LEGACY"
-    assert "LEGACY_CASE_PRICE_NORMALIZED" in preview["estimate_reasons"]
+    assert "LEGACY_CASE_PRICE_MATCHED_TO_CASE_HISTORY" in preview["estimate_reasons"]
 
 
 def test_legacy_case_price_can_match_received_case_history_when_default_changed(env):

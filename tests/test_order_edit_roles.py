@@ -1,3 +1,4 @@
+from legacy_shift import activate_employee
 from decimal import Decimal
 
 import pytest
@@ -28,6 +29,7 @@ def _cashier(bar):
         )
     )
     db.session.flush()
+    activate_employee(bar, user)
     # Les paiements d'une caissière exigent une session de caisse ouverte.
     # Le test doit respecter cette règle métier au lieu de la contourner.
     cash_service.open(user, bar.id, "EDIT-CASH-SESSION", 0)
