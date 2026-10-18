@@ -1,0 +1,30 @@
+name: Liquid Glass cashier modal checks
+
+on:
+  pull_request:
+    paths:
+      - 'app/static/app.css'
+      - 'app/templates/checkout.html'
+      - 'app/templates/cashier_workspace.html'
+      - 'app/templates/cashier_exchanges_v2.html'
+      - 'tests/test_liquid_glass_modals.py'
+      - '.github/workflows/liquid-glass-modals.yml'
+  push:
+    paths:
+      - 'app/static/app.css'
+      - 'app/templates/checkout.html'
+      - 'app/templates/cashier_workspace.html'
+      - 'app/templates/cashier_exchanges_v2.html'
+      - 'tests/test_liquid_glass_modals.py'
+      - '.github/workflows/liquid-glass-modals.yml'
+
+jobs:
+  ui-regression:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -r requirements.txt
+      - run: python -m pytest -q tests/test_liquid_glass_modals.py tests/test_checkout_queue.py tests/test_cashier_workspace.py tests/test_cashier_exchanges.py tests/test_cashier_standalone_refunds.py
