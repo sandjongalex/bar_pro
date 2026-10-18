@@ -1,5 +1,6 @@
 {% extends 'layout.html' %}
-{% block title %}Bons de monnaie · {{ bar.name }}{% endblock %}
+{% block title %}Bons de monnaie · {{ bar.name }}</div>
+{% endblock %}
 {% block header %}Bons de monnaie · {{ bar.name }}{% endblock %}
 {% block content %}
 <style>
@@ -22,12 +23,14 @@
   {% for category, message in messages %}<div class="alert alert-{{ category }} mt-3 mb-0">{{ message }}</div>{% endfor %}
 {% endwith %}
 
+<div data-bp-secondary-section="vouchers-content">
 <div class="voucher-grid">
   <section class="voucher-card">
     <h2>Utiliser un bon sur une facture</h2>
     <p>Le montant utilisé diminue le solde du bon et le reste à payer de la facture, sans mouvement d'espèces.</p>
     <form method="post" class="row g-2">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="idempotency_key" value="{{ new_intent_key() }}">
       <input type="hidden" name="action" value="redeem">
       <div class="col-12"><label class="form-label">Code du bon</label><input class="form-control form-control-lg voucher-code-input" name="code" required autocomplete="off" placeholder="BM-20260925-123456"></div>
       <div class="col-12"><label class="form-label">Facture à régler</label><select class="form-select form-select-lg" name="order_id" required><option value="">Sélectionner une facture...</option>{% for order in orders %}<option value="{{ order.id }}" {% if selected_order_id == order.id %}selected{% endif %}>{{ order.customer_name_snapshot or order.table_label_snapshot or order.reference }} · reste {{ "{:,.0f}".format(balances[order.id].amount_due) }} {{ order.currency }}</option>{% endfor %}</select></div>
@@ -39,8 +42,9 @@
   <section class="voucher-card">
     <h2>Rembourser un bon en espèces</h2>
     <p>À utiliser lorsque la caisse dispose finalement de la monnaie. Le remboursement sort réellement l'argent de la caisse.</p>
-    <form method="post" class="row g-2">
+    <form method="post" data-bp-ajax="json" data-bp-secondary="vouchers" class="row g-2">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="idempotency_key" value="{{ new_intent_key() }}">
       <input type="hidden" name="action" value="refund">
       <div class="col-12"><label class="form-label">Code du bon</label><input class="form-control form-control-lg voucher-code-input" name="code" required autocomplete="off" placeholder="BM-20260925-123456"></div>
       <div class="col-12"><label class="form-label">Montant à rembourser <span class="text-secondary">(facultatif)</span></label><input class="form-control" type="number" name="amount" min="1" step="1" placeholder="Vide = tout le solde"></div>
@@ -52,7 +56,7 @@
 <section class="panel-card voucher-list">
   <div class="voucher-list-head">
     <div><p class="eyebrow mb-1">Historique</p><h2>Bons émis</h2></div>
-    <form class="voucher-search" method="get"><input class="form-control" name="q" value="{{ q }}" placeholder="Code, nom ou téléphone"><button class="btn btn-outline-primary" type="submit">Rechercher</button></form>
+    <form class="voucher-search" method="get" data-bp-secondary-filter="vouchers"><input class="form-control" name="q" value="{{ q }}" placeholder="Code, nom ou téléphone"><button class="btn btn-outline-primary" type="submit">Rechercher</button></form>
   </div>
   {% if vouchers %}
   <div class="table-responsive">
