@@ -1,5 +1,6 @@
 from legacy_shift import activate_employee
 import re
+from flask import g
 
 from sqlalchemy import select
 
@@ -143,6 +144,10 @@ def test_server_and_cashier_have_optimized_suborder_workflows(env):
     )
     assert logout.status_code == 302
 
+    # The shared, long-lived app context in this legacy fixture keeps g between
+    # synthetic requests. In a real HTTP request g is new; emulate that boundary
+    # before a separate browser session receives its own CSRF token.
+    g.pop("csrf_token", None)
     cashier_client = app.test_client()
     assert _login(cashier_client, cashier.email).status_code == 302
 

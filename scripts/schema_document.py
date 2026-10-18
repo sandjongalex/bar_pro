@@ -13,8 +13,15 @@ from sqlalchemy.orm import configure_mappers
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.extensions import db
-from app import models  # noqa: F401  # import registers SQLAlchemy models
-from app import order_suborder_models  # noqa: F401  # register persistent order sub-orders
+from app import models  # noqa: F401  # register core models
+# Import ALL extension models unconditionally. Otherwise render() depends on
+# whether a Flask app was created earlier in the current Python process.
+from app import purchase_models  # noqa: F401
+from app import customer_models  # noqa: F401
+from app import inventory_period_models  # noqa: F401
+from app import order_suborder_models  # noqa: F401
+from app import shift_models  # noqa: F401
+from app import change_voucher_models  # noqa: F401
 
 
 ROOT = Path(__file__).resolve().parents[1]
