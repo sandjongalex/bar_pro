@@ -167,7 +167,24 @@
           {% endif %}
         </div>
       {% elif can_record %}
-      <form method="post" id="checkoutForm" class="checkout-form">
+      <button type="button" class="btn btn-primary btn-lg w-100 mt-3" data-bs-toggle="modal" data-bs-target="#checkoutPaymentModal" aria-controls="checkoutPaymentModal">Choisir le règlement · {{ "{:,.0f}".format(b.amount_due) }} {{ selected_order.currency }}</button>
+      {% endif %}
+    {% else %}
+      <div class="empty-state checkout-empty-selection"><div class="empty-icon">₣</div><h3>Aucune commande</h3><p>Les nouvelles commandes envoyées par les serveuses apparaîtront ici.</p></div>
+    {% endif %}
+  </aside>
+</div>
+
+{% if selected_order and selected_order.status != 'DRAFT' and selected_order.payment_status != 'PAID' and can_record %}
+<div class="modal fade" id="checkoutPaymentModal" tabindex="-1" aria-labelledby="checkoutPaymentModalTitle" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-lg">
+    <div class="modal-content modal-liquid-glass">
+      <div class="modal-header">
+        <div><p class="eyebrow mb-1">Encaissement</p><h2 class="modal-title fs-5" id="checkoutPaymentModalTitle">Règlement de {{ selected_order.reference }}</h2></div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer sans encaisser"></button>
+      </div>
+      <div class="modal-body">
+<form method="post" id="checkoutForm" class="checkout-form">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="payment"><input type="hidden" name="order_id" value="{{ selected_order.id }}">
         <input type="hidden" id="orderDue" value="{{ b.amount_due }}">
 
@@ -245,12 +262,12 @@
         <button class="btn btn-primary btn-lg w-100 mt-4" id="checkoutSubmit" type="submit" {% if is_cashier and not open_sessions %}disabled{% endif %}>Encaisser {{ "{:,.0f}".format(b.amount_due) }} {{ selected_order.currency }}</button>
         <p class="checkout-help">Espèces et Mobile Money peuvent être combinés. Si les espèces restent chez la serveuse, elles apparaîtront dans sa garde jusqu'à confirmation de la remise.</p>
       </form>
-      {% endif %}
-    {% else %}
-      <div class="empty-state checkout-empty-selection"><div class="empty-icon">₣</div><h3>Aucune commande</h3><p>Les nouvelles commandes envoyées par les serveuses apparaîtront ici.</p></div>
-    {% endif %}
-  </aside>
+      </div>
+      <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Annuler</button></div>
+    </div>
+  </div>
 </div>
+{% endif %}
 
 <section class="panel-card mt-4">
   <div class="panel-header"><div><p class="eyebrow mb-1">Traçabilité</p><h2>Historique des encaissements réels</h2><p class="small text-muted mb-0">Les ventes à crédit apparaissent dans les commandes payées ci-dessus, mais ne sont pas comptées comme encaissement réel.</p></div><a class="btn btn-sm btn-light border" href="{{ url_for('finance_web.desk', bar_id=bar.id) }}">Historique complet</a></div>
