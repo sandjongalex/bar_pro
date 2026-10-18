@@ -591,7 +591,7 @@
   orderForm?.addEventListener('submit', () => rememberOrdersReturn('active'));
   setupInlineOrderActions();
   setupOrderFilters(returnFilter || 'active');
-  setupSectionNavigation();
+  // Order history now has its own route; never hijack bottom navigation links.
   sync();
   startLiveSync();
 
