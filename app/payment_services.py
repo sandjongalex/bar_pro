@@ -60,7 +60,7 @@ class PaymentService:
             raise ValueError("INVALID_PAYMENT_AMOUNTS")
         if method not in {"CASH", "CARD", "MOBILE_MONEY", "BANK_TRANSFER"}:
             raise ValueError("INVALID_METHOD")
-        if applied > order_balance(order)["amount_due"]:
+        if applied > order_balance(order, locking=True)["amount_due"]:
             raise ValueError("PAYMENT_LIMIT_EXCEEDED")
         if (provider_code is None) != (provider_transaction_id is None):
             raise ValueError("PROVIDER_REFERENCE_REQUIRED")
