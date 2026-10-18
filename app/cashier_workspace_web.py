@@ -239,7 +239,7 @@ def workspace(bar_id: int):
                 raise LookupError("NOT_FOUND")
             if order.status not in {"CONFIRMED", "SERVED"}:
                 raise ValueError("ORDER_NOT_PAYABLE")
-            due = Decimal(order_balance(order)["amount_due"] or 0)
+            due = Decimal(order_balance(order, locking=True)["amount_due"] or 0)
             if due <= 0 or order.payment_status == "PAID":
                 raise ValueError("ORDER_NOT_PAYABLE")
 
