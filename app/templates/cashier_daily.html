@@ -1,5 +1,6 @@
 {% extends 'layout.html' %}
-{% block title %}Gestion de caisse · {{ bar.name }} · Bar Manager Pro{% endblock %}
+{% block title %}Gestion de caisse · {{ bar.name }} · Bar Manager Pro</div>
+{% endblock %}
 {% block header %}Gestion de caisse · {{ bar.name }}{% endblock %}
 {% block content %}
 <section class="checkout-hero">
@@ -23,6 +24,7 @@
 <div class="alert alert-{{ category }} mt-3" role="status">{{ message }}</div>
 {% endfor %}
 
+<div data-bp-secondary-section="daily-content">
 <section class="checkout-stats mt-4" aria-label="Résumé financier du service">
   <article>
     <span>Encaissement net</span>
@@ -117,8 +119,8 @@
       <p class="eyebrow mb-1">Mouvement manuel</p>
       <h2 class="h4">Dépôt ou retrait de caisse</h2>
       <p class="text-secondary">À utiliser uniquement pour un mouvement réel d'espèces qui n'est pas un paiement de commande.</p>
-      <form method="post" class="mt-3">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <form method="post" data-bp-ajax="json" data-bp-secondary="daily" class="mt-3">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="idempotency_key" value="{{ new_intent_key() }}">
         <input type="hidden" name="action" value="movement">
         <label class="form-label" for="kind">Type de mouvement</label>
         <select class="form-select" id="kind" name="kind" required>
@@ -146,8 +148,8 @@
         <span>Disponible hors fonds initial</span>
         <strong>{{ "{:,.0f}".format(available_receipt) }} {{ bar.currency }}</strong>
       </div>
-      <form method="post" class="mt-3">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <form method="post" data-bp-ajax="json" data-bp-secondary="daily" class="mt-3">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="idempotency_key" value="{{ new_intent_key() }}">
         <input type="hidden" name="action" value="send_receipt">
         <label class="form-label" for="receipt_amount">Montant versé</label>
         <div class="input-group input-group-lg">
