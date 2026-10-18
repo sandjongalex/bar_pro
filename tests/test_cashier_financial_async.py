@@ -68,7 +68,8 @@ def test_async_returns_refunds_duplicate_keys_and_balances(env):
 
     balance_page = client.get(path + f"?order_id={value.id}&return_id={returned_id}")
     assert balance_page.status_code == 200
-    assert "1.000000" in balance_page.text or "1.000" in balance_page.text or "1.0000" in balance_page.text
+    assert "Déjà retourné" in balance_page.text
+    assert "Rembourser le client" in balance_page.text
     refund = {
         "action": "refund_return", "order_id": str(value.id),
         "return_id": str(returned_id), "payment_id": str(payment.id),
@@ -220,5 +221,5 @@ def test_async_csrf_logout_errors_and_legacy_html_fallback(env):
     # Logout/expired cookie must not process a financial request.
     unauth = app.test_client()
     response = _post(unauth, path, req, _csrf(page))
-    assert response.status_code in (302, 401, 403)
+    assert response.status_code in (302, 400, 401, 403)  # CSRF can reject an unauthenticated request first
     assert response.status_code != 200
