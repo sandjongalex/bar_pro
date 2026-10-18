@@ -25,6 +25,7 @@
   let currentOrderFilter = 'active';
   let liveTimer = null;
   let liveInFlight = false;
+  let liveRefreshQueued = false;
 
   const dock = document.createElement('div');
   dock.className = 'server-cart-dock';
@@ -422,6 +423,10 @@
     const byReference = new Map(orders.map((order) => [String(order.reference), order]));
     const byId = new Map(orders.map((order) => [String(order.id), order]));
     const list = document.querySelector('[data-server-orders-grid]');
+    const scrollX = window.scrollX;
+    const scrollY = window.scrollY;
+    const activeCard = document.activeElement?.closest?.('[data-server-order-card]');
+    let cardsChanged = false;
     if (list) {
       orders.forEach((order, index) => {
         const id = String(order.id);
@@ -429,18 +434,20 @@
           .find(item => item.dataset.serverOrderId === id);
         if (!card) {
           card = makeLiveServerCard(order);
-          if (card) list.appendChild(card);
+          if (card) { list.appendChild(card); cardsChanged = true; }
         }
-        if (card && list.children[index] !== card) {
+        if (card && card !== activeCard && list.children[index] !== card) {
           list.insertBefore(card, list.children[index] || null);
+          cardsChanged = true;
         }
       });
       list.querySelectorAll('[data-server-order-card]').forEach(card => {
         const id = card.dataset.serverOrderId;
-        if (id && !byId.has(id) && !card.contains(document.activeElement)) card.remove();
+        if (id && !byId.has(id) && !card.contains(document.activeElement)) { card.remove(); cardsChanged = true; }
       });
       setupInlineOrderActions();
       window.BarProOrderEdit?.setupServerEditors?.();
+      if (cardsChanged) window.scrollTo?.(scrollX, scrollY);
     }
 
     document.querySelectorAll('[data-server-order-card]').forEach((card) => {
@@ -520,7 +527,8 @@
   }
 
   async function pollLiveState() {
-    if (!liveEndpoint || liveInFlight || document.hidden || navigator.onLine === false) return;
+    if (!liveEndpoint || document.hidden || navigator.onLine === false) return;
+    if (liveInFlight) { liveRefreshQueued = true; return; }
     liveInFlight = true;
     try {
       const response = await fetch(liveEndpoint, {
@@ -536,6 +544,10 @@
       // Temporary network errors are ignored; the next poll retries automatically.
     } finally {
       liveInFlight = false;
+      if (liveRefreshQueued) {
+        liveRefreshQueued = false;
+        void pollLiveState();
+      }
     }
   }
 
@@ -543,6 +555,7 @@
     if (!liveEndpoint) return;
     window.clearInterval(liveTimer);
     liveTimer = window.setInterval(pollLiveState, 4000);
+    window.addEventListener('online', pollLiveState);
     document.addEventListener('visibilitychange', () => {
       if (!document.hidden) pollLiveState();
     });
