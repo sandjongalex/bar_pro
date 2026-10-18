@@ -67,6 +67,7 @@ def _second_product(env):
 
 def test_server_web_editor_can_replace_own_waiting_order(env):
     app, _, bar, _, product, server, _, _ = env
+    activate_employee(bar, server)
     second = _second_product(env)
     order = order_service.create(
         server,
@@ -115,6 +116,7 @@ def test_server_web_editor_can_replace_own_waiting_order(env):
 
 def test_server_web_editor_locks_after_delivery(env):
     app, owner, bar, _, product, server, _, _ = env
+    activate_employee(bar, server)
     order = order_service.create(
         server,
         bar.id,
@@ -135,6 +137,7 @@ def test_server_web_editor_locks_after_delivery(env):
 
 def test_cashier_web_editor_updates_delivered_unpaid_order(env):
     app, _, bar, _, product, server, _, _ = env
+    activate_employee(bar, server)
     cashier = _cashier(bar)
     second = _second_product(env)
     order = order_service.create(
@@ -181,6 +184,7 @@ def test_cashier_web_editor_updates_delivered_unpaid_order(env):
 
 def test_stale_second_editor_cannot_overwrite_first_edit(env):
     app, _, bar, _, product, server, _, _ = env
+    activate_employee(bar, server)
     second = _second_product(env)
     order = order_service.create(
         server,
@@ -234,6 +238,7 @@ def test_stale_second_editor_cannot_overwrite_first_edit(env):
 
 def test_stale_server_edit_cannot_overwrite_cashier_delivery(env):
     app, owner, bar, _, product, server, _, _ = env
+    activate_employee(bar, server)
     second = _second_product(env)
     order = order_service.create(
         server,

@@ -14,6 +14,7 @@ from test_workflows import env
 
 def test_cashier_creates_delivered_pending_suborder_without_merging_parent_lines(env):
     _, _, bar, _, product, server, _, _ = env
+    activate_employee(bar, server)
 
     cashier = User(
         email="suborder-cashier@example.invalid",
@@ -105,6 +106,7 @@ def test_cashier_creates_delivered_pending_suborder_without_merging_parent_lines
 
 def test_assigned_server_validates_suborder_and_it_stays_separate(env):
     _, _, bar, _, product, server, _, _ = env
+    activate_employee(bar, server)
 
     cashier = User(
         email="suborder-validation-cashier@example.invalid",
@@ -194,6 +196,7 @@ def test_assigned_server_validates_suborder_and_it_stays_separate(env):
 
 def test_server_creates_multiple_suborders_that_wait_for_cashier_delivery(env):
     _, _, bar, _, product, server, _, _ = env
+    activate_employee(bar, server)
 
     cashier = User(
         email="server-suborder-cashier@example.invalid",
@@ -294,6 +297,7 @@ def test_server_creates_multiple_suborders_that_wait_for_cashier_delivery(env):
 
 def test_cashier_delivers_server_suborders_and_deducts_stock_once(env):
     _, _, bar, _, product, server, _, _ = env
+    activate_employee(bar, server)
 
     cashier = User(
         email="deliver-server-suborders@example.invalid",

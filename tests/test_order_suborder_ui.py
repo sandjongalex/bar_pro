@@ -29,6 +29,7 @@ def _login(client, email, password="test-password"):
 
 def test_server_and_cashier_have_optimized_suborder_workflows(env):
     app, _, bar, _, product, server, _, _ = env
+    activate_employee(bar, server)
 
     cashier = User(
         email="suborder-ui-cashier@example.invalid",

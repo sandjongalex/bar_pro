@@ -34,7 +34,6 @@ def env(tmp_path):
   product=Product(bar_id=bar.id,category_id=category.id,name="Water",sku="WATER",base_unit="bottle",sale_price=100,valuation_unit_cost=40)
   staff=StaffAssignment(bar_id=bar.id,user_id=server.id,role="SERVER",started_at=utcnow())
   db.session.add_all([product,staff]);db.session.flush()
-  activate_employee(bar, server)
   stock_service.move(owner,bar.id,product.id,"INITIAL",10,"Opening stock")
   token,refresh=issue(owner,bar.id);db.session.commit()
   yield app,owner,bar,foreign,product,server,{"Authorization":"Bearer "+token},refresh
@@ -51,6 +50,7 @@ def balance(env):
  return db.session.scalar(select(StockBalance.quantity).where(StockBalance.product_id==env[4].id))
 
 def test_order_server_confirm_serve_and_stock_once(env):
+ activate_employee(env[2], env[5])
  value=order(env,actor=env[5]);assert balance(env)==8
  with pytest.raises(ValueError):order_service.confirm(env[5],env[2].id,value.id)
  order_service.serve(env[5],env[2].id,value.id);db.session.commit()
@@ -156,7 +156,7 @@ def test_suspended_bar_writes_denied(env):
 def test_web_csrf_login_and_foreign_routes(env):
  import re
  client=env[0].test_client();page=client.get("/login")
- csrf=re.search(r'name=["\\x27]csrf_token["\\x27]\\s+value=["\\x27]([^"\\x27]+)["\\x27]',page.text).group(1)
+ csrf=re.search(r'name=["\']csrf_token["\']\s+value=["\']([^"\']+)["\']',page.text).group(1)
  result=client.post("/login",data={"email":env[1].email,"password":"test-password","csrf_token":csrf});assert result.status_code==302
  for suffix in ("catalog","stock","inventories","orders/new"):
   assert client.get(f"/bars/{env[3].id}/{suffix}").status_code==404
@@ -302,7 +302,7 @@ def test_invalid_api_body_never_returns_500(env,payload):
 def test_web_order_form_creates_and_confirms(env):
  import re
  client=env[0].test_client()
- page=client.get("/login");csrf=re.search(r'name=["\\x27]csrf_token["\\x27]\\s+value=["\\x27]([^"\\x27]+)["\\x27]',page.text).group(1)
+ page=client.get("/login");csrf=re.search(r'name=["\']csrf_token["\']\s+value=["\']([^"\']+)["\']',page.text).group(1)
  client.post("/login",data={"email":env[1].email,"password":"test-password","csrf_token":csrf})
  path=f"/bars/{env[2].id}/orders/new"
  page=client.get(path);csrf=re.search('name="csrf_token" value="([^"]+)"',page.text).group(1)

@@ -114,7 +114,7 @@ def test_api_read_cancel_permissions_and_scope(env):
 
 def test_web_create_count_post_print_with_csrf(env):
     client = env[0].test_client()
-    csrf = re.search(r'name=["\\x27]csrf_token["\\x27]\\s+value=["\\x27]([^"\\x27]+)["\\x27]', client.get('/login').text).group(1)
+    csrf = re.search(r'name=["\']csrf_token["\']\s+value=["\']([^"\']+)["\']', client.get('/login').text).group(1)
     client.post('/login', data={'email': env[1].email, 'password': 'test-password', 'csrf_token': csrf})
     path = f'/bars/{env[2].id}/inventories'
     page = client.get(path+'/new')

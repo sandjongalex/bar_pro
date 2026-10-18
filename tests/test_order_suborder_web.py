@@ -27,6 +27,7 @@ def _login(client, email, password="test-password"):
 
 def test_server_sees_and_validates_cashier_suborder_from_workspace(env):
     app, _, bar, _, product, server, _, _ = env
+    activate_employee(bar, server)
 
     cashier = User(
         email="suborder-web-cashier@example.invalid",
