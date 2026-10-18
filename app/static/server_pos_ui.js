@@ -17,7 +17,8 @@
 
   const RETURN_KEY = 'bar-pro:server-orders-return';
   const pathMatch = window.location.pathname.match(/\/bars\/(\d+)\//);
-  const liveEndpoint = pathMatch ? `/bars/${pathMatch[1]}/live/orders` : '';
+  const barId = pathMatch ? pathMatch[1] : '';
+  const liveEndpoint = barId ? `/bars/${barId}/live/orders` : '';
   const grandTotal = cartPanel.querySelector('.pos-grand-total strong');
   const initialTotal = totalNode.textContent || '0';
   const currency = (grandTotal?.textContent || '').replace(initialTotal, '').trim();
