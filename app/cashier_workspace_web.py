@@ -10,6 +10,7 @@ from flask_login import current_user, login_required
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
+from app.async_ui import wants_async_web_response, web_json_response
 from app.cash_services import cash_service
 from app.customer_services import customer_service
 from app.extensions import db
@@ -169,8 +170,16 @@ def workspace(bar_id: int):
     if not bar:
         raise LookupError("NOT_FOUND")
     session = _open_session(bar_id)
+    async_web = wants_async_web_response()
     if session is None:
-        flash("Ouvrez votre caisse avant de commencer le service.", "info")
+        message = "Ouvrez votre caisse avant de commencer le service."
+        if async_web:
+            return web_json_response(
+                error={"code": "CASH_SESSION_REQUIRED"},
+                message=message,
+                status=409,
+            )
+        flash(message, "info")
         return redirect(url_for("cashier_web.session", bar_id=bar_id))
 
     if request.method == "POST":
@@ -189,8 +198,15 @@ def workspace(bar_id: int):
                 # A counter sale is physically delivered by the cashier at creation time.
                 order_service.confirm(current_user, bar_id, order.id)
                 db.session.commit()
-                flash(f"Vente comptoir prête à encaisser · {order.total_amount:,.0f} {order.currency}.", "success")
-                return redirect(url_for("cashier_workspace_web.workspace", bar_id=bar_id, order_id=order.id, focus="payment"))
+                message = f"Vente comptoir prête à encaisser · {order.total_amount:,.0f} {order.currency}."
+                refresh_url = url_for("cashier_workspace_web.workspace", bar_id=bar_id, order_id=order.id, focus="payment")
+                if async_web:
+                    return web_json_response(
+                        data={"refresh_url": refresh_url, "reset_cart": True, "close_sale_panel": True},
+                        message=message,
+                    )
+                flash(message, "success")
+                return redirect(refresh_url)
 
             if not order_id:
                 raise LookupError("NOT_FOUND")
@@ -198,8 +214,12 @@ def workspace(bar_id: int):
             if action == "deliver":
                 order = order_service.confirm(current_user, bar_id, order_id)
                 db.session.commit()
-                flash(f"{order.reference} livrée. Encaissez maintenant le client.", "success")
-                return redirect(url_for("cashier_workspace_web.workspace", bar_id=bar_id, order_id=order.id, focus="payment"))
+                message = f"{order.reference} livrée. Encaissez maintenant le client."
+                refresh_url = url_for("cashier_workspace_web.workspace", bar_id=bar_id, order_id=order.id, focus="payment")
+                if async_web:
+                    return web_json_response(data={"refresh_url": refresh_url}, message=message)
+                flash(message, "success")
+                return redirect(refresh_url)
 
             order = db.session.scalar(
                 select(Order).where(Order.id == order_id, Order.bar_id == bar_id).with_for_update()
@@ -217,7 +237,7 @@ def workspace(bar_id: int):
                     current_user,
                     bar_id,
                     order.id,
-                    _reference(),
+                    (request.form.get("reference") or "").strip() or _reference(),
                     "CASH",
                     due,
                     due,
@@ -225,8 +245,12 @@ def workspace(bar_id: int):
                     cash_session_id=session.id,
                 )
                 db.session.commit()
-                flash(f"{order.reference} encaissée en espèces · {due:,.0f} {order.currency}.", "success")
-                return redirect(url_for("cashier_workspace_web.workspace", bar_id=bar_id))
+                message = f"{order.reference} encaissée en espèces · {due:,.0f} {order.currency}."
+                refresh_url = url_for("cashier_workspace_web.workspace", bar_id=bar_id)
+                if async_web:
+                    return web_json_response(data={"refresh_url": refresh_url}, message=message)
+                flash(message, "success")
+                return redirect(refresh_url)
 
             if action != "payment":
                 raise ValueError("INVALID_ACTION")
@@ -246,8 +270,12 @@ def workspace(bar_id: int):
                     _reference("CRD"),
                 )
                 db.session.commit()
-                flash(f"{order.reference} soldée à crédit.", "success")
-                return redirect(url_for("cashier_workspace_web.workspace", bar_id=bar_id))
+                message = f"{order.reference} soldée à crédit."
+                refresh_url = url_for("cashier_workspace_web.workspace", bar_id=bar_id)
+                if async_web:
+                    return web_json_response(data={"refresh_url": refresh_url}, message=message)
+                flash(message, "success")
+                return redirect(refresh_url)
 
             if method == "MIXED":
                 cash_part = _decimal(request.form.get("mixed_cash"), allow_zero=True)
@@ -287,8 +315,12 @@ def workspace(bar_id: int):
                     provider_transaction_id=provider_transaction_id,
                 )
                 db.session.commit()
-                flash(f"{order.reference} encaissée en paiement mixte.", "success")
-                return redirect(url_for("cashier_workspace_web.workspace", bar_id=bar_id))
+                message = f"{order.reference} encaissée en paiement mixte."
+                refresh_url = url_for("cashier_workspace_web.workspace", bar_id=bar_id)
+                if async_web:
+                    return web_json_response(data={"refresh_url": refresh_url}, message=message)
+                flash(message, "success")
+                return redirect(refresh_url)
 
             applied = _decimal(request.form.get("amount_applied") or due)
             if applied > due:
@@ -330,17 +362,39 @@ def workspace(bar_id: int):
             db.session.commit()
             remaining = Decimal(order_balance(db.session.get(Order, order.id))["amount_due"] or 0)
             if remaining > 0:
-                flash(f"{payment.amount_applied:,.0f} {payment.currency} encaissés · reste {remaining:,.0f}.", "success")
-                return redirect(url_for("cashier_workspace_web.workspace", bar_id=bar_id, order_id=order.id, focus="payment"))
-            flash(f"{order.reference} payée. Commande suivante prête.", "success")
-            return redirect(url_for("cashier_workspace_web.workspace", bar_id=bar_id))
+                message = f"{payment.amount_applied:,.0f} {payment.currency} encaissés · reste {remaining:,.0f}."
+                refresh_url = url_for("cashier_workspace_web.workspace", bar_id=bar_id, order_id=order.id, focus="payment")
+                if async_web:
+                    return web_json_response(data={"refresh_url": refresh_url}, message=message)
+                flash(message, "success")
+                return redirect(refresh_url)
+            message = f"{order.reference} payée. Commande suivante prête."
+            refresh_url = url_for("cashier_workspace_web.workspace", bar_id=bar_id)
+            if async_web:
+                return web_json_response(data={"refresh_url": refresh_url}, message=message)
+            flash(message, "success")
+            return redirect(refresh_url)
 
         except (PermissionError, LookupError, ValueError, TypeError, IntegrityError) as exc:
             db.session.rollback()
             if isinstance(exc, IntegrityError):
-                message = "Cette référence existe déjà. Réessayez."
+                code = "REFERENCE_EXISTS"
+                message = (
+                    "Cette référence existe déjà. Vérifiez le résultat avant toute nouvelle tentative."
+                    if async_web else "Cette référence existe déjà. Réessayez."
+                )
+                status = 409
             else:
+                code = str(exc) or "OPERATION_FAILED"
                 message = _message(exc)
+                if isinstance(exc, PermissionError):
+                    status = 403
+                elif isinstance(exc, LookupError) and code == "NOT_FOUND":
+                    status = 404
+                else:
+                    status = 422
+            if async_web:
+                return web_json_response(error={"code": code}, message=message, status=status)
             flash(message, "danger")
             target = {"bar_id": bar_id}
             if order_id:
@@ -459,4 +513,7 @@ def workspace(bar_id: int):
         stats=stats,
         sale_mode=request.args.get("sale") == "1",
         focus_payment=request.args.get("focus") == "payment",
+        sale_reference=_reference("CMD"),
+        cash_exact_reference=_reference("PAY"),
+        payment_reference=_reference("PAY"),
     )
