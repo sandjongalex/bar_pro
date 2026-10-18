@@ -3,7 +3,11 @@ import re
 from pathlib import Path
 
 from jinja2 import Environment
+from sqlalchemy import select
 
+from app.extensions import db
+from app.models import StaffAssignment, User, utcnow
+from app.shift_service import start_shift
 from test_workflows import env
 
 
@@ -50,8 +54,37 @@ def test_micro_animations_stay_scoped_and_work_with_dynamic_cart():
     assert "prefers-reduced-motion" in stylesheet
 
 
-def test_server_page_exposes_script_and_form_but_owner_has_no_server_scope(env):
+def test_on_duty_server_page_exposes_script_and_form(env):
     app, owner, bar, _, _, server, _, _ = env
+
+    # The real app denies access to an off-duty server. Start the cashier first,
+    # then let that on-duty cashier start the server as required by permissions.
+    cashier = User(
+        email="micro-animations-cashier@example.invalid",
+        display_name="Caisse tests",
+        category="EMPLOYEE",
+    )
+    cashier.set_password("test-password")
+    db.session.add(cashier)
+    db.session.flush()
+    cashier_assignment = StaffAssignment(
+        bar_id=bar.id, user_id=cashier.id, role="CASHIER", started_at=utcnow()
+    )
+    db.session.add(cashier_assignment)
+    db.session.flush()
+    server_assignment = db.session.scalar(
+        select(StaffAssignment).where(
+            StaffAssignment.bar_id == bar.id,
+            StaffAssignment.user_id == server.id,
+            StaffAssignment.role == "SERVER",
+            StaffAssignment.ended_at.is_(None),
+        )
+    )
+    assert server_assignment is not None
+    start_shift(owner, bar.id, cashier_assignment.id)
+    start_shift(cashier, bar.id, server_assignment.id)
+    db.session.commit()
+
     client = app.test_client()
 
     def login(user):
