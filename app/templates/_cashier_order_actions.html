@@ -1,7 +1,7 @@
 <div class="cashier-order-actions" data-order-actions="{{ order.id }}">
   <a class="btn btn-sm btn-light border" href="{{ url_for('orders_web.detail', bar_id=bar_id, order_id=order.id) }}">Détails / aperçu</a>
   {% if order.status == 'DRAFT' %}
-  <form method="post" action="{{ url_for('cashier_workspace_web.workspace', bar_id=bar_id) }}">
+  <form method="post" action="{{ url_for('cashier_workspace_web.workspace', bar_id=bar_id) }}" data-bp-ajax="json" data-cashier-async="1">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <input type="hidden" name="action" value="deliver">
     <input type="hidden" name="order_id" value="{{ order.id }}">
