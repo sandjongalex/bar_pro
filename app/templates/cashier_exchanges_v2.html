@@ -28,7 +28,33 @@
 <div class="exchange-grid">
   <section class="exchange-card">
     <div class="exchange-card-head"><p class="eyebrow mb-1">Nouvel échange</p><h2>Boisson rendue → boisson donnée</h2></div>
-    <form method="post" class="exchange-form" id="exchangeForm">
+    <div class="p-3"><p class="text-secondary small mb-3">Renseigner la boisson rendue, son remplacement et le règlement de la différence.</p><button class="btn btn-primary w-100" type="button" data-bs-toggle="modal" data-bs-target="#exchangeOperationModal" aria-controls="exchangeOperationModal" {% if not can_exchange %}disabled{% endif %}>Ouvrir le formulaire d'échange</button></div>
+  </section>
+  <aside class="exchange-card"><div class="exchange-card-head"><p class="eyebrow mb-1">Exemples</p><h2>Calcul automatique</h2></div><div class="p-3 d-grid gap-3"><div><strong>33 → Castel</strong><small class="d-block text-secondary">Même prix : aucun règlement.</small></div><div><strong>Mutzig → Petite Guinness</strong><small class="d-block text-secondary">Le client paie seulement la différence si la nouvelle bière coûte plus cher.</small></div><div><strong>Remplacement moins cher</strong><small class="d-block text-secondary">La différence est remboursée automatiquement.</small></div></div></aside>
+</div>
+</section>
+
+<section class="operation-panel {% if initial_mode == 'refund' %}active{% endif %}" data-operation-panel="refund">
+<div class="exchange-grid">
+  <section class="exchange-card">
+    <div class="exchange-card-head"><p class="eyebrow mb-1">Remboursement direct</p><h2>Rembourser une bière déjà vendue</h2></div>
+    <div class="p-3"><p class="text-secondary small mb-3">Préciser le produit retourné et le moyen de remboursement avant validation.</p><button class="btn btn-primary w-100" type="button" data-bs-toggle="modal" data-bs-target="#refundOperationModal" aria-controls="refundOperationModal" {% if not can_refund %}disabled{% endif %}>Ouvrir le formulaire de remboursement</button></div>
+  </section>
+  <aside class="exchange-card"><div class="exchange-card-head"><p class="eyebrow mb-1">Exemple</p><h2>Petite Guinness rendue</h2></div><div class="p-3"><strong>1 × Petite Guinness à 900 {{ bar.currency }}</strong><small class="d-block text-secondary mt-1">Le client reçoit 900 {{ bar.currency }}. Si la bouteille est revendable, le stock augmente de 1. Sinon elle est enregistrée sans remise en stock.</small></div></aside>
+</div>
+</section>
+
+{# The modals live outside the tab panels so Bootstrap can always display them. #}
+
+<div class="modal fade" id="exchangeOperationModal" tabindex="-1" aria-labelledby="exchangeOperationModalTitle" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-lg">
+    <div class="modal-content modal-liquid-glass">
+      <div class="modal-header">
+        <div><p class="eyebrow mb-1">Échanges et retours · {{ bar.name }}</p><h2 class="modal-title fs-5" id="exchangeOperationModalTitle">Échange de boissons</h2></div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer sans enregistrer"></button>
+      </div>
+      <div class="modal-body">
+<form method="post" class="exchange-form" id="exchangeForm">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <input type="hidden" name="action" value="exchange">
       <div class="exchange-products">
@@ -66,16 +92,21 @@
       <div class="exchange-rule mt-3"><strong>Stock :</strong> la boisson rendue augmente le stock uniquement si « Remettre en stock » est choisi. La boisson donnée est toujours retirée du stock.</div>
       <button class="btn btn-primary btn-lg w-100 mt-3" type="submit" {% if not can_exchange %}disabled{% endif %}>Valider l'échange</button>
     </form>
-  </section>
-  <aside class="exchange-card"><div class="exchange-card-head"><p class="eyebrow mb-1">Exemples</p><h2>Calcul automatique</h2></div><div class="p-3 d-grid gap-3"><div><strong>33 → Castel</strong><small class="d-block text-secondary">Même prix : aucun règlement.</small></div><div><strong>Mutzig → Petite Guinness</strong><small class="d-block text-secondary">Le client paie seulement la différence si la nouvelle bière coûte plus cher.</small></div><div><strong>Remplacement moins cher</strong><small class="d-block text-secondary">La différence est remboursée automatiquement.</small></div></div></aside>
+      </div>
+      <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Annuler</button></div>
+    </div>
+  </div>
 </div>
-</section>
 
-<section class="operation-panel {% if initial_mode == 'refund' %}active{% endif %}" data-operation-panel="refund">
-<div class="exchange-grid">
-  <section class="exchange-card">
-    <div class="exchange-card-head"><p class="eyebrow mb-1">Remboursement direct</p><h2>Rembourser une bière déjà vendue</h2></div>
-    <form method="post" class="exchange-form" id="refundForm">
+<div class="modal fade" id="refundOperationModal" tabindex="-1" aria-labelledby="refundOperationModalTitle" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-lg">
+    <div class="modal-content modal-liquid-glass">
+      <div class="modal-header">
+        <div><p class="eyebrow mb-1">Échanges et retours · {{ bar.name }}</p><h2 class="modal-title fs-5" id="refundOperationModalTitle">Remboursement de boisson</h2></div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer sans enregistrer"></button>
+      </div>
+      <div class="modal-body">
+<form method="post" class="exchange-form" id="refundForm">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <input type="hidden" name="action" value="refund">
       <div>
@@ -99,10 +130,11 @@
       <div class="exchange-rule refund-rule mt-3"><strong>Attention :</strong> en espèces, le montant est retiré de la caisse ouverte. Si la caisse ne contient pas assez d'espèces théoriques, toute l'opération est refusée et le stock reste inchangé.</div>
       <button class="btn btn-danger btn-lg w-100 mt-3" type="submit" {% if not can_refund %}disabled{% endif %}>Rembourser la bière</button>
     </form>
-  </section>
-  <aside class="exchange-card"><div class="exchange-card-head"><p class="eyebrow mb-1">Exemple</p><h2>Petite Guinness rendue</h2></div><div class="p-3"><strong>1 × Petite Guinness à 900 {{ bar.currency }}</strong><small class="d-block text-secondary mt-1">Le client reçoit 900 {{ bar.currency }}. Si la bouteille est revendable, le stock augmente de 1. Sinon elle est enregistrée sans remise en stock.</small></div></aside>
+      </div>
+      <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Annuler</button></div>
+    </div>
+  </div>
 </div>
-</section>
 
 <section class="exchange-card exchange-history">
   <div class="exchange-card-head d-flex justify-content-between align-items-center gap-3"><div><p class="eyebrow mb-1">Traçabilité</p><h2>Dernières opérations</h2></div><span class="badge text-bg-light">{{ exchanges|length }}</span></div>
