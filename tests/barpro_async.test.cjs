@@ -18,6 +18,12 @@ function start(fetch, overrides = {}) {
     dispatchEvent() {},
     querySelector() { return null; },
     getElementById() { return null; },
+    createElement() {
+      return {
+        setAttribute() {}, replaceChildren() {}, textContent: '',
+        attributes: [], querySelectorAll() { return []; }
+      };
+    },
     body: { appendChild() {} },
     ...overrides.document,
   };
