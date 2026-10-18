@@ -103,7 +103,7 @@
         </div>
         {% if delivery.note %}<p class="unpaid-pending-note">Note : {{ delivery.note }}</p>{% endif %}
         {% if delivery.confirm_url %}
-        <form class="unpaid-delivery-form" method="post" action="{{ delivery.confirm_url }}">
+        <form class="unpaid-delivery-form" data-bp-ajax="json" method="post" action="{{ delivery.confirm_url }}">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <input type="hidden" name="staff" value="{{ payload.staff_filter }}">
           <button class="btn btn-primary" type="submit">✓ Confirmer que j'ai livré</button>
