@@ -256,7 +256,7 @@ def workspace(bar_id: int):
                 raise ValueError("INVALID_ACTION")
 
             method = (request.form.get("method") or "CASH").strip().upper()
-            base_reference = (request.form.get("reference") or "").strip() or _reference()
+            base_reference = (request.form.get("reference_override") or request.form.get("reference") or "").strip() or _reference()
 
             if method == "CREDIT":
                 customer_id = request.form.get("customer_id", type=int)
