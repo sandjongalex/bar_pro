@@ -7,6 +7,7 @@
   const activeRequests = new Map();
   const activeForms = new WeakSet();
   const DEFAULT_TIMEOUT = 12000;
+  let noticeTimer = null;
 
   function webUrl(value) {
     const url = new URL(value, root.location.href);
@@ -40,12 +41,38 @@
       region.className = 'bp-async-announcements';
       doc.body.appendChild(region);
     }
+    // A newer notification must not be dismissed by an older notification's timer.
+    if (noticeTimer !== null) {
+      root.clearTimeout(noticeTimer);
+      noticeTimer = null;
+    }
+    const type = kind === 'error' ? 'error' : kind === 'success' ? 'success' : 'info';
     const item = doc.createElement('div');
-    item.className = 'bp-async-notice bp-async-notice-' + (kind === 'error' ? 'error' : kind === 'success' ? 'success' : 'info');
-    item.setAttribute('role', kind === 'error' ? 'alert' : 'status');
-    item.setAttribute('aria-live', kind === 'error' ? 'assertive' : 'polite');
+    item.className = 'bp-async-notice bp-async-notice-' + type;
+    item.setAttribute('role', type === 'error' ? 'alert' : 'status');
+    item.setAttribute('aria-live', type === 'error' ? 'assertive' : 'polite');
     item.textContent = String(message);
+
+    const close = doc.createElement('button');
+    close.type = 'button';
+    close.className = 'bp-async-notice-close';
+    close.textContent = '×';
+    close.setAttribute('aria-label', 'Fermer la notification');
+    close.addEventListener('click', () => {
+      if (region.firstElementChild !== item) return;
+      if (noticeTimer !== null) root.clearTimeout(noticeTimer);
+      noticeTimer = null;
+      item.remove();
+    });
+    item.appendChild(close);
     region.replaceChildren(item);
+
+    const duration = type === 'success' ? 3000 : type === 'error' ? 10000 : 5000;
+    noticeTimer = root.setTimeout(() => {
+      if (region.firstElementChild !== item) return;
+      item.remove();
+      noticeTimer = null;
+    }, duration);
     return item;
   }
 

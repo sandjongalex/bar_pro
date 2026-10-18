@@ -20,7 +20,7 @@ function start(fetch, overrides = {}) {
     getElementById() { return null; },
     createElement() {
       return {
-        setAttribute() {}, replaceChildren() {}, textContent: '',
+        setAttribute() {}, addEventListener() {}, appendChild() {}, replaceChildren() {}, textContent: '',
         attributes: [], querySelectorAll() { return []; }
       };
     },
@@ -171,4 +171,80 @@ test('watch does not perform hidden or offline polling and provides cleanup', as
   document.visibilityState = 'visible';
   document.documentElement.dataset.bpNetwork = 'offline';
   stop();
+});
+
+
+function noticeHarness() {
+  const nodes = new Map();
+  const scheduled = new Map();
+  let nextId = 0;
+  function element() {
+    return {
+      children: [], listeners: {},
+      setAttribute() {},
+      addEventListener(type, callback) { this.listeners[type] = callback; },
+      appendChild(child) { this.children.push(child); child.parentNode = this; },
+      replaceChildren(...children) {
+        this.children.forEach(child => { child.parentNode = null; });
+        this.children = children;
+        children.forEach(child => { child.parentNode = this; });
+      },
+      remove() {
+        if (!this.parentNode) return;
+        this.parentNode.children = this.parentNode.children.filter(child => child !== this);
+        this.parentNode = null;
+      },
+      get firstElementChild() { return this.children[0] || null; },
+    };
+  }
+  const { api } = start(async () => response({ success: true }), {
+    document: {
+      getElementById(id) { return nodes.get(id) || null; },
+      createElement: element,
+      body: { appendChild(node) { nodes.set(node.id, node); } },
+    },
+    window: {
+      setTimeout(callback, duration) {
+        const id = ++nextId;
+        scheduled.set(id, { callback, duration });
+        return id;
+      },
+      clearTimeout(id) { scheduled.delete(id); },
+    },
+  });
+  return { api, scheduled, region: () => nodes.get('bp-async-announcements') };
+}
+
+test('success and info notices auto-dismiss after their respective durations', () => {
+  const { api, scheduled, region } = noticeHarness();
+  const success = api.notify('Commande envoyée', 'success');
+  assert.equal(region().firstElementChild, success);
+  const successTimer = [...scheduled.values()][0];
+  assert.equal(successTimer.duration, 3000);
+  successTimer.callback();
+  assert.equal(region().firstElementChild, null);
+
+  const info = api.notify('Actualisation en cours', 'info');
+  assert.equal(region().firstElementChild, info);
+  const infoTimer = [...scheduled.values()].at(-1);
+  assert.equal(infoTimer.duration, 5000);
+  infoTimer.callback();
+  assert.equal(region().firstElementChild, null);
+});
+
+test('newer notices survive old timers; errors can be dismissed manually', () => {
+  const { api, scheduled, region } = noticeHarness();
+  api.notify('Première notification', 'success');
+  const oldTimer = [...scheduled.values()][0];
+  const error = api.notify('Erreur de connexion', 'error');
+  assert.equal(scheduled.size, 1);
+  const errorTimer = [...scheduled.values()][0];
+  assert.equal(errorTimer.duration, 10000);
+  oldTimer.callback(); // Even an already queued callback must not remove the newer notice.
+  assert.equal(region().firstElementChild, error);
+  const close = error.children[0];
+  assert.equal(close.type, 'button');
+  close.listeners.click();
+  assert.equal(region().firstElementChild, null);
+  assert.equal(scheduled.size, 0);
 });
