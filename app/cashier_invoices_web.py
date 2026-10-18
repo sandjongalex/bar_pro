@@ -8,6 +8,9 @@ import secrets
 from flask import Blueprint, flash, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
 from sqlalchemy import or_, select
+from sqlalchemy.exc import IntegrityError
+
+from app.async_ui import wants_async_web_response, web_json_response
 
 from app.extensions import db
 from app.finance_totals import order_balance
@@ -52,19 +55,21 @@ def _normalize_filter(value: str | None, allowed: set[str], default: str) -> str
     return normalized if normalized in allowed else default
 
 
-def _redirect_to_filters(bar_id: int):
+def _filters_url(bar_id: int) -> str:
     delivery = _normalize_filter(request.form.get("delivery"), DELIVERY_FILTERS, "all")
     payment = _normalize_filter(request.form.get("payment"), PAYMENT_FILTERS, "open")
     origin = (request.form.get("origin") or "all").strip().lower()
-    return redirect(
-        url_for(
-            "cashier_invoices_web.invoices",
-            bar_id=bar_id,
-            delivery=delivery,
-            payment=payment,
-            origin=origin,
-        )
+    return url_for(
+        "cashier_invoices_web.invoices",
+        bar_id=bar_id,
+        delivery=delivery,
+        payment=payment,
+        origin=origin,
     )
+
+
+def _redirect_to_filters(bar_id: int):
+    return redirect(_filters_url(bar_id))
 
 
 @bp.route("/invoices", methods=["GET", "POST"])
@@ -79,6 +84,7 @@ def invoices(bar_id: int):
         raise LookupError("NOT_FOUND")
 
     if request.method == "POST":
+        async_web = wants_async_web_response()
         try:
             action = (request.form.get("action") or "").strip()
             if action != "pay_cash":
@@ -110,7 +116,7 @@ def invoices(bar_id: int):
                 current_user,
                 bar_id,
                 order.id,
-                _reference(),
+                (request.form.get("reference") or "").strip() or _reference(),
                 "CASH",
                 due,
                 due,
@@ -118,10 +124,23 @@ def invoices(bar_id: int):
                 cash_session_id=session.id,
             )
             db.session.commit()
-            flash(
-                f"{order.reference} payée en espèces · {due:,.0f} {order.currency}.",
-                "success",
-            )
+            message = f"{order.reference} payée en espèces · {due:,.0f} {order.currency}."
+            if async_web:
+                return web_json_response(
+                    data={"refresh_url": _filters_url(bar_id), "order_id": order.id},
+                    message=message,
+                )
+            flash(message, "success")
+        except IntegrityError:
+            db.session.rollback()
+            message = "Cette référence de paiement existe déjà. Vérifiez l'état de la facture avant toute nouvelle tentative."
+            if async_web:
+                return web_json_response(
+                    error={"code": "REFERENCE_EXISTS"},
+                    message=message,
+                    status=409,
+                )
+            flash(message, "danger")
         except (PermissionError, LookupError, ValueError, TypeError) as exc:
             db.session.rollback()
             messages = {
@@ -129,8 +148,14 @@ def invoices(bar_id: int):
                 "ORDER_NOT_PAYABLE": "Cette facture doit être livrée et avoir un solde avant l'encaissement.",
                 "NOT_FOUND": "Facture introuvable.",
                 "FORBIDDEN": "Encaissement non autorisé.",
+                "INVALID_ACTION": "Action de paiement non reconnue.",
             }
-            flash(messages.get(str(exc), "Paiement refusé. Vérifiez la facture."), "danger")
+            code = str(exc) or "PAYMENT_REJECTED"
+            message = messages.get(code, "Paiement refusé. Vérifiez la facture.")
+            if async_web:
+                status = 403 if code == "FORBIDDEN" else 404 if code == "NOT_FOUND" else 409 if code in {"CASH_SESSION_REQUIRED", "ORDER_NOT_PAYABLE"} else 422
+                return web_json_response(error={"code": code}, message=message, status=status)
+            flash(message, "danger")
         return _redirect_to_filters(bar_id)
 
     delivery_filter = _normalize_filter(request.args.get("delivery"), DELIVERY_FILTERS, "all")
@@ -319,6 +344,11 @@ def invoices(bar_id: int):
         lines_by_order=lines_by_order,
         origin_by_order=origin_by_order,
         balance_by_order=balance_by_order,
+        payment_reference_by_order={
+            order.id: _reference()
+            for order in invoice_rows
+            if order.payment_status != "PAID"
+        },
         personnel_filters=personnel_filters,
         delivery_filter=delivery_filter,
         payment_filter=payment_filter,
