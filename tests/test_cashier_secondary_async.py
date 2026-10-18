@@ -64,7 +64,7 @@ def test_cashier_expense_is_async_idempotent_and_atomic(env):
     assert Decimal(cash_service.expected(session)) == 700
     assert count(IdempotencyRecord, bar_id=bar.id, operation="web.cashier.financial.secondary.expense.expense_create") == 1
 
-    assert client.get(f"/bars/{foreign.id}/expenses").status_code == 403 or True
+    assert client.get(f"/bars/{foreign.id}/expenses").status_code in (403, 404)
     native_page = client.get(path)
     native = client.post(path, data={
         **{k: v for k, v in fields.items() if k != "idempotency_key"},
