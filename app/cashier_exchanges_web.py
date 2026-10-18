@@ -8,7 +8,10 @@ from zoneinfo import ZoneInfo
 from flask import Blueprint, flash, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 
+from app.async_ui import wants_async_web_response, web_json_response
+from app.cashier_financial_intents import financial_claim, financial_complete
 from app.exchange_services import exchange_service
 from app.extensions import db
 from app.models import AuditLog, Bar, Product, StockBalance
@@ -49,6 +52,9 @@ def _message(exc) -> str:
         "INVALID_NUMBER": "Une quantité ou un montant est invalide.",
         "INVALID_PRECISION": "La précision d'une quantité est invalide.",
         "INVALID_TEXT": "Le motif est obligatoire et doit rester court.",
+        "PAYMENT_ALREADY_PROCESSED": "Cette opération a déjà été enregistrée. Consultez l’historique avant de recommencer.",
+        "IDEMPOTENCY_CONFLICT": "Cette confirmation a déjà été utilisée avec d’autres données.",
+        "IDEMPOTENCY_KEY_REQUIRED": "Identifiant de confirmation manquant. Rechargez le formulaire.",
     }
     return messages.get(code, "Opération refusée. Vérifiez les produits, les quantités, le stock et le règlement.")
 
@@ -117,6 +123,7 @@ def manage(bar_id: int):
                 product_id = request.form.get("refund_product_id", type=int)
                 if not product_id:
                     raise LookupError("NOT_FOUND")
+                intent = financial_claim(current_user, bar_id, "exchange_refund", request.form, require_key=wants_async_web_response())
                 result = standalone_refund_service.create(
                     current_user,
                     bar_id,
@@ -127,14 +134,17 @@ def manage(bar_id: int):
                     refund_method=request.form.get("refund_method", ""),
                     provider_transaction_id=request.form.get("refund_provider_transaction_id"),
                 )
+                financial_complete(intent, action="refund", reference=result.reference)
                 db.session.commit()
                 stock_note = " remise en stock" if result.returned_disposition == "RESTOCK" else " classée en perte"
-                flash(
+                message = (
                     f"Remboursement {result.reference} enregistré : {result.quantity} × {result.product_name}, "
                     f"{result.refund_amount:,.0f} {bar.currency} remboursés en "
-                    f"{PAYMENT_LABELS.get(result.refund_method, result.refund_method)} ; bouteille{stock_note}.",
-                    "success",
+                    f"{PAYMENT_LABELS.get(result.refund_method, result.refund_method)} ; bouteille{stock_note}."
                 )
+                if wants_async_web_response():
+                    return web_json_response(data={"action": "refund", "reference": result.reference}, message=message)
+                flash(message, "success")
                 return redirect(url_for("cashier_exchanges_web.manage", bar_id=bar_id, mode="refund"))
 
             if action != "exchange":
@@ -147,6 +157,7 @@ def manage(bar_id: int):
             if not returned_product_id or not replacement_product_id:
                 raise LookupError("NOT_FOUND")
 
+            intent = financial_claim(current_user, bar_id, "exchange", request.form, require_key=wants_async_web_response())
             result = exchange_service.create(
                 current_user,
                 bar_id,
@@ -159,6 +170,7 @@ def manage(bar_id: int):
                 settlement_method=request.form.get("settlement_method"),
                 provider_transaction_id=request.form.get("provider_transaction_id"),
             )
+            financial_complete(intent, action="exchange", reference=result.reference)
             db.session.commit()
 
             if result.settlement_direction == "COLLECT":
@@ -167,15 +179,22 @@ def manage(bar_id: int):
                 settlement = f" Différence remboursée : {result.settlement_amount:,.0f} {bar.currency}."
             else:
                 settlement = " Aucun supplément à régler."
-            flash(
-                f"Échange {result.reference} enregistré : {result.returned_product_name} → "
-                f"{result.replacement_product_name}.{settlement}",
-                "success",
-            )
+            message = f"Échange {result.reference} enregistré : {result.returned_product_name} → {result.replacement_product_name}.{settlement}"
+            if wants_async_web_response():
+                return web_json_response(data={"action": "exchange", "reference": result.reference, "settlement_direction": result.settlement_direction, "settlement_amount": str(result.settlement_amount)}, message=message)
+            flash(message, "success")
             return redirect(url_for("cashier_exchanges_web.manage", bar_id=bar_id, mode="exchange"))
-        except (PermissionError, LookupError, ValueError, TypeError, ArithmeticError) as exc:
+        except (PermissionError, LookupError, ValueError, TypeError, ArithmeticError, IntegrityError) as exc:
             db.session.rollback()
-            flash(_message(exc), "danger")
+            message = ("Cette opération a déjà été enregistrée ou une référence est utilisée. Vérifiez l'historique."
+                       if isinstance(exc, IntegrityError) else _message(exc))
+            if wants_async_web_response():
+                code = str(exc)
+                status = 403 if isinstance(exc, PermissionError) else 404 if isinstance(exc, LookupError) else 409 if (
+                    isinstance(exc, IntegrityError) or code in {"PAYMENT_ALREADY_PROCESSED", "IDEMPOTENCY_CONFLICT", "INSUFFICIENT_STOCK", "INSUFFICIENT_DRAWER_CASH", "CASH_SESSION_NOT_OPEN"}
+                ) else 422
+                return web_json_response(error=code if not isinstance(exc, IntegrityError) else "IDEMPOTENCY_CONFLICT", message=message, status=status)
+            flash(message, "danger")
 
     products = list(
         db.session.scalars(
@@ -201,4 +220,5 @@ def manage(bar_id: int):
         can_exchange=can_exchange,
         can_refund=can_refund,
         initial_mode="refund" if request.args.get("mode") == "refund" else "exchange",
+        new_intent_key=lambda: __import__("secrets").token_urlsafe(32),
     )
