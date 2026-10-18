@@ -37,6 +37,7 @@ function start(fetch, overrides = {}) {
     setInterval,
     clearInterval,
     addEventListener() {},
+    removeEventListener() {},
     scrollTo() {},
     ...overrides.window,
   };
