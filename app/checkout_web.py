@@ -589,5 +589,6 @@ def checkout(bar_id):
         can_deliver=can_deliver,
         can_credit=can_credit,
         is_cashier=is_cashier,
+        payment_intent_key=_reference("INTENT"),
         stats=stats,
     )
