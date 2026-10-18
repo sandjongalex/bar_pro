@@ -3,6 +3,8 @@ from __future__ import annotations
 
 from datetime import timezone
 from decimal import Decimal
+from hashlib import sha256
+import json
 
 from flask import Blueprint, abort, flash, jsonify, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
@@ -305,6 +307,10 @@ def _payload(bar_id: int, staff_filter: str | None = None):
             }
         )
 
+    for row in rows:
+        row["signature"] = sha256(json.dumps(row, sort_keys=True, ensure_ascii=False,
+                                            separators=(",", ":")).encode("utf-8")).hexdigest()
+
     return {
         "mode": role,
         "orders": rows,
@@ -482,4 +488,8 @@ def confirm_delivery(bar_id: int, order_id: int, suborder_id: int):
 def data(bar_id: int):
     if not db.session.get(Bar, bar_id):
         raise LookupError("NOT_FOUND")
-    return jsonify(_payload(bar_id, request.args.get("staff")))
+    response = jsonify(_payload(bar_id, request.args.get("staff")))
+    response.set_etag(sha256(response.get_data()).hexdigest())
+    response.cache_control.no_store = True
+    response.make_conditional(request)
+    return response

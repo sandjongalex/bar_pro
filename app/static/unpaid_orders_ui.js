@@ -5,10 +5,11 @@
   const grid = document.querySelector('[data-unpaid-grid]');
   if (!root || !grid) return;
 
-  const liveUrl = root.dataset.liveUrl || '';
+  const baseLiveUrl = root.dataset.liveUrl || '';
   const role = root.dataset.role || '';
   const csrfToken = root.dataset.csrfToken || '';
-  const staffFilter = root.dataset.staffFilter || 'all';
+  let staffFilter = root.dataset.staffFilter || 'all';
+  const staffSelect = document.getElementById('staff');
   const badge = document.querySelector('[data-unpaid-live-badge]');
   const empty = document.querySelector('[data-unpaid-empty]');
   const countNode = document.querySelector('[data-unpaid-count]');
@@ -17,13 +18,18 @@
   const dueNode = document.querySelector('[data-unpaid-due]');
   const mergeForm = document.querySelector('[data-merge-form]');
   const mergeSubmit = document.querySelector('[data-merge-submit]');
+  const mergeWarning = document.querySelector('[data-unpaid-merge-warning]');
   const money = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0 });
 
   let knownIds = new Set(Array.from(grid.querySelectorAll('[data-unpaid-order-id]')).map((node) => String(node.dataset.unpaidOrderId)));
   let knownPendingIds = new Set();
   let firstPoll = true;
-  let inFlight = false;
+  let currentRequest = null;
+  let requestGeneration = 0;
   let initialLoadAttempted = false;
+  let mergeConflict = '';
+  const etags = new Map();
+  let renderedKey = null;
 
   function escapeHtml(value) {
     return String(value ?? '').replace(/[&<>"']/g, (char) => ({
@@ -42,9 +48,17 @@
 
   function refreshMergeButton() {
     if (!mergeSubmit) return;
-    const count = grid.querySelectorAll('[data-merge-checkbox]:checked').length;
-    mergeSubmit.disabled = count < 2;
+    const checked = Array.from(grid.querySelectorAll('[data-merge-checkbox]:checked'));
+    const count = checked.length;
+    const currencies = new Set(checked.map(input => input.closest('[data-unpaid-order-id]')?.dataset.unpaidCurrency));
+    const mismatch = currencies.size > 1;
+    mergeSubmit.disabled = count < 2 || mismatch;
     mergeSubmit.textContent = count >= 2 ? `Fusionner ${count} commandes` : 'Fusionner la sélection';
+    if (mergeWarning) {
+      const message = mismatch ? 'Les commandes sélectionnées n’utilisent pas la même devise.' : mergeConflict;
+      mergeWarning.hidden = !message;
+      mergeWarning.textContent = message;
+    }
   }
 
   function ageLabel(value) {
@@ -109,7 +123,7 @@
       : '';
 
     return `
-      <article class="unpaid-card ${partial ? 'is-partial' : ''} ${blocked ? 'is-pending-delivery' : ''} ${age.aging ? 'is-aging' : ''}" data-unpaid-order-id="${escapeHtml(order.id)}" data-posted-at="${escapeHtml(order.posted_at || '')}">
+      <article class="unpaid-card ${partial ? 'is-partial' : ''} ${blocked ? 'is-pending-delivery' : ''} ${age.aging ? 'is-aging' : ''}" data-unpaid-order-id="${escapeHtml(order.id)}" data-unpaid-signature="${escapeHtml(order.signature || '')}" data-unpaid-currency="${escapeHtml(order.currency || '')}" data-posted-at="${escapeHtml(order.posted_at || '')}">
         <div class="unpaid-card-head">
           <div><small>${escapeHtml(displayLabel)}</small><strong>${escapeHtml(displayName)}</strong></div>
           <span class="unpaid-status">${escapeHtml(status)}</span>
@@ -150,7 +164,42 @@
       });
     });
 
-    grid.innerHTML = orders.map((order) => orderCard(order, selectedIds)).join('');
+    // Reconcile by stable order ID and server-provided signature. Unchanged cards,
+    // focused controls and checked merge boxes keep their original DOM identity.
+    const scrollX = window.scrollX, scrollY = window.scrollY;
+    const focused = document.activeElement;
+    const focusedCard = focused?.closest?.('[data-unpaid-order-id]');
+    const focusedId = focusedCard?.dataset.unpaidOrderId;
+    const existing = new Map(Array.from(grid.querySelectorAll('[data-unpaid-order-id]'))
+      .map(node => [String(node.dataset.unpaidOrderId), node]));
+    const nextIds = new Set(orders.map(order => String(order.id)));
+    const eligible = new Map(orders.map(order => [String(order.id), order]));
+    const lost = Array.from(selectedIds).filter(id => !eligible.has(id) || eligible.get(id).payment_blocked);
+    if (lost.length) {
+      mergeConflict = 'Sélection modifiée : ' + lost.length +
+        ' commande(s) ont été payées, retirées ou ne sont plus éligibles à la fusion.';
+    }
+    if (grid.querySelector('[data-skeleton-placeholder]')) {
+      grid.replaceChildren();
+      grid.removeAttribute('aria-busy');
+    }
+
+    orders.forEach((order, index) => {
+      const id = String(order.id);
+      let node = existing.get(id);
+      if (!node || node.dataset.unpaidSignature !== order.signature) {
+        const wrapper = document.createElement('div');
+        wrapper.innerHTML = orderCard(order, selectedIds);
+        const replacement = wrapper.firstElementChild;
+        if (!replacement) throw new Error('UNPAID_CARD_RENDER_FAILED');
+        if (node) node.replaceWith(replacement);
+        node = replacement;
+      }
+      if (grid.children[index] !== node) grid.insertBefore(node, grid.children[index] || null);
+    });
+    existing.forEach((node, id) => {
+      if (!nextIds.has(id)) node.remove();
+    });
     refreshMergeButton();
     if (empty) empty.hidden = orders.length !== 0;
     if (countNode) countNode.textContent = String(payload?.stats?.count ?? orders.length);
@@ -158,10 +207,17 @@
     if (partialNode) partialNode.textContent = String(payload?.stats?.partial ?? 0);
     if (dueNode) dueNode.textContent = money.format(Number(payload?.stats?.due || 0));
 
-    const nextIds = new Set(orders.map((order) => String(order.id)));
-    if (!firstPoll && Array.from(nextPendingIds).some((id) => !knownPendingIds.has(id))) {
+    if (focusedId && !focused?.isConnected) {
+      const replacement = Array.from(grid.querySelectorAll('[data-unpaid-order-id]'))
+        .find(node => node.dataset.unpaidOrderId === focusedId);
+      const control = focused?.matches?.('[data-merge-checkbox]') ? '[data-merge-checkbox]' :
+        focused?.matches?.('a') ? '.unpaid-card-foot a' : null;
+      if (control) replacement?.querySelector(control)?.focus({ preventScroll: true });
+    }
+    if (window.scrollX !== scrollX || window.scrollY !== scrollY) window.scrollTo(scrollX, scrollY);
+    if (!firstPoll && Array.from(nextPendingIds).some(id => !knownPendingIds.has(id))) {
       showNewNotice('delivery');
-    } else if (!firstPoll && orders.some((order) => !knownIds.has(String(order.id)))) {
+    } else if (!firstPoll && orders.some(order => !knownIds.has(String(order.id)))) {
       showNewNotice('order');
     }
     knownIds = nextIds;
@@ -178,11 +234,22 @@
     });
   }
 
-  async function poll() {
-    if (!liveUrl || inFlight || document.hidden) return;
-    inFlight = true;
-    // The first request only: the server already rendered cards on nonempty lists.
-    // Keep those real orders visible during every subsequent background refresh.
+  async function poll(force = false) {
+    if (!baseLiveUrl || document.hidden || navigator.onLine === false) return;
+    if (currentRequest) {
+      if (!force) return;
+      currentRequest.abort();
+    }
+    const controller = new AbortController();
+    currentRequest = controller;
+    const generation = ++requestGeneration;
+    const url = new URL(baseLiveUrl, window.location.href);
+    url.searchParams.set('staff', staffFilter);
+    const key = url.href;
+    const headers = { Accept: 'application/json' };
+    if (renderedKey === key && etags.has(key)) headers['If-None-Match'] = etags.get(key);
+
+    // Skeleton only for the first load when the server has no rendered cards.
     const showSkeleton = !initialLoadAttempted && !grid.querySelector('[data-unpaid-order-id]')
       && !!window.BarProSkeleton;
     initialLoadAttempted = true;
@@ -192,44 +259,84 @@
       if (empty) empty.hidden = true;
     }
     try {
-      const response = await fetch(liveUrl, {
-        credentials: 'same-origin',
-        headers: { Accept: 'application/json' },
-        cache: 'no-store',
+      const response = await fetch(key, {
+        credentials: 'same-origin', headers, cache: 'no-store', signal: controller.signal,
       });
-      if (!response.ok) return;
-      apply(await response.json());
+      if (generation !== requestGeneration) return;
+      if (response.status === 304) {
+        if (badge && badge.textContent === '● Reconnexion…') badge.textContent = '● Mise à jour auto';
+        return;
+      }
+      if (!response.ok) throw new Error('UNPAID_POLL_FAILED');
+      const payload = await response.json();
+      if (generation !== requestGeneration) return;
+      apply(payload);
+      renderedKey = key;
+      const tag = response.headers.get('ETag');
+      if (tag) etags.set(key, tag);
+      if (badge && badge.textContent === '● Reconnexion…') badge.textContent = '● Mise à jour auto';
     } catch (error) {
-      if (badge) badge.textContent = '● Reconnexion…';
+      if (generation === requestGeneration && error.name !== 'AbortError' && badge) {
+        badge.textContent = '● Reconnexion…';
+      }
     } finally {
-      if (showSkeleton) {
-        // apply() replaces the skeleton on success; restore the server-rendered
-        // empty message when the request fails or the user is offline.
+      if (currentRequest === controller) currentRequest = null;
+      if (showSkeleton && generation === requestGeneration) {
         if (grid.querySelector('[data-skeleton-placeholder]')) {
           grid.innerHTML = '';
           if (empty) empty.hidden = false;
         }
         grid.removeAttribute('aria-busy');
       }
-      inFlight = false;
     }
   }
 
   grid.addEventListener('change', (event) => {
-    if (event.target && event.target.matches('[data-merge-checkbox]')) refreshMergeButton();
+    if (event.target && event.target.matches('[data-merge-checkbox]')) {
+      mergeConflict = '';
+      refreshMergeButton();
+    }
   });
   if (mergeForm) {
     mergeForm.addEventListener('submit', (event) => {
-      if (grid.querySelectorAll('[data-merge-checkbox]:checked').length < 2) event.preventDefault();
+      refreshMergeButton();
+      if (mergeSubmit.disabled) event.preventDefault();
     });
   }
 
+  if (staffSelect) {
+    staffSelect.addEventListener('change', () => {
+      staffFilter = staffSelect.value;
+      mergeConflict = '';
+      const url = new URL(window.location.href);
+      url.searchParams.set('staff', staffFilter);
+      window.history.pushState({}, '', url.href);
+      void poll(true);
+    });
+    staffSelect.form?.addEventListener('submit', event => {
+      event.preventDefault();
+      staffSelect.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    staffSelect.form?.querySelector('a[href]')?.addEventListener('click', event => {
+      event.preventDefault();
+      staffSelect.value = 'all';
+      staffSelect.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    window.addEventListener('popstate', () => {
+      const value = new URL(window.location.href).searchParams.get('staff') || 'all';
+      staffFilter = Array.from(staffSelect.options).some(option => option.value === value) ? value : 'all';
+      staffSelect.value = staffFilter;
+      void poll(true);
+    });
+  }
   document.addEventListener('visibilitychange', () => {
-    if (!document.hidden) poll();
+    if (!document.hidden) void poll(true);
+    else currentRequest?.abort();
   });
+  window.addEventListener('online', () => { void poll(true); });
   window.setInterval(refreshAges, 60000);
-  window.setInterval(poll, 4000);
+  window.setInterval(() => { void poll(); }, 4000);
   refreshAges();
   refreshMergeButton();
-  poll();
+  void poll();
 })();

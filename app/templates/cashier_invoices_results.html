@@ -1,0 +1,65 @@
+<div id="invoiceResults">
+    <div class="invoice-section-title">
+      <h2>Factures trouvées</h2>
+      <span>{{ invoices|length }} résultat{{ 's' if invoices|length != 1 else '' }}</span>
+    </div>
+
+    {% if invoices %}
+    <section class="invoice-grid">
+      {% for order in invoices %}
+        {% set lines = lines_by_order.get(order.id, []) %}
+        {% set delivered = order.status in ['CONFIRMED','SERVED'] %}
+        {% set balance = balance_by_order.get(order.id) %}
+        <article class="invoice-card {{ 'delivered' if delivered else 'waiting' }}" data-invoice-id="{{ order.id }}">
+          <div class="invoice-card-top">
+            <div>
+              <div class="invoice-reference invoice-human-title">{{ order.customer_name_snapshot or order.table_label_snapshot or 'COMPTOIR' }}</div><div class="invoice-system-ref">Réf. système : {{ order.reference }}</div>
+              <div class="invoice-origin">{{ origin_by_order.get(order.id, 'Caisse / comptoir') }} · {{ order.table_label_snapshot or 'Sans table' }}</div>
+            </div>
+            <div class="invoice-total">
+              <strong>{{ "{:,.0f}".format(order.total_amount) }} {{ order.currency }}</strong>
+              <small>{{ order.created_at }}</small>
+            </div>
+          </div>
+
+          <div class="invoice-badges">
+            {% if delivered %}<span class="invoice-badge delivered">✓ Livrée</span>{% else %}<span class="invoice-badge waiting">● À livrer</span>{% endif %}
+            {% if order.payment_status == 'PAID' %}<span class="invoice-badge paid">✓ Payée</span>
+            {% elif order.payment_status == 'PARTIAL' %}<span class="invoice-badge partial">Paiement partiel</span>
+            {% else %}<span class="invoice-badge">À encaisser</span>{% endif %}
+          </div>
+
+          <div class="invoice-preview">
+            {% for line in lines[:3] %}
+            <div class="invoice-preview-line"><span><strong>{{ line.quantity }}×</strong> {{ line.product_name_snapshot }}</span><span>{{ "{:,.0f}".format(line.total_amount) }}</span></div>
+            {% endfor %}
+            {% if lines|length > 3 %}<div class="invoice-preview-more">+ {{ lines|length - 3 }} autre{{ 's' if lines|length - 3 > 1 else '' }} ligne{{ 's' if lines|length - 3 > 1 else '' }}</div>{% endif %}
+          </div>
+
+          {% if balance and order.payment_status != 'PAID' %}
+          <div class="invoice-due"><span>Reste à encaisser</span><strong>{{ "{:,.0f}".format(balance.amount_due) }} {{ order.currency }}</strong></div>
+          {% endif %}
+
+          <div class="invoice-actions">
+            <a href="{{ url_for('orders_web.detail', bar_id=bar.id, order_id=order.id) }}">◉ Détails</a>
+            <a class="primary" href="{{ url_for('cashier_workspace_web.workspace', bar_id=bar.id, order_id=order.id) }}#paymentPanel">Ouvrir</a>
+            {% if delivered and order.payment_status != 'PAID' and balance and balance.amount_due > 0 %}
+            <form method="post" data-bp-ajax="json" data-invoice-pay="1" data-confirm-amount="{{ '{:,.0f}'.format(balance.amount_due) }} {{ order.currency }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="action" value="pay_cash">
+              <input type="hidden" name="idempotency_key" value="">
+              <input type="hidden" name="order_id" value="{{ order.id }}">
+              <input type="hidden" name="delivery" value="{{ delivery_filter }}">
+              <input type="hidden" name="payment" value="{{ payment_filter }}">
+              <input type="hidden" name="origin" value="{{ origin_filter }}">
+              <button class="invoice-pay-button" type="submit">✓ Payé</button>
+            </form>
+            {% endif %}
+          </div>
+        </article>
+      {% endfor %}
+    </section>
+    {% else %}
+    <div class="invoice-empty"><div style="font-size:1.6rem">🧾</div><h3>Aucune facture avec ces filtres</h3><p>Modifiez la livraison, le paiement ou l'origine pour élargir la liste.</p></div>
+    {% endif %}
+  </div>
