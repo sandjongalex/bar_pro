@@ -159,6 +159,18 @@ def test_order_actions_survive_live_refresh_and_delivery(env):
     url = f"/bars/{bar.id}/cashier/workspace"
     page = client.get(url)
     assert f'data-order-actions="{order.id}"' in page.text
+    # Actions and order summary must be nested in the same card.
+    def assert_actions_inside_order_card(html):
+        return re.search(
+            rf'<article[^>]*data-live-order-id="{order.id}"[^>]*>'
+            rf'(?:(?!</article>).)*?'
+            rf'<div class="cashier-order-actions" data-order-actions="{order.id}">',
+            html,
+            re.S,
+        )
+
+    assert assert_actions_inside_order_card(page.text)
+
     live = client.get(f"/bars/{bar.id}/live/orders").json
     actions = next(row for row in live["orders"] if row["id"] == order.id)["actions_html"]
     assert '>Livrée</button>' in actions
@@ -178,6 +190,11 @@ def test_order_actions_survive_live_refresh_and_delivery(env):
     assert '>Livrée</button>' not in actions
     assert '>Payer</a>' in actions
     assert '>Imprimer</a>' in actions
+    # A status transition must not detach the actions in the next SSR response.
+    delivered_page = client.get(url)
+    assert delivered_page.status_code == 200
+    assert assert_actions_inside_order_card(delivered_page.text)
+
     assert f'/orders/{order.id}/receipt' in actions
     receipt_url = re.search(r'href="([^"]+/receipt)"', actions).group(1)
     assert client.get(receipt_url).status_code == 200
