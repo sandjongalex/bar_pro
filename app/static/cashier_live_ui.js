@@ -47,7 +47,7 @@
   let firstSuccessfulPoll = true;
   let inFlight = false;
   let refreshAgain = false;
-  let initialized = false;
+  let initialLoadAttempted = false;
 
   function escapeHtml(value) {
     return String(value ?? '').replace(/[&<>"']/g, char =>
@@ -236,8 +236,8 @@
     if (document.hidden || window.navigator.onLine === false) return;
     inFlight = true;
     const sections = [payableSection, waitingSection].filter(Boolean);
-    const skeleton = !initialized && !queue.querySelector('.cashier-order-link') && !!window.BarProSkeleton;
-    initialized = true;
+    const skeleton = !initialLoadAttempted && !queue.querySelector('.cashier-order-link') && !!window.BarProSkeleton;
+    initialLoadAttempted = true;
     if (skeleton) sections.forEach(section => {
       section.classList.add('bp-skeleton-loading');
       section.setAttribute('aria-busy', 'true');
