@@ -115,7 +115,7 @@
       const html = orderMarkup(order, selectedId);
       // CSRF signatures rotate with time; they must NOT trigger a card rebuild.
       const actionsSignature = (order.actions_html || '').replace(
-        /name="csrf_token"\\s+value="[^"]*"/g, 'name="csrf_token" value=""'
+        /name="csrf_token"\s+value="[^"]*"/g, 'name="csrf_token" value=""'
       );
       const fingerprint = JSON.stringify([order.reference, order.display_name, order.state,
         order.payment_status, order.amount_due, order.net_sale, order.first_product,
@@ -148,8 +148,8 @@
         if (!dirty) {
           link.dataset.liveFingerprint = fingerprint;
           // Renew only the hidden CSRF token on stable cards (no DOM replacement).
-          const token = (order.actions_html || '').match(/name="csrf_token"\\s+value="([^"]+)"/);
-          const input = oldActions?.querySelector('input[name="csrf_token"]');
+          const token = (order.actions_html || '').match(/name="csrf_token"\s+value="([^"]+)"/);
+          const input = link.nextElementSibling?.querySelector('input[name="csrf_token"]');
           if (token && input) input.value = token[1];
         }
         link.classList.toggle('active', id === selectedId);
