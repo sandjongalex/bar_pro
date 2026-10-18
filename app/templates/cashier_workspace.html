@@ -18,6 +18,19 @@
 @media(max-width:1050px){.cashier-main-grid{grid-template-columns:1fr}.cashier-pay-panel{position:static}.cashier-sale-layout{grid-template-columns:1fr}.cashier-sale-catalog{border-right:0;border-bottom:1px solid var(--line)}}
 @media(max-width:760px){.cashier-workspace-head{display:block}.cashier-head-actions{margin-top:10px}.cashier-head-actions .btn{flex:1 1 45%;min-height:44px}.cashier-kpis{grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}.cashier-kpis a,.cashier-kpis article{padding:10px}.cashier-kpis strong{font-size:1.05rem}.cashier-kpis small{display:none}.cashier-sale-panel{border-radius:12px}.cashier-pay-panel{padding:13px}.cashier-methods{grid-template-columns:repeat(3,minmax(0,1fr))}.cashier-mobile-bar{display:grid;position:fixed;left:10px;right:10px;bottom:10px;z-index:1030;grid-template-columns:repeat(4,1fr);gap:4px;background:#fff;border:1px solid var(--line);border-radius:14px;padding:6px;box-shadow:0 12px 34px rgba(20,40,33,.18)}.cashier-mobile-bar a,.cashier-mobile-bar button{border:0;background:transparent;text-decoration:none;color:#5f6d67;font-size:.68rem;font-weight:800;padding:8px 4px;border-radius:9px;text-align:center}.cashier-mobile-bar .primary{background:var(--brand);color:#fff}.content-area{padding-bottom:92px!important}}
 @media(max-width:480px){.cashier-workspace-head h1{font-size:1.25rem}.cashier-kpis{grid-template-columns:1fr 1fr 1fr}.cashier-order-link{padding:11px}.cashier-methods{grid-template-columns:1fr 1fr}.cashier-sale-head{align-items:flex-start}.cashier-sale-layout .pos-products{grid-template-columns:1fr 1fr}.cashier-sale-layout .pos-product{min-height:128px}.cashier-sale-layout .pos-cart-line{grid-template-columns:minmax(0,1fr) auto}.cashier-sale-layout .pos-line-total{grid-column:2}}
+
+/* Responsive command cards: keep actions attached to their own order. */
+.cashier-order-card{min-width:0;margin:10px 12px;background:#fff;border:1px solid #e0e9e4;border-radius:14px;overflow:hidden;box-shadow:0 2px 10px rgba(24,58,46,.04)}
+.cashier-order-card:has(.cashier-order-link.active){border-color:var(--brand);box-shadow:0 0 0 1px var(--brand)}
+.cashier-order-card .cashier-order-link{border-top:0;min-width:0;gap:10px;padding:13px 12px}
+.cashier-order-card .cashier-order-copy{min-width:0;overflow-wrap:anywhere}
+.cashier-order-card .cashier-order-money{flex:0 0 auto}
+.cashier-order-card .cashier-order-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));align-items:stretch;gap:8px;padding:10px 12px 12px;border-top:1px solid #ecf1ee;border-bottom:0}
+.cashier-order-card .cashier-order-actions form{min-width:0;margin:0}
+.cashier-order-card .cashier-order-actions .btn{width:100%;min-width:0;min-height:44px;display:flex;align-items:center;justify-content:center;text-align:center;white-space:normal;font-weight:750;font-size:.79rem;padding:7px 8px;line-height:1.25}
+.cashier-panel-collapse{display:none;margin-bottom:12px}
+@media(max-width:1050px){.cashier-pay-panel:not(.is-open){display:none!important}.cashier-panel-collapse{display:inline-flex;align-items:center;min-height:42px}}
+@media(max-width:400px){.cashier-order-card{margin:8px}.cashier-order-card .cashier-order-link{padding:11px 10px}.cashier-order-card .cashier-order-actions{padding:9px;gap:7px}}
 </style>
 
 <section class="cashier-workspace-head">
@@ -96,12 +109,14 @@
       {% for order in payable_orders %}
         {% set b = balances[order.id] %}
         {% set lines = lines_by_order.get(order.id, []) %}
-        <a class="cashier-order-link {% if selected_order and selected_order.id == order.id %}active{% endif %}" href="{{ url_for('cashier_workspace_web.workspace', bar_id=bar.id, order_id=order.id) }}#paymentPanel">
+        <article class="cashier-order-card" data-live-order-id="{{ order.id }}">
+          <a class="cashier-order-link {% if selected_order and selected_order.id == order.id %}active{% endif %}" href="{{ url_for('cashier_workspace_web.workspace', bar_id=bar.id, order_id=order.id) }}#paymentPanel">
           <div class="cashier-order-copy"><strong class="cashier-human-order-title">{{ order.customer_name_snapshot or order.table_label_snapshot or 'COMPTOIR' }}</strong><small class="cashier-human-tech-ref">Réf. système : {{ order.reference }}</small><small>{{ server_name_by_order.get(order.id, 'Comptoir') }} · {{ order.table_label_snapshot or 'Sans table' }}{% if lines %} · {{ lines[0].product_name_snapshot }}{% if lines|length > 1 %} +{{ lines|length - 1 }}{% endif %}{% endif %}</small></div>
           <div class="cashier-order-money"><strong>{{ "{:,.0f}".format(b.amount_due) }} {{ order.currency }}</strong><small>{{ 'Partiel' if order.payment_status == 'PARTIAL' else 'À payer' }}</small></div>
         </a>
-        {% with bar_id=bar.id %}{% include '_cashier_order_actions.html' %}{% endwith %}
-      {% else %}<div class="p-3 text-secondary small">Aucune commande à encaisser.</div>{% endfor %}
+          {% with bar_id=bar.id %}{% include '_cashier_order_actions.html' %}{% endwith %}
+        </article>
+      {% else %}<div data-cashier-queue-empty class="p-3 text-secondary small">Aucune commande à encaisser.</div>{% endfor %}
     </div>
 
     <div class="cashier-queue-section" id="queueWaiting">
@@ -109,16 +124,19 @@
       {% for order in waiting_orders %}
         {% set b = balances[order.id] %}
         {% set lines = lines_by_order.get(order.id, []) %}
-        <a class="cashier-order-link {% if selected_order and selected_order.id == order.id %}active{% endif %}" href="{{ url_for('cashier_workspace_web.workspace', bar_id=bar.id, order_id=order.id) }}#paymentPanel">
+        <article class="cashier-order-card" data-live-order-id="{{ order.id }}">
+          <a class="cashier-order-link {% if selected_order and selected_order.id == order.id %}active{% endif %}" href="{{ url_for('cashier_workspace_web.workspace', bar_id=bar.id, order_id=order.id) }}#paymentPanel">
           <div class="cashier-order-copy"><strong class="cashier-human-order-title">{{ order.customer_name_snapshot or order.table_label_snapshot or 'COMPTOIR' }}</strong><small class="cashier-human-tech-ref">Réf. système : {{ order.reference }}</small><small>{{ server_name_by_order.get(order.id, 'Comptoir') }} · {{ order.table_label_snapshot or 'Sans table' }}{% if lines %} · {{ lines[0].product_name_snapshot }}{% if lines|length > 1 %} +{{ lines|length - 1 }}{% endif %}{% endif %}</small></div>
           <div class="cashier-order-money"><strong>{{ "{:,.0f}".format(b.net_sale) }} {{ order.currency }}</strong><small>À livrer</small></div>
         </a>
-        {% with bar_id=bar.id %}{% include '_cashier_order_actions.html' %}{% endwith %}
-      {% else %}<div class="p-3 text-secondary small">Aucune commande à livrer.</div>{% endfor %}
+          {% with bar_id=bar.id %}{% include '_cashier_order_actions.html' %}{% endwith %}
+        </article>
+      {% else %}<div data-cashier-queue-empty class="p-3 text-secondary small">Aucune commande à livrer.</div>{% endfor %}
     </div>
   </section>
 
-  <aside class="panel-card cashier-pay-panel" id="paymentPanel">
+  <aside class="panel-card cashier-pay-panel{% if focus_payment or request.args.get('order_id') %} is-open{% endif %}" id="paymentPanel">
+    <button type="button" class="btn btn-light border cashier-panel-collapse" data-cashier-panel-close aria-label="Refermer le détail de la commande">← Retour aux commandes</button>
     {% if selected_order %}
       {% set b = balances[selected_order.id] %}
       {% set selected_lines = lines_by_order.get(selected_order.id, []) %}
@@ -319,6 +337,8 @@
       }
 
       currentPanel.replaceWith(nextPanel);
+      const openPayment = selection || new URL(refreshUrl, window.location.href).searchParams.get('focus') === 'payment';
+      if (openPayment) nextPanel.classList.add('is-open');
       if (currentModal && nextModal) currentModal.replaceWith(nextModal);
       else if (currentModal) currentModal.remove();
       else if (nextModal) document.body.appendChild(nextModal);
@@ -353,10 +373,19 @@
       if (window.scrollX !== oldScrollX || window.scrollY !== oldScrollY) {
         window.scrollTo(oldScrollX, oldScrollY);
       }
+      if (openPayment && window.matchMedia('(max-width: 1050px)').matches) {
+        requestAnimationFrame(() => nextPanel.scrollIntoView({behavior:'smooth', block:'start'}));
+      }
     } finally {
       refreshingWorkspace = false;
     }
   }
+
+  document.addEventListener('click', event => {
+    if (!event.target.closest('[data-cashier-panel-close]')) return;
+    document.getElementById('paymentPanel')?.classList.remove('is-open');
+    document.getElementById('queue')?.scrollIntoView({behavior:'smooth', block:'start'});
+  });
 
   document.addEventListener('barpro:async-success', event => {
     const form = event.target;

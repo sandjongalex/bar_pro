@@ -82,18 +82,22 @@
     </a>`;
   }
 
-  function findLink(section, id) {
-    return Array.from(section.querySelectorAll('.cashier-order-link')).find(link => {
-      if (link.dataset.liveOrderId) return link.dataset.liveOrderId === id;
-      try { return new URL(link.href).searchParams.get('order_id') === id; }
-      catch (_) { return false; }
-    });
+
+  function cardMarkup(order, selectedId) {
+    // Server-supplied action HTML is intentionally kept inside its matching card.
+    return '<article class="cashier-order-card" data-live-order-id="' + escapeHtml(order.id) + '">' +
+      orderMarkup(order, selectedId) + (order.actions_html || '') + '</article>';
   }
 
-  function isEditing(node) {
+  function findCard(section, id) {
+    return Array.from(section?.children || []).find(element =>
+      element.classList.contains('cashier-order-card') && element.dataset.liveOrderId === id);
+  }
+
+  function isEditing(card) {
     const active = document.activeElement;
-    return !!(active && node && (node === active || node.contains(active))) ||
-      !!node?.querySelector('form[aria-busy="true"]');
+    return !!(card && active && (active === card || card.contains(active))) ||
+      !!card?.querySelector('form[aria-busy="true"]');
   }
 
   function reconcileSection(section, orders, selectedId, emptyText) {
@@ -102,88 +106,75 @@
     const sectionScroll = section.scrollTop;
     const wanted = new Set(orders.map(order => String(order.id)));
     const label = section.querySelector('.cashier-queue-label');
-    let cursor = label?.nextElementSibling || section.firstElementChild;
+    let cursor = label?.nextElementSibling || null;
     let changed = false;
 
-    // Move or replace only the cards whose actual data changed.
-    orders.forEach(order => {
+    for (const order of orders) {
       const id = String(order.id);
-      let link = findLink(section, id);
       const other = section === waitingSection ? payableSection : waitingSection;
-      if (!link && other) link = findLink(other, id);
-      const oldActions = link?.nextElementSibling?.matches('[data-order-actions]') ? link.nextElementSibling : null;
-      const html = orderMarkup(order, selectedId);
-      // CSRF signatures rotate with time; they must NOT trigger a card rebuild.
+      let card = findCard(section, id) || findCard(other, id);
+      // CSRF tokens rotate: avoid rebuilding cards for token-only changes.
       const actionsSignature = (order.actions_html || '').replace(
         /name="csrf_token"\s+value="[^"]*"/g, 'name="csrf_token" value=""'
       );
       const fingerprint = JSON.stringify([order.reference, order.display_name, order.state,
         order.payment_status, order.amount_due, order.net_sale, order.first_product,
         order.extra_lines, order.server_name, order.table, order.currency, actionsSignature]);
-      const dirty = isEditing(link) || isEditing(oldActions);
+      const busy = isEditing(card);
 
-      if (!link) {
+      // Wait for active form submission before relocating an order.
+      if (busy && card.parentElement !== section) continue;
+
+      if (!card) {
         const template = document.createElement('template');
-        template.innerHTML = html + (order.actions_html || '');
-        link = template.content.querySelector('.cashier-order-link');
-        const actions = template.content.querySelector('[data-order-actions]');
-        link.dataset.liveFingerprint = fingerprint;
-        section.insertBefore(link, cursor);
-        if (actions) section.insertBefore(actions, cursor);
+        template.innerHTML = cardMarkup(order, selectedId);
+        card = template.content.firstElementChild;
+        if (!card) continue;
+        card.dataset.liveFingerprint = fingerprint;
+        section.insertBefore(card, cursor);
         changed = true;
       } else {
-        link.dataset.liveOrderId = id;
-        if (!dirty && link.dataset.liveFingerprint !== fingerprint) {
+        if (!busy && card.dataset.liveFingerprint !== fingerprint) {
           const template = document.createElement('template');
-          template.innerHTML = html + (order.actions_html || '');
-          const nextLink = template.content.querySelector('.cashier-order-link');
-          const nextActions = template.content.querySelector('[data-order-actions]');
-          if (nextActions && oldActions) oldActions.replaceWith(nextActions);
-          else if (nextActions) link.insertAdjacentElement('afterend', nextActions);
-          else oldActions?.remove();
-          link.replaceWith(nextLink);
-          link = nextLink;
-          changed = true;
+          template.innerHTML = cardMarkup(order, selectedId);
+          const replacement = template.content.firstElementChild;
+          if (replacement) {
+            card.replaceWith(replacement);
+            card = replacement;
+            changed = true;
+          }
         }
-        if (!dirty) {
-          link.dataset.liveFingerprint = fingerprint;
-          // Renew only the hidden CSRF token on stable cards (no DOM replacement).
+        if (!busy) {
+          card.dataset.liveFingerprint = fingerprint;
           const token = (order.actions_html || '').match(/name="csrf_token"\s+value="([^"]+)"/);
-          const input = link.nextElementSibling?.querySelector('input[name="csrf_token"]');
+          const input = card.querySelector('[data-order-actions] input[name="csrf_token"]');
           if (token && input) input.value = token[1];
         }
-        link.classList.toggle('active', id === selectedId);
-        const actions = link.nextElementSibling?.matches('[data-order-actions]') ? link.nextElementSibling : null;
-        if (!dirty && link !== cursor) {
-          section.insertBefore(link, cursor);
-          if (actions) link.insertAdjacentElement('afterend', actions);
+        card.querySelector('.cashier-order-link')?.classList.toggle('active', id === selectedId);
+        if (!busy && (card.parentElement !== section || card !== cursor)) {
+          section.insertBefore(card, cursor);
           changed = true;
         }
       }
-      const actions = link.nextElementSibling?.matches('[data-order-actions]') ? link.nextElementSibling : null;
-      cursor = actions?.nextElementSibling || link.nextElementSibling;
-    });
+      cursor = card.nextElementSibling;
+    }
 
-    for (const link of Array.from(section.querySelectorAll('.cashier-order-link'))) {
-      const id = link.dataset.liveOrderId;
-      if (!wanted.has(id) && !isEditing(link) && !isEditing(link.nextElementSibling)) {
-        if (link.nextElementSibling?.matches('[data-order-actions]')) link.nextElementSibling.remove();
-        link.remove();
+    for (const card of Array.from(section.children).filter(el => el.classList.contains('cashier-order-card'))) {
+      if (!wanted.has(card.dataset.liveOrderId) && !isEditing(card)) {
+        card.remove();
         changed = true;
       }
     }
-    section.querySelectorAll('[data-cashier-queue-empty]').forEach(el => el.remove());
-    if (!orders.length && !section.querySelector('.cashier-order-link')) {
-      const empty = document.createElement('div');
+    const hasCards = Array.from(section.children).some(el => el.classList.contains('cashier-order-card'));
+    let empty = section.querySelector('[data-cashier-queue-empty]');
+    if (!hasCards && !empty) {
+      empty = document.createElement('div');
       empty.dataset.cashierQueueEmpty = '1';
       empty.className = 'p-3 text-secondary small';
       empty.textContent = emptyText;
       section.appendChild(empty);
-    } else if (orders.length) {
-      // Remove the initial server-rendered empty state, but not order cards.
-      Array.from(section.children).forEach(el => {
-        if (el !== label && !el.matches('.cashier-order-link, [data-order-actions]')) el.remove();
-      });
+    } else if (hasCards && empty) {
+      empty.remove();
     }
     if (changed) {
       section.scrollTop = sectionScroll;
