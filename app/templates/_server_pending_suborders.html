@@ -26,17 +26,19 @@
   </div>
 </section>
 
-{% if pending_suborders %}
-<section class="panel-card mt-3" id="ajouts-caisse" aria-labelledby="pendingSubordersHeading">
+<section class="panel-card mt-3" id="ajouts-caisse" aria-labelledby="pendingSubordersHeading"
+         data-server-pending-root
+         data-live-url="{{ url_for('suborders_web.server_pending_suborders_data', bar_id=bar.id) }}"
+         data-csrf-token="{{ csrf_token() }}">
   <div class="panel-header">
     <div>
       <p class="eyebrow mb-1">Ajouts de la caisse</p>
-      <h2 id="pendingSubordersHeading">À valider · {{ pending_suborders|length }}</h2>
+      <h2 id="pendingSubordersHeading">À valider · <span data-server-pending-count>{{ pending_suborders|length }}</span></h2>
       <p class="text-secondary mb-0">Ces produits ont déjà été servis par la caisse. Vérifiez-les avant de les intégrer définitivement à la facture.</p>
     </div>
   </div>
 
-  <div class="d-grid gap-3 mt-3">
+  <div class="d-grid gap-3 mt-3" data-server-pending-items>
     {% for suborder in pending_suborders %}
       {% set parent = suborder_parent_by_id.get(suborder.order_id) %}
       {% set sub_lines = suborder_lines_by_id.get(suborder.id, []) %}
@@ -66,8 +68,8 @@
       </article>
     {% endfor %}
   </div>
+  <div class="server-suborder-none" data-server-pending-empty {% if pending_suborders %}hidden{% endif %}>Aucun ajout de la caisse à valider pour le moment.</div>
 </section>
-{% endif %}
 
 <script>
 document.addEventListener('DOMContentLoaded', () => {
