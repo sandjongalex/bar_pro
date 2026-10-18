@@ -409,6 +409,7 @@ def daily(bar_id: int):
         summary=summary,
         available_receipt=available_receipt,
         manual_movements=manual_movements,
+        new_intent_key=lambda: __import__('secrets').token_urlsafe(32),
         closed_sessions=closed_sessions,
         waiting=waiting,
         to_pay=len(payable),
