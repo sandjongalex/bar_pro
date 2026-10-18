@@ -11,7 +11,7 @@ from app.receipt_printing import rawbt_receipt
 from flask import Blueprint, flash, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
 from sqlalchemy import select
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, OperationalError
 
 from app.cash_services import cash_service
 from app.cashier_payment_idempotency import claim as claim_payment_intent, complete as complete_payment_intent
@@ -440,6 +440,12 @@ def checkout(bar_id):
             )
             return redirect(url_for("checkout_web.checkout", bar_id=bar_id, order_id=order_id))
 
+        except OperationalError as exc:
+            db.session.rollback()
+            if not any(term in str(exc).lower() for term in ("database is locked", "deadlock", "lock wait timeout")):
+                raise
+            flash("Opération concurrente : vérifiez le solde avant une nouvelle tentative.", "danger")
+            return redirect(url_for("checkout_web.checkout", bar_id=bar_id, order_id=order_id))
         except (PermissionError, LookupError, ValueError, TypeError, IntegrityError) as exc:
             db.session.rollback()
             if isinstance(exc, IntegrityError):
