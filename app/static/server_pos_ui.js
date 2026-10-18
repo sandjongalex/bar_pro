@@ -350,14 +350,102 @@
     });
   }
 
+  let lastServerSnapshotMs = 0;
+
+  function makeLiveServerCard(order) {
+    const id = Number(order.id);
+    if (!Number.isSafeInteger(id) || id < 1) return null;
+    const state = ['waiting', 'to_pay', 'paid', 'cancelled'].includes(order.state) ? order.state : 'other';
+    const name = escapeHtml(order.display_name || 'COMPTOIR');
+    const tableName = escapeHtml(order.table || 'Sans table');
+    const ref = escapeHtml(order.reference || '');
+    const amount = new Intl.NumberFormat('fr-FR', {maximumFractionDigits: 0}).format(Number(order.total_amount) || 0);
+    const currency = escapeHtml(order.currency || '');
+    const csrf = escapeHtml(document.querySelector('#posForm [name="csrf_token"]')?.value || '');
+    const card = document.createElement('article');
+    card.className = 'server-order-card server-order-card-' + state;
+    card.dataset.serverOrderCard = '';
+    card.dataset.serverOrderId = String(id);
+    card.dataset.orderState = state;
+    const allowActions = state === 'waiting' || state === 'to_pay';
+    const actions = allowActions
+      ? '<div class="server-order-actions">' +
+          '<a class="btn btn-sm btn-light border server-order-direct-detail" data-server-order-detail href="/bars/' + encodeURIComponent(barId) + '/orders/' + id + '/detail">Détails</a>' +
+          '<a class="btn btn-sm btn-outline-primary server-order-direct-suborder" data-server-add-suborder href="/bars/' + encodeURIComponent(barId) + '/orders/' + id + '/suborders/new">＋ Ajouter des produits</a>' +
+          '<button class="btn btn-sm btn-light border" type="button" data-bs-toggle="modal" data-bs-target="#noteOrder' + id + '">＋ Note</button>' +
+          (state === 'waiting' ? '<button class="btn btn-sm btn-outline-danger" type="button" data-bs-toggle="modal" data-bs-target="#cancelOrder' + id + '">Annuler</button>' : '') +
+        '</div>' : '';
+    const products = (order.lines || []).slice(0, 4).map(line =>
+      '<div><strong>' + escapeHtml(line.quantity) + '×</strong><span>' + escapeHtml(line.name) + '</span></div>'
+    ).join('');
+    card.innerHTML =
+      '<div class="server-order-card-head"><div class="server-order-location"><small>Facture</small><strong>' + name +
+        '</strong><small class="server-order-table-caption">Table : ' + tableName + '</small></div>' +
+      '<div class="server-order-amount">' + amount + ' <small>' + currency + '</small></div></div>' +
+      '<div class="server-order-status-row"><span class="server-order-state"></span><small class="server-order-reference">' + ref + '</small></div>' +
+      '<div class="server-order-products">' + products + '</div>' +
+      '<div class="server-order-footer"><small>' + escapeHtml(order.created_at || '') + '</small>' + actions + '</div>';
+    if (allowActions) {
+      const createModal = (action, textareaName, label, requiredText) => {
+        const idValue = action + 'Order' + id;
+        const modal = document.createElement('div');
+        modal.className = 'modal fade';
+        modal.id = idValue;
+        modal.setAttribute('tabindex', '-1');
+        modal.setAttribute('aria-hidden', 'true');
+        modal.innerHTML =
+          '<div class="modal-dialog modal-dialog-centered"><div class="modal-content pos-modal"><form method="post">' +
+            '<input type="hidden" name="csrf_token" value="' + csrf + '">' +
+            '<input type="hidden" name="action" value="' + escapeHtml(action) + '">' +
+            '<input type="hidden" name="order_id" value="' + id + '">' +
+            '<div class="modal-header"><h2 class="modal-title h5">' + label + ' · ' + name + '</h2>' +
+            '<button class="btn-close" type="button" data-bs-dismiss="modal" aria-label="Fermer"></button></div>' +
+            '<div class="modal-body"><label class="form-label" for="input' + idValue + '">' + requiredText + '</label>' +
+            '<textarea class="form-control" id="input' + idValue + '" name="' + textareaName + '" maxlength="' +
+              (action === 'note' ? '220' : '500') + '" rows="3" required></textarea></div>' +
+            '<div class="modal-footer"><button class="btn btn-light border" type="button" data-bs-dismiss="modal">Retour</button>' +
+            '<button class="btn btn-primary" type="submit">Confirmer</button></div></form></div></div>';
+        document.body.appendChild(modal);
+      };
+      createModal('note', 'note', 'Note', 'Message à la caisse');
+      if (state === 'waiting') createModal('cancel', 'reason', 'Annulation', 'Motif obligatoire');
+    }
+    return card;
+  }
+
   function syncLiveOrders(payload) {
     if (!payload || payload.mode !== 'SERVER') return;
     const orders = Array.isArray(payload.orders) ? payload.orders : [];
+    const snapshotMs = Date.parse(payload.generated_at || '');
+    if (Number.isFinite(snapshotMs) && snapshotMs < lastServerSnapshotMs) return;
+    if (Number.isFinite(snapshotMs)) lastServerSnapshotMs = snapshotMs;
     const byReference = new Map(orders.map((order) => [String(order.reference), order]));
+    const byId = new Map(orders.map((order) => [String(order.id), order]));
+    const list = document.querySelector('[data-server-orders-grid]');
+    if (list) {
+      orders.forEach((order, index) => {
+        const id = String(order.id);
+        let card = Array.from(list.querySelectorAll('[data-server-order-card]'))
+          .find(item => item.dataset.serverOrderId === id);
+        if (!card) {
+          card = makeLiveServerCard(order);
+          if (card) list.appendChild(card);
+        }
+        if (card && list.children[index] !== card) {
+          list.insertBefore(card, list.children[index] || null);
+        }
+      });
+      list.querySelectorAll('[data-server-order-card]').forEach(card => {
+        const id = card.dataset.serverOrderId;
+        if (id && !byId.has(id) && !card.contains(document.activeElement)) card.remove();
+      });
+      setupInlineOrderActions();
+      window.BarProOrderEdit?.setupServerEditors?.();
+    }
 
     document.querySelectorAll('[data-server-order-card]').forEach((card) => {
       const reference = card.querySelector('.server-order-reference')?.textContent?.trim() || '';
-      const order = byReference.get(reference);
+      const order = byId.get(card.dataset.serverOrderId) || byReference.get(reference);
       if (!order) return;
 
       const state = order.state || 'other';
@@ -390,6 +478,18 @@
         productsNode.innerHTML = visibleLines + extra;
       }
 
+      const noteNode = card.querySelector('.server-order-note');
+      if (noteNode && String(order.notes || '') !== (noteNode.querySelector('p')?.textContent || '')) {
+        noteNode.querySelector('p').textContent = String(order.notes || '');
+      } else if (!noteNode && order.notes) {
+        const node = document.createElement('div');
+        node.className = 'server-order-note';
+        node.innerHTML = '<span>Note</span><p></p>';
+        node.querySelector('p').textContent = String(order.notes);
+        card.querySelector('.server-order-footer')?.before(node);
+      }
+      if (noteNode && !order.notes) noteNode.remove();
+
       if (state !== 'waiting') {
         card.querySelector('.server-order-actions .btn-outline-danger')?.remove();
         card.querySelector('.server-order-inline-cancel')?.remove();
@@ -420,7 +520,7 @@
   }
 
   async function pollLiveState() {
-    if (!liveEndpoint || liveInFlight || document.hidden) return;
+    if (!liveEndpoint || liveInFlight || document.hidden || navigator.onLine === false) return;
     liveInFlight = true;
     try {
       const response = await fetch(liveEndpoint, {
@@ -448,6 +548,8 @@
     });
     pollLiveState();
   }
+
+  window.BarProServerState = Object.freeze({ refresh: pollLiveState });
 
   const returnFilter = consumeOrdersReturn();
   const observer = new MutationObserver(sync);
