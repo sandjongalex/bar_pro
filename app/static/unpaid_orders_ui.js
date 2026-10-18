@@ -262,7 +262,10 @@
         credentials: 'same-origin', headers, cache: 'no-store', signal: controller.signal,
       });
       if (generation !== requestGeneration) return;
-      if (response.status === 304) return;
+      if (response.status === 304) {
+        if (badge && badge.textContent === '● Reconnexion…') badge.textContent = '● Mise à jour auto';
+        return;
+      }
       if (!response.ok) throw new Error('UNPAID_POLL_FAILED');
       const payload = await response.json();
       if (generation !== requestGeneration) return;
