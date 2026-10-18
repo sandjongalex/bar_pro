@@ -20,10 +20,24 @@ class CashService:
             raise LookupError("NOT_FOUND")
         return item
 
-    def expected(self, item):
+    def expected(self, item, *, locking=False):
+        if locking:
+            amounts = db.session.scalars(
+                select(CashMovement.amount_delta)
+                .where(CashMovement.bar_id == item.bar_id, CashMovement.cash_session_id == item.id)
+                .with_for_update()
+            )
+            return item.opening_amount + sum(amounts, 0)
         return item.opening_amount + db.session.scalar(select(func.coalesce(func.sum(CashMovement.amount_delta), 0)).where(CashMovement.bar_id == item.bar_id, CashMovement.cash_session_id == item.id))
 
-    def custody(self, bar_id, staff_id):
+    def custody(self, bar_id, staff_id, *, locking=False):
+        if locking:
+            amounts = db.session.scalars(
+                select(StaffCashLedger.amount_delta)
+                .where(StaffCashLedger.bar_id == bar_id, StaffCashLedger.staff_assignment_id == staff_id)
+                .with_for_update()
+            )
+            return sum(amounts, 0)
         return db.session.scalar(select(func.coalesce(func.sum(StaffCashLedger.amount_delta), 0)).where(StaffCashLedger.bar_id == bar_id, StaffCashLedger.staff_assignment_id == staff_id))
 
     def entry(self, actor, bar_id, amount, currency, reason, session_id=None, staff_id=None, **source):
@@ -31,14 +45,14 @@ class CashService:
             raise ValueError("CASH_LOCATION_REQUIRED")
         if staff_id is not None:
             self.staff(bar_id, staff_id)
-            if self.custody(bar_id, staff_id) + amount < 0:
+            if self.custody(bar_id, staff_id, locking=True) + amount < 0:
                 raise ValueError("INSUFFICIENT_STAFF_CASH")
             item = StaffCashLedger(staff_assignment_id=staff_id)
         else:
             session = self.session(bar_id, session_id)
             if session.currency != currency:
                 raise ValueError("CURRENCY_MISMATCH")
-            if self.expected(session) + amount < 0:
+            if self.expected(session, locking=True) + amount < 0:
                 raise ValueError("INSUFFICIENT_DRAWER_CASH")
             item = CashMovement(cash_session_id=session_id)
         for key, value in source.items():
@@ -94,7 +108,7 @@ class CashService:
         permissions.require(actor,"cash.operate",bar_id)
         self.staff(bar_id,staff_id); session=self.session(bar_id,session_id)
         amount=number(amount,positive=True)
-        if amount>self.custody(bar_id,staff_id): raise ValueError("INSUFFICIENT_STAFF_CASH")
+        if amount>self.custody(bar_id,staff_id,locking=True): raise ValueError("INSUFFICIENT_STAFF_CASH")
         item=CashHandover(bar_id=bar_id,staff_assignment_id=staff_id,cash_session_id=session_id,reference=required_text(reference,64),amount=amount,currency=session.currency,status="DRAFT",requested_by_id=actor.id)
         db.session.add(item); db.session.flush()
         record(actor,bar_id,"cash.handover.create","cash_handovers",item.id,item.reference)
