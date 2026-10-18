@@ -54,8 +54,9 @@
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer sans enregistrer"></button>
       </div>
       <div class="modal-body">
-<form method="post" class="exchange-form" id="exchangeForm">
+<form method="post" data-bp-ajax="json" data-bp-financial="exchanges" class="exchange-form" id="exchangeForm">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="idempotency_key" value="{{ new_intent_key() }}">
       <input type="hidden" name="action" value="exchange">
       <div class="exchange-products">
         <div>
@@ -106,8 +107,9 @@
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer sans enregistrer"></button>
       </div>
       <div class="modal-body">
-<form method="post" class="exchange-form" id="refundForm">
+<form method="post" data-bp-ajax="json" data-bp-financial="exchanges" class="exchange-form" id="refundForm">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="idempotency_key" value="{{ new_intent_key() }}">
       <input type="hidden" name="action" value="refund">
       <div>
         <label class="form-label" for="refundProduct">Bière / boisson rendue</label>
@@ -136,7 +138,7 @@
   </div>
 </div>
 
-<section class="exchange-card exchange-history">
+<section data-bp-financial-section="exchange-history" class="exchange-card exchange-history">
   <div class="exchange-card-head d-flex justify-content-between align-items-center gap-3"><div><p class="eyebrow mb-1">Traçabilité</p><h2>Dernières opérations</h2></div><span class="badge text-bg-light">{{ exchanges|length }}</span></div>
   {% if exchanges %}
   <div class="table-responsive">
