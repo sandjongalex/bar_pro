@@ -325,5 +325,6 @@ def manage(bar_id: int):
             "method": method,
             "q": search_text,
         },
+        new_intent_key=lambda: secrets.token_urlsafe(32),
         now_local=now_local.strftime("%Y-%m-%dT%H:%M"),
     )
