@@ -5,7 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}Bar Manager Pro{% endblock %}</title>
   <link rel="manifest" href="{{ url_for('static', filename='manifest.webmanifest') }}">
-  <meta name="theme-color" content="#142b48">
+  <meta name="theme-color" content="#f5f7f6">
+  <script src="{{ url_for('static', filename='theme.js') }}"></script>
   <style>[data-pwa-install][hidden] { display: none !important; }</style>
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -34,6 +35,7 @@
   <link href="{{ url_for('static', filename='unpaid_orders.css') }}" rel="stylesheet">
   <link href="{{ url_for('static', filename='checkout.css') }}" rel="stylesheet">
   <link href="{{ url_for('static', filename='customers.css') }}" rel="stylesheet">
+  <link href="{{ url_for('static', filename='dark_theme.css') }}" rel="stylesheet">
 </head>
 <body class="app-body">
 {% set endpoint = request.endpoint or '' %}
@@ -116,6 +118,9 @@
         <div class="topbar-title"><p class="topbar-kicker mb-0">Bar Manager Pro</p><strong>{% block header %}Tableau de bord{% endblock %}</strong></div>
       </div>
       <div class="d-flex align-items-center gap-3 topbar-actions">
+        <button type="button" class="theme-toggle" data-theme-toggle aria-pressed="false" aria-label="Activer le thème sombre" title="Passer en thème sombre">
+          <span data-theme-icon aria-hidden="true">☾</span><span data-theme-label>Sombre</span>
+        </button>
         <div class="d-none d-md-block text-end"><span class="topbar-user">{{ current_user.display_name }}</span><small class="d-block text-secondary">{{ current_user.category|replace('_',' ')|title }}</small></div>
         <form method="post" action="{{ url_for('auth.web_logout') }}" class="d-none d-md-block">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
