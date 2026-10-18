@@ -71,7 +71,7 @@ def test_server_history_pagination_and_filtered_states(env, monkeypatch):
     app, _, bar, _, product, server, _, _ = env
     client, cashier, csrf, key = _session(env)
     monkeypatch.setattr("app.orders.SERVER_ORDER_PAGE_SIZE", 2)
-    ids = [_create(client, bar, product, csrf, f"Table {i}", f"test-mine-{i}-key")
+    ids = [_create(client, bar, product, csrf, f"Table {i}", f"test-mine-paginated-key-{i:03d}")
            for i in range(3)]
     first = client.get(f"/bars/{bar.id}/orders/mine?filter=all&page=1")
     assert first.status_code == 200
