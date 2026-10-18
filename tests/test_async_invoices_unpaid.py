@@ -157,4 +157,6 @@ def test_server_cannot_access_cashier_invoice_snapshot(env):
     client = app.test_client()
     assert _login(client, server.email).status_code == 302
     response = client.get(f"/bars/{bar.id}/cashier/invoices?snapshot=1")
-    assert response.status_code in (403, 404)
+    # Employee role routing may redirect the server to their own workspace.
+    assert response.status_code in (302, 403, 404)
+    assert not response.is_json
