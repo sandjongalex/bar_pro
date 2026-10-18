@@ -127,7 +127,8 @@ def test_web_create_count_post_print_with_csrf(env):
     assert client.post(detail, data={'csrf_token': csrf, 'action': 'post'}).status_code == 302
     assert balance(env) == 8
     page = client.get(detail)
-    assert 'POSTED' in page.text and 'Valider et ajuster' not in page.text
+    assert 'Validé' in page.text and 'Valider et ajuster' not in page.text
+    assert db.session.get(Inventory, int(detail.rstrip('/').split('/')[-1])).status == 'POSTED'
     printed = client.get(detail+'/print')
     assert 'Water' in printed.text and '-2.000000' in printed.text
 

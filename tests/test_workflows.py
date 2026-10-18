@@ -42,7 +42,7 @@ def env(tmp_path):
 def order(env,quantity=2,served=False,actor=None):
  _,owner,bar,_,product,_,_,_=env
  value=order_service.create(actor or owner,bar.id,"ORD",[{"product_id":product.id,"quantity":quantity}])
- order_service.confirm(actor or owner,bar.id,value.id)
+ order_service.confirm(owner,bar.id,value.id)  # only cashier/admin may deliver
  if served: order_service.serve(actor or owner,bar.id,value.id)
  db.session.commit();return value
 
@@ -52,8 +52,8 @@ def balance(env):
 def test_order_server_confirm_serve_and_stock_once(env):
  activate_employee(env[2], env[5])
  value=order(env,actor=env[5]);assert balance(env)==8
- with pytest.raises(ValueError):order_service.confirm(env[5],env[2].id,value.id)
- order_service.serve(env[5],env[2].id,value.id);db.session.commit()
+ with pytest.raises(ValueError):order_service.confirm(env[1],env[2].id,value.id)
+ order_service.serve(env[1],env[2].id,value.id);db.session.commit()
  assert balance(env)==8
  assert db.session.scalar(select(func.count()).select_from(StockMovement).where(StockMovement.order_line_id.is_not(None)))==1
  with pytest.raises(ValueError):order_service.replace_lines(env[1],value,[])
@@ -309,7 +309,7 @@ def test_web_order_form_creates_and_confirms(env):
  response=client.post(path,data={"csrf_token":csrf,"reference":"WEB-ORDER","product_id":str(env[4].id),"quantity":"2"},follow_redirects=True)
  assert response.status_code==200,response.text
  assert "WEB-ORDER" in response.text
- assert balance(env)==8
+ assert balance(env)==10
  assert db.session.scalar(select(Order).where(Order.reference=="WEB-ORDER")).status=="DRAFT"
 
 
