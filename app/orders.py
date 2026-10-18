@@ -1,10 +1,11 @@
 from datetime import datetime, timezone
+from hashlib import sha256
 from decimal import Decimal
 import secrets
 
 from flask import Blueprint, flash, jsonify, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
-from sqlalchemy import select
+from sqlalchemy import func, or_, select
 from sqlalchemy.exc import IntegrityError
 
 from app.auth import api_required
@@ -14,6 +15,7 @@ from app.extensions import db
 from app.finance_totals import order_balance
 from app.models import Bar, BarTable, Order, OrderLine, Product, ProductCategory, StaffAssignment, StockBalance, User
 from app.order_services import order_service
+from app.order_line_views import effective_lines_by_order
 from app.order_suborder_models import OrderSuborder, OrderSuborderLine
 from app.order_suborder_service import order_suborder_service
 from app.permissions import permissions
@@ -102,6 +104,82 @@ def _assignment(bar_id):
             StaffAssignment.ended_at.is_(None),
         )
     )
+
+
+# Dedicated server order history. Pagination and filters are applied in SQL,
+# always scoped to the active server assignment, never to a user-supplied staff ID.
+SERVER_ORDER_FILTERS = {"active", "waiting", "to_pay", "paid", "cancelled", "all"}
+SERVER_ORDER_PAGE_SIZE = 30
+
+
+def _server_order_predicates():
+    waiting = (Order.status == "DRAFT") & (Order.payment_status != "PAID")
+    to_pay = Order.status.in_(["CONFIRMED", "SERVED"]) & (Order.payment_status != "PAID")
+    paid = Order.payment_status == "PAID"
+    cancelled = Order.status == "CANCELLED"
+    return {
+        "active": or_(waiting, to_pay),
+        "waiting": waiting,
+        "to_pay": to_pay,
+        "paid": paid,
+        "cancelled": cancelled,
+        "all": Order.status.in_(["DRAFT", "CONFIRMED", "SERVED", "CANCELLED"]),
+    }
+
+
+@web_bp.get("/mine")
+@login_required
+def mine(bar_id: int):
+    permissions.require(current_user, "orders.create", bar_id)
+    assignment = _assignment(bar_id)
+    if not assignment or assignment.role != "SERVER":
+        raise PermissionError("FORBIDDEN")
+    bar = db.session.get(Bar, bar_id)
+    if not bar:
+        raise LookupError("NOT_FOUND")
+
+    selected_filter = request.args.get("filter", "active").strip().lower()
+    if selected_filter not in SERVER_ORDER_FILTERS:
+        selected_filter = "active"
+    try:
+        requested_page = max(1, int(request.args.get("page", "1")))
+    except (TypeError, ValueError):
+        requested_page = 1
+
+    predicates = _server_order_predicates()
+    scope = (Order.bar_id == bar_id, Order.assigned_staff_id == assignment.id)
+    stats = {
+        name: db.session.scalar(select(func.count(Order.id)).where(*scope, predicate)) or 0
+        for name, predicate in predicates.items()
+    }
+    count = stats[selected_filter]
+    pages = max(1, (count + SERVER_ORDER_PAGE_SIZE - 1) // SERVER_ORDER_PAGE_SIZE)
+    page = min(requested_page, pages)
+    orders = list(db.session.scalars(
+        select(Order)
+        .where(*scope, predicates[selected_filter])
+        .order_by(Order.id.desc())
+        .limit(SERVER_ORDER_PAGE_SIZE)
+        .offset((page - 1) * SERVER_ORDER_PAGE_SIZE)
+    ))
+    lines_by_order = effective_lines_by_order(bar_id, [order.id for order in orders])
+    balances_by_order = {order.id: order_balance(order) for order in orders}
+    context = {
+        "bar": bar, "orders": orders, "lines_by_order": lines_by_order,
+        "balances_by_order": balances_by_order, "stats": stats,
+        "selected_filter": selected_filter, "page": page, "pages": pages,
+        "can_edit": permissions.evaluate(current_user, "orders.edit", bar_id).allowed,
+    }
+    if request.args.get("snapshot") == "1":
+        response = jsonify({
+            "html": render_template("server_orders_results.html", **context),
+            "stats": stats, "filter": selected_filter, "page": page, "pages": pages,
+        })
+        response.set_etag(sha256(response.get_data()).hexdigest())
+        response.cache_control.no_store = True
+        response.make_conditional(request)
+        return response
+    return render_template("server_orders.html", **context)
 
 
 @web_bp.get("/<int:order_id>/detail")
@@ -330,6 +408,8 @@ def quick(bar_id):
                 )
             flash(message, "danger")
 
+        if is_server and action in {"note", "cancel"} and request.form.get("return_to") == "mine":
+            return redirect(url_for("orders_web.mine", bar_id=bar_id))
         return redirect(url_for("orders_web.quick", bar_id=bar_id))
 
     products = list(
