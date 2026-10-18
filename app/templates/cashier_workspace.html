@@ -123,6 +123,11 @@
       {% set b = balances[selected_order.id] %}
       {% set selected_lines = lines_by_order.get(selected_order.id, []) %}
       <div class="cashier-pay-title"><div><p class="eyebrow mb-1">Commande</p><h2 class="cashier-human-order-title">{{ selected_order.customer_name_snapshot or selected_order.table_label_snapshot or 'COMPTOIR' }}</h2><small class="cashier-selected-system-ref">Réf. système : {{ selected_order.reference }}</small></div><span class="cashier-pay-total">{{ "{:,.0f}".format(b.amount_due if selected_order.status != 'DRAFT' else b.net_sale) }} {{ selected_order.currency }}</span></div>
+      {% if selected_server_assignment and selected_order.payment_status != 'PAID' %}
+      <a href="{{ url_for('suborders_web.new_suborder', bar_id=bar.id, order_id=selected_order.id) }}" class="cashier-selected-suborder-cta" data-selected-suborder-add="1">
+        <div><strong>Ajouter une sous-commande</strong><small>Servir un ajout maintenant sur cette facture, sans fusionner les lignes.</small></div><span class="cashier-selected-suborder-plus">＋</span>
+      </a>
+      {% endif %}
       <div class="cashier-order-summary">
         <div><span>Origine</span><strong>{{ server_name_by_order.get(selected_order.id, 'Comptoir') }}</strong></div>
         {% if selected_order.table_label_snapshot %}<div><span>Table</span><strong>{{ selected_order.table_label_snapshot }}</strong></div>{% endif %}
