@@ -112,10 +112,11 @@
             <a href="{{ url_for('orders_web.detail', bar_id=bar.id, order_id=order.id) }}">◉ Détails</a>
             <a class="primary" href="{{ url_for('cashier_workspace_web.workspace', bar_id=bar.id, order_id=order.id) }}#paymentPanel">Ouvrir</a>
             {% if delivered and order.payment_status != 'PAID' and balance and balance.amount_due > 0 %}
-            <form method="post" onsubmit="return confirm('Confirmer le paiement espèces de {{ '{:,.0f}'.format(balance.amount_due) }} {{ order.currency }} ?');">
+            <form method="post" data-bp-ajax="json" data-invoice-async="1" onsubmit="return confirm('Confirmer le paiement espèces de {{ '{:,.0f}'.format(balance.amount_due) }} {{ order.currency }} ?');">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <input type="hidden" name="action" value="pay_cash">
               <input type="hidden" name="order_id" value="{{ order.id }}">
+              <input type="hidden" name="reference" value="{{ payment_reference_by_order.get(order.id, '') }}">
               <input type="hidden" name="delivery" value="{{ delivery_filter }}">
               <input type="hidden" name="payment" value="{{ payment_filter }}">
               <input type="hidden" name="origin" value="{{ origin_filter }}">
@@ -155,6 +156,17 @@ document.querySelectorAll('#invoiceFilters select').forEach(select => {
 
   document.addEventListener('submit', event => {
     if (event.target.closest('#invoiceResults')) actionInProgress = true;
+  });
+
+  document.addEventListener('barpro:async-success', event => {
+    if (!(event.target instanceof HTMLFormElement) || !event.target.matches('form[data-invoice-async="1"]')) return;
+    actionInProgress = false;
+    void refreshInvoices();
+  });
+
+  document.addEventListener('barpro:async-error', event => {
+    if (!(event.target instanceof HTMLFormElement) || !event.target.matches('form[data-invoice-async="1"]')) return;
+    actionInProgress = false;
   });
 
   const markStatus = (state, text) => {

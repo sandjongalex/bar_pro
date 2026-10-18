@@ -1,4 +1,4 @@
-name: Server async orders
+name: Async web and server order regressions
 
 on:
   pull_request:
@@ -13,6 +13,10 @@ on:
       - 'app/static/order_edit_ui.js'
       - 'app/templates/layout.html'
       - 'app/templates/order_quick.html'
+      - 'app/cashier_invoices_web.py'
+      - 'app/templates/cashier_invoices.html'
+      - 'app/templates/cashier_invoices_v2.html'
+      - 'tests/test_cashier_invoices_ui.py'
       - 'tests/*async*'
       - '.github/workflows/server-async-orders.yml'
   push:
@@ -27,6 +31,10 @@ on:
       - 'app/static/order_edit_ui.js'
       - 'app/templates/layout.html'
       - 'app/templates/order_quick.html'
+      - 'app/cashier_invoices_web.py'
+      - 'app/templates/cashier_invoices.html'
+      - 'app/templates/cashier_invoices_v2.html'
+      - 'tests/test_cashier_invoices_ui.py'
       - 'tests/*async*'
       - '.github/workflows/server-async-orders.yml'
 

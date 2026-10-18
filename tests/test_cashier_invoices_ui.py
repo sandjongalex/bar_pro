@@ -1,10 +1,10 @@
 import re
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from app.cash_services import cash_service
 from app.extensions import db
-from app.models import StaffAssignment, User, utcnow
+from app.models import Payment, StaffAssignment, User, utcnow
 from app.order_services import order_service
 from app.shift_service import start_shift
 from test_workflows import env
@@ -228,6 +228,56 @@ def test_cashier_invoices_page_filters_delivery_and_personnel(env):
     assert paid_server.status_code == 200
     assert delivered_server.reference in paid_server.text
     assert "✓ Payée" in paid_server.text
+
+    # The invoice-card quick-pay action uses the shared async helper and a
+    # stable payment reference; a repeated request cannot record a second payment.
+    assert 'data-bp-ajax="json" data-invoice-async="1"' in counter_only.text
+    assert 'name="reference" value="PAY-' in counter_only.text
+    async_token = _csrf(counter_only)
+    async_data = {
+        "csrf_token": async_token,
+        "action": "pay_cash",
+        "order_id": str(counter.id),
+        "reference": "PAY-ASYNC-INVOICE-001",
+        "delivery": "delivered",
+        "payment": "all",
+        "origin": "cashier",
+    }
+    async_headers = {
+        "Accept": "application/json",
+        "X-Requested-With": "XMLHttpRequest",
+        "X-BarPro-Async": "1",
+        "X-CSRFToken": async_token,
+    }
+    async_payment = client.post(
+        f"/bars/{bar.id}/cashier/invoices",
+        data=async_data,
+        headers=async_headers,
+        follow_redirects=False,
+    )
+    assert async_payment.status_code == 200
+    async_payload = async_payment.get_json()
+    assert async_payload["success"] is True
+    assert async_payload["data"]["order_id"] == counter.id
+    assert "delivery=delivered" in async_payload["data"]["refresh_url"]
+    assert "payment=all" in async_payload["data"]["refresh_url"]
+    db.session.refresh(counter)
+    assert counter.payment_status == "PAID"
+
+    duplicate_payment = client.post(
+        f"/bars/{bar.id}/cashier/invoices",
+        data=async_data,
+        headers=async_headers,
+        follow_redirects=False,
+    )
+    assert duplicate_payment.status_code == 409
+    assert duplicate_payment.get_json()["success"] is False
+    assert db.session.scalar(
+        select(func.count(Payment.id)).where(
+            Payment.bar_id == bar.id,
+            Payment.reference == "PAY-ASYNC-INVOICE-001",
+        )
+    ) == 1
 
     workspace = client.get(f"/bars/{bar.id}/cashier/workspace")
     assert workspace.status_code == 200
