@@ -1,0 +1,65 @@
+name: Cashier secondary pages async safety
+
+on:
+  push:
+    branches:
+      - feature/async-cashier-secondary-pages
+      - main
+    paths:
+      - 'app/cashier_secondary_async.py'
+      - 'app/expenses_web.py'
+      - 'app/customers_web.py'
+      - 'app/cashier_web.py'
+      - 'app/cashier_history_web.py'
+      - 'app/change_vouchers_web.py'
+      - 'app/customer_services.py'
+      - 'app/static/cashier_secondary_ui.js'
+      - 'app/templates/expenses.html'
+      - 'app/templates/customers.html'
+      - 'app/templates/cashier_daily.html'
+      - 'app/templates/cashier_history.html'
+      - 'app/templates/change_vouchers.html'
+      - 'tests/test_cashier_secondary_async.py'
+      - '.github/workflows/cashier-secondary-async.yml'
+  pull_request:
+    paths:
+      - 'app/cashier_secondary_async.py'
+      - 'app/expenses_web.py'
+      - 'app/customers_web.py'
+      - 'app/cashier_web.py'
+      - 'app/cashier_history_web.py'
+      - 'app/change_vouchers_web.py'
+      - 'app/customer_services.py'
+      - 'app/static/cashier_secondary_ui.js'
+      - 'app/templates/expenses.html'
+      - 'app/templates/customers.html'
+      - 'app/templates/cashier_daily.html'
+      - 'app/templates/cashier_history.html'
+      - 'app/templates/change_vouchers.html'
+      - 'tests/test_cashier_secondary_async.py'
+      - '.github/workflows/cashier-secondary-async.yml'
+
+jobs:
+  focused:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: python -m pip install -r requirements.txt
+      - run: node --check app/static/cashier_secondary_ui.js
+      - run: python -m compileall -q app/expenses_web.py app/customers_web.py app/cashier_web.py app/change_vouchers_web.py app/customer_services.py app/cashier_secondary_async.py
+      - run: python -m pytest -q tests/test_cashier_secondary_async.py tests/test_cashier_expenses.py tests/test_cashier_session.py tests/test_change_vouchers.py tests/test_finance.py tests/test_cashier_financial_async.py
+  all-python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -r requirements.txt
+      - run: python -m pytest -q

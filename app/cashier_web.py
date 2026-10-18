@@ -10,6 +10,8 @@ from flask_login import current_user, login_required
 from sqlalchemy import case, func, select
 from sqlalchemy.exc import IntegrityError
 
+from app.async_ui import wants_async_web_response, web_json_response
+from app.cashier_secondary_async import begin, succeeded, failed
 from app.cash_services import cash_service
 from app.extensions import db
 from app.finance_totals import order_balance
@@ -318,12 +320,15 @@ def daily(bar_id: int):
 
     current_session = _open_session(bar_id)
     if current_session is None:
+        if wants_async_web_response():
+            return web_json_response(error="CASH_SESSION_NOT_OPEN", status=409, message="La caisse est fermée. Ouvrez une nouvelle session.")
         flash("Ouvrez d'abord une session de caisse pour gérer la recette du service.", "info")
         return redirect(url_for("cashier_web.session", bar_id=bar_id))
 
     if request.method == "POST":
         action = request.form.get("action", "")
         try:
+            intent = begin(current_user, bar_id, "daily." + action)
             if action == "movement":
                 kind = request.form.get("kind", "")
                 cash_service.movement(
@@ -351,8 +356,8 @@ def daily(bar_id: int):
                 message = "Versement de recette enregistré. La caisse attendue a été mise à jour."
             else:
                 raise ValueError("INVALID_ACTION")
-            db.session.commit()
-            flash(message, "success")
+            response = succeeded(intent, action, message)
+            if response is not None: return response
         except (PermissionError, ValueError, LookupError, TypeError, IntegrityError) as exc:
             db.session.rollback()
             code = str(exc)
@@ -364,7 +369,8 @@ def daily(bar_id: int):
                 message = "Le type de mouvement de caisse est invalide."
             else:
                 message = "Opération refusée. Vérifiez le montant et le motif."
-            flash(message, "danger")
+            response = failed(exc, message)
+            if response is not None: return response
         return redirect(url_for("cashier_web.daily", bar_id=bar_id))
 
     expected = Decimal(cash_service.expected(current_session) or 0)
@@ -403,6 +409,7 @@ def daily(bar_id: int):
         summary=summary,
         available_receipt=available_receipt,
         manual_movements=manual_movements,
+        new_intent_key=lambda: __import__('secrets').token_urlsafe(32),
         closed_sessions=closed_sessions,
         waiting=waiting,
         to_pay=len(payable),

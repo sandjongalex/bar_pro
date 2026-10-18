@@ -20,15 +20,16 @@
 {% if not bar.credit_sales_enabled %}
 <div class="alert alert-warning mt-4 d-flex flex-wrap align-items-center gap-3">
   <div class="flex-grow-1"><strong>Ventes à crédit désactivées.</strong> Les clients et casiers restent utilisables, mais la caisse ne proposera pas le règlement à crédit.</div>
-  {% if can_settings %}<form method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="credit_enable"><button class="btn btn-warning" type="submit">Activer le crédit</button></form>{% endif %}
+  {% if can_settings %}<form method="post" ><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="idempotency_key" value="{{ new_intent_key() }}"><input type="hidden" name="action" value="credit_enable"><button class="btn btn-warning" type="submit">Activer le crédit</button></form>{% endif %}
 </div>
 {% elif can_settings %}
 <div class="alert alert-success mt-4 d-flex flex-wrap align-items-center gap-3">
   <div class="flex-grow-1"><strong>Ventes à crédit activées.</strong> La caissière peut transférer le solde d'une commande sur le compte d'un client.</div>
-  <form method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="credit_disable"><button class="btn btn-sm btn-outline-success" type="submit">Désactiver</button></form>
+  <form method="post" ><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="idempotency_key" value="{{ new_intent_key() }}"><input type="hidden" name="action" value="credit_disable"><button class="btn btn-sm btn-outline-success" type="submit">Désactiver</button></form>
 </div>
 {% endif %}
 
+<div data-bp-secondary-section="customers-content">
 <section class="customer-stats mt-4">
   <article><span>Clients actifs</span><strong>{{ stats.customers }}</strong><small>Comptes disponibles</small></article>
   <article><span>Clients débiteurs</span><strong>{{ stats.debtors }}</strong><small>Solde supérieur à zéro</small></article>
@@ -56,7 +57,7 @@
               <div class="d-flex justify-content-end gap-2 flex-wrap">
                 {% if can_credit and customer.is_active and debt > 0 %}<button class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#paymentModal{{ customer.id }}">Règlement</button>{% endif %}
                 {% if can_cases and customer.is_active %}<button class="btn btn-sm btn-light border" data-bs-toggle="modal" data-bs-target="#caseModal{{ customer.id }}">Casiers</button>{% endif %}
-                {% if can_manage %}<form method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="{{ 'disable' if customer.is_active else 'enable' }}"><input type="hidden" name="customer_id" value="{{ customer.id }}"><button class="btn btn-sm btn-link" type="submit">{{ 'Désactiver' if customer.is_active else 'Activer' }}</button></form>{% endif %}
+                {% if can_manage %}<form method="post" data-bp-ajax="json" data-bp-secondary="customers"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="idempotency_key" value="{{ new_intent_key() }}"><input type="hidden" name="action" value="{{ 'disable' if customer.is_active else 'enable' }}"><input type="hidden" name="customer_id" value="{{ customer.id }}"><button class="btn btn-sm btn-link" type="submit">{{ 'Désactiver' if customer.is_active else 'Activer' }}</button></form>{% endif %}
               </div>
             </td>
           </tr>
@@ -109,8 +110,8 @@
 </div>
 
 {% if can_manage %}
-<div class="modal fade" id="customerModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content"><form method="post">
-  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="create">
+<div class="modal fade" id="customerModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content"><form method="post" data-bp-ajax="json" data-bp-secondary="customers">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="idempotency_key" value="{{ new_intent_key() }}"><input type="hidden" name="action" value="create">
   <div class="modal-header"><h2 class="modal-title h5">Nouveau client</h2><button class="btn-close" type="button" data-bs-dismiss="modal"></button></div>
   <div class="modal-body"><div class="mb-3"><label class="form-label">Nom</label><input class="form-control" name="display_name" maxlength="160" required></div><div class="row g-3"><div class="col-md-6"><label class="form-label">Téléphone</label><input class="form-control" name="phone" maxlength="32"></div><div class="col-md-6"><label class="form-label">E-mail</label><input class="form-control" name="email" type="email" maxlength="254"></div></div></div>
   <div class="modal-footer"><button class="btn btn-light border" type="button" data-bs-dismiss="modal">Annuler</button><button class="btn btn-primary" type="submit">Créer</button></div>
@@ -120,8 +121,8 @@
 {% for customer in customers if customer.is_active %}
   {% set debt = debt_by_customer.get(customer.id, 0) %}
   {% if can_credit and debt > 0 %}
-  <div class="modal fade" id="paymentModal{{ customer.id }}" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content"><form method="post">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="payment"><input type="hidden" name="customer_id" value="{{ customer.id }}">
+  <div class="modal fade" id="paymentModal{{ customer.id }}" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content"><form method="post" data-bp-ajax="json" data-bp-secondary="customers">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="idempotency_key" value="{{ new_intent_key() }}"><input type="hidden" name="action" value="payment"><input type="hidden" name="customer_id" value="{{ customer.id }}">
     <div class="modal-header"><div><p class="eyebrow mb-1">Règlement client</p><h2 class="modal-title h5">{{ customer.display_name }}</h2></div><button class="btn-close" type="button" data-bs-dismiss="modal"></button></div>
     <div class="modal-body">
       <div class="alert alert-light border">Dette actuelle : <strong>{{ "{:,.0f}".format(debt) }} {{ bar.currency }}</strong></div>
@@ -137,8 +138,8 @@
   {% endif %}
 
   {% if can_cases %}
-  <div class="modal fade" id="caseModal{{ customer.id }}" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content"><form method="post">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="customer_id" value="{{ customer.id }}">
+  <div class="modal fade" id="caseModal{{ customer.id }}" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content"><form method="post" data-bp-ajax="json" data-bp-secondary="customers">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="idempotency_key" value="{{ new_intent_key() }}"><input type="hidden" name="customer_id" value="{{ customer.id }}">
     <div class="modal-header"><div><p class="eyebrow mb-1">Gestion des casiers</p><h2 class="modal-title h5">{{ customer.display_name }}</h2></div><button class="btn-close" type="button" data-bs-dismiss="modal"></button></div>
     <div class="modal-body">
       <div class="mb-3"><label class="form-label">Mouvement</label><select class="form-select" name="action"><option value="case_out">Sortie vers le client</option><option value="case_return">Retour du client</option></select></div>
@@ -152,11 +153,12 @@
 {% endfor %}
 
 {% for entry in ledger if entry.entry_kind == 'CREDIT_SALE' and can_credit %}
-<div class="modal fade" id="reverseCredit{{ entry.id }}" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content"><form method="post">
-  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="reverse_credit"><input type="hidden" name="entry_id" value="{{ entry.id }}">
+<div class="modal fade" id="reverseCredit{{ entry.id }}" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content"><form method="post" data-bp-ajax="json" data-bp-secondary="customers">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="idempotency_key" value="{{ new_intent_key() }}"><input type="hidden" name="action" value="reverse_credit"><input type="hidden" name="entry_id" value="{{ entry.id }}">
   <div class="modal-header"><h2 class="modal-title h5">Annuler la vente à crédit</h2><button class="btn-close" type="button" data-bs-dismiss="modal"></button></div>
   <div class="modal-body"><p>Cette opération annule la créance liée à la commande et restitue son stock. Elle est bloquée si le crédit a déjà été réglé.</p><label class="form-label">Motif obligatoire</label><textarea class="form-control" name="reason" rows="3" required maxlength="500"></textarea><details class="mt-3"><summary>Référence personnalisée</summary><input class="form-control mt-2" name="reference" maxlength="64"></details></div>
   <div class="modal-footer"><button class="btn btn-light border" type="button" data-bs-dismiss="modal">Retour</button><button class="btn btn-danger" type="submit">Annuler et restituer le stock</button></div>
 </form></div></div></div>
 {% endfor %}
+</div>
 {% endblock %}

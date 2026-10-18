@@ -10,6 +10,7 @@ from flask_login import current_user, login_required
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 
+from app.cashier_secondary_async import begin, succeeded, failed
 from app.bar_services import update_bar
 from app.cash_services import cash_service
 from app.customer_models import CustomerCaseEntry, CustomerLedgerEntry
@@ -70,15 +71,16 @@ def manage(bar_id):
     if request.method == "POST":
         action = request.form.get("action", "")
         try:
+            intent = begin(current_user, bar_id, "customer." + action)
             if action in {"credit_enable", "credit_disable"}:
                 if not can_settings:
                     raise PermissionError("FORBIDDEN")
                 update_bar(current_user, bar_id, {"credit_sales_enabled": action == "credit_enable"})
-                db.session.commit()
-                flash("Ventes à crédit activées." if action == "credit_enable" else "Ventes à crédit désactivées.", "success")
+                response = succeeded(intent, action, "Ventes à crédit activées." if action == "credit_enable" else "Ventes à crédit désactivées.")
+                if response is not None: return response
 
             elif action == "create":
-                customer_service.create(
+                created = customer_service.create(
                     current_user,
                     bar_id,
                     {
@@ -87,18 +89,18 @@ def manage(bar_id):
                         "email": request.form.get("email", ""),
                     },
                 )
-                db.session.commit()
-                flash("Client créé avec succès.", "success")
+                response = succeeded(intent, action, "Client créé avec succès.", data={"customer_id": created.id})
+                if response is not None: return response
 
             elif action in {"enable", "disable"}:
-                customer_service.set_active(
+                updated = customer_service.set_active(
                     current_user,
                     bar_id,
                     int(request.form.get("customer_id", "0")),
                     action == "enable",
                 )
-                db.session.commit()
-                flash("Client mis à jour.", "success")
+                response = succeeded(intent, action, "Client mis à jour.", data={"customer_id": updated.id})
+                if response is not None: return response
 
             elif action == "payment":
                 method = request.form.get("method", "").strip()
@@ -115,11 +117,11 @@ def manage(bar_id):
                     request.form.get("provider_code", "").strip() or None,
                     request.form.get("provider_transaction_id", "").strip() or None,
                 )
-                db.session.commit()
-                flash(f"Règlement client de {abs(payment.amount_delta):,.0f} {payment.currency} enregistré.", "success")
+                response = succeeded(intent, action, f"Règlement client de {abs(payment.amount_delta):,.0f} {payment.currency} enregistré.", data={"customer_id": payment.customer_id, "entry_id": payment.id})
+                if response is not None: return response
 
             elif action in {"case_out", "case_return"}:
-                customer_service.record_case(
+                case_entry = customer_service.record_case(
                     current_user,
                     bar_id,
                     int(request.form.get("customer_id", "0")),
@@ -128,29 +130,26 @@ def manage(bar_id):
                     "OUT" if action == "case_out" else "RETURN",
                     request.form.get("reason", "").strip(),
                 )
-                db.session.commit()
-                flash("Mouvement de casier enregistré.", "success")
+                response = succeeded(intent, action, "Mouvement de casier enregistré.", data={"customer_id": case_entry.customer_id, "entry_id": case_entry.id})
+                if response is not None: return response
 
             elif action == "reverse_credit":
-                customer_service.reverse_credit_and_cancel(
+                reversal = customer_service.reverse_credit_and_cancel(
                     current_user,
                     bar_id,
                     int(request.form.get("entry_id", "0")),
                     request.form.get("reference", "").strip() or _reference("ANN-CRD"),
                     request.form.get("reason", "").strip(),
                 )
-                db.session.commit()
-                flash("Vente à crédit annulée et stock restitué.", "success")
+                response = succeeded(intent, action, "Vente à crédit annulée et stock restitué.", data={"entry_id": reversal.id})
+                if response is not None: return response
 
             else:
                 raise ValueError("INVALID_ACTION")
 
         except (PermissionError, LookupError, ValueError, TypeError, IntegrityError) as exc:
-            db.session.rollback()
-            if isinstance(exc, IntegrityError):
-                flash("Cette référence existe déjà. Réessayez.", "danger")
-            else:
-                flash(_message(exc), "danger")
+            response = failed(exc, _message(exc))
+            if response is not None: return response
         return redirect(url_for("customers_web.manage", bar_id=bar_id))
 
     customers = list(
@@ -235,4 +234,5 @@ def manage(bar_id):
         can_credit=can_credit,
         can_cases=can_cases,
         can_settings=can_settings,
+        new_intent_key=lambda: secrets.token_urlsafe(32),
     )

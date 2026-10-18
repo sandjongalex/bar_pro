@@ -11,7 +11,7 @@
   {% if nav_can('reports.read', bar.id) %}<a class="btn btn-outline-secondary" href="{{ url_for('reports_web.desk', bar_id=bar.id) }}">Voir les rapports</a>{% endif %}
 </section>
 
-<section class="expenses-kpi-grid mt-4" aria-label="Indicateurs dépenses">
+<section data-bp-secondary-section="expenses-stats" class="expenses-kpi-grid mt-4" aria-label="Indicateurs dépenses">
   <article class="expenses-kpi"><span>Dépenses nettes période</span><strong>{{ "{:,.0f}".format(stats.net) }} <small>{{ bar.currency }}</small></strong><small>{{ stats.count }} écriture{{ 's' if stats.count != 1 else '' }} de dépense</small></article>
   <article class="expenses-kpi"><span>Dépenses brutes</span><strong>{{ "{:,.0f}".format(stats.gross) }} <small>{{ bar.currency }}</small></strong><small>Avant contrepassations</small></article>
   <article class="expenses-kpi"><span>Annulations</span><strong>{{ "{:,.0f}".format(stats.reversed) }} <small>{{ bar.currency }}</small></strong><small>Écritures de correction sur la période</small></article>
@@ -23,8 +23,9 @@
   <section class="panel-card expenses-panel">
     <div class="panel-header"><div><p class="eyebrow mb-1">Nouvelle écriture</p><h2>Enregistrer une dépense</h2></div></div>
     {% if active_categories %}
-    <form method="post" class="expenses-form p-4">
+    <form method="post" data-bp-ajax="json" data-bp-secondary="expenses" class="expenses-form p-4">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="idempotency_key" value="{{ new_intent_key() }}">
       <input type="hidden" name="action" value="expense_create">
       <div class="row g-3">
         <div class="col-md-6">
@@ -87,6 +88,7 @@
     <div class="panel-header"><div><p class="eyebrow mb-1">Paramétrage</p><h2>Catégories</h2></div></div>
     <form method="post" class="d-flex gap-2 p-3 border-bottom">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="idempotency_key" value="{{ new_intent_key() }}">
       <input type="hidden" name="action" value="category_create">
       <input class="form-control" name="name" maxlength="100" placeholder="Nouvelle catégorie" required>
       <button class="btn btn-outline-primary" type="submit">Ajouter</button>
@@ -97,6 +99,7 @@
         <div><strong>{{ category.name }}</strong><small>{{ 'Active' if category.is_active else 'Inactive' }}</small></div>
         <form method="post">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="idempotency_key" value="{{ new_intent_key() }}">
           <input type="hidden" name="category_id" value="{{ category.id }}">
           <input type="hidden" name="action" value="{{ 'category_disable' if category.is_active else 'category_enable' }}">
           <button class="btn btn-sm {{ 'btn-outline-secondary' if category.is_active else 'btn-outline-primary' }}" type="submit">{{ 'Désactiver' if category.is_active else 'Réactiver' }}</button>
@@ -110,7 +113,7 @@
 {% endif %}
 
 <section class="panel-card expenses-filter-card mt-4">
-  <form method="get" class="expenses-filter-form">
+  <form method="get" data-bp-secondary-filter="expenses" class="expenses-filter-form">
     <div><label class="form-label" for="exp-start">Début</label><input class="form-control" id="exp-start" type="date" name="start" value="{{ filters.start }}" required></div>
     <div><label class="form-label" for="exp-end">Fin</label><input class="form-control" id="exp-end" type="date" name="end" value="{{ filters.end }}" required></div>
     <div><label class="form-label" for="exp-cat">Catégorie</label><select class="form-select" id="exp-cat" name="category_id"><option value="">Toutes</option>{% for category in categories %}<option value="{{ category.id }}" {% if filters.category_id == category.id %}selected{% endif %}>{{ category.name }}</option>{% endfor %}</select></div>
@@ -120,7 +123,7 @@
   </form>
 </section>
 
-<div class="expenses-grid mt-4">
+<div data-bp-secondary-section="expenses-analysis" class="expenses-grid mt-4">
   <section class="panel-card expenses-panel">
     <div class="panel-header"><div><p class="eyebrow mb-1">Analyse</p><h2>Répartition par catégorie</h2></div><strong>{{ "{:,.0f}".format(stats.net) }} {{ bar.currency }}</strong></div>
     <div class="expenses-category-summary">
@@ -143,7 +146,7 @@
   </section>
 </div>
 
-<section class="panel-card expenses-panel mt-4">
+<section data-bp-secondary-section="expenses-history" class="panel-card expenses-panel mt-4">
   <div class="panel-header"><div><p class="eyebrow mb-1">Historique</p><h2>Écritures de dépenses</h2></div><span class="badge text-bg-light">{{ rows|length }}{% if history_truncated %}+{% endif %}</span></div>
   {% if history_truncated %}<div class="alert alert-light border-0 border-bottom rounded-0 mb-0">Les 300 écritures les plus récentes sont affichées. Les indicateurs et l'analyse utilisent bien toute la période filtrée.</div>{% endif %}
   <div class="table-responsive">
@@ -163,8 +166,9 @@
             {% if can_manage and item.entry_kind == 'EXPENSE' and item.id not in reversal_source_ids %}
             <details class="expense-reverse-details">
               <summary class="btn btn-sm btn-outline-danger">Annuler</summary>
-              <form method="post" class="expense-reverse-form">
+              <form method="post" data-bp-ajax="json" data-bp-secondary="expenses" class="expense-reverse-form">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="idempotency_key" value="{{ new_intent_key() }}">
                 <input type="hidden" name="action" value="expense_reverse">
                 <input type="hidden" name="expense_id" value="{{ item.id }}">
                 <textarea class="form-control form-control-sm" name="reason" rows="2" maxlength="500" placeholder="Motif obligatoire" required></textarea>

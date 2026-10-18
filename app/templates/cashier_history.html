@@ -17,12 +17,14 @@
   </div>
 </section>
 
+<div data-bp-secondary-section="history-warning">
 {% if range_limited %}
 <div class="alert alert-warning mt-3">La période a été limitée à 367 jours pour préserver les performances.</div>
 {% endif %}
+</div>
 
 <section class="panel-card mt-4 p-3">
-  <form method="get" class="row g-3 align-items-end">
+  <form method="get" data-bp-secondary-filter="history" class="row g-3 align-items-end">
     <div class="col-md-2">
       <label class="form-label" for="date_from">Du</label>
       <input class="form-control" id="date_from" name="date_from" type="date" value="{{ filters['date_from'] }}">
@@ -71,6 +73,7 @@
   </div>
 </section>
 
+<div data-bp-secondary-section="history-results">
 <section class="checkout-stats mt-4" aria-label="Résumé de l'historique filtré">
   <article><span>Encaissements</span><strong>{{ "{:,.0f}".format(summary['payment_total']) }} {{ bar.currency }}</strong><small>{{ summary['payment_count'] }} paiement(s)</small></article>
   <article><span>Remboursements</span><strong>{{ "{:,.0f}".format(summary['refund_total']) }} {{ bar.currency }}</strong><small>{{ summary['refund_count'] }} remboursement(s)</small></article>
@@ -111,6 +114,7 @@
   {% endif %}
 </section>
 
+</div>
 <div class="dashboard-definition-note mt-3">
   <strong>Lecture :</strong>
   <span>les paiements augmentent l'encaissement réel, les remboursements le diminuent. Les ventes à crédit client ne figurent pas ici tant qu'aucun argent réel n'a été reçu.</span>
