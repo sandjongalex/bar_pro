@@ -97,7 +97,7 @@ class CustomerService:
         ):
             raise ValueError("ORDER_ALREADY_CREDITED")
 
-        due = order_balance(order)["amount_due"]
+        due = order_balance(order, locking=True)["amount_due"]
         if due <= 0:
             raise ValueError("ORDER_NOT_PAYABLE")
         entry = CustomerLedgerEntry(
