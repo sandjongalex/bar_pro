@@ -234,4 +234,5 @@ def manage(bar_id):
         can_credit=can_credit,
         can_cases=can_cases,
         can_settings=can_settings,
+        new_intent_key=lambda: secrets.token_urlsafe(32),
     )
