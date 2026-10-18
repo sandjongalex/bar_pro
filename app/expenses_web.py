@@ -12,6 +12,7 @@ from flask_login import current_user, login_required
 from sqlalchemy import or_, select
 from sqlalchemy.exc import IntegrityError
 
+from app.cashier_secondary_async import begin, succeeded, failed
 from app.expense_services import expense_service
 from app.extensions import db
 from app.models import Bar, CashSession, Expense, ExpenseCategory, User
@@ -112,12 +113,13 @@ def manage(bar_id: int):
     if request.method == "POST":
         action = request.form.get("action", "")
         try:
+            intent = begin(current_user, bar_id, "expense." + action)
             if action == "category_create":
                 if not can_manage:
                     raise PermissionError("FORBIDDEN")
                 expense_service.create_category(current_user, bar_id, request.form.get("name", ""))
-                db.session.commit()
-                flash("Catégorie de dépense enregistrée.", "success")
+                response = succeeded(intent, action, "Catégorie de dépense enregistrée.")
+                if response is not None: return response
 
             elif action in {"category_enable", "category_disable"}:
                 if not can_manage:
@@ -128,8 +130,8 @@ def manage(bar_id: int):
                     int(request.form.get("category_id", "0")),
                     action == "category_enable",
                 )
-                db.session.commit()
-                flash("Catégorie mise à jour.", "success")
+                response = succeeded(intent, action, "Catégorie mise à jour.")
+                if response is not None: return response
 
             elif action == "expense_create":
                 if not can_record:
@@ -141,7 +143,7 @@ def manage(bar_id: int):
                     if can_manage
                     else None
                 )
-                expense_service.create(
+                expense = expense_service.create(
                     current_user,
                     bar_id,
                     int(request.form.get("expense_category_id", "0")),
@@ -154,14 +156,14 @@ def manage(bar_id: int):
                     request.form.get("provider_code"),
                     request.form.get("provider_transaction_id"),
                 )
-                db.session.commit()
-                flash("Dépense enregistrée.", "success")
+                response = succeeded(intent, action, "Dépense enregistrée.", data={"expense_id": expense.id, "reference": expense.reference})
+                if response is not None: return response
 
             elif action == "expense_reverse":
                 if not can_manage:
                     raise PermissionError("FORBIDDEN")
                 session_raw = (request.form.get("cash_session_id") or "").strip()
-                expense_service.reverse(
+                reversal = expense_service.reverse(
                     current_user,
                     bar_id,
                     int(request.form.get("expense_id", "0")),
@@ -169,18 +171,15 @@ def manage(bar_id: int):
                     request.form.get("reason", ""),
                     int(session_raw) if session_raw else None,
                 )
-                db.session.commit()
-                flash("Dépense annulée par une écriture de contrepassation.", "success")
+                response = succeeded(intent, action, "Dépense annulée par une écriture de contrepassation.", data={"expense_id": reversal.id, "reference": reversal.reference})
+                if response is not None: return response
 
             else:
                 raise ValueError("INVALID_ACTION")
 
         except (PermissionError, LookupError, ValueError, TypeError, IntegrityError) as exc:
-            db.session.rollback()
-            if isinstance(exc, IntegrityError):
-                flash("Cette catégorie ou cette référence existe déjà.", "danger")
-            else:
-                flash(_message(exc), "danger")
+            response = failed(exc, _message(exc))
+            if response is not None: return response
         return redirect(url_for("expenses_web.manage", bar_id=bar_id))
 
     default_start, default_end = _default_period(bar)
