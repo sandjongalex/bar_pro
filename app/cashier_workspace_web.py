@@ -29,6 +29,7 @@ from app.models import (
     User,
 )
 from app.order_services import order_service
+from app.order_line_views import effective_lines_by_order
 from app.payment_services import payment_service
 from app.permissions import permissions
 from app.product_display_order import product_order_expression
@@ -446,14 +447,7 @@ def workspace(bar_id: int):
         selected_order = waiting_orders[0]
 
     order_ids = [item.id for item in active_orders]
-    lines_by_order = {order_id: [] for order_id in order_ids}
-    if order_ids:
-        for line in db.session.scalars(
-            select(OrderLine)
-            .where(OrderLine.bar_id == bar_id, OrderLine.order_id.in_(order_ids))
-            .order_by(OrderLine.order_id, OrderLine.line_no)
-        ):
-            lines_by_order.setdefault(line.order_id, []).append(line)
+    lines_by_order = effective_lines_by_order(bar_id, order_ids)
 
     balances = {item.id: order_balance(item) for item in active_orders}
 
