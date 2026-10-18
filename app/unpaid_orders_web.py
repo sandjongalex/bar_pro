@@ -10,6 +10,7 @@ from flask import Blueprint, abort, flash, jsonify, redirect, render_template, r
 from flask_login import current_user, login_required
 from sqlalchemy import or_, select
 
+from app.async_ui import wants_async_web_response, web_json_response
 from app.extensions import db, limiter
 from app.finance_totals import order_balance
 from app.models import Bar, CashSession, Order, StaffAssignment, User
@@ -444,24 +445,37 @@ def confirm_delivery(bar_id: int, order_id: int, suborder_id: int):
             CashSession.status == "OPEN",
         )
     )
+    async_web = wants_async_web_response()
     if not opened:
-        flash("Ouvrez votre caisse avant de confirmer une livraison.", "info")
+        message = "Ouvrez votre caisse avant de confirmer une livraison."
+        if async_web:
+            return web_json_response(
+                error={"code": "CASH_SESSION_REQUIRED", "message": message},
+                message=message, status=409,
+            )
+        flash(message, "info")
         return redirect(url_for("cashier_web.session", bar_id=bar_id))
 
     try:
         suborder = order_suborder_service.deliver_by_cashier(
-            current_user,
-            bar_id,
-            order_id,
-            suborder_id,
+            current_user, bar_id, order_id, suborder_id,
         )
         db.session.commit()
-        flash(
-            f"Sous-commande {suborder.sequence_no} confirmée comme livrée. Le stock a été mis à jour.",
-            "success",
-        )
+        message = f"Sous-commande {suborder.sequence_no} confirmée comme livrée. Le stock a été mis à jour."
+        if async_web:
+            return web_json_response(
+                data={"id": suborder.id, "order_id": suborder.order_id,
+                      "delivery_status": suborder.delivery_status},
+                message=message,
+            )
+        flash(message, "success")
     except LookupError:
         db.session.rollback()
+        if async_web:
+            return web_json_response(
+                error={"code": "NOT_FOUND", "message": "Sous-commande introuvable."},
+                message="Sous-commande introuvable.", status=404,
+            )
         abort(404)
     except (PermissionError, ValueError, TypeError) as exc:
         db.session.rollback()
@@ -473,7 +487,15 @@ def confirm_delivery(bar_id: int, order_id: int, suborder_id: int):
             "ORDER_NOT_EDITABLE": "Cette commande ne peut plus être modifiée.",
             "INSUFFICIENT_STOCK": "Stock insuffisant pour confirmer cette livraison.",
         }
-        flash(messages.get(str(exc), "Impossible de confirmer cette livraison."), "danger")
+        message = messages.get(str(exc), "Impossible de confirmer cette livraison.")
+        if async_web:
+            return web_json_response(
+                error={"code": str(exc), "message": message}, message=message,
+                status=403 if isinstance(exc, PermissionError) else (
+                    409 if str(exc) == "SUBORDER_ALREADY_DELIVERED" else 422
+                ),
+            )
+        flash(message, "danger")
 
     staff_filter = (request.form.get("staff") or "all").strip()
     values = {"bar_id": bar_id}
