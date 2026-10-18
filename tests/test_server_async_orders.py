@@ -142,7 +142,10 @@ def test_other_waitress_cannot_read_update_or_note_original_order(env):
     db.session.commit()
 
     another_client = app.test_client()
-    _login(another_client, other)
+    # Isolate authorization checks from the login endpoint's IP rate limiter.
+    with another_client.session_transaction() as session:
+        session["_user_id"] = str(other.id)
+        session["_fresh"] = True
     page = another_client.get(f"/bars/{bar.id}/orders/new")
     other_csrf = re.search(r'name="csrf_token" value="([^"]+)"', page.text)
     assert other_csrf is not None
