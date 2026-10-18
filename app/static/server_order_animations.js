@@ -17,7 +17,8 @@
   cartLines.addEventListener('click', (event) => {
     if (reducedMotion || !(event.target instanceof Element)) return;
     const control = event.target.closest('button.qty-plus, button.qty-minus');
-    if (!control || !cartLines.contains(control)) return;
+    // The clicked button may already be detached by the cart's synchronous redraw.
+    if (!control) return;
     const productId = control.closest('.pos-cart-line')
       ?.querySelector('input[name="product_id"]')?.value;
     if (!productId) return;
