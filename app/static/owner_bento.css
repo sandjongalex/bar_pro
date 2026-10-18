@@ -1,0 +1,356 @@
+/* BAR_PRO owner Bento overview, fully scoped to avoid changing staff dashboards. */
+.owner-bento {
+  --ob-ink: #172d3f;
+  --ob-muted: #718096;
+  --ob-border: #e9edf3;
+  color: var(--ob-ink);
+  min-width: 0;
+}
+.owner-bento .owner-bento-heading {
+  color: var(--ob-ink);
+  font-size: clamp(1.45rem, 2.7vw, 2rem);
+  font-weight: 850;
+  letter-spacing: -.035em;
+}
+.owner-bento .owner-bento-kicker {
+  font-size: .71rem;
+  font-weight: 850;
+  letter-spacing: .11em;
+  color: #778497;
+}
+.owner-bento .owner-bento-muted {
+  color: var(--ob-muted);
+  font-size: .79rem;
+  line-height: 1.45;
+}
+.owner-bento .owner-bento-period {
+  display: inline-flex;
+  align-items: center;
+  padding: .7rem 1rem;
+  color: #355e75;
+  background: #ecf4fa;
+  border: 1px solid #d8e8f3;
+  border-radius: 999px;
+  font-size: .79rem;
+  font-weight: 750;
+}
+.owner-bento .owner-bento-card {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 250px;
+  padding: clamp(1.1rem, 2.2vw, 1.75rem);
+  border: 1px solid var(--ob-border);
+  border-radius: 28px;
+  box-shadow: 0 12px 38px rgba(25, 50, 75, .055);
+  overflow: hidden;
+  transition: transform .18s ease, box-shadow .18s ease;
+}
+.owner-bento .owner-bento-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 16px 44px rgba(25, 50, 75, .09);
+}
+.owner-bento .owner-bento-light {
+  background: #fff;
+}
+.owner-bento .owner-bento-card-title {
+  margin: 0;
+  font-size: clamp(1.08rem, 1.65vw, 1.35rem);
+  font-weight: 800;
+  letter-spacing: -.025em;
+  line-height: 1.25;
+}
+.owner-bento .owner-bento-revenue {
+  min-height: 394px;
+  color: #fff;
+  border: 1px solid rgba(255,255,255,.13);
+  background:
+    radial-gradient(ellipse at 85% 2%, rgba(78, 184, 187, .24), transparent 43%),
+    linear-gradient(145deg, #173d5b 0%, #101f38 90%);
+}
+.owner-bento .owner-bento-revenue .owner-bento-card-title { color: #fff; }
+.owner-bento .owner-bento-overline {
+  font-size: .7rem;
+  font-weight: 800;
+  letter-spacing: .12em;
+  color: #b6d1e6;
+}
+.owner-bento .owner-bento-revenue-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 14px;
+  font-size: 1.5rem;
+  background: rgba(255,255,255,.1);
+  color: #82dfcd;
+  flex-shrink: 0;
+}
+.owner-bento .owner-bento-revenue-value {
+  margin-top: 1.15rem;
+  font-size: clamp(2rem, 4.5vw, 3.6rem);
+  line-height: 1.04;
+  font-weight: 850;
+  letter-spacing: -.055em;
+  overflow-wrap: anywhere;
+  font-variant-numeric: tabular-nums;
+}
+.owner-bento .owner-bento-revenue-value small {
+  font-size: .29em;
+  letter-spacing: -.01em;
+  font-weight: 700;
+  color: #c9e0ed;
+}
+.owner-bento .owner-bento-revenue-note {
+  font-size: .82rem;
+  color: #c0d4e5;
+  margin: .5rem 0 0;
+  line-height: 1.4;
+}
+.owner-bento .owner-bento-chart-area {
+  position: relative;
+  min-height: 135px;
+  height: 157px;
+  width: 100%;
+}
+.owner-bento .owner-bento-chart-area canvas {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+}
+.owner-bento .owner-bento-chart-empty {
+  min-height: 130px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  color: #c0d4e5;
+  font-size: .87rem;
+}
+.owner-bento .owner-bento-revenue-footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .65rem;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: auto;
+  padding-top: .8rem;
+  color: #a6c6db;
+  font-size: .72rem;
+}
+.owner-bento .owner-bento-revenue-footer a {
+  color: #b6f7e4;
+  text-decoration: none;
+  font-weight: 700;
+}
+.owner-bento .owner-bento-revenue-footer a:hover { text-decoration: underline; }
+.owner-bento .owner-bento-count {
+  flex: 0 0 auto;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  min-width: 36px;
+  height: 36px;
+  padding: 0 .5rem;
+  border-radius: 12px;
+  color: #355d76;
+  background: #eef5f9;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+.owner-bento .owner-bento-stock,
+.owner-bento .owner-bento-venues {
+  min-height: 330px;
+}
+.owner-bento .owner-bento-scroll-list {
+  min-height: 0;
+  max-height: 275px;
+  overflow-y: auto;
+  scrollbar-color: #d5dce4 transparent;
+}
+.owner-bento .owner-bento-stock-item,
+.owner-bento .owner-bento-venue-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .7rem;
+  min-width: 0;
+  padding: .82rem 0;
+  border-bottom: 1px solid #eff2f6;
+}
+.owner-bento .owner-bento-stock-item:last-child,
+.owner-bento .owner-bento-venue-item:last-child { border-bottom: 0; }
+.owner-bento .owner-bento-item-text {
+  display: flex;
+  flex-direction: column;
+  gap: .15rem;
+  min-width: 0;
+}
+.owner-bento .owner-bento-item-text strong {
+  display: block;
+  font-size: .87rem;
+  color: var(--ob-ink);
+  font-weight: 750;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.owner-bento .owner-bento-item-text small {
+  display: block;
+  font-size: .73rem;
+  color: var(--ob-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.owner-bento .owner-bento-badge {
+  max-width: 48%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-align: center;
+  font-weight: 750;
+  font-size: .72rem;
+  padding: .47rem .7rem;
+  flex: 0 0 auto;
+}
+.owner-bento .owner-bento-badge-danger { color: #b72c2c; background: #ffe7e6; }
+.owner-bento .owner-bento-badge-warning { color: #99600a; background: #fff0d2; }
+.owner-bento .owner-bento-card-link {
+  display: inline-flex;
+  width: fit-content;
+  align-items: center;
+  gap: .35rem;
+  margin-top: auto;
+  padding-top: 1rem;
+  text-decoration: none;
+  color: #246992;
+  font-weight: 750;
+  font-size: .8rem;
+}
+.owner-bento .owner-bento-card-link:hover { text-decoration: underline; }
+.owner-bento .owner-bento-empty {
+  padding: 2.4rem .5rem;
+  text-align: center;
+  color: #718096;
+  font-size: .82rem;
+}
+.owner-bento .owner-bento-empty-symbol {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  margin-bottom: .6rem;
+  width: 38px;
+  height: 38px;
+  color: #14946a;
+  border-radius: 50%;
+  background: #e6f8ef;
+  font-size: 1.25rem;
+}
+.owner-bento .owner-bento-venue-item {
+  color: inherit;
+  text-decoration: none;
+  border-radius: 12px;
+  padding: .78rem .45rem;
+  transition: background .15s ease;
+}
+.owner-bento .owner-bento-venue-item:hover,
+.owner-bento .owner-bento-current {
+  background: #f2f8fb;
+}
+.owner-bento .owner-bento-venue-left {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: .65rem;
+}
+.owner-bento .owner-bento-avatar {
+  display: inline-flex;
+  flex: 0 0 38px;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 13px;
+  background: #e6f1f6;
+  color: #275777;
+  font-size: .87rem;
+  font-weight: 850;
+}
+.owner-bento .owner-bento-status-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  margin-right: .3rem;
+  background: #d19c2d;
+}
+.owner-bento .owner-bento-status-dot.is-active { background: #20a675; }
+.owner-bento .owner-bento-status-dot.is-suspended { background: #cc5e59; }
+.owner-bento .owner-bento-venue-right {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  align-items: flex-end;
+  font-variant-numeric: tabular-nums;
+}
+.owner-bento .owner-bento-venue-right strong {
+  font-size: .93rem;
+  color: #172d3f;
+  font-weight: 850;
+}
+.owner-bento .owner-bento-venue-right small { font-size: .69rem; color: var(--ob-muted); }
+.owner-bento .owner-bento-mini {
+  min-height: 250px;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.owner-bento .owner-bento-mini-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 17px;
+  font-size: 1.5rem;
+  font-weight: 900;
+}
+.owner-bento .owner-bento-mini-blue { background: #e8f1ff; color: #3978cc; }
+.owner-bento .owner-bento-mini-red { background: #ffebeb; color: #c13b3b; }
+.owner-bento .owner-bento-mini-green { background: #e1f7eb; color: #188857; }
+.owner-bento .owner-bento-mini-title {
+  font-size: .86rem;
+  font-weight: 750;
+  color: #5d6d7b;
+  line-height: 1.35;
+  margin: 0 0 .5rem;
+}
+.owner-bento .owner-bento-mini-value {
+  font-size: clamp(1.6rem, 2.45vw, 2.6rem);
+  font-weight: 850;
+  line-height: 1.08;
+  letter-spacing: -.05em;
+  overflow-wrap: anywhere;
+  font-variant-numeric: tabular-nums;
+  color: #172d3f;
+}
+.owner-bento .owner-bento-danger { color: #bd3f41; }
+.owner-bento .owner-bento-success { color: #188857; }
+@media (min-width: 1200px) {
+  .owner-bento .owner-bento-mini { min-height: 260px; }
+}
+@media (max-width: 767.98px) {
+  .owner-bento .owner-bento-card { border-radius: 23px; }
+  .owner-bento .owner-bento-revenue { min-height: 350px; }
+}
+@media (max-width: 575.98px) {
+  .owner-bento .owner-bento-period { font-size: .73rem; }
+  .owner-bento .owner-bento-mini { min-height: 185px; }
+  .owner-bento .owner-bento-chart-area { height: 135px; }
+  .owner-bento .owner-bento-venue-right strong { font-size: .84rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .owner-bento .owner-bento-card,
+  .owner-bento .owner-bento-venue-item { transition: none; }
+  .owner-bento .owner-bento-card:hover { transform: none; }
+}
