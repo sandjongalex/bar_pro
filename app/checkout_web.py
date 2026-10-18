@@ -317,7 +317,7 @@ def checkout(bar_id):
                 raise ValueError("ORDER_NOT_PAYABLE")
             if order.payment_status == "PAID":
                 raise ValueError("ORDER_NOT_PAYABLE")
-            due_before = order_balance(order)["amount_due"]
+            due_before = order_balance(order, locking=True)["amount_due"]
             if due_before <= 0:
                 raise ValueError("ORDER_NOT_PAYABLE")
             method = request.form.get("method", "").strip()
