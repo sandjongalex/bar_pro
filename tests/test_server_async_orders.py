@@ -1,0 +1,185 @@
+"""Server POS AJAX/idempotency integration tests: no JWT shortcuts."""
+import re
+from pathlib import Path
+
+from sqlalchemy import select, func
+
+from app.extensions import db
+from app.models import Order, StaffAssignment, User, utcnow
+from app.shift_service import start_shift
+from test_workflows import env
+
+
+def _login(client, user):
+    page = client.get("/login")
+    csrf = re.search(r'name=["\']csrf_token["\'][^>]*value=["\']([^"\']+)["\']', page.text)
+    assert csrf is not None
+    response = client.post("/login", data={
+        "email": user.email, "password": "test-password", "csrf_token": csrf.group(1),
+    })
+    assert response.status_code == 302
+
+
+def _session(env):
+    app, owner, bar, foreign, product, server, _, _ = env
+    cashier = User(email="async-cashier@example.invalid", display_name="Cashier", category="EMPLOYEE")
+    cashier.set_password("test-password")
+    db.session.add(cashier)
+    db.session.flush()
+    cash_assignment = StaffAssignment(
+        bar_id=bar.id, user_id=cashier.id, role="CASHIER", started_at=utcnow()
+    )
+    db.session.add(cash_assignment)
+    db.session.flush()
+    waitress_assignment = db.session.scalar(select(StaffAssignment).where(
+        StaffAssignment.bar_id == bar.id, StaffAssignment.user_id == server.id
+    ))
+    start_shift(owner, bar.id, cash_assignment.id)
+    start_shift(cashier, bar.id, waitress_assignment.id)
+    db.session.commit()
+
+    client = app.test_client()
+    _login(client, server)
+    page = client.get(f"/bars/{bar.id}/orders/new")
+    assert page.status_code == 200
+    csrf = re.search(r'name="csrf_token" value="([^"]+)"', page.text)
+    key = re.search(r'name="idempotency_key" value="([^"]+)"', page.text)
+    assert csrf and key
+    return client, cashier, csrf.group(1), key.group(1)
+
+
+def _headers(csrf):
+    return {
+        "X-CSRFToken": csrf, "X-BarPro-Async": "1",
+        "X-Requested-With": "XMLHttpRequest", "Accept": "application/json",
+    }
+
+
+def _order_payload(product, key, quantity="2", name="Client-test"):
+    return {
+        "action": "create", "idempotency_key": key,
+        "product_id": str(product.id), "quantity": quantity,
+        "invoice_name": name,
+    }
+
+
+def test_json_creation_replay_and_lookup_share_single_order(env):
+    app, owner, bar, foreign, product, server, _, _ = env
+    client, cashier, csrf, key = _session(env)
+    url = f"/bars/{bar.id}/orders/new"
+    first = client.post(url, data=_order_payload(product, key), headers=_headers(csrf))
+    assert first.status_code == 201, first.text
+    oid = first.json["data"]["id"]
+    assert first.json["data"]["reference"].startswith("CMD-")
+    assert first.json["data"]["invoice_name"] == "Client-test"
+    assert first.json["data"]["replayed"] is False
+
+    again = client.post(url, data=_order_payload(product, key), headers=_headers(csrf))
+    assert again.status_code == 200, again.text
+    assert again.json["data"]["id"] == oid
+    assert again.json["data"]["replayed"] is True
+    assert db.session.scalar(select(func.count()).select_from(Order).where(
+        Order.bar_id == bar.id, Order.created_by_id == server.id
+    )) == 1
+
+    recover = client.get(f"/bars/{bar.id}/orders/async-intents/{key}")
+    assert recover.status_code == 200
+    assert recover.json["data"]["id"] == oid
+
+    live = client.get(f"/bars/{bar.id}/live/orders")
+    assert live.status_code == 200
+    assert live.json["orders"][0]["id"] == oid
+    assert live.json["orders"][0]["display_name"] == "Client-test"
+
+    html = client.post(url, data={"action": "note", "order_id": oid,
+                                  "note": "Exige du frais", "csrf_token": csrf})
+    assert html.status_code == 302  # Old HTML fallback is untouched.
+
+
+def test_conflict_validation_missing_csrf_and_cross_bar_recovery(env):
+    app, owner, bar, foreign, product, server, _, _ = env
+    client, cashier, csrf, key = _session(env)
+    url = f"/bars/{bar.id}/orders/new"
+    invalid = client.post(url, data=_order_payload(product, key, quantity="-5"), headers=_headers(csrf))
+    assert invalid.status_code == 422
+    assert db.session.scalar(select(func.count()).select_from(Order).where(
+        Order.bar_id == bar.id
+    )) == 0
+
+    first = client.post(url, data=_order_payload(product, key), headers=_headers(csrf))
+    assert first.status_code == 201, first.text
+    different = client.post(url, data=_order_payload(product, key, quantity="3"), headers=_headers(csrf))
+    assert different.status_code == 409
+    assert different.json["error"]["code"] == "IDEMPOTENCY_CONFLICT"
+
+    no_csrf = client.post(url, data=_order_payload(product, "abcde12345abcde12345"), headers={
+        "Accept": "application/json", "X-BarPro-Async": "1",
+        "X-Requested-With": "XMLHttpRequest",
+    })
+    assert no_csrf.status_code == 400
+    assert client.get(f"/bars/{foreign.id}/orders/async-intents/{key}").status_code in (403, 404)
+
+
+def test_other_waitress_cannot_read_update_or_note_original_order(env):
+    app, owner, bar, foreign, product, server, _, _ = env
+    client, cashier, csrf, key = _session(env)
+    first = client.post(f"/bars/{bar.id}/orders/new",
+                        data=_order_payload(product, key), headers=_headers(csrf))
+    assert first.status_code == 201, first.text
+    oid = first.json["data"]["id"]
+
+    other = User(email="async-other-server@example.invalid", display_name="Other",
+                 category="EMPLOYEE")
+    other.set_password("test-password")
+    db.session.add(other)
+    db.session.flush()
+    assignment = StaffAssignment(
+        bar_id=bar.id, user_id=other.id, role="SERVER", started_at=utcnow(),
+    )
+    db.session.add(assignment)
+    db.session.flush()
+    start_shift(cashier, bar.id, assignment.id)
+    db.session.commit()
+
+    another_client = app.test_client()
+    _login(another_client, other)
+    page = another_client.get(f"/bars/{bar.id}/orders/new")
+    other_csrf = re.search(r'name="csrf_token" value="([^"]+)"', page.text)
+    assert other_csrf is not None
+
+    assert another_client.get(f"/bars/{bar.id}/orders/async-intents/{key}").status_code == 404
+    assert another_client.get(f"/bars/{bar.id}/order-edits/{oid}").status_code == 403
+    response = another_client.post(f"/bars/{bar.id}/orders/new",
+        data={"action": "note", "order_id": oid, "note": "Other's note"},
+        headers=_headers(other_csrf.group(1)))
+    assert response.status_code == 403
+
+
+def test_order_edit_ajax_and_html_fallback_and_template_contract(env):
+    app, owner, bar, foreign, product, server, _, _ = env
+    client, _, csrf, key = _session(env)
+    first = client.post(f"/bars/{bar.id}/orders/new",
+                        data=_order_payload(product, key), headers=_headers(csrf))
+    assert first.status_code == 201
+    oid = first.json["data"]["id"]
+    editor = client.get(f"/bars/{bar.id}/order-edits/{oid}")
+    assert editor.status_code == 200
+    revision = editor.json["order"]["revision"]
+    change = client.post(f"/bars/{bar.id}/order-edits/{oid}",
+        data={"order_revision": revision, "product_id": product.id, "quantity": "3"},
+        headers=_headers(csrf))
+    assert change.status_code == 200, change.text
+    assert change.json["data"]["id"] == oid
+    assert change.json["success"] is True
+
+    template = Path("app/templates/order_quick.html").read_text(encoding="utf-8")
+    assert 'data-server-orders-grid' in template
+    assert '{% if is_server %}' in template
+    assert 'name="idempotency_key"' in template
+    assert 'data-server-order-id="{{ order.id }}"' in template
+
+    script = Path("app/static/server_pos_ui.js").read_text(encoding="utf-8")
+    assert "makeLiveServerCard(order)" in script
+    assert "list.insertBefore(card" in script
+    assert "setupInlineOrderActions()" in script
+    assert "window.BarProOrderEdit?.setupServerEditors?.()" in script
