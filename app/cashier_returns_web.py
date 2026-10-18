@@ -11,6 +11,8 @@ from flask_login import current_user, login_required
 from sqlalchemy import func, or_, select
 from sqlalchemy.exc import IntegrityError
 
+from app.async_ui import wants_async_web_response, web_json_response
+from app.cashier_financial_intents import financial_claim, financial_complete
 from app.extensions import db
 from app.finance_totals import order_balance
 from app.models import (
@@ -75,6 +77,9 @@ def _message(exc) -> str:
         "CREDIT_RETURN_NOT_SUPPORTED": "Les retours sur une commande financée à crédit client doivent être traités depuis Clients & crédits.",
         "POSITIVE_NUMBER_REQUIRED": "Le montant doit être strictement supérieur à zéro.",
         "INVALID_NUMBER": "Le montant saisi est invalide.",
+        "PAYMENT_ALREADY_PROCESSED": "Cette opération a déjà été enregistrée. Actualisez les montants avant de recommencer.",
+        "IDEMPOTENCY_CONFLICT": "Cette confirmation a déjà été utilisée pour une opération différente.",
+        "IDEMPOTENCY_KEY_REQUIRED": "Identifiant de confirmation manquant. Rechargez le formulaire.",
     }
     return messages.get(code, "Opération refusée. Vérifiez les quantités, le montant et la caisse ouverte.")
 
@@ -143,6 +148,7 @@ def manage(bar_id: int):
                 raise ValueError("CREDIT_RETURN_NOT_SUPPORTED")
 
             if action == "return_create":
+                intent = financial_claim(current_user, bar_id, "return_create", request.form, require_key=wants_async_web_response())
                 line_ids = request.form.getlist("order_line_id")
                 quantities = request.form.getlist("quantity")
                 dispositions = request.form.getlist("disposition")
@@ -165,11 +171,12 @@ def manage(bar_id: int):
                     lines,
                     request.form.get("reason", "").strip(),
                 )
+                financial_complete(intent, action=action, order_id=order.id, return_id=returned.id, reference=returned.reference)
                 db.session.commit()
-                flash(
-                    f"Retour {returned.reference} enregistré pour {returned.total_amount:,.0f} {returned.currency}. Le stock a été corrigé selon la disposition choisie.",
-                    "success",
-                )
+                message = f"Retour {returned.reference} enregistré pour {returned.total_amount:,.0f} {returned.currency}. Le stock a été corrigé selon la disposition choisie."
+                if wants_async_web_response():
+                    return web_json_response(data={"order_id": order.id, "return_id": returned.id, "reference": returned.reference}, message=message)
+                flash(message, "success")
                 return redirect(url_for("cashier_returns_web.manage", bar_id=bar_id, order_id=order.id, return_id=returned.id))
 
             if action == "refund_return":
@@ -194,6 +201,7 @@ def manage(bar_id: int):
                 )
                 if not returned or not payment:
                     raise LookupError("NOT_FOUND")
+                intent = financial_claim(current_user, bar_id, "refund_return", request.form, require_key=wants_async_web_response())
                 cash_session_id = None
                 if payment.method == "CASH":
                     session = _open_session(bar_id)
@@ -210,20 +218,26 @@ def manage(bar_id: int):
                     order_return_id=returned.id,
                     cash_session_id=cash_session_id,
                 )
+                financial_complete(intent, action=action, order_id=order.id, return_id=returned.id, refund_id=refund.id, reference=refund.reference)
                 db.session.commit()
-                flash(
-                    f"Remboursement de {refund.amount:,.0f} {refund.currency} enregistré en {PAYMENT_LABELS.get(refund.method, refund.method)}.",
-                    "success",
-                )
+                message = f"Remboursement de {refund.amount:,.0f} {refund.currency} enregistré en {PAYMENT_LABELS.get(refund.method, refund.method)}."
+                if wants_async_web_response():
+                    return web_json_response(data={"order_id": order.id, "return_id": returned.id, "refund_id": refund.id}, message=message)
+                flash(message, "success")
                 return redirect(url_for("cashier_returns_web.manage", bar_id=bar_id, order_id=order.id, return_id=returned.id))
 
             raise ValueError("INVALID_ACTION")
         except (PermissionError, LookupError, ValueError, TypeError, ArithmeticError, IntegrityError) as exc:
             db.session.rollback()
-            if isinstance(exc, IntegrityError):
-                flash("Une référence identique existe déjà. Réessayez.", "danger")
-            else:
-                flash(_message(exc), "danger")
+            message = ("Cette opération a déjà été enregistrée ou une référence existe déjà. Vérifiez l'historique."
+                       if isinstance(exc, IntegrityError) else _message(exc))
+            if wants_async_web_response():
+                code = str(exc)
+                status = 403 if isinstance(exc, PermissionError) else 404 if isinstance(exc, LookupError) else 409 if (
+                    isinstance(exc, IntegrityError) or code in {"PAYMENT_ALREADY_PROCESSED", "IDEMPOTENCY_CONFLICT", "REFUND_PAYMENT_LIMIT", "REFUND_RETURN_LIMIT", "REFUND_OVERPAYMENT_LIMIT", "RETURN_LIMIT_EXCEEDED", "INSUFFICIENT_DRAWER_CASH", "CASH_SESSION_NOT_OPEN"}
+                ) else 422
+                return web_json_response(error=code if not isinstance(exc, IntegrityError) else "IDEMPOTENCY_CONFLICT", message=message, status=status)
+            flash(message, "danger")
             return redirect(url_for("cashier_returns_web.manage", bar_id=bar_id, order_id=order_id or ""))
 
     query_text = (request.args.get("q") or "").strip()
@@ -326,4 +340,5 @@ def manage(bar_id: int):
         can_manage=can_manage,
         query_text=query_text,
         selected_return_id=selected_return_id,
+        new_intent_key=lambda: secrets.token_urlsafe(32),
     )
