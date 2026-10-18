@@ -2,13 +2,17 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from hashlib import sha256
 from decimal import Decimal
 import secrets
 
-from flask import Blueprint, flash, redirect, render_template, request, url_for
+from flask import Blueprint, flash, jsonify, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
 from sqlalchemy import or_, select
+from sqlalchemy.exc import IntegrityError, OperationalError
 
+from app.async_ui import wants_async_web_response, web_json_response
+from app.cashier_payment_idempotency import claim as claim_payment_intent, complete as complete_payment_intent
 from app.extensions import db
 from app.finance_totals import order_balance
 from app.models import Bar, CashSession, Order, OrderLine, StaffAssignment, User
@@ -79,6 +83,7 @@ def invoices(bar_id: int):
         raise LookupError("NOT_FOUND")
 
     if request.method == "POST":
+        async_web = wants_async_web_response()
         try:
             action = (request.form.get("action") or "").strip()
             if action != "pay_cash":
@@ -102,10 +107,15 @@ def invoices(bar_id: int):
             if order.status not in {"CONFIRMED", "SERVED"}:
                 raise ValueError("ORDER_NOT_PAYABLE")
 
-            due = Decimal(order_balance(order)["amount_due"] or 0)
+            due = Decimal(order_balance(order, locking=True)["amount_due"] or 0)
             if due <= 0 or order.payment_status == "PAID":
                 raise ValueError("ORDER_NOT_PAYABLE")
 
+            receipt = claim_payment_intent(
+                current_user, bar_id, "invoice_pay_cash",
+                request.form.get("idempotency_key"), request.form,
+                require_key=async_web,
+            )
             payment_service.record(
                 current_user,
                 bar_id,
@@ -117,20 +127,40 @@ def invoices(bar_id: int):
                 0,
                 cash_session_id=session.id,
             )
+            complete_payment_intent(receipt, order_id=order.id)
             db.session.commit()
-            flash(
-                f"{order.reference} payée en espèces · {due:,.0f} {order.currency}.",
-                "success",
-            )
-        except (PermissionError, LookupError, ValueError, TypeError) as exc:
+            message = f"{order.reference} payée en espèces · {due:,.0f} {order.currency}."
+            if async_web:
+                return web_json_response(
+                    data={"order_id": order.id, "refresh_url": url_for(
+                        "cashier_invoices_web.invoices", bar_id=bar_id,
+                        delivery=_normalize_filter(request.form.get("delivery"), DELIVERY_FILTERS, "all"),
+                        payment=_normalize_filter(request.form.get("payment"), PAYMENT_FILTERS, "open"),
+                        origin=(request.form.get("origin") or "all").strip().lower(),
+                    )},
+                    message=message,
+                )
+            flash(message, "success")
+        except (PermissionError, LookupError, ValueError, TypeError, IntegrityError, OperationalError) as exc:
             db.session.rollback()
             messages = {
                 "CASH_SESSION_REQUIRED": "Ouvrez d'abord votre session de caisse.",
                 "ORDER_NOT_PAYABLE": "Cette facture doit être livrée et avoir un solde avant l'encaissement.",
                 "NOT_FOUND": "Facture introuvable.",
                 "FORBIDDEN": "Encaissement non autorisé.",
+                "PAYMENT_ALREADY_PROCESSED": "Ce paiement a déjà été enregistré. Vérifiez la facture.",
+                "IDEMPOTENCY_CONFLICT": "Cette tentative de paiement a déjà été utilisée avec d'autres données.",
+                "IDEMPOTENCY_KEY_REQUIRED": "Identifiant de paiement manquant. Actualisez la page avant de recommencer.",
             }
-            flash(messages.get(str(exc), "Paiement refusé. Vérifiez la facture."), "danger")
+            code = str(exc)
+            message = messages.get(code, "Paiement refusé. Vérifiez la facture.")
+            if async_web:
+                status = 403 if code == "FORBIDDEN" else 404 if code == "NOT_FOUND" else (
+                    422 if code in {"INVALID_ACTION", "IDEMPOTENCY_KEY_REQUIRED"} else 409
+                )
+                return web_json_response(error={"code": code if code in messages else "PAYMENT_CONFLICT"},
+                                         message=message, status=status)
+            flash(message, "danger")
         return _redirect_to_filters(bar_id)
 
     delivery_filter = _normalize_filter(request.args.get("delivery"), DELIVERY_FILTERS, "all")
@@ -312,8 +342,7 @@ def invoices(bar_id: int):
         "visible": len(invoice_rows),
     }
 
-    return render_template(
-        "cashier_invoices_v2.html",
+    context = dict(
         bar=bar,
         invoices=invoice_rows,
         lines_by_order=lines_by_order,
@@ -325,3 +354,15 @@ def invoices(bar_id: int):
         origin_filter=origin_filter,
         stats=stats,
     )
+    if request.args.get("snapshot") == "1":
+        # Transfer only the invoice fragment and counters, never the whole layout.
+        # ETag avoids sending unchanged cards during the 10-second background poll.
+        response = jsonify({
+            "html": render_template("cashier_invoices_results.html", **context),
+            "stats": stats,
+        })
+        response.set_etag(sha256(response.get_data()).hexdigest())
+        response.cache_control.no_store = True
+        response.make_conditional(request)
+        return response
+    return render_template("cashier_invoices_v2.html", **context)
