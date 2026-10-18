@@ -49,9 +49,10 @@
     <div><p class="eyebrow mb-1">Vente comptoir</p><h2>Sélection rapide des produits</h2></div>
     <button class="btn btn-sm btn-light border" id="closeQuickSale" type="button">Fermer</button>
   </div>
-  <form method="post" id="quickSaleForm">
+  <form method="post" id="quickSaleForm" data-bp-ajax="json" data-cashier-async="1">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <input type="hidden" name="action" value="create_sale">
+    <input type="hidden" name="reference" value="{{ sale_reference }}">
     <div class="cashier-sale-layout">
       <div class="cashier-sale-catalog">
         <div class="pos-toolbar">
@@ -132,7 +133,7 @@
       </div>
 
       {% if selected_order.status == 'DRAFT' %}
-        <form method="post">
+        <form method="post" data-bp-ajax="json" data-cashier-async="1">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="deliver"><input type="hidden" name="order_id" value="{{ selected_order.id }}">
           <button class="btn btn-primary btn-lg w-100" type="submit">Livrer & encaisser</button>
           <div class="form-text text-center mt-2">Un clic déduit le stock et ouvre immédiatement le paiement.</div>
@@ -140,8 +141,8 @@
       {% else %}
         <div class="cashier-fast-cash">
           <strong>Paiement espèces exact</strong><small>Si le client donne exactement {{ "{:,.0f}".format(b.amount_due) }} {{ selected_order.currency }}, encaissez en un clic.</small>
-          <form method="post">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="cash_exact"><input type="hidden" name="order_id" value="{{ selected_order.id }}">
+          <form method="post" data-bp-ajax="json" data-cashier-async="1">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="cash_exact"><input type="hidden" name="order_id" value="{{ selected_order.id }}"><input type="hidden" name="reference" value="{{ cash_exact_reference }}">
             <button class="btn btn-success btn-lg w-100" type="submit">⚡ Encaisser {{ "{:,.0f}".format(b.amount_due) }} {{ selected_order.currency }}</button>
           </form>
         </div>
@@ -163,7 +164,7 @@
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer sans encaisser"></button>
       </div>
       <div class="modal-body">
-<form method="post" id="cashierPaymentForm">
+<form method="post" id="cashierPaymentForm" data-bp-ajax="json" data-cashier-async="1">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="payment"><input type="hidden" name="order_id" value="{{ selected_order.id }}"><input type="hidden" id="cashierDue" value="{{ b.amount_due }}">
           <label class="form-label fw-bold">Autre paiement</label>
           <div class="cashier-methods">
@@ -207,7 +208,7 @@
           </details>
           {% endif %}
 
-          <details class="cashier-advanced"><summary>Référence personnalisée</summary><input class="form-control mt-2" name="reference" maxlength="64" placeholder="Automatique si vide"></details>
+          <details class="cashier-advanced"><summary>Référence personnalisée</summary><input class="form-control mt-2" name="reference" maxlength="64" value="{{ payment_reference }}" placeholder="Automatique si vide"></details>
           <button class="btn btn-primary btn-lg w-100 mt-3" id="cashierPaymentSubmit" type="submit">Encaisser {{ "{:,.0f}".format(b.amount_due) }} {{ selected_order.currency }}</button>
         </form>
       </div>
@@ -263,9 +264,11 @@
   document.querySelectorAll('#cashierCategoryTabs .pos-category').forEach(btn=>btn.addEventListener('click',()=>{document.querySelectorAll('#cashierCategoryTabs .pos-category').forEach(x=>x.classList.remove('active'));btn.classList.add('active');activeCategory=btn.dataset.category;filterProducts();}));
   function filterProducts(){ const q=(search?.value||'').trim().toLowerCase(); grid?.querySelectorAll('.pos-product').forEach(btn=>{const matchCategory=activeCategory==='all'||btn.dataset.category===activeCategory;const matchText=!q||btn.dataset.name.toLowerCase().includes(q);btn.hidden=!(matchCategory&&matchText);}); }
 
-  const paymentForm=document.getElementById('cashierPaymentForm');
-  if(paymentForm){
-    const due=Number(document.getElementById('cashierDue').value||0), applied=document.getElementById('cashierApplied'), presented=document.getElementById('cashierPresentedInput'), single=document.getElementById('cashierSingleAmount'), presentedBox=document.getElementById('cashierPresented'), mixed=document.getElementById('cashierMixed'), provider=document.getElementById('cashierProvider'), credit=document.getElementById('cashierCredit'), change=document.getElementById('cashierChange'), submit=document.getElementById('cashierPaymentSubmit');
+  function initCashierPaymentForm(){
+    const paymentForm=document.getElementById('cashierPaymentForm');
+    if(!paymentForm || paymentForm.dataset.bpInitialized === '1') return;
+    paymentForm.dataset.bpInitialized='1';
+    const due=Number(document.getElementById('cashierDue')?.value||0), applied=document.getElementById('cashierApplied'), presented=document.getElementById('cashierPresentedInput'), single=document.getElementById('cashierSingleAmount'), presentedBox=document.getElementById('cashierPresented'), mixed=document.getElementById('cashierMixed'), provider=document.getElementById('cashierProvider'), credit=document.getElementById('cashierCredit'), change=document.getElementById('cashierChange'), submit=document.getElementById('cashierPaymentSubmit');
     function method(){ return paymentForm.querySelector('input[name="method"]:checked')?.value||'CASH'; }
     function refresh(){
       const m=method(); document.querySelectorAll('.cashier-method').forEach(x=>x.classList.toggle('active',x.querySelector('input').checked));
@@ -277,6 +280,78 @@
     function refreshChange(){ const m=method(); const target=m==='MIXED'?Number(document.getElementById('cashierMixedCash')?.value||0):Number(applied?.value||0); const received=Number(presented?.value||0); change.textContent=`${money(Math.max(0,received-target))} {{ bar.currency }}`; }
     paymentForm.querySelectorAll('input[name="method"]').forEach(x=>x.addEventListener('change',refresh)); [applied,presented,document.getElementById('cashierMixedCash')].filter(Boolean).forEach(x=>x.addEventListener('input',()=>{refreshChange(); if(applied&&method()!=='CREDIT'&&method()!=='MIXED')submit.textContent=`Encaisser ${money(Number(applied.value||0))} {{ bar.currency }}`;})); refresh();
   }
+  initCashierPaymentForm();
+
+  let refreshingWorkspace = false;
+  async function refreshWorkspaceFragments(refreshUrl) {
+    if (refreshingWorkspace) return;
+    refreshingWorkspace = true;
+    try {
+      const html = await window.BarProAsync.request(refreshUrl, {format:'html', timeout:10000});
+      const nextDocument = new DOMParser().parseFromString(html, 'text/html');
+      const currentPanel = document.getElementById('paymentPanel');
+      const nextPanel = nextDocument.getElementById('paymentPanel');
+      if (!currentPanel || !nextPanel) throw new Error('CASHIER_WORKSPACE_REFRESH_INVALID_HTML');
+
+      const currentModal = document.getElementById('cashierPaymentModal');
+      const nextModal = nextDocument.getElementById('cashierPaymentModal');
+      if (currentModal?.classList.contains('show')) {
+        const modalInstance = window.bootstrap?.Modal?.getInstance(currentModal);
+        if (modalInstance) {
+          await new Promise(resolve => {
+            currentModal.addEventListener('hidden.bs.modal', resolve, {once:true});
+            modalInstance.hide();
+          });
+        }
+      } else if (currentModal && window.bootstrap?.Modal) {
+        window.bootstrap.Modal.getInstance(currentModal)?.hide();
+      }
+
+      currentPanel.replaceWith(nextPanel);
+      if (currentModal && nextModal) currentModal.replaceWith(nextModal);
+      else if (currentModal) currentModal.remove();
+      else if (nextModal) document.body.appendChild(nextModal);
+
+      const currentTemplate = document.getElementById('cashierPerformanceTemplate');
+      const nextTemplate = nextDocument.getElementById('cashierPerformanceTemplate');
+      const nextPerformance = nextTemplate?.content.firstElementChild?.cloneNode(true) || null;
+      if (currentTemplate && nextTemplate) currentTemplate.replaceWith(nextTemplate);
+      else if (currentTemplate) currentTemplate.remove();
+      else if (nextTemplate) document.body.appendChild(nextTemplate);
+      const currentPerformance = document.getElementById('cashierPerformance');
+      if (currentPerformance && nextPerformance) currentPerformance.replaceWith(nextPerformance);
+      else if (currentPerformance) currentPerformance.remove();
+      else if (nextPerformance) document.querySelector('.cashier-kpis')?.insertAdjacentElement('afterend', nextPerformance);
+
+      const currentSaleReference = document.querySelector('#quickSaleForm [name="reference"]');
+      const nextSaleReference = nextDocument.querySelector('#quickSaleForm [name="reference"]');
+      if (currentSaleReference && nextSaleReference) currentSaleReference.value = nextSaleReference.value;
+
+      window.history.replaceState({}, '', refreshUrl);
+      initCashierPaymentForm();
+      if (new URL(refreshUrl, window.location.href).searchParams.get('focus') === 'payment') {
+        document.getElementById('paymentPanel')?.scrollIntoView({behavior:'smooth',block:'start'});
+      }
+    } finally {
+      refreshingWorkspace = false;
+    }
+  }
+
+  document.addEventListener('barpro:async-success', event => {
+    const form = event.target;
+    if (!(form instanceof HTMLFormElement) || !form.matches('form[data-cashier-async="1"]')) return;
+    const data = event.detail?.payload?.data;
+    if (!data?.refresh_url) return;
+    if (form.closest('#queue')) form.querySelector('button[type="submit"]')?.blur();
+    if (data.reset_cart) { cart.clear(); renderCart(); }
+    if (data.close_sale_panel) closeSale();
+    void refreshWorkspaceFragments(data.refresh_url).catch(() => {
+      window.BarProAsync?.notify?.(
+        'Opération enregistrée, mais la mise à jour de l’écran a échoué. Vérifiez l’état avant toute nouvelle tentative.',
+        'error'
+      );
+    });
+  });
 
   {% if sale_mode %}setTimeout(() => search && search.focus(), 150);{% endif %}
   {% if focus_payment %}setTimeout(() => document.getElementById('paymentPanel')?.scrollIntoView({behavior:'smooth',block:'start'}), 150);{% endif %}
