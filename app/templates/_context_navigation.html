@@ -15,9 +15,9 @@
   {% elif endpoint.startswith('orders_web.') %}
     {% if nav_effective_role == 'SERVER' %}
       {% set context_section = 'Service' %}
-      {% set context_title = 'Nouvelle commande' %}
-      {% set context_parent_label = 'Mes commandes' %}
-      {% set context_parent_url = url_for('orders_web.quick', bar_id=nav_bar_id) ~ '#mes-commandes' %}
+      {% set context_title = 'Mes commandes' if endpoint == 'orders_web.mine' else 'Nouvelle commande' %}
+      {% set context_parent_label = 'Nouvelle commande' if endpoint == 'orders_web.mine' else 'Mes commandes' %}
+      {% set context_parent_url = url_for('orders_web.quick', bar_id=nav_bar_id) if endpoint == 'orders_web.mine' else url_for('orders_web.mine', bar_id=nav_bar_id) %}
       {% set context_scope = 'service' %}
     {% else %}
       {% set context_section = 'Ventes' %}
@@ -31,7 +31,7 @@
     {% if nav_effective_role == 'SERVER' %}
       {% set context_section = 'Service' %}
       {% set context_parent_label = 'Mes commandes' %}
-      {% set context_parent_url = url_for('orders_web.quick', bar_id=nav_bar_id) ~ '#mes-commandes' %}
+      {% set context_parent_url = url_for('orders_web.mine', bar_id=nav_bar_id) %}
       {% set context_scope = 'service' %}
     {% elif nav_effective_role == 'CASHIER' %}
       {% set context_section = 'Caisse' %}
@@ -181,8 +181,8 @@
 
     {% if context_scope == 'service' %}
       <nav class="context-shortcuts" aria-label="Raccourcis service" data-context-shortcuts>
-        <a class="{% if endpoint.startswith('orders_web.') %}active{% endif %}" href="{{ url_for('orders_web.quick', bar_id=nav_bar_id) }}">＋ Nouvelle commande</a>
-        <a href="{{ url_for('orders_web.quick', bar_id=nav_bar_id) ~ '#mes-commandes' }}">Mes commandes</a>
+        <a class="{% if endpoint == 'orders_web.quick' %}active{% endif %}" href="{{ url_for('orders_web.quick', bar_id=nav_bar_id) }}">＋ Nouvelle commande</a>
+        <a class="{% if endpoint == 'orders_web.mine' %}active{% endif %}" href="{{ url_for('orders_web.mine', bar_id=nav_bar_id) }}">Mes commandes</a>
         <a class="{% if endpoint.startswith('unpaid_orders_web.') %}active{% endif %}" href="{{ url_for('unpaid_orders_web.monitor', bar_id=nav_bar_id) }}">Impayées</a>
       </nav>
 
