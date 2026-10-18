@@ -14,6 +14,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
 from app.cash_services import cash_service
+from app.cashier_payment_idempotency import claim as claim_payment_intent, complete as complete_payment_intent
 from app.customer_services import customer_service
 from app.extensions import db
 from app.finance_totals import order_balance
@@ -301,6 +302,11 @@ def checkout(bar_id):
                 raise PermissionError("FORBIDDEN")
             if is_cashier and not _cash_session_open(bar_id):
                 raise ValueError("CASH_SESSION_REQUIRED")
+            payment_intent = claim_payment_intent(
+                current_user, bar_id, "checkout",
+                request.form.get("idempotency_key") or request.form.get("reference"),
+                request.form,
+            )
 
             order = db.session.scalar(
                 select(Order).where(Order.id == order_id, Order.bar_id == bar_id).with_for_update()
@@ -309,7 +315,11 @@ def checkout(bar_id):
                 raise LookupError("NOT_FOUND")
             if order.status not in {"CONFIRMED", "SERVED"}:
                 raise ValueError("ORDER_NOT_PAYABLE")
+            if order.payment_status == "PAID":
+                raise ValueError("ORDER_NOT_PAYABLE")
             due_before = order_balance(order)["amount_due"]
+            if due_before <= 0:
+                raise ValueError("ORDER_NOT_PAYABLE")
             method = request.form.get("method", "").strip()
             base_reference = request.form.get("reference", "").strip() or _reference()
             provider_code = request.form.get("provider_code", "").strip() or None
@@ -328,6 +338,7 @@ def checkout(bar_id):
                     int(customer_raw),
                     request.form.get("reference", "").strip() or _reference("CRD"),
                 )
+                complete_payment_intent(payment_intent, order_id=order.id)
                 db.session.commit()
                 flash(
                     f"Commande {order.reference} portée au compte client pour {entry.amount_delta:,.0f} {entry.currency}.",
@@ -371,6 +382,7 @@ def checkout(bar_id):
                     provider_code=provider_code,
                     provider_transaction_id=provider_transaction_id,
                 )
+                complete_payment_intent(payment_intent, order_id=order.id)
                 db.session.commit()
                 flash(
                     f"Paiement mixte validé : {cash_part:,.0f} espèces + {mobile_part:,.0f} Mobile Money.",
@@ -410,6 +422,7 @@ def checkout(bar_id):
                 provider_code=provider_code,
                 provider_transaction_id=provider_transaction_id,
             )
+            complete_payment_intent(payment_intent, order_id=order.id)
             db.session.commit()
 
             order = db.session.get(Order, order_id)
