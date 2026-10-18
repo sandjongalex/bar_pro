@@ -51,9 +51,10 @@
 </section>
 {% endif %}
 
-<form method="post" id="posForm" class="pos-layout mt-4 {% if is_server %}server-pos-layout{% endif %}">
+<form method="post" id="posForm" class="pos-layout mt-4 {% if is_server %}server-pos-layout{% endif %}" {% if is_server %}data-server-async="1"{% endif %}>
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   <input type="hidden" name="action" value="create">
+  {% if is_server %}<input type="hidden" name="idempotency_key" value="{{ new_request_key }}">{% endif %}
 
   {% if is_server %}
   <section class="panel-card server-table-step" data-server-table-step aria-labelledby="serverIdentifyHeading">
@@ -150,7 +151,7 @@
     {% if can_pay %}<a class="btn btn-sm btn-light border" href="{{ url_for('checkout_web.checkout', bar_id=bar.id) }}">Caisse commandes</a>{% endif %}
   </div>
 
-  {% if is_server and recent_orders %}
+  {% if is_server %}
   <div class="server-order-filters" role="group" aria-label="Filtrer mes commandes">
     <button class="active" type="button" data-server-order-filter="active" aria-pressed="true">Actives <span>{{ stats.waiting + stats.to_pay }}</span></button>
     <button type="button" data-server-order-filter="waiting" aria-pressed="false">En attente <span>{{ stats.waiting }}</span></button>
@@ -322,7 +323,29 @@
   document.querySelectorAll('.pos-category').forEach(button => button.addEventListener('click', () => { document.querySelectorAll('.pos-category').forEach(x => x.classList.remove('active')); button.classList.add('active'); activeCategory = button.dataset.category; filterProducts(); }));
   document.querySelectorAll('.server-table-chip').forEach(button => button.addEventListener('click', () => chooseTable(button)));
   document.getElementById('changeTableButton')?.addEventListener('click', () => document.querySelector('[data-server-table-step]')?.scrollIntoView({behavior:'smooth', block:'center'}));
-  document.getElementById('posForm')?.addEventListener('submit', event => { if (!cart.size) event.preventDefault(); else confirmButton.disabled = true; });
+  document.getElementById('posForm')?.addEventListener('submit', event => {
+    if (!cart.size) event.preventDefault();
+    else if (!document.getElementById('posForm')?.dataset.serverAsync) confirmButton.disabled = true;
+  });
+  if (document.getElementById('posForm')?.dataset.serverAsync) {
+    window.BarProServerCart = Object.freeze({
+      reset() {
+        cart.clear();
+        renderCart();
+        if (invoiceNameInput) invoiceNameInput.value = '';
+        const notes = document.getElementById('notes');
+        if (notes) notes.value = '';
+        const reference = document.querySelector('#posForm [name="reference"]');
+        if (reference) reference.value = '';
+        const key = document.querySelector('#posForm [name="idempotency_key"]');
+        if (key) key.value = crypto.randomUUID();
+        const noTable = document.querySelector('.server-table-chip[data-table-id=""]');
+        if (noTable) chooseTable(noTable);
+        else refreshInvoiceIdentity();
+      },
+      hasItems: () => cart.size > 0,
+    });
+  }
   renderCart();
   refreshInvoiceIdentity();
 })();
