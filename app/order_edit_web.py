@@ -8,6 +8,7 @@ from flask_login import current_user, login_required
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
+from app.async_ui import wants_async_web_response, web_json_response
 from app.extensions import db
 from app.models import Order, Product, StaffAssignment, StockBalance
 from app.order_concurrency import order_revision
@@ -184,6 +185,7 @@ def state(bar_id: int, order_id: int):
 @login_required
 def update(bar_id: int, order_id: int):
     assignment = _assignment(bar_id)
+    async_web = wants_async_web_response()
     try:
         expected_revision = (request.form.get("order_revision") or "").strip()
         if not expected_revision:
@@ -197,12 +199,28 @@ def update(bar_id: int, order_id: int):
             expected_revision=expected_revision,
         )
         db.session.commit()
-        flash(f"Commande {order.reference} mise à jour.", "success")
+        message = f"Commande {order.reference} mise à jour."
+        if async_web:
+            return web_json_response(
+                data={"id": order.id, "reference": order.reference,
+                      "revision": order_revision(order)}, message=message,
+            )
+        flash(message, "success")
     except LookupError:
         db.session.rollback()
+        if async_web:
+            return web_json_response(
+                error={"code": "NOT_FOUND"}, message=_message("NOT_FOUND"), status=404,
+            )
         abort(404)
     except (PermissionError, ValueError, TypeError, IntegrityError) as exc:
         db.session.rollback()
         code = "INVALID_LINES" if isinstance(exc, IntegrityError) else str(exc)
+        if async_web:
+            return web_json_response(
+                error={"code": code}, message=_message(code),
+                status=403 if isinstance(exc, PermissionError) else (
+                    409 if code == "ORDER_CONFLICT" else 422),
+            )
         flash(_message(code), "danger")
     return _redirect_after_edit(bar_id, order_id, assignment)
