@@ -1,9 +1,9 @@
 name: Dashboard KPI charts tests
 on:
   push:
-    paths: ['app/templates/dashboard.html','app/static/dashboard_kpi_charts.js','app/static/dashboard_kpi_charts.css','tests/test_dashboard_kpi_charts.py','.github/workflows/dashboard-kpi-tests.yml']
+    paths: ['app/templates/dashboard.html','app/templates/_owner_bento_overview.html','app/web.py','app/owner_bento_dashboard.py','app/static/owner_bento.css','app/static/owner_bento.js','app/static/dashboard_kpi_charts.js','app/static/dashboard_kpi_charts.css','tests/test_dashboard_kpi_charts.py','tests/test_owner_bento_dashboard.py','.github/workflows/dashboard-kpi-tests.yml']
   pull_request:
-    paths: ['app/templates/dashboard.html','app/static/dashboard_kpi_charts.js','app/static/dashboard_kpi_charts.css','tests/test_dashboard_kpi_charts.py','.github/workflows/dashboard-kpi-tests.yml']
+    paths: ['app/templates/dashboard.html','app/templates/_owner_bento_overview.html','app/web.py','app/owner_bento_dashboard.py','app/static/owner_bento.css','app/static/owner_bento.js','app/static/dashboard_kpi_charts.js','app/static/dashboard_kpi_charts.css','tests/test_dashboard_kpi_charts.py','tests/test_owner_bento_dashboard.py','.github/workflows/dashboard-kpi-tests.yml']
 jobs:
   kpi:
     runs-on: ubuntu-latest
@@ -13,4 +13,4 @@ jobs:
         with:
           python-version: '3.12'
       - run: pip install -r requirements.txt
-      - run: pytest -q tests/test_dashboard_kpi_charts.py tests/test_dashboard_reset_button.py
+      - run: pytest -q tests/test_dashboard_kpi_charts.py tests/test_dashboard_reset_button.py tests/test_owner_bento_dashboard.py
