@@ -178,7 +178,10 @@
       mergeConflict = 'Sélection modifiée : ' + lost.length +
         ' commande(s) ont été payées, retirées ou ne sont plus éligibles à la fusion.';
     }
-    if (grid.querySelector('[data-skeleton-placeholder]')) grid.replaceChildren();
+    if (grid.querySelector('[data-skeleton-placeholder]')) {
+      grid.replaceChildren();
+      grid.removeAttribute('aria-busy');
+    }
 
     orders.forEach((order, index) => {
       const id = String(order.id);
