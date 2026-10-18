@@ -143,16 +143,25 @@ def test_cashier_invoices_page_filters_delivery_and_personnel(env):
     assert "Réf. système" in page.text
     assert "COMPTOIR" in page.text
 
-    # The cashier page refreshes counters and invoice cards in place every ten
-    # seconds instead of forcing a disruptive full-page reload.
+    # The cashier page now requests small conditional JSON snapshots and
+    # keeps unchanged invoice cards intact instead of rebuilding the page.
     assert 'id="invoiceStats"' in page.text
     assert 'id="invoiceResults"' in page.text
     assert 'id="invoiceAutoRefresh"' in page.text
-    assert "Mise à jour automatique · toutes les 10 s" in page.text
-    assert "window.refreshCashierInvoices = refreshInvoices" in page.text
-    assert "window.setInterval(refreshInvoices, refreshEveryMs)" in page.text
-    assert "currentStats.innerHTML = nextStats.innerHTML" in page.text
-    assert "currentResults.innerHTML = nextResults.innerHTML" in page.text
+    assert "Synchronisation légère · toutes les 10 s" in page.text
+    assert "cashier_invoices_ui.js" in page.text
+    assert 'data-bp-ajax="json"' in page.text
+    assert 'name="idempotency_key"' in page.text
+    snapshot = client.get(f"/bars/{bar.id}/cashier/invoices?snapshot=1")
+    assert snapshot.status_code == 200
+    assert snapshot.is_json
+    assert snapshot.get_json()["stats"]["visible"] == 4
+    assert 'data-invoice-id="' in snapshot.get_json()["html"]
+    assert snapshot.headers.get("ETag")
+    assert client.get(
+        f"/bars/{bar.id}/cashier/invoices?snapshot=1",
+        headers={"If-None-Match": snapshot.headers["ETag"]},
+    ).status_code == 304
 
     waiting_only = client.get(
         f"/bars/{bar.id}/cashier/invoices?delivery=waiting&payment=all"
