@@ -44,7 +44,7 @@
               {% for line in lines %}<div class="cash-sub-line"><span><strong>{{ line.quantity }}×</strong> {{ line.product_name_snapshot }}</span><span>{{ "{:,.0f}".format(line.total_amount) }}</span></div>{% endfor %}
             </div>
             {% if suborder.note %}<p class="cash-sub-note">Note : {{ suborder.note }}</p>{% endif %}
-            <form method="post">
+            <form method="post" data-bp-ajax="json" data-suborder-async="1">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <input type="hidden" name="order_id" value="{{ suborder.order_id }}">
               <input type="hidden" name="suborder_id" value="{{ suborder.id }}">
@@ -77,4 +77,45 @@
 </div>
 
 <div class="cash-sub-mobile"><a href="#ajouter">＋ Ajouter une sous-commande</a></div>
+
+<script>
+(() => {
+  let refreshing = false;
+
+  async function refreshPendingSuborders(refreshUrl) {
+    if (refreshing) return;
+    refreshing = true;
+    try {
+      const html = await window.BarProAsync.request(refreshUrl, {format:'html', timeout:10000});
+      const nextDocument = new DOMParser().parseFromString(html, 'text/html');
+      const currentHead = document.querySelector('.cash-sub-head');
+      const nextHead = nextDocument.querySelector('.cash-sub-head');
+      const currentPending = document.getElementById('a-livrer');
+      const nextPending = nextDocument.getElementById('a-livrer');
+      if (!currentHead || !nextHead || !currentPending || !nextPending) {
+        throw new Error('CASHIER_SUBORDER_REFRESH_INVALID_HTML');
+      }
+      currentHead.replaceWith(nextHead);
+      currentPending.replaceWith(nextPending);
+    } finally {
+      refreshing = false;
+    }
+  }
+
+  document.addEventListener('barpro:async-success', event => {
+    const form = event.target;
+    if (!(form instanceof HTMLFormElement) || !form.matches('form[data-suborder-async="1"]')) return;
+    const data = event.detail?.payload?.data;
+    if (!data?.refresh_url) return;
+    form.querySelector('button[type="submit"]')?.blur();
+    void refreshPendingSuborders(data.refresh_url).catch(() => {
+      window.BarProAsync?.notify?.(
+        'Sous-commande livrée, mais la file n’a pas pu être actualisée. Vérifiez son état avant toute nouvelle tentative.',
+        'error'
+      );
+    });
+  });
+})();
+</script>
+
 {% endblock %}
