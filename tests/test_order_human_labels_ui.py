@@ -196,7 +196,7 @@ def test_server_can_enter_a_dedicated_invoice_name(env):
     assert order.customer_name_snapshot == "VIP JEAN"
     assert order.table_label_snapshot == "VIP 2"
 
-    refreshed = client.get(f"/bars/{bar.id}/orders/new")
+    refreshed = client.get(f"/bars/{bar.id}/orders/mine")
     assert refreshed.status_code == 200
     assert "VIP JEAN" in refreshed.text
     assert "Table : VIP 2" in refreshed.text

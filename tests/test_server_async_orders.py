@@ -183,10 +183,12 @@ def test_order_edit_ajax_and_html_fallback_and_template_contract(env):
     assert change.json["success"] is True
 
     template = Path("app/templates/order_quick.html").read_text(encoding="utf-8")
-    assert 'data-server-orders-grid' in template
+    assert "orders_web.mine" in template
     assert '{% if is_server %}' in template
     assert 'name="idempotency_key"' in template
-    assert 'data-server-order-id="{{ order.id }}"' in template
+    mine_template = Path("app/templates/server_orders_results.html").read_text(encoding="utf-8")
+    assert 'data-server-mine-grid' in mine_template
+    assert 'data-server-order-id="{{ order.id }}"' in mine_template
 
     script = Path("app/static/server_pos_ui.js").read_text(encoding="utf-8")
     assert "makeLiveServerCard(order)" in script

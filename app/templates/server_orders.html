@@ -1,0 +1,47 @@
+{% extends 'layout.html' %}
+{% block title %}Mes commandes · {{ bar.name }} · Bar Manager Pro{% endblock %}
+{% block header %}Mes commandes · {{ bar.name }}{% endblock %}
+{% block content %}
+<section class="server-mine-hero">
+  <div>
+    <p class="eyebrow mb-2">Espace serveuse · suivi personnel</p>
+    <h1>Mes commandes</h1>
+    <p>Consultez vos commandes et suivez leur livraison et leur paiement sans recharger la page.</p>
+  </div>
+  <a class="btn btn-primary" href="{{ url_for('orders_web.quick', bar_id=bar.id) }}">＋ Nouvelle commande</a>
+</section>
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% for category, message in messages %}<div class="alert alert-{{ category }} mt-3" role="alert">{{ message }}</div>{% endfor %}
+{% endwith %}
+
+<section class="server-mine-workspace mt-3" data-server-mine data-snapshot-url="{{ url_for('orders_web.mine', bar_id=bar.id, snapshot=1) }}">
+  <div class="server-mine-summary" aria-label="Statistiques de mes commandes">
+    <article><span>En attente</span><strong data-mine-stat="waiting">{{ stats.waiting }}</strong></article>
+    <article><span>À payer</span><strong data-mine-stat="to_pay">{{ stats.to_pay }}</strong></article>
+    <article><span>Payées</span><strong data-mine-stat="paid">{{ stats.paid }}</strong></article>
+    <article><span>Annulées</span><strong data-mine-stat="cancelled">{{ stats.cancelled }}</strong></article>
+  </div>
+
+  <div class="server-mine-panel panel-card">
+    <div class="server-mine-heading">
+      <div>
+        <h2>Historique des commandes</h2>
+        <small data-server-mine-status role="status" aria-live="polite">Synchronisation automatique activée</small>
+      </div>
+      <button class="btn btn-sm btn-light border" type="button" data-server-mine-refresh>↻ Actualiser</button>
+    </div>
+    <nav class="server-order-filters server-mine-filters" aria-label="Filtrer mes commandes">
+      {% for name, label in [('active','Actives'), ('waiting','En attente'), ('to_pay','À payer'), ('paid','Payées'), ('cancelled','Annulées'), ('all','Toutes')] %}
+      <a href="{{ url_for('orders_web.mine', bar_id=bar.id, filter=name) }}" data-server-mine-filter="{{ name }}" class="{% if selected_filter == name %}active{% endif %}" {% if selected_filter == name %}aria-current="page"{% endif %}>
+        {{ label }} <span data-mine-count="{{ name }}">{{ stats[name] }}</span>
+      </a>
+      {% endfor %}
+    </nav>
+    {% include 'server_orders_results.html' %}
+  </div>
+</section>
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='server_orders_page.js') }}" defer></script>
+{% endblock %}

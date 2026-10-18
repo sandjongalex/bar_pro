@@ -53,10 +53,10 @@
   {% elif role == 'SERVER' %}
     <div class="nav-role-label">Espace serveuse</div>
     <div class="nav-direct">
-      <a class="nav-link {% if endpoint.startswith('orders_web.') %}active{% endif %}" href="{{ url_for('orders_web.quick', bar_id=nav_bar_id) }}">
+      <a class="nav-link {% if endpoint == 'orders_web.quick' %}active{% endif %}" href="{{ url_for('orders_web.quick', bar_id=nav_bar_id) }}">
         <span class="nav-icon">＋</span><span class="nav-link-text">Nouvelle commande</span>
       </a>
-      <a class="nav-link" href="{{ url_for('orders_web.quick', bar_id=nav_bar_id) }}#mes-commandes">
+      <a class="nav-link {% if endpoint == 'orders_web.mine' %}active{% endif %}" href="{{ url_for('orders_web.mine', bar_id=nav_bar_id) }}">
         <span class="nav-icon">C</span><span class="nav-link-text">Mes commandes</span>
       </a>
       <a class="nav-link {% if endpoint.startswith('unpaid_orders_web.') %}active{% endif %}" href="{{ url_for('unpaid_orders_web.monitor', bar_id=nav_bar_id) }}">
@@ -83,7 +83,7 @@
       </summary>
       <div class="nav-group-links">
         {% if nav_can('orders.create', nav_bar_id) %}
-        <a class="nav-sublink {% if endpoint.startswith('orders_web.') %}active{% endif %}" href="{{ url_for('orders_web.quick', bar_id=nav_bar_id) }}">Commandes</a>
+        <a class="nav-sublink {% if endpoint == 'orders_web.quick' %}active{% endif %}" href="{{ url_for('orders_web.quick', bar_id=nav_bar_id) }}">Commandes</a>
         <a class="nav-sublink {% if endpoint.startswith('unpaid_orders_web.') %}active{% endif %}" href="{{ url_for('unpaid_orders_web.monitor', bar_id=nav_bar_id) }}">Commandes impayées</a>
         {% endif %}
         {% if nav_can('payments.read', nav_bar_id) %}
