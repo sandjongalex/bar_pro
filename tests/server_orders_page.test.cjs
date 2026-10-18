@@ -15,7 +15,7 @@ test('dedicated server history uses URL filters, ETag 304 and keeps unchanged ca
   const filters = ['active', 'waiting', 'to_pay', 'paid', 'cancelled', 'all'].map(name => ({
     dataset:{serverMineFilter:name},
     href:'https://bar.example/bars/1/orders/mine?filter=' + name,
-    classList:{toggle() {}}, setAttribute() {}, removeAttribute() {},
+    classList:{toggle() {}}, setAttribute() {}, removeAttribute() {}, hasAttribute() {return false;}, 
   }));
   const refreshButton = {addEventListener(name, callback) {handlers['refresh:' + name] = callback;}};
   const status = {textContent:'',classList:{toggle(){}}};
