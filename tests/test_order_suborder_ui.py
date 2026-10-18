@@ -134,6 +134,15 @@ def test_server_and_cashier_have_optimized_suborder_workflows(env):
     assert "À livrer" in detail_with_suborder.text
     assert "Ajout depuis l&#39;interface serveuse" in detail_with_suborder.text
 
+    # Each actor must end their web session before the shared Flask test context
+    # authenticates a different user (no concurrent current_user leakage).
+    logout = server_client.post(
+        "/logout",
+        data={"csrf_token": _csrf(detail_with_suborder)},
+        follow_redirects=False,
+    )
+    assert logout.status_code == 302
+
     cashier_client = app.test_client()
     assert _login(cashier_client, cashier.email).status_code == 302
 
