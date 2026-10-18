@@ -1,0 +1,37 @@
+name: Async UI foundation
+
+on:
+  pull_request:
+    paths:
+      - 'app/static/barpro_async.js'
+      - 'app/static/barpro_async.css'
+      - 'app/async_ui.py'
+      - 'app/templates/layout.html'
+      - 'tests/barpro_async.test.cjs'
+      - 'tests/test_async_ui_foundation.py'
+      - '.github/workflows/async-ui-foundation.yml'
+  push:
+    paths:
+      - 'app/static/barpro_async.js'
+      - 'app/static/barpro_async.css'
+      - 'app/async_ui.py'
+      - 'app/templates/layout.html'
+      - 'tests/barpro_async.test.cjs'
+      - 'tests/test_async_ui_foundation.py'
+      - '.github/workflows/async-ui-foundation.yml'
+
+jobs:
+  async-ui-regressions:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: python -m pip install -r requirements.txt
+      - run: node --check app/static/barpro_async.js
+      - run: node --test tests/*.test.cjs
+      - run: python -m pytest -q
