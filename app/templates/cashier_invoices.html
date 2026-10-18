@@ -16,7 +16,7 @@
       <p>Retrouvez les commandes à livrer ou déjà livrées, filtrez par serveuse et encaissez les factures livrées sans quitter cette page.</p>
       <div class="invoice-live-status" id="invoiceAutoRefresh" role="status" aria-live="polite">
         <span class="invoice-live-dot" aria-hidden="true"></span>
-        <span id="invoiceAutoRefreshText">Mise à jour automatique · toutes les 10 s</span>
+        <span id="invoiceAutoRefreshText">Synchronisation légère · toutes les 10 s</span>
       </div>
     </div>
   </section>
@@ -66,70 +66,7 @@
     </form>
   </section>
 
-  <div id="invoiceResults">
-    <div class="invoice-section-title">
-      <h2>Factures trouvées</h2>
-      <span>{{ invoices|length }} résultat{{ 's' if invoices|length != 1 else '' }}</span>
-    </div>
-
-    {% if invoices %}
-    <section class="invoice-grid">
-      {% for order in invoices %}
-        {% set lines = lines_by_order.get(order.id, []) %}
-        {% set delivered = order.status in ['CONFIRMED','SERVED'] %}
-        {% set balance = balance_by_order.get(order.id) %}
-        <article class="invoice-card {{ 'delivered' if delivered else 'waiting' }}" data-invoice-id="{{ order.id }}">
-          <div class="invoice-card-top">
-            <div>
-              <div class="invoice-reference invoice-human-title">{{ order.customer_name_snapshot or order.table_label_snapshot or 'COMPTOIR' }}</div><div class="invoice-system-ref">Réf. système : {{ order.reference }}</div>
-              <div class="invoice-origin">{{ origin_by_order.get(order.id, 'Caisse / comptoir') }} · {{ order.table_label_snapshot or 'Sans table' }}</div>
-            </div>
-            <div class="invoice-total">
-              <strong>{{ "{:,.0f}".format(order.total_amount) }} {{ order.currency }}</strong>
-              <small>{{ order.created_at }}</small>
-            </div>
-          </div>
-
-          <div class="invoice-badges">
-            {% if delivered %}<span class="invoice-badge delivered">✓ Livrée</span>{% else %}<span class="invoice-badge waiting">● À livrer</span>{% endif %}
-            {% if order.payment_status == 'PAID' %}<span class="invoice-badge paid">✓ Payée</span>
-            {% elif order.payment_status == 'PARTIAL' %}<span class="invoice-badge partial">Paiement partiel</span>
-            {% else %}<span class="invoice-badge">À encaisser</span>{% endif %}
-          </div>
-
-          <div class="invoice-preview">
-            {% for line in lines[:3] %}
-            <div class="invoice-preview-line"><span><strong>{{ line.quantity }}×</strong> {{ line.product_name_snapshot }}</span><span>{{ "{:,.0f}".format(line.total_amount) }}</span></div>
-            {% endfor %}
-            {% if lines|length > 3 %}<div class="invoice-preview-more">+ {{ lines|length - 3 }} autre{{ 's' if lines|length - 3 > 1 else '' }} ligne{{ 's' if lines|length - 3 > 1 else '' }}</div>{% endif %}
-          </div>
-
-          {% if balance and order.payment_status != 'PAID' %}
-          <div class="invoice-due"><span>Reste à encaisser</span><strong>{{ "{:,.0f}".format(balance.amount_due) }} {{ order.currency }}</strong></div>
-          {% endif %}
-
-          <div class="invoice-actions">
-            <a href="{{ url_for('orders_web.detail', bar_id=bar.id, order_id=order.id) }}">◉ Détails</a>
-            <a class="primary" href="{{ url_for('cashier_workspace_web.workspace', bar_id=bar.id, order_id=order.id) }}#paymentPanel">Ouvrir</a>
-            {% if delivered and order.payment_status != 'PAID' and balance and balance.amount_due > 0 %}
-            <form method="post" onsubmit="return confirm('Confirmer le paiement espèces de {{ '{:,.0f}'.format(balance.amount_due) }} {{ order.currency }} ?');">
-              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-              <input type="hidden" name="action" value="pay_cash">
-              <input type="hidden" name="order_id" value="{{ order.id }}">
-              <input type="hidden" name="delivery" value="{{ delivery_filter }}">
-              <input type="hidden" name="payment" value="{{ payment_filter }}">
-              <input type="hidden" name="origin" value="{{ origin_filter }}">
-              <button class="invoice-pay-button" type="submit">✓ Payé</button>
-            </form>
-            {% endif %}
-          </div>
-        </article>
-      {% endfor %}
-    </section>
-    {% else %}
-    <div class="invoice-empty"><div style="font-size:1.6rem">🧾</div><h3>Aucune facture avec ces filtres</h3><p>Modifiez la livraison, le paiement ou l'origine pour élargir la liste.</p></div>
-    {% endif %}
-  </div>
+  {% include 'cashier_invoices_results.html' %}
 </div>
 
 <nav class="invoice-mobile-nav" aria-label="Navigation rapide caissière">
@@ -140,64 +77,5 @@
   <a href="{{ url_for('unpaid_orders_web.monitor', bar_id=bar.id) }}"><strong>!</strong><span>Impayées</span></a>
 </nav>
 
-<script>
-const invoiceFilterForm = document.getElementById('invoiceFilters');
-document.querySelectorAll('#invoiceFilters select').forEach(select => {
-  select.addEventListener('change', () => invoiceFilterForm.submit());
-});
-
-(() => {
-  const refreshEveryMs = 10000;
-  const status = document.getElementById('invoiceAutoRefresh');
-  const statusText = document.getElementById('invoiceAutoRefreshText');
-  let refreshing = false;
-  let actionInProgress = false;
-
-  document.addEventListener('submit', event => {
-    if (event.target.closest('#invoiceResults')) actionInProgress = true;
-  });
-
-  const markStatus = (state, text) => {
-    status.classList.toggle('syncing', state === 'syncing');
-    status.classList.toggle('error', state === 'error');
-    statusText.textContent = text;
-  };
-
-  async function refreshInvoices() {
-    if (refreshing || actionInProgress || document.visibilityState !== 'visible') return;
-    refreshing = true;
-    markStatus('syncing', 'Synchronisation…');
-    try {
-      const response = await fetch(window.location.href, {
-        method: 'GET',
-        credentials: 'same-origin',
-        cache: 'no-store',
-        headers: {'X-Requested-With': 'invoice-auto-refresh'}
-      });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const html = await response.text();
-      const nextDocument = new DOMParser().parseFromString(html, 'text/html');
-      const nextStats = nextDocument.getElementById('invoiceStats');
-      const nextResults = nextDocument.getElementById('invoiceResults');
-      const currentStats = document.getElementById('invoiceStats');
-      const currentResults = document.getElementById('invoiceResults');
-      if (!nextStats || !nextResults || !currentStats || !currentResults) throw new Error('INVOICE_REFRESH_INVALID_HTML');
-      currentStats.innerHTML = nextStats.innerHTML;
-      currentResults.innerHTML = nextResults.innerHTML;
-      const now = new Intl.DateTimeFormat('fr-FR', {hour:'2-digit', minute:'2-digit', second:'2-digit'}).format(new Date());
-      markStatus('ok', `À jour · ${now}`);
-    } catch (error) {
-      markStatus('error', 'Mise à jour différée · nouvelle tentative automatique');
-    } finally {
-      refreshing = false;
-    }
-  }
-
-  window.refreshCashierInvoices = refreshInvoices;
-  window.setInterval(refreshInvoices, refreshEveryMs);
-  document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') refreshInvoices();
-  });
-})();
-</script>
+<script src="{{ url_for('static', filename='cashier_invoices_ui.js') }}" defer></script>
 {% endblock %}
