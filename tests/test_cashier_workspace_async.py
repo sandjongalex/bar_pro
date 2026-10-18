@@ -11,7 +11,7 @@ from test_workflows import env
 
 
 def _csrf(page):
-    match = re.search(r'name=["\\']csrf_token["\\'][^>]*value=["\\']([^"\\']+)["\\']', page.text)
+    match = re.search(r'name="csrf_token"[^>]*value="([^"]+)"', page.text)
     assert match is not None, page.text
     return match.group(1)
 
