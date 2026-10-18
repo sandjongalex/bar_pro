@@ -10,6 +10,9 @@ from flask_login import current_user, login_required
 from sqlalchemy import or_, select
 from sqlalchemy.exc import IntegrityError
 
+from app.async_ui import wants_async_web_response, web_json_response
+from app.cashier_secondary_async import begin, succeeded, failed
+from app.cashier_financial_intents import financial_complete
 from app.change_voucher_models import ChangeVoucher, ChangeVoucherTransaction
 from app.change_voucher_service import change_voucher_service
 from app.extensions import db
@@ -216,6 +219,7 @@ def manage(bar_id: int):
         action = (request.form.get("action") or "").strip().lower()
         code = (request.form.get("code") or "").strip().upper()
         try:
+            intent = begin(current_user, bar_id, "voucher." + action)
             if action == "redeem":
                 order_id = request.form.get("order_id", type=int)
                 if not order_id:
@@ -227,6 +231,7 @@ def manage(bar_id: int):
                     order_id,
                     _amount(request.form.get("amount")),
                 )
+                financial_complete(intent, action=action, voucher_id=tx.voucher_id, transaction_id=tx.id)
                 db.session.commit()
                 order = db.session.get(Order, tx.target_order_id)
                 remaining = Decimal(order_balance(order)["amount_due"] or 0)
@@ -248,14 +253,14 @@ def manage(bar_id: int):
                     session.id,
                     _amount(request.form.get("amount")),
                 )
-                db.session.commit()
-                flash(f"{tx.amount:,.0f} {tx.currency} remboursés pour le bon {code}.", "success")
+                response = succeeded(intent, action, f"{tx.amount:,.0f} {tx.currency} remboursés pour le bon {code}.", data={"voucher_id": tx.voucher_id, "transaction_id": tx.id})
+                if response is not None: return response
                 return redirect(url_for("change_vouchers_web.manage", bar_id=bar_id))
 
             raise ValueError("INVALID_ACTION")
-        except (PermissionError, LookupError, ValueError, TypeError) as exc:
-            db.session.rollback()
-            flash(_message(exc), "danger")
+        except (PermissionError, LookupError, ValueError, TypeError, IntegrityError) as exc:
+            response = failed(exc, _message(exc))
+            if response is not None: return response
 
     q = (request.args.get("q") or "").strip()
     statement = select(ChangeVoucher).where(ChangeVoucher.bar_id == bar_id)
