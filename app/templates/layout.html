@@ -36,6 +36,7 @@
   <link href="{{ url_for('static', filename='checkout.css') }}" rel="stylesheet">
   <link href="{{ url_for('static', filename='customers.css') }}" rel="stylesheet">
   <link href="{{ url_for('static', filename='dark_theme.css') }}" rel="stylesheet">
+  <link href="{{ url_for('static', filename='skeleton_loading.css') }}" rel="stylesheet">
 </head>
 <body class="app-body">
 {% set endpoint = request.endpoint or '' %}
@@ -203,6 +204,7 @@
 <script src="{{ url_for('static', filename='cashier_live_ui.js') }}" defer></script>
 <script src="{{ url_for('static', filename='cash_payment_ui.js') }}" defer></script>
 <script src="{{ url_for('static', filename='change_voucher_ui.js') }}" defer></script>
+<script src="{{ url_for('static', filename='skeleton_loading.js') }}" defer></script>
 <script src="{{ url_for('static', filename='order_edit_ui.js') }}" defer></script>
 {% block scripts %}{% endblock %}
 <script>
