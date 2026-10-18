@@ -6,7 +6,7 @@ from sqlalchemy import func, select
 from app.cash_services import cash_service
 from app.extensions import db
 from app.finance_totals import order_balance
-from app.models import Order, Payment
+from app.models import Order, OrderLine, Payment
 from app.order_services import order_service
 from app.payment_services import payment_service
 from test_cashier_workspace_async import _async_headers, _cashier, _csrf, _login
@@ -122,3 +122,39 @@ def test_unpaid_etag_changes_on_partial_payment_and_order_removal(env):
     assert final.status_code == 200
     assert final.get_json()["orders"] == []
     assert final.get_json()["stats"]["count"] == 0
+
+
+def test_invoice_snapshot_reflects_new_order_and_filter_changes(env):
+    client, owner, bar, _, orders = _ready_cashier(env)
+    base = f"/bars/{bar.id}/cashier/invoices"
+    initial = client.get(base + "?snapshot=1&delivery=waiting&payment=all")
+    assert initial.status_code == 200
+    assert initial.get_json()["stats"]["visible"] == 0
+
+    product_id = db.session.scalar(
+        select(OrderLine.product_id).where(OrderLine.order_id == orders[0].id)
+    )
+    new_order = order_service.create(
+        owner, bar.id, "INVOICE-NEW-WAITING",
+        [{"product_id": product_id, "quantity": 1}],
+    )
+    db.session.commit()
+    changed = client.get(
+        base + "?snapshot=1&delivery=waiting&payment=all",
+        headers={"If-None-Match": initial.headers["ETag"]},
+    )
+    assert changed.status_code == 200
+    assert f'data-invoice-id="{new_order.id}"' in changed.get_json()["html"]
+    assert changed.get_json()["stats"]["visible"] == 1
+
+    delivered = client.get(base + "?snapshot=1&delivery=delivered&payment=all")
+    assert delivered.status_code == 200
+    assert f'data-invoice-id="{new_order.id}"' not in delivered.get_json()["html"]
+
+
+def test_server_cannot_access_cashier_invoice_snapshot(env):
+    app, _, bar, _, _, server, _, _ = env
+    client = app.test_client()
+    assert _login(client, server.email).status_code == 302
+    response = client.get(f"/bars/{bar.id}/cashier/invoices?snapshot=1")
+    assert response.status_code in (403, 404)
