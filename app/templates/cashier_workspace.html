@@ -289,9 +289,10 @@
   initCashierPaymentForm();
 
   let refreshingWorkspace = false;
-  async function refreshWorkspaceFragments(refreshUrl) {
+  async function refreshWorkspaceFragments(refreshUrl, {historyMode = 'replace', selection = false, rotateSaleReference = false} = {}) {
     if (refreshingWorkspace) return;
     refreshingWorkspace = true;
+    const oldScrollX = window.scrollX, oldScrollY = window.scrollY;
     try {
       const html = await window.BarProAsync.request(refreshUrl, {format:'html', timeout:10000});
       const nextDocument = new DOMParser().parseFromString(html, 'text/html');
@@ -300,6 +301,10 @@
       if (!currentPanel || !nextPanel) throw new Error('CASHIER_WORKSPACE_REFRESH_INVALID_HTML');
 
       const currentModal = document.getElementById('cashierPaymentModal');
+      if (selection && (currentModal?.classList.contains('show') ||
+          document.querySelector('form[data-cashier-async="1"][aria-busy="true"]'))) {
+        throw new Error('Terminez ou fermez le paiement en cours avant de sélectionner une autre commande.');
+      }
       const nextModal = nextDocument.getElementById('cashierPaymentModal');
       if (currentModal?.classList.contains('show')) {
         const modalInstance = window.bootstrap?.Modal?.getInstance(currentModal);
@@ -331,12 +336,22 @@
 
       const currentSaleReference = document.querySelector('#quickSaleForm [name="reference"]');
       const nextSaleReference = nextDocument.querySelector('#quickSaleForm [name="reference"]');
-      if (currentSaleReference && nextSaleReference) currentSaleReference.value = nextSaleReference.value;
+      if (rotateSaleReference && currentSaleReference && nextSaleReference) {
+        currentSaleReference.value = nextSaleReference.value;
+      }
 
-      window.history.replaceState({}, '', refreshUrl);
+      const selectedId = nextPanel.querySelector('input[name="order_id"]')?.value || '';
+      document.querySelectorAll('.cashier-order-link').forEach(link => {
+        const id = new URL(link.href, window.location.href).searchParams.get('order_id');
+        link.classList.toggle('active', id === selectedId);
+      });
+      if (historyMode === 'push') window.history.pushState({}, '', refreshUrl);
+      else if (historyMode === 'replace') window.history.replaceState({}, '', refreshUrl);
       initCashierPaymentForm();
-      if (new URL(refreshUrl, window.location.href).searchParams.get('focus') === 'payment') {
-        document.getElementById('paymentPanel')?.scrollIntoView({behavior:'smooth',block:'start'});
+      window.BarProCashPayment?.init?.();
+      document.dispatchEvent(new CustomEvent('cashier:refresh'));
+      if (window.scrollX !== oldScrollX || window.scrollY !== oldScrollY) {
+        window.scrollTo(oldScrollX, oldScrollY);
       }
     } finally {
       refreshingWorkspace = false;
@@ -351,12 +366,28 @@
     if (form.closest('#queue')) form.querySelector('button[type="submit"]')?.blur();
     if (data.reset_cart) { cart.clear(); renderCart(); }
     if (data.close_sale_panel) closeSale();
-    void refreshWorkspaceFragments(data.refresh_url).catch(() => {
+    void refreshWorkspaceFragments(data.refresh_url, {rotateSaleReference: !!data.reset_cart}).catch(() => {
       window.BarProAsync?.notify?.(
         'Opération enregistrée, mais la mise à jour de l’écran a échoué. Vérifiez l’état avant toute nouvelle tentative.',
         'error'
       );
     });
+  });
+
+  window.CashierWorkspace = Object.freeze({
+    selectOrder: async href => {
+      try {
+        await refreshWorkspaceFragments(href, {historyMode:'push', selection:true});
+      } catch (error) {
+        window.BarProAsync?.notify?.(
+          error.message || 'Impossible de sélectionner cette commande sans recharger la page.', 'error'
+        );
+      }
+    }
+  });
+  window.addEventListener('popstate', () => {
+    void refreshWorkspaceFragments(window.location.href, {historyMode:'none', selection:true})
+      .catch(() => {});
   });
 
   {% if sale_mode %}setTimeout(() => search && search.focus(), 150);{% endif %}
