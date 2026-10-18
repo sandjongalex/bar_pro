@@ -262,7 +262,7 @@
   }
 
   queue.addEventListener('click', event => {
-    const link = event.target.closest('.cashier-order-link');
+    const link = event.target.closest('.cashier-order-link, [data-order-actions] a[href*="/cashier/workspace?"]');
     if (!link || event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey ||
         event.shiftKey || event.altKey) return;
     if (!window.CashierWorkspace?.selectOrder) return;
