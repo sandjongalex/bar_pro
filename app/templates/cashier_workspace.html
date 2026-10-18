@@ -146,7 +146,24 @@
           </form>
         </div>
 
-        <form method="post" id="cashierPaymentForm">
+        <button type="button" class="btn btn-outline-primary btn-lg w-100 mt-3" data-bs-toggle="modal" data-bs-target="#cashierPaymentModal" aria-controls="cashierPaymentModal">Autre paiement · espèces, Mobile Money, carte ou crédit</button>
+      {% endif %}
+    {% else %}
+      <div class="cashier-empty"><div class="empty-icon">✓</div><h3>Aucune commande à traiter</h3><p>La caisse est prête pour une nouvelle vente comptoir.</p><button class="btn btn-primary" id="emptyQuickSale" type="button">＋ Nouvelle vente</button></div>
+    {% endif %}
+  </aside>
+</div>
+
+{% if selected_order and selected_order.status != 'DRAFT' %}
+<div class="modal fade" id="cashierPaymentModal" tabindex="-1" aria-labelledby="cashierPaymentModalTitle" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-lg">
+    <div class="modal-content modal-liquid-glass">
+      <div class="modal-header">
+        <div><p class="eyebrow mb-1">Caisse · règlement</p><h2 class="modal-title fs-5" id="cashierPaymentModalTitle">{{ selected_order.customer_name_snapshot or selected_order.table_label_snapshot or selected_order.reference }}</h2></div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer sans encaisser"></button>
+      </div>
+      <div class="modal-body">
+<form method="post" id="cashierPaymentForm">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="payment"><input type="hidden" name="order_id" value="{{ selected_order.id }}"><input type="hidden" id="cashierDue" value="{{ b.amount_due }}">
           <label class="form-label fw-bold">Autre paiement</label>
           <div class="cashier-methods">
@@ -193,12 +210,12 @@
           <details class="cashier-advanced"><summary>Référence personnalisée</summary><input class="form-control mt-2" name="reference" maxlength="64" placeholder="Automatique si vide"></details>
           <button class="btn btn-primary btn-lg w-100 mt-3" id="cashierPaymentSubmit" type="submit">Encaisser {{ "{:,.0f}".format(b.amount_due) }} {{ selected_order.currency }}</button>
         </form>
-      {% endif %}
-    {% else %}
-      <div class="cashier-empty"><div class="empty-icon">✓</div><h3>Aucune commande à traiter</h3><p>La caisse est prête pour une nouvelle vente comptoir.</p><button class="btn btn-primary" id="emptyQuickSale" type="button">＋ Nouvelle vente</button></div>
-    {% endif %}
-  </aside>
+      </div>
+      <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Annuler</button></div>
+    </div>
+  </div>
 </div>
+{% endif %}
 
 <nav class="cashier-mobile-bar" aria-label="Actions rapides caissière">
   <button class="primary" id="mobileQuickSale" type="button">＋<br>Vente</button>
