@@ -1,0 +1,47 @@
+name: Skeleton loading UX
+
+on:
+  pull_request:
+    paths:
+      - 'app/static/skeleton_loading.js'
+      - 'app/static/skeleton_loading.css'
+      - 'app/static/order_edit_ui.js'
+      - 'app/static/order_edit.css'
+      - 'app/static/cashier_live_ui.js'
+      - 'app/static/unpaid_orders_ui.js'
+      - 'app/templates/layout.html'
+      - 'tests/test_skeleton_loading.py'
+      - 'tests/skeleton_loading.test.cjs'
+      - '.github/workflows/skeleton-loading.yml'
+  push:
+    paths:
+      - 'app/static/skeleton_loading.js'
+      - 'app/static/skeleton_loading.css'
+      - 'app/static/order_edit_ui.js'
+      - 'app/static/order_edit.css'
+      - 'app/static/cashier_live_ui.js'
+      - 'app/static/unpaid_orders_ui.js'
+      - 'app/templates/layout.html'
+      - 'tests/test_skeleton_loading.py'
+      - 'tests/skeleton_loading.test.cjs'
+      - '.github/workflows/skeleton-loading.yml'
+
+jobs:
+  skeleton-regression:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -r requirements.txt
+      - run: python -m pytest -q tests/test_skeleton_loading.py tests/test_cashier_workspace.py tests/test_unpaid_orders_web.py
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: |
+          node --check app/static/skeleton_loading.js
+          node --check app/static/order_edit_ui.js
+          node --check app/static/cashier_live_ui.js
+          node --check app/static/unpaid_orders_ui.js
+      - run: node --test tests/skeleton_loading.test.cjs

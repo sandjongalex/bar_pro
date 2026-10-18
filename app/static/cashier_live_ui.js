@@ -43,6 +43,7 @@
     }).filter(Boolean)
   );
   let firstSuccessfulPoll = true;
+  let initialLoadAttempted = false;
   let timer = null;
   let inFlight = false;
 
@@ -170,6 +171,16 @@
   async function poll() {
     if (inFlight || document.hidden || queue.contains(document.activeElement)) return;
     inFlight = true;
+    // Existing SSR order cards stay interactive and visible during live polls.
+    const showSkeleton = !initialLoadAttempted
+      && !queue.querySelector('.cashier-order-link') && !!window.BarProSkeleton;
+    initialLoadAttempted = true;
+    const sections = [payableSection, waitingSection].filter(Boolean);
+    if (showSkeleton) sections.forEach((section) => {
+      section.classList.add('bp-skeleton-loading');
+      section.setAttribute('aria-busy', 'true');
+      section.insertAdjacentHTML('beforeend', window.BarProSkeleton.queue());
+    });
     try {
       const response = await fetch(endpoint, {
         credentials: 'same-origin',
@@ -181,6 +192,13 @@
     } catch (error) {
       // A temporary network error must not interrupt the cashier workflow.
     } finally {
+      if (showSkeleton) sections.forEach((section) => {
+        // On success replaceSection() already swapped the placeholders; on
+        // failure remove only temporary DOM and reveal the original empty text.
+        section.querySelector('[data-skeleton-placeholder]')?.remove();
+        section.classList.remove('bp-skeleton-loading');
+        section.removeAttribute('aria-busy');
+      });
       inFlight = false;
     }
   }

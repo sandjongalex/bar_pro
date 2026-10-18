@@ -23,6 +23,7 @@
   let knownPendingIds = new Set();
   let firstPoll = true;
   let inFlight = false;
+  let initialLoadAttempted = false;
 
   function escapeHtml(value) {
     return String(value ?? '').replace(/[&<>"']/g, (char) => ({
@@ -180,6 +181,16 @@
   async function poll() {
     if (!liveUrl || inFlight || document.hidden) return;
     inFlight = true;
+    // The first request only: the server already rendered cards on nonempty lists.
+    // Keep those real orders visible during every subsequent background refresh.
+    const showSkeleton = !initialLoadAttempted && !grid.querySelector('[data-unpaid-order-id]')
+      && !!window.BarProSkeleton;
+    initialLoadAttempted = true;
+    if (showSkeleton) {
+      grid.innerHTML = window.BarProSkeleton.unpaid();
+      grid.setAttribute('aria-busy', 'true');
+      if (empty) empty.hidden = true;
+    }
     try {
       const response = await fetch(liveUrl, {
         credentials: 'same-origin',
@@ -191,6 +202,15 @@
     } catch (error) {
       if (badge) badge.textContent = '● Reconnexion…';
     } finally {
+      if (showSkeleton) {
+        // apply() replaces the skeleton on success; restore the server-rendered
+        // empty message when the request fails or the user is offline.
+        if (grid.querySelector('[data-skeleton-placeholder]')) {
+          grid.innerHTML = '';
+          if (empty) empty.hidden = false;
+        }
+        grid.removeAttribute('aria-busy');
+      }
       inFlight = false;
     }
   }
