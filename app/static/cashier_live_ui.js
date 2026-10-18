@@ -236,9 +236,9 @@
     if (document.hidden || window.navigator.onLine === false) return;
     inFlight = true;
     const sections = [payableSection, waitingSection].filter(Boolean);
-    const skeleton = !initialLoadAttempted && !queue.querySelector('.cashier-order-link') && !!window.BarProSkeleton;
+    const showSkeleton = !initialLoadAttempted && !queue.querySelector('.cashier-order-link') && !!window.BarProSkeleton;
     initialLoadAttempted = true;
-    if (skeleton) sections.forEach(section => {
+    if (showSkeleton) sections.forEach(section => {
       section.classList.add('bp-skeleton-loading');
       section.setAttribute('aria-busy', 'true');
       section.insertAdjacentHTML('beforeend', window.BarProSkeleton.queue());
@@ -251,7 +251,7 @@
     } catch (_) {
       // Keep the existing queue usable on network failure.
     } finally {
-      if (skeleton) sections.forEach(section => {
+      if (showSkeleton) sections.forEach(section => {
         section.querySelector('[data-skeleton-placeholder]')?.remove();
         section.classList.remove('bp-skeleton-loading');
         section.removeAttribute('aria-busy');
