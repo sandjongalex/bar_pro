@@ -147,3 +147,70 @@ a:focus-visible,button:focus-visible,input:focus-visible { outline:3px solid var
   .stat-card { padding:18px; }
   .login-card { padding:1.3rem; }
 }
+
+
+/* Reusable Liquid Glass surface, opted into by targeted Bootstrap modals only. */
+.modal-content.modal-liquid-glass {
+  --bs-modal-bg: rgba(255,255,255,.45);
+  --bs-modal-color: #172b36;
+  background: rgba(255,255,255,.45);
+  -webkit-backdrop-filter: blur(12px) saturate(180%);
+  backdrop-filter: blur(12px) saturate(180%);
+  color: #172b36;
+  border: 1px solid rgba(255,255,255,.7);
+  border-radius: 26px;
+  box-shadow: 0 24px 72px rgba(13,35,48,.24), inset 0 1px rgba(255,255,255,.65);
+  overflow: hidden;
+}
+.modal-liquid-glass .modal-header,.modal-liquid-glass .modal-footer {
+  border-color: rgba(92,121,133,.18);
+}
+.modal-liquid-glass .modal-header { background: rgba(255,255,255,.28); }
+.modal-liquid-glass .modal-body { overscroll-behavior: contain; }
+.modal-liquid-glass .checkout-form { margin-top: 0; padding-top: 0; border-top: 0; }
+.modal-liquid-glass .exchange-form { padding: 0; }
+.modal-liquid-glass .form-control,
+.modal-liquid-glass .form-select,
+.modal-liquid-glass .input-group-text,
+.modal-liquid-glass .checkout-method,
+.modal-liquid-glass .cashier-method { background-color: rgba(255,255,255,.88); }
+.modal-liquid-glass .checkout-method.active,.modal-liquid-glass .cashier-method.active {
+  background-color: #e7f6f0;
+}
+.modal-liquid-glass .modal-title { color: inherit; }
+.modal-liquid-glass .btn-close { flex: 0 0 auto; }
+@supports not ((-webkit-backdrop-filter: blur(12px)) or (backdrop-filter: blur(12px))) {
+  .modal-content.modal-liquid-glass { background: #f7faf9; }
+}
+[data-bs-theme="dark"] .modal-content.modal-liquid-glass,
+.theme-dark .modal-content.modal-liquid-glass {
+  --bs-modal-bg: rgba(22,34,49,.72); --bs-modal-color: #eef5fb;
+  background: rgba(22,34,49,.72); color: #eef5fb;
+  border-color: rgba(255,255,255,.19);
+  box-shadow: 0 24px 72px rgba(0,0,0,.48), inset 0 1px rgba(255,255,255,.12);
+}
+[data-bs-theme="dark"] .modal-liquid-glass .modal-header,
+.theme-dark .modal-liquid-glass .modal-header { background: rgba(255,255,255,.05); }
+[data-bs-theme="dark"] .modal-liquid-glass .form-control,
+[data-bs-theme="dark"] .modal-liquid-glass .form-select,
+[data-bs-theme="dark"] .modal-liquid-glass .input-group-text,
+[data-bs-theme="dark"] .modal-liquid-glass .checkout-method,
+[data-bs-theme="dark"] .modal-liquid-glass .cashier-method,
+.theme-dark .modal-liquid-glass .form-control,
+.theme-dark .modal-liquid-glass .form-select,
+.theme-dark .modal-liquid-glass .input-group-text,
+.theme-dark .modal-liquid-glass .checkout-method,
+.theme-dark .modal-liquid-glass .cashier-method {
+  background-color: rgba(30,46,62,.93); color: #f6fafc;
+  border-color: rgba(255,255,255,.24);
+}
+@media (max-width: 575.98px) {
+  .modal-content.modal-liquid-glass { border-radius: 20px; }
+  .modal-liquid-glass .modal-header,.modal-liquid-glass .modal-body { padding: 1rem; }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .modal-content.modal-liquid-glass { background: #fff; -webkit-backdrop-filter: none; backdrop-filter: none; }
+  [data-bs-theme="dark"] .modal-content.modal-liquid-glass,
+  .theme-dark .modal-content.modal-liquid-glass { background: #182332; }
+}
+@media (forced-colors: active) { .modal-content.modal-liquid-glass { border: 2px solid CanvasText; } }
