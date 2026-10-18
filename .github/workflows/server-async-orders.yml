@@ -1,0 +1,51 @@
+name: Server async orders
+
+on:
+  pull_request:
+    paths:
+      - 'app/orders.py'
+      - 'app/order_edit_web.py'
+      - 'app/server_order_idempotency.py'
+      - 'app/async_ui.py'
+      - 'app/static/barpro_async.js'
+      - 'app/static/server_async_orders.js'
+      - 'app/static/server_pos_ui.js'
+      - 'app/static/order_edit_ui.js'
+      - 'app/templates/layout.html'
+      - 'app/templates/order_quick.html'
+      - 'tests/*async*'
+      - '.github/workflows/server-async-orders.yml'
+  push:
+    paths:
+      - 'app/orders.py'
+      - 'app/order_edit_web.py'
+      - 'app/server_order_idempotency.py'
+      - 'app/async_ui.py'
+      - 'app/static/barpro_async.js'
+      - 'app/static/server_async_orders.js'
+      - 'app/static/server_pos_ui.js'
+      - 'app/static/order_edit_ui.js'
+      - 'app/templates/layout.html'
+      - 'app/templates/order_quick.html'
+      - 'tests/*async*'
+      - '.github/workflows/server-async-orders.yml'
+
+jobs:
+  server-async-regressions:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: python -m pip install -r requirements.txt
+      - run: |
+          node --check app/static/server_async_orders.js
+          node --check app/static/server_pos_ui.js
+          node --check app/static/order_edit_ui.js
+          node --check app/static/barpro_async.js
+      - run: node --test tests/*.test.cjs
+      - run: python -m pytest -q tests/test_server_async_orders.py tests/test_async_ui_foundation.py tests/test_server_micro_animations.py tests/test_skeleton_loading.py tests/test_order_edit_web.py tests/test_employee_tenant_auth.py tests/test_order_edit_roles.py
