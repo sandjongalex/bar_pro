@@ -172,11 +172,27 @@ def test_handovers_async_double_confirm_cancel_and_stale_custody(env):
     assert _post(client, path, make, _csrf(page)).status_code == 409
     assert _count(CashHandover, bar_id=bar.id) == 1
     assert cash_service.custody(bar.id, assignment.id) == 200
+    # Two concurrent cashier intents may both be prepared against the same custody;
+    # only the first POST may consume funds. A stale second POST must fail.
+    competing = _post(client, path, {
+        "action": "create", "staff_assignment_id": str(assignment.id),
+        "amount": "150", "idempotency_key": "handover-create-rival",
+    }, _csrf(page))
+    assert competing.status_code == 200, competing.text
+    rival_id = competing.json["data"]["handover_id"]
     confirm = {"action": "post", "handover_id": str(hid), "idempotency_key": "handover-post-unique-01"}
     r = _post(client, path, confirm, _csrf(page))
     assert r.status_code == 200, r.text
     assert r.json["data"]["status"] == "POSTED"
     assert _post(client, path, confirm, _csrf(page)).status_code == 409
+    assert _post(client, path, {
+        "action": "post", "handover_id": str(rival_id),
+        "idempotency_key": "handover-post-rival",
+    }, _csrf(page)).status_code == 409
+    assert _post(client, path, {
+        "action": "cancel", "handover_id": str(rival_id),
+        "idempotency_key": "handover-cancel-rival",
+    }, _csrf(page)).status_code == 200
     assert _post(client, path, {"action": "cancel", "handover_id": str(hid),
                                 "idempotency_key": "handover-cancel-too-late"}, _csrf(page)).status_code == 409
     assert cash_service.expected(session) == 250
