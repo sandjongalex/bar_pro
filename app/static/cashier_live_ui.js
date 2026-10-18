@@ -113,9 +113,13 @@
       if (!link && other) link = findLink(other, id);
       const oldActions = link?.nextElementSibling?.matches('[data-order-actions]') ? link.nextElementSibling : null;
       const html = orderMarkup(order, selectedId);
+      // CSRF signatures rotate with time; they must NOT trigger a card rebuild.
+      const actionsSignature = (order.actions_html || '').replace(
+        /name="csrf_token"\\s+value="[^"]*"/g, 'name="csrf_token" value=""'
+      );
       const fingerprint = JSON.stringify([order.reference, order.display_name, order.state,
         order.payment_status, order.amount_due, order.net_sale, order.first_product,
-        order.extra_lines, order.server_name, order.table, order.currency, order.actions_html]);
+        order.extra_lines, order.server_name, order.table, order.currency, actionsSignature]);
       const dirty = isEditing(link) || isEditing(oldActions);
 
       if (!link) {
@@ -141,7 +145,13 @@
           link = nextLink;
           changed = true;
         }
-        if (!dirty) link.dataset.liveFingerprint = fingerprint;
+        if (!dirty) {
+          link.dataset.liveFingerprint = fingerprint;
+          // Renew only the hidden CSRF token on stable cards (no DOM replacement).
+          const token = (order.actions_html || '').match(/name="csrf_token"\\s+value="([^"]+)"/);
+          const input = oldActions?.querySelector('input[name="csrf_token"]');
+          if (token && input) input.value = token[1];
+        }
         link.classList.toggle('active', id === selectedId);
         const actions = link.nextElementSibling?.matches('[data-order-actions]') ? link.nextElementSibling : null;
         if (!dirty && link !== cursor) {
