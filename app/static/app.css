@@ -16,6 +16,35 @@
   --bs-primary-rgb: 15, 92, 77;
 }
 
+
+/* Bootstrap 5.3 color-mode tokens — shared by the entire application. */
+:root[data-bs-theme="dark"] {
+  color-scheme: dark;
+  --page: #121212;
+  --surface: #1d1d1d;
+  --ink: #f4f5f7;
+  --muted: #b8c1c7;
+  --line: #42464b;
+  --brand: #80e2c0;
+  --brand-dark: #a1f4d4;
+  --brand-soft: #193a32;
+  --accent: #ffce69;
+  --danger-soft: #402127;
+  --success-soft: #1b3b2d;
+  --shadow: 0 8px 0 rgba(0,0,0,.18);
+  --bs-body-bg: #121212;
+  --bs-body-color: #f4f5f7;
+  --bs-secondary-color: #b8c1c7;
+  --bs-tertiary-bg: #272727;
+  --bs-secondary-bg: #252525;
+  --bs-border-color: #42464b;
+  --bs-emphasis-color: #fff;
+  --bs-link-color: #9cebd0;
+  --bs-link-hover-color: #c1ffe8;
+  --bs-primary: #80e2c0;
+  --bs-primary-rgb: 128,226,192;
+}
+
 * { box-sizing: border-box; }
 body { color: var(--ink); }
 a { text-decoration: none; }
