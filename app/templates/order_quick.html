@@ -51,7 +51,7 @@
 </section>
 {% endif %}
 
-<form method="post" id="posForm" class="pos-layout mt-4 {% if is_server %}server-pos-layout{% endif %}" {% if is_server %}data-server-async="1"{% endif %}>
+<form method="post" id="posForm" class="pos-layout mt-4 {% if is_server %}server-pos-layout{% endif %}" {% if is_server %}data-server-async="1" data-server-user-id="{{ current_user.id }}"{% endif %}>
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   <input type="hidden" name="action" value="create">
   {% if is_server %}<input type="hidden" name="idempotency_key" value="{{ new_request_key }}">{% endif %}
