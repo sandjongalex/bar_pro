@@ -42,7 +42,7 @@
     </div>
   </div>
 
-  <form method="post" id="suborderForm" class="suborder-layout">
+  <form method="post" id="suborderForm" class="suborder-layout" data-suborder-builder="1">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <section class="suborder-catalog">
       <div class="suborder-toolbar">
@@ -80,6 +80,15 @@
       </div>
     </aside>
   </form>
+  <section class="suborder-catalog mt-3 p-3" data-suborder-follow
+           data-live-url="{{ url_for('suborders_web.order_suborders_data', bar_id=bar.id, order_id=order.id) }}"
+           data-current-order-id="{{ order.id }}" aria-label="Suivi de la commande">
+    <div class="d-flex justify-content-between align-items-center gap-2 mb-2">
+      <strong>Suivi des sous-commandes</strong><small class="text-secondary" data-suborder-live-status role="status">Actualisation automatique</small>
+    </div>
+    <div data-suborder-follow-items></div>
+    <p class="small text-secondary mb-0" data-suborder-follow-empty>Aucune sous-commande pour le moment.</p>
+  </section>
 </div>
 
 <div class="suborder-mobile-total">
@@ -160,8 +169,12 @@
   mobileSubmit?.addEventListener('click', () => { if(cart.size) document.getElementById('suborderForm').requestSubmit(); });
   document.getElementById('suborderForm')?.addEventListener('submit', event => {
     if(!cart.size){ event.preventDefault(); return; }
-    submit.disabled = true; mobileSubmit.disabled = true;
+    if (!window.BarProAsync) { submit.disabled = true; mobileSubmit.disabled = true; }
   });
+  window.BarProSuborderCart = {
+    reset() { cart.clear(); document.getElementById('suborderNote').value = ''; render(); },
+    hasItems() { return cart.size > 0; }
+  };
   render();
 })();
 </script>
