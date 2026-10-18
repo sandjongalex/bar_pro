@@ -1,0 +1,55 @@
+name: Cashier financial operations safety
+
+on:
+  push:
+    branches:
+      - feature/async-cash-operations
+      - main
+    paths:
+      - 'app/cashier_*_web.py'
+      - 'app/cashier_financial_intents.py'
+      - 'app/cash_services.py'
+      - 'app/payment_services.py'
+      - 'app/order_services.py'
+      - 'app/static/cashier_financial_ui.js'
+      - 'app/templates/cashier_*.html'
+      - 'app/templates/layout.html'
+      - 'tests/test_cashier_financial_async.py'
+      - '.github/workflows/cashier-financial-async.yml'
+  pull_request:
+    paths:
+      - 'app/cashier_*_web.py'
+      - 'app/cashier_financial_intents.py'
+      - 'app/cash_services.py'
+      - 'app/payment_services.py'
+      - 'app/order_services.py'
+      - 'app/static/cashier_financial_ui.js'
+      - 'app/templates/cashier_*.html'
+      - 'app/templates/layout.html'
+      - 'tests/test_cashier_financial_async.py'
+      - '.github/workflows/cashier-financial-async.yml'
+
+jobs:
+  focused:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: python -m pip install -r requirements.txt
+      - run: node --check app/static/cashier_financial_ui.js
+      - run: python -m compileall -q app/cashier_returns_web.py app/cashier_exchanges_web.py app/cashier_handovers_web.py app/cashier_financial_intents.py
+      - run: python -m pytest -q tests/test_cashier_financial_async.py tests/test_cashier_exchanges.py tests/test_cashier_standalone_refunds.py tests/test_finance.py
+  full-regressions:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -r requirements.txt
+      - run: python -m pytest -q

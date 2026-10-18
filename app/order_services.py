@@ -341,15 +341,16 @@ class OrderService:
             disposition = item["disposition"]
             if not line or disposition not in {"RESTOCK", "LOSS"}:
                 raise ValueError("INVALID_RETURN")
-            prior = db.session.scalar(
-                select(func.coalesce(func.sum(OrderReturnLine.quantity), 0))
+            prior = sum(db.session.scalars(
+                select(OrderReturnLine.quantity)
                 .join(OrderReturn, OrderReturn.id == OrderReturnLine.order_return_id)
                 .where(
                     OrderReturnLine.bar_id == bar_id,
                     OrderReturnLine.order_line_id == line.id,
                     OrderReturn.status == "POSTED",
                 )
-            )
+                .with_for_update()
+            ), Decimal("0"))
             if prior + qty > line.quantity:
                 raise ValueError("RETURN_LIMIT_EXCEEDED")
             credit = number(qty * line.unit_sale_price_snapshot)

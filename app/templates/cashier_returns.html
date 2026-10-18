@@ -32,7 +32,7 @@
   </form>
 </section>
 
-<div class="checkout-layout mt-4">
+<div class="checkout-layout mt-4" data-bp-financial-section="return-orders">
   <section class="panel-card checkout-orders-panel">
     <div class="panel-header"><div><p class="eyebrow mb-1">Commandes</p><h2>Commandes soldées récentes</h2></div><span class="badge text-bg-light">{{ orders|length }}</span></div>
     {% if orders %}
@@ -76,8 +76,9 @@
     {% endif %}
 
     {% if can_manage and balance.customer_credit == 0 %}
-    <form method="post" class="p-3 border-top">
+    <form method="post" data-bp-ajax="json" data-bp-financial="returns" class="p-3 border-top">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="idempotency_key" value="{{ new_intent_key() }}">
       <input type="hidden" name="action" value="return_create">
       <input type="hidden" name="order_id" value="{{ selected_order.id }}">
       <h3 class="h5">1. Enregistrer le retour</h3>
@@ -118,6 +119,7 @@
   </aside>
 </div>
 
+<div data-bp-financial-section="return-history">
 {% if selected_order and returns %}
 <section class="panel-card mt-4">
   <div class="panel-header"><div><p class="eyebrow mb-1">Retours enregistrés</p><h2>2. Rembourser le client</h2><p class="small text-muted mb-0">Le remboursement doit être rattaché au paiement d'origine. Pour les espèces, une caisse ouverte est obligatoire.</p></div></div>
@@ -149,8 +151,9 @@
           {% for payment in payments if payment.refundable_amount > 0 %}
             {% set maximum = [item.refund_due, payment.refundable_amount, balance.refundable_overpayment]|min %}
             {% if maximum > 0 %}
-            <form method="post" class="border rounded-3 p-3">
+            <form method="post" data-bp-ajax="json" data-bp-financial="returns" class="border rounded-3 p-3">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="idempotency_key" value="{{ new_intent_key() }}">
               <input type="hidden" name="action" value="refund_return">
               <input type="hidden" name="order_id" value="{{ selected_order.id }}">
               <input type="hidden" name="return_id" value="{{ item.id }}">
@@ -179,6 +182,7 @@
   </div>
 </section>
 {% endif %}
+</div>
 
 <div class="dashboard-definition-note mt-3">
   <strong>Règle comptable :</strong>

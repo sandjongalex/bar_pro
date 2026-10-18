@@ -11,6 +11,8 @@ from flask_login import current_user, login_required
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
+from app.async_ui import wants_async_web_response, web_json_response
+from app.cashier_financial_intents import financial_claim, financial_complete
 from app.cash_services import cash_service
 from app.extensions import db
 from app.models import Bar, CashHandover, CashSession, StaffAssignment, User
@@ -49,6 +51,9 @@ def _message(exc) -> str:
         "HANDOVER_NOT_DRAFT": "Cette remise a déjà été traitée.",
         "POSITIVE_NUMBER_REQUIRED": "Le montant doit être strictement supérieur à zéro.",
         "INVALID_NUMBER": "Le montant saisi est invalide.",
+        "PAYMENT_ALREADY_PROCESSED": "Cette opération a déjà été enregistrée. Actualisez la liste des remises.",
+        "IDEMPOTENCY_CONFLICT": "Cette confirmation a déjà été utilisée avec un autre montant.",
+        "IDEMPOTENCY_KEY_REQUIRED": "Identifiant de confirmation manquant. Rechargez le formulaire.",
     }
     return messages.get(code, "Opération refusée. Vérifiez la serveuse, le montant et l'état de la remise.")
 
@@ -63,6 +68,8 @@ def manage(bar_id: int):
 
     session = _open_session(bar_id)
     if session is None:
+        if wants_async_web_response():
+            return web_json_response(error="CASH_SESSION_NOT_OPEN", message=_message(ValueError("CASH_SESSION_NOT_OPEN")), status=409)
         flash("Ouvrez d'abord une session de caisse avant de recevoir une remise de serveuse.", "info")
         return redirect(url_for("cashier_web.session", bar_id=bar_id))
 
@@ -83,6 +90,7 @@ def manage(bar_id: int):
                 )
                 if not staff:
                     raise LookupError("NOT_FOUND")
+                intent = financial_claim(current_user, bar_id, "handover_create", request.form, require_key=wants_async_web_response())
                 handover = cash_service.handover(
                     current_user,
                     bar_id,
@@ -91,11 +99,12 @@ def manage(bar_id: int):
                     _reference(),
                     request.form.get("amount", ""),
                 )
+                financial_complete(intent, action=action, handover_id=handover.id, reference=handover.reference)
                 db.session.commit()
-                flash(
-                    f"Remise {handover.reference} préparée pour {handover.amount:,.0f} {handover.currency}. Comptez les espèces puis confirmez la réception.",
-                    "success",
-                )
+                message = f"Remise {handover.reference} préparée pour {handover.amount:,.0f} {handover.currency}. Comptez les espèces puis confirmez la réception."
+                if wants_async_web_response():
+                    return web_json_response(data={"action": action, "handover_id": handover.id, "status": handover.status}, message=message)
+                flash(message, "success")
 
             elif action in {"post", "cancel"}:
                 handover_id = request.form.get("handover_id", type=int)
@@ -109,29 +118,36 @@ def manage(bar_id: int):
                 )
                 if not handover:
                     raise ValueError("HANDOVER_NOT_DRAFT")
+                intent = financial_claim(current_user, bar_id, "handover_" + action, request.form, require_key=wants_async_web_response())
                 cash_service.transition_handover(
                     current_user,
                     bar_id,
                     handover.id,
                     cancel=action == "cancel",
                 )
+                financial_complete(intent, action=action, handover_id=handover.id, status=handover.status)
                 db.session.commit()
-                if action == "post":
-                    flash(
-                        f"Réception confirmée : {handover.amount:,.0f} {handover.currency} ont été transférés dans la caisse.",
-                        "success",
-                    )
-                else:
-                    flash("Remise annulée sans mouvement d'espèces.", "info")
+                message = (
+                    f"Réception confirmée : {handover.amount:,.0f} {handover.currency} ont été transférés dans la caisse."
+                    if action == "post" else "Remise annulée sans mouvement d'espèces."
+                )
+                if wants_async_web_response():
+                    return web_json_response(data={"action": action, "handover_id": handover.id, "status": handover.status}, message=message)
+                flash(message, "success" if action == "post" else "info")
             else:
                 raise ValueError("INVALID_ACTION")
 
         except (PermissionError, LookupError, ValueError, TypeError, IntegrityError) as exc:
             db.session.rollback()
-            if isinstance(exc, IntegrityError):
-                flash("Une référence identique existe déjà. Réessayez.", "danger")
-            else:
-                flash(_message(exc), "danger")
+            message = ("Cette opération a déjà été enregistrée. Vérifiez les remises."
+                       if isinstance(exc, IntegrityError) else _message(exc))
+            if wants_async_web_response():
+                code = str(exc)
+                status = 403 if isinstance(exc, PermissionError) else 404 if isinstance(exc, LookupError) else 409 if (
+                    isinstance(exc, IntegrityError) or code in {"HANDOVER_NOT_DRAFT", "PAYMENT_ALREADY_PROCESSED", "IDEMPOTENCY_CONFLICT", "INSUFFICIENT_STAFF_CASH", "CASH_SESSION_NOT_OPEN"}
+                ) else 422
+                return web_json_response(error=code if not isinstance(exc, IntegrityError) else "IDEMPOTENCY_CONFLICT", message=message, status=status)
+            flash(message, "danger")
         return redirect(url_for("cashier_handovers_web.manage", bar_id=bar_id))
 
     assignments = list(
@@ -196,6 +212,7 @@ def manage(bar_id: int):
         posted_total=sum((Decimal(item.amount) for item in posted), Decimal("0")),
         name_by_assignment=name_by_assignment,
         user_name_by_id=users,
+        new_intent_key=lambda: secrets.token_urlsafe(32),
         handover_times={
             item.id: _local_display(item.posted_at or item.cancelled_at or item.created_at, bar.timezone)
             for item in handovers

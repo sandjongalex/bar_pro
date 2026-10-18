@@ -134,7 +134,7 @@ class PaymentService:
         order = db.session.scalar(select(Order).where(Order.id == payment.order_id, Order.bar_id == bar_id).with_for_update())
         if order.status not in {"CONFIRMED", "SERVED"}:
             raise ValueError("ORDER_NOT_REFUNDABLE")
-        refunded = total(Refund, Refund.amount, bar_id=bar_id, payment_id=payment_id)
+        refunded = total(Refund, Refund.amount, locking=True, bar_id=bar_id, payment_id=payment_id)
         if refunded + amount > payment.amount_applied:
             raise ValueError("REFUND_PAYMENT_LIMIT")
         if order_return_id is not None:
@@ -148,10 +148,10 @@ class PaymentService:
             )
             if not returned:
                 raise LookupError("NOT_FOUND")
-            previous = total(Refund, Refund.amount, bar_id=bar_id, order_return_id=order_return_id)
+            previous = total(Refund, Refund.amount, locking=True, bar_id=bar_id, order_return_id=order_return_id)
             if previous + amount > returned.total_amount:
                 raise ValueError("REFUND_RETURN_LIMIT")
-            if amount > order_balance(order)["refundable_overpayment"]:
+            if amount > order_balance(order, locking=True)["refundable_overpayment"]:
                 raise ValueError("REFUND_OVERPAYMENT_LIMIT")
         if payment.method == "CASH":
             if (cash_session_id is None) == (staff_assignment_id is None):
