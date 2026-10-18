@@ -49,7 +49,7 @@ test('dedicated server history uses URL filters, ETag 304 and keeps unchanged ca
     addEventListener(name, callback) {handlers['document:' + name] = callback;},
   };
   const window = {
-    location:{href:'https://bar.example/bars/1/orders/mine'},
+    location:{href:'https://bar.example/bars/1/orders/mine',origin:'https://bar.example',pathname:'/bars/1/orders/mine'},
     history:{pushState(_state,_title,url) {window.location.href=url;}},
     scrollX:0,scrollY:0,scrollTo(){},setInterval(){},
     addEventListener(name,callback){windowHandlers[name]=callback;},
