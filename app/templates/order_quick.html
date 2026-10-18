@@ -168,7 +168,7 @@
       {% elif order.status == 'CONFIRMED' %}{% set server_state = 'to_pay' %}
       {% elif order.status == 'CANCELLED' %}{% set server_state = 'cancelled' %}
       {% else %}{% set server_state = 'other' %}{% endif %}
-      <article class="server-order-card server-order-card-{{ server_state }}" data-server-order-card data-order-state="{{ server_state }}">
+      <article class="server-order-card server-order-card-{{ server_state }}" data-server-order-card data-server-order-id="{{ order.id }}" data-order-state="{{ server_state }}">
         <div class="server-order-card-head">
           <div class="server-order-location">
             <small>Facture</small>
