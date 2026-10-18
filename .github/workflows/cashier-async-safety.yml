@@ -4,6 +4,17 @@ on:
   push:
     paths:
       - 'app/cashier_workspace_web.py'
+      - 'app/cashier_invoices_web.py'
+      - 'app/unpaid_orders_web.py'
+      - 'app/static/cashier_invoices_ui.js'
+      - 'app/static/unpaid_orders_ui.js'
+      - 'app/templates/cashier_invoices.html'
+      - 'app/templates/cashier_invoices_v2.html'
+      - 'app/templates/cashier_invoices_results.html'
+      - 'app/templates/unpaid_orders.html'
+      - 'tests/test_cashier_invoices_ui.py'
+      - 'tests/test_async_invoices_unpaid.py'
+      - 'tests/async_invoice_unpaid_ui.test.cjs'
       - 'app/checkout_web.py'
       - 'app/cashier_payment_idempotency.py'
       - 'app/live_orders_web.py'
@@ -20,6 +31,17 @@ on:
   pull_request:
     paths:
       - 'app/cashier_workspace_web.py'
+      - 'app/cashier_invoices_web.py'
+      - 'app/unpaid_orders_web.py'
+      - 'app/static/cashier_invoices_ui.js'
+      - 'app/static/unpaid_orders_ui.js'
+      - 'app/templates/cashier_invoices.html'
+      - 'app/templates/cashier_invoices_v2.html'
+      - 'app/templates/cashier_invoices_results.html'
+      - 'app/templates/unpaid_orders.html'
+      - 'tests/test_cashier_invoices_ui.py'
+      - 'tests/test_async_invoices_unpaid.py'
+      - 'tests/async_invoice_unpaid_ui.test.cjs'
       - 'app/checkout_web.py'
       - 'app/cashier_payment_idempotency.py'
       - 'app/live_orders_web.py'
@@ -57,10 +79,15 @@ jobs:
           tests/test_cash_payment_presented.py
           tests/test_checkout_queue.py
           tests/test_server_async_orders.py
+          tests/test_cashier_invoices_ui.py
+          tests/test_async_invoices_unpaid.py
+          tests/test_unpaid_orders_web.py
       - name: Client-side syntax
         run: |
           node --check app/static/cashier_live_ui.js
           node --check app/static/cash_payment_ui.js
           node --check app/static/barpro_async.js
+          node --check app/static/cashier_invoices_ui.js
+          node --check app/static/unpaid_orders_ui.js
       - name: Network and async UI regressions
-        run: node --test tests/barpro_async.test.cjs tests/server_async_orders.test.cjs
+        run: node --test tests/barpro_async.test.cjs tests/server_async_orders.test.cjs tests/async_invoice_unpaid_ui.test.cjs
