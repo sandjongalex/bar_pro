@@ -140,5 +140,12 @@
     if (key) void recover(key, { clearCart: key === pendingKey() });
   });
   const previousKey = recalledKey();
-  if (previousKey) void recover(previousKey, { clearCart: previousKey === pendingKey() });
+  if (previousKey) {
+    // A page refresh must not silently mint a different intent for an uncertain
+    // POST. Restore the same token before allowing the user to re-enter a cart.
+    const input = pos.querySelector('[name="idempotency_key"]');
+    if (input) input.value = previousKey;
+    api.notify('Une commande précédente est à vérifier avant tout nouvel envoi.', 'info');
+    void recover(previousKey, { clearCart: true });
+  }
 })();
