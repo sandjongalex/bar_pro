@@ -1,0 +1,92 @@
+<div id="serverMineResults" data-server-mine-results>
+  <div class="server-orders-grid" data-server-mine-grid>
+    {% for order in orders %}
+    {% set lines = lines_by_order.get(order.id, []) %}
+    {% set balance = balances_by_order.get(order.id, {}) %}
+    {% if order.status == 'CANCELLED' %}{% set state = 'cancelled' %}
+    {% elif order.payment_status == 'PAID' %}{% set state = 'paid' %}
+    {% elif order.status == 'DRAFT' %}{% set state = 'waiting' %}
+    {% elif order.status in ['CONFIRMED', 'SERVED'] %}{% set state = 'to_pay' %}
+    {% else %}{% set state = 'other' %}{% endif %}
+    <article class="server-order-card server-order-card-{{ state }}" data-server-order-card data-server-order-id="{{ order.id }}" data-bp-key="{{ order.id }}" data-order-state="{{ state }}">
+      <div class="server-order-card-head">
+        <div class="server-order-location">
+          <small>Facture</small>
+          <strong>{{ order.customer_name_snapshot or order.table_label_snapshot or 'COMPTOIR' }}</strong>
+          <small class="server-order-table-caption">Table : {{ order.table_label_snapshot or 'Sans table' }}</small>
+        </div>
+        <div class="server-order-amount">{{ "{:,.0f}".format(balance.net_sale or order.total_amount) }} <small>{{ order.currency }}</small></div>
+      </div>
+      <div class="server-order-status-row">
+        {% if state == 'waiting' %}<span class="server-order-state waiting">● En attente de la caisse</span>
+        {% elif state == 'to_pay' %}<span class="server-order-state to-pay">✓ Livrée · à payer</span>
+        {% elif state == 'paid' %}<span class="server-order-state paid">✓ Payée</span>
+        {% elif state == 'cancelled' %}<span class="server-order-state cancelled">Annulée</span>
+        {% else %}<span class="server-order-state">{{ order.status }}</span>{% endif %}
+        <small class="server-order-reference">{{ order.reference }}</small>
+      </div>
+      {% if state == 'to_pay' and order.payment_status == 'PARTIAL' %}
+      <div class="server-mine-due">Paiement partiel · Reste : <strong>{{ "{:,.0f}".format(balance.amount_due) }} {{ order.currency }}</strong></div>
+      {% endif %}
+      <div class="server-order-products">
+        {% for line in lines[:4] %}
+        <div><strong>{{ line.quantity }}×</strong><span>{{ line.product_name_snapshot }}</span></div>
+        {% endfor %}
+        {% if lines|length > 4 %}<small>+ {{ lines|length - 4 }} autre{{ 's' if lines|length - 4 > 1 else '' }} article{{ 's' if lines|length - 4 > 1 else '' }}</small>{% endif %}
+      </div>
+      {% if order.notes %}<div class="server-order-note"><span>Note</span><p>{{ order.notes }}</p></div>{% endif %}
+      <div class="server-order-footer">
+        <small>{{ order.created_at.strftime('%d/%m/%Y %H:%M') if order.created_at else '' }}</small>
+        <div class="server-order-actions">
+          <a class="btn btn-sm btn-light border" href="{{ url_for('orders_web.detail', bar_id=bar.id, order_id=order.id) }}">Détails</a>
+          {% if state in ['waiting', 'to_pay'] and order.payment_status != 'PAID' %}
+          <a class="btn btn-sm btn-outline-primary" href="{{ url_for('suborders_web.new_suborder', bar_id=bar.id, order_id=order.id) }}">＋ Ajouter</a>
+          {% endif %}
+        </div>
+      </div>
+      {% if can_edit and order.status in ['DRAFT', 'CONFIRMED'] and order.payment_status != 'PAID' %}
+      <div class="server-mine-card-tools">
+        <details class="server-mine-action">
+          <summary>＋ Note à la caisse</summary>
+          <form method="post" action="{{ url_for('orders_web.quick', bar_id=bar.id) }}" data-bp-ajax="json">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="action" value="note">
+            <input type="hidden" name="order_id" value="{{ order.id }}">
+            <input type="hidden" name="return_to" value="mine">
+            <label class="form-label" for="mineNote{{ order.id }}">Message à la caisse</label>
+            <textarea class="form-control" id="mineNote{{ order.id }}" name="note" maxlength="220" rows="2" required></textarea>
+            <button class="btn btn-sm btn-primary" type="submit">Envoyer la note</button>
+          </form>
+        </details>
+        {% if order.status == 'DRAFT' and order.payment_status == 'UNPAID' %}
+        <details class="server-mine-action">
+          <summary class="text-danger">Annuler la commande</summary>
+          <form method="post" action="{{ url_for('orders_web.quick', bar_id=bar.id) }}" data-bp-ajax="json" data-confirm-cancel="1">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="action" value="cancel">
+            <input type="hidden" name="order_id" value="{{ order.id }}">
+            <input type="hidden" name="return_to" value="mine">
+            <label class="form-label" for="mineCancel{{ order.id }}">Motif obligatoire</label>
+            <textarea class="form-control" id="mineCancel{{ order.id }}" name="reason" maxlength="500" rows="2" required></textarea>
+            <button class="btn btn-sm btn-danger" type="submit">Confirmer l'annulation</button>
+          </form>
+        </details>
+        {% endif %}
+      </div>
+      {% endif %}
+    </article>
+    {% endfor %}
+  </div>
+  {% if not orders %}
+  <div class="server-mine-empty" data-server-mine-empty>
+    <strong>Aucune commande dans ce filtre.</strong>
+    <p>Choisissez un autre statut ou créez une nouvelle commande.</p>
+    <a class="btn btn-primary btn-sm" href="{{ url_for('orders_web.quick', bar_id=bar.id) }}">＋ Nouvelle commande</a>
+  </div>
+  {% endif %}
+  <nav class="server-mine-pagination" aria-label="Pages des commandes" data-server-mine-pagination>
+    <a class="btn btn-sm btn-light border {% if page <= 1 %}disabled{% endif %}" {% if page <= 1 %}aria-disabled="true"{% else %}href="{{ url_for('orders_web.mine', bar_id=bar.id, filter=selected_filter, page=page-1) }}"{% endif %}>← Précédent</a>
+    <span>Page {{ page }} sur {{ pages }}</span>
+    <a class="btn btn-sm btn-light border {% if page >= pages %}disabled{% endif %}" {% if page >= pages %}aria-disabled="true"{% else %}href="{{ url_for('orders_web.mine', bar_id=bar.id, filter=selected_filter, page=page+1) }}"{% endif %}>Suivant →</a>
+  </nav>
+</div>
