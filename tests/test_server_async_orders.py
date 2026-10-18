@@ -152,6 +152,7 @@ def test_other_waitress_cannot_read_update_or_note_original_order(env):
     # The legacy env fixture holds one Flask app_context throughout the test.
     # Flush flask-login's cached user from g when switching test_client identity.
     g.pop("_login_user", None)
+    g.pop("csrf_token", None)
     page = another_client.get(f"/bars/{bar.id}/orders/new")
     other_csrf = re.search(r'name="csrf_token" value="([^"]+)"', page.text)
     assert other_csrf is not None
