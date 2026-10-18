@@ -47,7 +47,15 @@ class CustomerService:
         record(actor, bar_id, "customers.activate" if active else "customers.deactivate", "customers", item.id, item.display_name)
         return item
 
-    def debt(self, bar_id, customer_id):
+    def debt(self, bar_id, customer_id, *, locking=False):
+        if locking:
+            # Read committed entries after the customer's row lock, not an old
+            # MySQL REPEATABLE READ snapshot during two concurrent settlements.
+            values = db.session.scalars(select(CustomerLedgerEntry.amount_delta).where(
+                CustomerLedgerEntry.bar_id == bar_id,
+                CustomerLedgerEntry.customer_id == customer_id,
+            ).with_for_update())
+            return sum((Decimal(x or 0) for x in values), Decimal("0"))
         value = db.session.scalar(
             select(func.coalesce(func.sum(CustomerLedgerEntry.amount_delta), 0)).where(
                 CustomerLedgerEntry.bar_id == bar_id,
@@ -56,14 +64,16 @@ class CustomerService:
         )
         return Decimal(value or 0)
 
-    def case_balance(self, bar_id, customer_id, product_id=None):
-        query = select(func.coalesce(func.sum(CustomerCaseEntry.quantity_delta), 0)).where(
+    def case_balance(self, bar_id, customer_id, product_id=None, *, locking=False):
+        query = select(CustomerCaseEntry.quantity_delta).where(
             CustomerCaseEntry.bar_id == bar_id,
             CustomerCaseEntry.customer_id == customer_id,
         )
         if product_id is not None:
             query = query.where(CustomerCaseEntry.product_id == product_id)
-        return int(db.session.scalar(query) or 0)
+        if locking:
+            return sum((int(x or 0) for x in db.session.scalars(query.with_for_update())), 0)
+        return sum((int(x or 0) for x in db.session.scalars(query)), 0)
 
     def credit_order(self, actor, bar_id, order_id, customer_id, reference):
         permissions.require(actor, "customer_credit.manage", bar_id)
@@ -125,12 +135,12 @@ class CustomerService:
     def record_payment(self, actor, bar_id, customer_id, reference, amount, method, reason="", cash_session_id=None, provider_code=None, provider_transaction_id=None):
         permissions.require(actor, "customer_credit.manage", bar_id)
         customer = db.session.scalar(
-            select(Customer).where(Customer.id == customer_id, Customer.bar_id == bar_id, Customer.is_active.is_(True))
+            select(Customer).where(Customer.id == customer_id, Customer.bar_id == bar_id, Customer.is_active.is_(True)).with_for_update()
         )
         if not customer:
             raise LookupError("NOT_FOUND")
         amount = number(amount, positive=True)
-        debt = self.debt(bar_id, customer_id)
+        debt = self.debt(bar_id, customer_id, locking=True)
         if amount > debt:
             raise ValueError("CUSTOMER_PAYMENT_LIMIT")
         if method not in {"CASH", "MOBILE_MONEY", "CARD", "BANK_TRANSFER"}:
@@ -223,7 +233,7 @@ class CustomerService:
     def record_case(self, actor, bar_id, customer_id, product_id, quantity, direction, reason, order_id=None):
         permissions.require(actor, "cases.manage", bar_id)
         customer = db.session.scalar(
-            select(Customer).where(Customer.id == customer_id, Customer.bar_id == bar_id, Customer.is_active.is_(True))
+            select(Customer).where(Customer.id == customer_id, Customer.bar_id == bar_id, Customer.is_active.is_(True)).with_for_update()
         )
         product = db.session.scalar(
             select(Product).where(Product.id == product_id, Product.bar_id == bar_id, Product.is_active.is_(True))
@@ -240,7 +250,7 @@ class CustomerService:
             delta = qty
         elif direction == "RETURN":
             delta = -qty
-            if qty > self.case_balance(bar_id, customer_id, product_id):
+            if qty > self.case_balance(bar_id, customer_id, product_id, locking=True):
                 raise ValueError("CASE_RETURN_LIMIT")
         else:
             raise ValueError("INVALID_CASE_DIRECTION")
