@@ -312,6 +312,11 @@
       event.preventDefault();
       staffSelect.dispatchEvent(new Event('change', { bubbles: true }));
     });
+    staffSelect.form?.querySelector('a[href]')?.addEventListener('click', event => {
+      event.preventDefault();
+      staffSelect.value = 'all';
+      staffSelect.dispatchEvent(new Event('change', { bubbles: true }));
+    });
     window.addEventListener('popstate', () => {
       const value = new URL(window.location.href).searchParams.get('staff') || 'all';
       staffFilter = Array.from(staffSelect.options).some(option => option.value === value) ? value : 'all';
