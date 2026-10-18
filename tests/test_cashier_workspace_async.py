@@ -63,6 +63,8 @@ def test_counter_sale_async_returns_refresh_target_and_same_reference_prevents_d
     assert _login(client, cashier.email).status_code == 302
     url = f"/bars/{bar.id}/cashier/workspace"
     page = client.get(url + "?sale=1")
+    assert 'id="quickSaleForm" data-bp-ajax="json" data-cashier-async="1"' in page.text
+    assert 'name="reference" value="CMD-' in page.text
     token = _csrf(page)
     reference = "CMD-ASYNC-COUNTER-001"
     data = {
@@ -110,6 +112,7 @@ def test_delivery_async_returns_json_without_redirect_and_keeps_order_transition
     assert _login(client, cashier.email).status_code == 302
     url = f"/bars/{bar.id}/cashier/workspace"
     page = client.get(url)
+    assert 'data-bp-ajax="json" data-cashier-async="1"' in page.text
     token = _csrf(page)
     response = client.post(
         url,
@@ -140,6 +143,8 @@ def test_partial_cash_payment_async_uses_stable_reference_and_prevents_duplicate
     assert _login(client, cashier.email).status_code == 302
     url = f"/bars/{bar.id}/cashier/workspace"
     page = client.get(f"{url}?order_id={order.id}")
+    assert 'id="cashierPaymentForm" data-bp-ajax="json" data-cashier-async="1"' in page.text
+    assert 'name="reference" value="PAY-' in page.text
     token = _csrf(page)
     reference = "PAY-ASYNC-PARTIAL-001"
     data = {
