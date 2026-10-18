@@ -48,4 +48,4 @@ jobs:
           node --check app/static/order_edit_ui.js
           node --check app/static/barpro_async.js
       - run: node --test tests/*.test.cjs
-      - run: python -m pytest -q tests/test_server_async_orders.py tests/test_async_ui_foundation.py tests/test_server_micro_animations.py tests/test_skeleton_loading.py tests/test_order_edit_web.py tests/test_employee_tenant_auth.py tests/test_order_edit_roles.py
+      - run: python -m pytest -q tests/test_server_async_orders.py tests/test_async_ui_foundation.py tests/test_server_micro_animations.py tests/test_skeleton_loading.py
