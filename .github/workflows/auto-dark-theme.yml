@@ -1,0 +1,39 @@
+name: Automatic dark theme UI
+
+on:
+  pull_request:
+    paths:
+      - 'app/static/app.css'
+      - 'app/static/dark_theme.css'
+      - 'app/static/theme.js'
+      - 'app/templates/layout.html'
+      - 'app/templates/login.html'
+      - 'tests/test_auto_dark_theme.py'
+      - 'tests/theme.test.cjs'
+      - '.github/workflows/auto-dark-theme.yml'
+  push:
+    paths:
+      - 'app/static/app.css'
+      - 'app/static/dark_theme.css'
+      - 'app/static/theme.js'
+      - 'app/templates/layout.html'
+      - 'app/templates/login.html'
+      - 'tests/test_auto_dark_theme.py'
+      - 'tests/theme.test.cjs'
+      - '.github/workflows/auto-dark-theme.yml'
+
+jobs:
+  theme-regression:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -r requirements.txt
+      - run: python -m pytest -q tests/test_auto_dark_theme.py tests/test_liquid_glass_modals.py tests/test_auth.py
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: node --check app/static/theme.js
+      - run: node --test tests/theme.test.cjs
