@@ -29,6 +29,7 @@
   let initialLoadAttempted = false;
   let mergeConflict = '';
   const etags = new Map();
+  let renderedKey = null;
 
   function escapeHtml(value) {
     return String(value ?? '').replace(/[&<>"']/g, (char) => ({
@@ -246,7 +247,7 @@
     url.searchParams.set('staff', staffFilter);
     const key = url.href;
     const headers = { Accept: 'application/json' };
-    if (etags.has(key)) headers['If-None-Match'] = etags.get(key);
+    if (renderedKey === key && etags.has(key)) headers['If-None-Match'] = etags.get(key);
 
     // Skeleton only for the first load when the server has no rendered cards.
     const showSkeleton = !initialLoadAttempted && !grid.querySelector('[data-unpaid-order-id]')
@@ -270,6 +271,7 @@
       const payload = await response.json();
       if (generation !== requestGeneration) return;
       apply(payload);
+      renderedKey = key;
       const tag = response.headers.get('ETag');
       if (tag) etags.set(key, tag);
       if (badge && badge.textContent === '● Reconnexion…') badge.textContent = '● Mise à jour auto';
