@@ -87,3 +87,61 @@ jobs:
               assert conn.execute(text("SELECT COUNT(*) FROM bar_governance")).scalar() == 0
               assert conn.execute(text("SELECT COUNT(*) FROM owner_governance")).scalar() == 0
           PY
+
+      - name: SaaS governance smoke with real ephemeral MySQL transactions
+        env:
+          SECRET_KEY: ephemeral-ci-key-do-not-use-in-prod
+          SQLALCHEMY_DATABASE_URI: mysql+pymysql://root:ephemeral-ci-only@127.0.0.1:3306/barpro_saas_ci?charset=utf8mb4
+          FLASK_CONFIG: development
+        run: |
+          python - <<'PY'
+          from sqlalchemy import select, func
+          from wsgi import application
+          from app.extensions import db
+          from app.models import Bar, User, AuditLog
+          from app.permissions import permissions
+          from app.saas_governance import change_bar_governance, change_owner_governance, suspension_level
+          from app.saas_governance_models import BarGovernance, OwnerGovernance
+
+          with application.app_context():
+              admin = User(email="ci-admin@example.invalid", display_name="CI Admin", category="SUPER_ADMIN")
+              owner = User(email="ci-owner@example.invalid", display_name="CI Owner", category="OWNER")
+              outsider = User(email="ci-foreign@example.invalid", display_name="Foreign Owner", category="OWNER")
+              for user in (admin, owner, outsider):
+                  user.set_password("ci-password-only")
+              db.session.add_all((admin, owner, outsider))
+              db.session.flush()
+              first = Bar(owner_id=owner.id, name="CI First Bar", timezone="Africa/Douala", currency="XAF")
+              second = Bar(owner_id=outsider.id, name="CI Foreign Bar", timezone="Africa/Douala", currency="XAF")
+              db.session.add_all((first, second))
+              db.session.commit()
+
+              assert permissions.evaluate(owner, "orders.read", first.id).allowed
+              assert not permissions.evaluate(owner, "orders.read", second.id).allowed
+              assert not permissions.evaluate(admin, "payments.record", first.id).allowed
+              assert not permissions.evaluate(admin, "shifts.manage", first.id).allowed
+
+              change_bar_governance(admin, first.id, status="SUSPENDED", suspension_level=1, reason="MySQL CI read-only")
+              db.session.commit()
+              assert permissions.evaluate(owner, "orders.read", first.id).allowed
+              assert not permissions.evaluate(owner, "orders.create", first.id).allowed
+              assert permissions.evaluate(outsider, "orders.create", second.id).allowed
+
+              change_bar_governance(admin, first.id, status="SUSPENDED", suspension_level=2, reason="MySQL CI locked")
+              db.session.commit()
+              db.session.expire_all()
+              assert suspension_level(first.id) == 2
+              assert not permissions.evaluate(owner, "orders.read", first.id).allowed
+              assert permissions.evaluate(owner, "bars.support.read", first.id).allowed
+              assert db.session.get(BarGovernance, first.id).status == "SUSPENDED"
+
+              change_owner_governance(admin, owner.id, status="SUSPENDED", reason="CI owner suspension")
+              db.session.commit()
+              assert not permissions.evaluate(owner, "bars.support.read", first.id).allowed
+              assert db.session.get(OwnerGovernance, owner.id).status == "SUSPENDED"
+              assert db.session.get(Bar, first.id).status == "ACTIVE"
+              assert db.session.get(Bar, second.id).status == "ACTIVE"
+              assert db.session.scalar(select(func.count()).select_from(AuditLog).where(
+                  AuditLog.action == "bars.governance.change", AuditLog.bar_id == first.id)) == 2
+              db.session.rollback()
+          PY
