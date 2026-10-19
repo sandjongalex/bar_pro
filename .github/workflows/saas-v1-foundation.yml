@@ -42,7 +42,7 @@ jobs:
             git push origin HEAD:feature/saas-v1-foundation
           fi
       - name: Targeted SaaS tenant and authorization tests
-        run: python -m pytest -q tests/test_saas_v1_foundation.py tests/test_employee_tenant_auth.py tests/test_owner_multibar_tenant_regression.py tests/test_schema.py
+        run: python -m pytest -q tests/test_saas_v1_foundation.py tests/test_employee_tenant_auth.py tests/test_owner_multibar_tenant_regression.py tests/test_schema.py tests/test_cashier_suborder_edit.py
       - name: Frontend regressions
         run: |
           node --check app/static/barpro_async.js
