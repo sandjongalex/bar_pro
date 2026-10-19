@@ -1,8 +1,4 @@
-"""Add optional due date to manual customer debt ledger rows.
-
-Revision ID: d1e2f3a4b5c6
-Revises: e1f2a3b4c5d6
-"""
+"""Add optional due date to manual customer debt ledger entries."""
 from alembic import op
 import sqlalchemy as sa
 
