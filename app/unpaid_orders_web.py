@@ -8,6 +8,7 @@ import json
 
 from flask import Blueprint, abort, flash, jsonify, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
+from flask_wtf.csrf import generate_csrf
 from sqlalchemy import or_, select
 
 from app.async_ui import wants_async_web_response, web_json_response
@@ -514,4 +515,8 @@ def data(bar_id: int):
     response.set_etag(sha256(response.get_data()).hexdigest())
     response.cache_control.no_store = True
     response.make_conditional(request)
+    # Keep the HTML form's CSRF token fresh during long cashier shifts.
+    # The snapshot ETag still depends ONLY on business data. Also send the
+    # renewed token with 304 responses; never weaken CSRF checks on POST.
+    response.headers["X-BarPro-CSRF"] = generate_csrf()
     return response
