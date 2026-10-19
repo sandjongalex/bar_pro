@@ -13,6 +13,9 @@ import hmac
 
 from app.finance_totals import order_balance
 from app.order_line_views import effective_lines_by_order
+from app.order_suborder_models import OrderSuborder, OrderSuborderLine
+from app.extensions import db
+from sqlalchemy import select
 
 
 def _decimal_text(value) -> str:
@@ -48,7 +51,31 @@ def order_revision(order) -> str:
             ]
         )
 
-    return hashlib.sha256("\x1f".join(parts).encode("utf-8")).hexdigest()
+    # Include every suborder, including cashier-created additions not validated
+    # yet (which do not change the parent amount). This prevents stale edits
+    # from silently overwriting a newer delivery, validation or correction.
+    rounds = list(db.session.scalars(select(OrderSuborder).where(
+        OrderSuborder.bar_id == order.bar_id,
+        OrderSuborder.order_id == order.id,
+    ).order_by(OrderSuborder.id)))
+    for sub in rounds:
+        parts.extend([
+            "suborder", str(sub.id), str(sub.status), str(sub.delivery_status),
+            _decimal_text(sub.total_amount),
+        ])
+    if rounds:
+        for line in db.session.scalars(select(OrderSuborderLine).where(
+            OrderSuborderLine.bar_id == order.bar_id,
+            OrderSuborderLine.order_id == order.id,
+            OrderSuborderLine.order_suborder_id.in_([s.id for s in rounds]),
+        ).order_by(OrderSuborderLine.order_suborder_id,
+                   OrderSuborderLine.line_no, OrderSuborderLine.id)):
+            parts.extend([
+                "round-line", str(line.order_suborder_id), str(line.id),
+                str(line.product_id), _decimal_text(line.quantity),
+                _decimal_text(line.unit_sale_price_snapshot),
+            ])
+    return hashlib.sha256("\\x1f".join(parts).encode("utf-8")).hexdigest()
 
 
 def revision_matches(order, expected_revision: str | None) -> bool:
