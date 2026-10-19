@@ -187,7 +187,7 @@
     orders.forEach((order, index) => {
       const id = String(order.id);
       let node = existing.get(id);
-      const protectedNode = node && (node.contains(focused) ||
+      const protectedNode = node && (node.contains?.(focused) ||
         node.querySelector('form[aria-busy="true"], .modal.show') ||
         node.querySelector('input[type="checkbox"]:checked'));
       if (!node || (node.dataset.unpaidSignature !== order.signature && !protectedNode)) {
@@ -203,7 +203,7 @@
       }
     });
     existing.forEach((node, id) => {
-      if (!nextIds.has(id) && !node.contains(focused) &&
+      if (!nextIds.has(id) && !node.contains?.(focused) &&
           !node.querySelector('form[aria-busy="true"], .modal.show')) node.remove();
     });
     refreshMergeButton();
