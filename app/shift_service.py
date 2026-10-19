@@ -8,6 +8,7 @@ from sqlalchemy import select
 
 from app.extensions import db
 from app.models import Bar, StaffAssignment, utcnow
+from app.permissions import permissions
 from app.shift_models import EmployeeShift
 
 
@@ -90,6 +91,7 @@ def _require_manager(actor, bar: Bar, target: StaffAssignment, *, ending: bool =
 
 
 def start_shift(actor, bar_id: int, assignment_id: int):
+    permissions.require(actor, "shifts.manage", bar_id)
     bar = db.session.get(Bar, bar_id)
     if not bar:
         raise LookupError("NOT_FOUND")
@@ -131,6 +133,7 @@ def start_shift(actor, bar_id: int, assignment_id: int):
 
 
 def end_shift(actor, bar_id: int, assignment_id: int):
+    permissions.require(actor, "shifts.manage", bar_id)
     bar = db.session.get(Bar, bar_id)
     if not bar:
         raise LookupError("NOT_FOUND")

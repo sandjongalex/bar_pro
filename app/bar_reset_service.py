@@ -33,6 +33,7 @@ PRESERVED_BAR_TABLES = frozenset(
         "subscription_payments",
         "api_tokens",
         "token_revocations",
+        "bar_governance",
     }
 )
 
@@ -59,8 +60,8 @@ def _clear_nullable_self_references(table, bar_id: int) -> None:
 def reset_bar(actor, bar_id: int, confirmation: str, password: str) -> dict:
     """Erase one bar's operational history and reset its stock to zero.
 
-    The bar owner may reset only their own bar. A super-admin may reset any bar
-    for platform support. The caller owns the transaction: this function never
+    Only a bar owner may reset their own bar; platform super-admins are barred
+    from destructive commercial mutations. The caller owns the transaction: this function never
     commits, so a rollback leaves the bar unchanged.
     """
     permissions.require(actor, "bars.reset", bar_id)
@@ -70,7 +71,7 @@ def reset_bar(actor, bar_id: int, confirmation: str, password: str) -> dict:
         raise PermissionError("FORBIDDEN")
     if actor.category == "OWNER" and bar.owner_id != actor.id:
         raise PermissionError("FORBIDDEN")
-    if actor.category not in {"OWNER", "SUPER_ADMIN"}:
+    if actor.category != "OWNER":
         raise PermissionError("FORBIDDEN")
 
     if str(confirmation or "").strip().upper() != CONFIRMATION_TEXT:
@@ -86,7 +87,11 @@ def reset_bar(actor, bar_id: int, confirmation: str, password: str) -> dict:
         if "bar_id" not in table.c or table.name in PRESERVED_BAR_TABLES:
             continue
         _clear_nullable_self_references(table, bar_id)
-        result = db.session.execute(table.delete().where(table.c.bar_id == bar_id))
+        # Administrative governance decisions must survive a commercial reset.
+        stmt = table.delete().where(table.c.bar_id == bar_id)
+        if table.name == "audit_logs":
+            stmt = stmt.where(table.c.action != "bars.governance.change")
+        result = db.session.execute(stmt)
         if result.rowcount and result.rowcount > 0:
             deleted[table.name] += result.rowcount
 

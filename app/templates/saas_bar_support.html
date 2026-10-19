@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="fr">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow"><title>Assistance BAR_PRO</title></head>
+<body style="font:16px system-ui,sans-serif;max-width:42rem;margin:5rem auto;padding:1rem">
+<h1>Accès à cet établissement limité</h1>
+<p>Statut administratif : {{ state }}.</p>
+{% if level == 2 %}<p>Les données et opérations sont verrouillées. Contactez l'assistance de BAR_PRO.</p>
+{% elif level == 1 %}<p>Les opérations sont suspendues ; la consultation reste possible.</p>
+{% else %}<p>Votre établissement est accessible.</p>{% endif %}
+<p>Aucune donnée commerciale n'est exposée ici.</p>
+<form method="post" action="/logout"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+<button type="submit">Se déconnecter</button></form>
+</body></html>

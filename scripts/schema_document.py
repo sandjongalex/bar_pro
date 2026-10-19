@@ -22,6 +22,7 @@ from app import inventory_period_models  # noqa: F401
 from app import order_suborder_models  # noqa: F401
 from app import shift_models  # noqa: F401
 from app import change_voucher_models  # noqa: F401
+from app import saas_governance_models  # noqa: F401
 
 
 ROOT = Path(__file__).resolve().parents[1]

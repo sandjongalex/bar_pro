@@ -5,6 +5,7 @@ from sqlalchemy import select
 
 from app.extensions import db
 from app.models import Bar, StaffAssignment
+from app.saas_governance import owner_enabled, suspension_level
 
 
 ROLE_ACTIONS = {
@@ -21,6 +22,10 @@ ROLE_ACTIONS = {
     "cash.operate": {"SUPER_ADMIN", "OWNER", "BAR_ADMIN", "CASHIER"},
     "auth.self.read": {"SUPER_ADMIN", "OWNER", "BAR_ADMIN", "CASHIER", "SERVER"},
     "bars.read": {"SUPER_ADMIN", "OWNER", "BAR_ADMIN", "CASHIER", "SERVER"},
+    "bars.support.read": {"SUPER_ADMIN", "OWNER", "BAR_ADMIN", "CASHIER", "SERVER"},
+    "notifications.acknowledge": {"SUPER_ADMIN", "OWNER", "BAR_ADMIN", "CASHIER", "SERVER"},
+    "bars.governance.manage": {"SUPER_ADMIN"},
+    "shifts.manage": {"SUPER_ADMIN", "OWNER", "CASHIER"},
     "bars.update_settings": {"SUPER_ADMIN", "OWNER"},
     "bars.create": {"SUPER_ADMIN"},
     "bars.reset": {"SUPER_ADMIN", "OWNER"},
@@ -77,11 +82,23 @@ WRITES.update(
     }
 )
 WRITES.add("subscriptions.manage")
+WRITES.add("bars.governance.manage")
+WRITES.add("shifts.manage")
+WRITES.add("notifications.acknowledge")
+
+# The platform can govern tenants but must not alter their commercial data.
+PLATFORM_COMMERCIAL_WRITES = WRITES - {
+    "bars.suspend", "bars.reactivate", "bars.update_settings",
+    "staff.manage", "subscriptions.manage", "bars.governance.manage",
+    "notifications.acknowledge",
+}
+
 
 # Cashiers and servers keep their account/tenant identity while off duty, but
 # operational/sales information becomes unavailable until a shift is active.
 SHIFT_GATED_ACTIONS = {
     "catalog.read",
+    "notifications.acknowledge",
     "customers.read",
     "customers.manage",
     "customer_credit.manage",
@@ -108,7 +125,7 @@ class Decision:
 
 class PermissionService:
     def evaluate(self, actor, action, bar_id=None):
-        if not actor or not actor.is_active:
+        if not owner_enabled(actor):
             return Decision(False, "ACCOUNT_INACTIVE")
         if action not in ROLE_ACTIONS:
             return Decision(False, "UNKNOWN_PERMISSION")
@@ -143,6 +160,13 @@ class PermissionService:
             return Decision(False, "BAR_SUSPENDED")
         if role not in ROLE_ACTIONS[action]:
             return Decision(False, "FORBIDDEN")
+        if role == "SUPER_ADMIN" and action in PLATFORM_COMMERCIAL_WRITES:
+            return Decision(False, "PLATFORM_COMMERCE_FORBIDDEN")
+        level = suspension_level(bar_id)
+        if level == 2 and action not in {"bars.support.read", "bars.governance.manage"}:
+            return Decision(False, "BAR_ADMIN_LOCKED")
+        if level == 1 and action in WRITES and action != "bars.governance.manage":
+            return Decision(False, "BAR_ADMIN_READ_ONLY")
 
         if (
             actor.category == "EMPLOYEE"
@@ -163,7 +187,7 @@ class PermissionService:
             if not active_shift:
                 return Decision(False, "OFF_DUTY")
 
-        if bar.status == "SUSPENDED" and action in WRITES and action not in {"bars.reactivate"}:
+        if bar.status == "SUSPENDED" and action in WRITES and action not in {"bars.reactivate", "bars.governance.manage"}:
             return Decision(False, "BAR_SUSPENDED")
         return Decision(True, "ALLOWED")
 

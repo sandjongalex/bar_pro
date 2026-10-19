@@ -22,7 +22,7 @@ def test_initial_migration_creates_every_model_table(tmp_path):
     with app.app_context():
         actual = set(inspect(db.engine).get_table_names())
         assert set(db.metadata.tables).issubset(actual)
-        assert len(db.metadata.tables) == 45  # includes newer customer, shift and voucher models
+        assert len(db.metadata.tables) == 47  # includes separate bar and owner governance models
 
 
 def test_initial_downgrade_refuses_destructive_data_loss(tmp_path):

@@ -59,6 +59,7 @@ def create_app(config_name: str | None = None, test_config: dict[str, Any] | Non
     from app import order_suborder_models  # noqa: F401 - cashier sub-orders and validation metadata
     from app import shift_models  # noqa: F401 - employee attendance/on-duty metadata
     from app import change_voucher_models  # noqa: F401 - customer change-voucher liability metadata
+    from app import saas_governance_models  # noqa: F401 - administrative statuses
     _register_blueprints(app)
     from app.pwa import bp as pwa_bp
     app.register_blueprint(pwa_bp)
@@ -153,6 +154,9 @@ def _register_blueprints(app: Flask) -> None:
     app.register_blueprint(orders_bp)
     app.register_blueprint(orders_web_bp)
     app.register_blueprint(suborders_web_bp)
+    from app.saas_governance_web import bp as saas_web_bp, api_bp as saas_api_bp
+    app.register_blueprint(saas_web_bp)
+    app.register_blueprint(saas_api_bp)
 
     for blueprint in (
         api_bars_bp,
@@ -166,6 +170,7 @@ def _register_blueprints(app: Flask) -> None:
         finance_bp,
         reports_bp,
         subscriptions_bp,
+        saas_api_bp,
     ):
         csrf.exempt(blueprint)
 
@@ -176,6 +181,7 @@ def _register_blueprints(app: Flask) -> None:
         from app.employee_context import get_current_employee_context
         from app.models import Bar
         from app.permissions import permissions
+        from app.saas_governance import suspension_level
         from app.shift_service import get_active_shift_for_assignment
 
         if request.path.startswith("/api/") and request.is_json:
@@ -201,12 +207,26 @@ def _register_blueprints(app: Flask) -> None:
                         return redirect(url_for("web.dashboard"))
                     abort(404)
 
-            if not permissions.evaluate(current_user, "bars.read", bar_id).allowed:
+            level = suspension_level(bar_id)
+            support = request.endpoint == "saas_governance_web.bar_support"
+            action = "bars.support.read" if support else "bars.read"
+            if not permissions.evaluate(current_user, action, bar_id).allowed:
                 abort(404)
+            if level == 2 and not support:
+                abort(403)
+            if level == 1 and request.method not in {"GET", "HEAD", "OPTIONS"}:
+                abort(403)
+            if current_user.category == "SUPER_ADMIN" and request.method not in {"GET", "HEAD", "OPTIONS"}:
+                # Defense in depth: a new commerce endpoint cannot silently
+                # bypass a missing fine-grained service permission.
+                # Only tenant staff administration is a permitted platform
+                # write here. Operational shifts are never platform actions.
+                if request.endpoint != "staff_web.manage":
+                    abort(403)
 
             # A cashier/server may keep a valid account while off duty, but no
             # operational bar page is available until a supervisor opens a shift.
-            if context is not None and request.endpoint != "shifts_web.manage":
+            if context is not None and request.endpoint not in {"shifts_web.manage", "saas_governance_web.bar_support"}:
                 if context.role in {"CASHIER", "SERVER"}:
                     active_shift = get_active_shift_for_assignment(bar_id, context.assignment.id)
                     if not active_shift:
