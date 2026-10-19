@@ -7,7 +7,7 @@
     <a class="bar-back" href="{{ url_for('bars.web_detail', bar_id=bar.id) }}">← Retour à {{ bar.name }}</a>
     <p class="eyebrow mt-3 mb-2">Comptes clients</p>
     <h1>Clients, crédits & casiers</h1>
-    <p>Suivez les ventes à crédit, les règlements clients et les casiers confiés, sans mélanger ces opérations avec la caisse de vente.</p>
+    <p>Suivez les dettes manuelles indépendamment du stock et de la caisse, ainsi que les ventes à crédit et les casiers.</p>
   </div>
   <div class="d-flex gap-2 flex-wrap">
     {% if can_manage %}<button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#customerModal">＋ Nouveau client</button>{% endif %}
@@ -33,7 +33,7 @@
 <section class="customer-stats mt-4">
   <article><span>Clients actifs</span><strong>{{ stats.customers }}</strong><small>Comptes disponibles</small></article>
   <article><span>Clients débiteurs</span><strong>{{ stats.debtors }}</strong><small>Solde supérieur à zéro</small></article>
-  <article><span>Dette clients</span><strong>{{ "{:,.0f}".format(stats.debt) }} {{ bar.currency }}</strong><small>Créances à recouvrer</small></article>
+  <article><span>Dette clients</span><strong>{{ "{:,.0f}".format(stats.debt) }} {{ bar.currency }}</strong><small>Dont {{ "{:,.0f}".format(stats.manual_debt) }} {{ bar.currency }} de dettes manuelles</small></article>
   <article><span>Casiers dehors</span><strong>{{ stats.cases }}</strong><small>Chez les clients</small></article>
 </section>
 
@@ -47,14 +47,17 @@
         <tbody>
         {% for customer in customers %}
           {% set debt = debt_by_customer.get(customer.id, 0) %}
+          {% set manual_debt = manual_debt_by_customer.get(customer.id, 0) %}
           <tr>
             <td><div class="customer-name"><span>{{ customer.display_name[0]|upper }}</span><strong>{{ customer.display_name }}</strong></div></td>
             <td><small>{{ customer.phone or customer.email or 'Non renseigné' }}</small></td>
-            <td><strong class="{% if debt > 0 %}text-danger{% else %}text-success{% endif %}">{{ "{:,.0f}".format(debt) }} {{ bar.currency }}</strong></td>
+            <td><strong class="{% if debt + manual_debt > 0 %}text-danger{% else %}text-success{% endif %}">{{ "{:,.0f}".format(debt + manual_debt) }} {{ bar.currency }}</strong>{% if manual_debt > 0 %}<small class="d-block text-secondary">Dont manuel : {{ "{:,.0f}".format(manual_debt) }}</small>{% endif %}</td>
             <td><strong>{{ cases_by_customer.get(customer.id, 0) }}</strong></td>
             <td><span class="badge {{ 'text-bg-success' if customer.is_active else 'text-bg-secondary' }}">{{ 'Actif' if customer.is_active else 'Inactif' }}</span></td>
             <td class="text-end">
               <div class="d-flex justify-content-end gap-2 flex-wrap">
+                {% if can_credit and customer.is_active %}<button class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#manualDebtModal{{ customer.id }}">＋ Dette</button>{% endif %}
+                {% if can_credit and customer.is_active and manual_debt > 0 %}<button class="btn btn-sm btn-outline-success" data-bs-toggle="modal" data-bs-target="#manualRepaymentModal{{ customer.id }}">Remb. hors caisse</button>{% endif %}
                 {% if can_credit and customer.is_active and debt > 0 %}<button class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#paymentModal{{ customer.id }}">Règlement</button>{% endif %}
                 {% if can_cases and customer.is_active %}<button class="btn btn-sm btn-light border" data-bs-toggle="modal" data-bs-target="#caseModal{{ customer.id }}">Casiers</button>{% endif %}
                 {% if can_manage %}<form method="post" data-bp-ajax="json" data-bp-secondary="customers"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="idempotency_key" value="{{ new_intent_key() }}"><input type="hidden" name="action" value="{{ 'disable' if customer.is_active else 'enable' }}"><input type="hidden" name="customer_id" value="{{ customer.id }}"><button class="btn btn-sm btn-link" type="submit">{{ 'Désactiver' if customer.is_active else 'Activer' }}</button></form>{% endif %}
@@ -71,7 +74,8 @@
   <aside class="panel-card customer-side">
     <div class="panel-header"><div><p class="eyebrow mb-1">Règles</p><h2>Fonctionnement</h2></div></div>
     <div class="p-4 customer-rules">
-      <div><strong>Crédit</strong><p>Une vente à crédit solde la commande mais crée une dette au nom du client.</p></div>
+      <div><strong>Dette manuelle</strong><p>Saisie et remboursement suivis hors caisse : aucun produit, commande, stock ou chiffre d'affaires n'est modifié.</p></div>
+      <div><strong>Crédit</strong><p>Une vente à crédit solde la commande mais crée une dette distincte de la dette manuelle.</p></div>
       <div><strong>Règlement</strong><p>Le remboursement du client réduit sa dette. Un règlement espèces alimente la session de caisse sélectionnée.</p></div>
       <div><strong>Casiers</strong><p>Une sortie augmente le nombre de casiers dus. Un retour le diminue, sans pouvoir passer sous zéro.</p></div>
     </div>
@@ -81,14 +85,14 @@
 <div class="row g-4 mt-1">
   <div class="col-xl-7">
     <section class="panel-card h-100">
-      <div class="panel-header"><div><p class="eyebrow mb-1">Créances</p><h2>Historique crédit & règlements</h2></div></div>
+      <div class="panel-header"><div><p class="eyebrow mb-1">Créances</p><h2>Historique des dettes & règlements</h2></div></div>
       <div class="table-responsive"><table class="table customer-history mb-0"><thead><tr><th>Client</th><th>Type</th><th>Référence</th><th>Montant</th><th>Date</th><th></th></tr></thead><tbody>
       {% for entry in ledger %}
         {% set customer = customer_by_id.get(entry.customer_id) %}
         <tr>
           <td>{{ customer.display_name if customer else entry.customer_id }}</td>
-          <td>{{ {'CREDIT_SALE':'Vente à crédit','PAYMENT':'Règlement','REVERSAL':'Annulation','ADJUSTMENT':'Ajustement'}.get(entry.entry_kind, entry.entry_kind) }}</td>
-          <td><strong>{{ entry.reference }}</strong></td>
+          <td>{% if entry.entry_kind == 'ADJUSTMENT' %}{{ 'Dette manuelle' if entry.amount_delta > 0 else 'Remb. hors caisse' }}{% else %}{{ {'CREDIT_SALE':'Vente à crédit','PAYMENT':'Règlement','REVERSAL':'Annulation'}.get(entry.entry_kind, entry.entry_kind) }}{% endif %}</td>
+          <td><strong>{{ entry.reference }}</strong>{% if entry.entry_kind == "ADJUSTMENT" %}<small class="d-block text-secondary">{{ entry.reason }}</small>{% endif %}</td>
           <td class="{{ 'text-danger' if entry.amount_delta > 0 else 'text-success' }}"><strong>{{ '+' if entry.amount_delta > 0 else '' }}{{ "{:,.0f}".format(entry.amount_delta) }} {{ entry.currency }}</strong></td>
           <td><small>{{ entry.occurred_at }}</small></td>
           <td class="text-end">{% if can_credit and entry.entry_kind == 'CREDIT_SALE' %}<button class="btn btn-sm btn-link text-danger" data-bs-toggle="modal" data-bs-target="#reverseCredit{{ entry.id }}">Annuler vente</button>{% endif %}</td>
@@ -120,6 +124,7 @@
 
 {% for customer in customers if customer.is_active %}
   {% set debt = debt_by_customer.get(customer.id, 0) %}
+  {% set manual_debt = manual_debt_by_customer.get(customer.id, 0) %}
   {% if can_credit and debt > 0 %}
   <div class="modal fade" id="paymentModal{{ customer.id }}" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content"><form method="post" data-bp-ajax="json" data-bp-secondary="customers">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="idempotency_key" value="{{ new_intent_key() }}"><input type="hidden" name="action" value="payment"><input type="hidden" name="customer_id" value="{{ customer.id }}">
@@ -135,6 +140,38 @@
     </div>
     <div class="modal-footer"><button class="btn btn-light border" type="button" data-bs-dismiss="modal">Annuler</button><button class="btn btn-primary" type="submit">Enregistrer le règlement</button></div>
   </form></div></div></div>
+  {% endif %}
+
+  {% if can_credit %}
+  <div class="modal fade" id="manualDebtModal{{ customer.id }}" tabindex="-1" aria-labelledby="manualDebtTitle{{ customer.id }}"><div class="modal-dialog modal-dialog-centered"><div class="modal-content">
+    <form method="post" data-bp-ajax="json" data-bp-secondary="customers">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="idempotency_key" value="{{ new_intent_key() }}">
+      <input type="hidden" name="action" value="manual_debt"><input type="hidden" name="customer_id" value="{{ customer.id }}">
+      <div class="modal-header"><h2 class="modal-title h5" id="manualDebtTitle{{ customer.id }}">Ajouter une dette · {{ customer.display_name }}</h2><button class="btn-close" type="button" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">
+        <div class="alert alert-light border">Enregistrement indépendant du stock, des commandes et de la caisse.</div>
+        <label class="form-label">Montant ({{ bar.currency }})</label><input class="form-control mb-3" name="amount" type="number" min="1" step="1" required>
+        <label class="form-label">Motif de la dette</label><textarea class="form-control" name="reason" maxlength="500" rows="2" placeholder="Ex. ancienne dette, avance accordée au client" required></textarea>
+      </div>
+      <div class="modal-footer"><button class="btn btn-light border" type="button" data-bs-dismiss="modal">Annuler</button><button class="btn btn-primary" type="submit">Enregistrer la dette</button></div>
+    </form>
+  </div></div></div>
+  {% if manual_debt > 0 %}
+  <div class="modal fade" id="manualRepaymentModal{{ customer.id }}" tabindex="-1" aria-labelledby="manualRepaymentTitle{{ customer.id }}"><div class="modal-dialog modal-dialog-centered"><div class="modal-content">
+    <form method="post" data-bp-ajax="json" data-bp-secondary="customers">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="idempotency_key" value="{{ new_intent_key() }}">
+      <input type="hidden" name="action" value="manual_repayment"><input type="hidden" name="customer_id" value="{{ customer.id }}">
+      <div class="modal-header"><h2 class="modal-title h5" id="manualRepaymentTitle{{ customer.id }}">Remboursement hors caisse · {{ customer.display_name }}</h2><button class="btn-close" type="button" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">
+        <div class="alert alert-light border">Dette manuelle restante : <strong>{{ "{:,.0f}".format(manual_debt) }} {{ bar.currency }}</strong></div>
+        <p class="small text-secondary">Ce suivi diminue la dette manuelle, sans enregistrer une recette en caisse. Ne l'utilisez pas pour comptabiliser deux fois un encaissement.</p>
+        <label class="form-label">Montant remboursé ({{ bar.currency }})</label><input class="form-control mb-3" name="amount" type="number" min="1" max="{{ manual_debt }}" step="1" required>
+        <label class="form-label">Note / justificatif</label><textarea class="form-control" name="reason" maxlength="500" rows="2" placeholder="Ex. remboursement partiel confirmé" required></textarea>
+      </div>
+      <div class="modal-footer"><button class="btn btn-light border" type="button" data-bs-dismiss="modal">Annuler</button><button class="btn btn-success" type="submit">Enregistrer le remboursement</button></div>
+    </form>
+  </div></div></div>
+  {% endif %}
   {% endif %}
 
   {% if can_cases %}
