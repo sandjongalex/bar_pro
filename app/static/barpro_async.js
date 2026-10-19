@@ -151,7 +151,11 @@
   async function submit(form, submitter) {
     if (!form || activeForms.has(form)) return { skipped: true };
     const method = String(form.getAttribute('method') || 'GET').toUpperCase();
-    const action = submitter?.formAction || form.action || root.location.href;
+    // formAction can resolve to the current page (not the form destination) when
+    // a submit button has no explicit formaction, notably in mobile Safari.
+    // Honor a button override only if the attribute is actually present.
+    const actionOverride = submitter?.hasAttribute?.('formaction') ? submitter.formAction : '';
+    const action = actionOverride || form.action || root.location.href;
     webUrl(action);
     if (method === 'GET') throw new Error('Utilisez la navigation HTML pour les formulaires GET.');
     const buttons = Array.from(form.querySelectorAll('button[type="submit"], input[type="submit"]'));
