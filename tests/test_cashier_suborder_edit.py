@@ -153,3 +153,26 @@ def test_cashier_original_line_edit_keeps_validated_round_amount(env):
     assert order.total_amount == Decimal("300")
     db.session.refresh(sub)
     assert sub.total_amount == Decimal("100")
+
+
+def test_editing_draft_original_lines_keeps_server_round_total(env):
+    app, owner, bar, _, product, server, _, _ = env
+    _put_server_on_duty(owner, bar, server)
+    cashier = _cashier(bar)
+    parent = order_service.create(
+        server, bar.id, "ROUND-EDIT-DRAFT", [{"product_id": product.id, "quantity": 1}])
+    sub = order_suborder_service.create_server_addition(
+        server, bar.id, parent.id, [{"product_id": product.id, "quantity": 2}])
+    db.session.commit()
+    assert Decimal(parent.total_amount) == 300
+    from app.order_concurrency import order_revision
+    from app.order_edit_service import order_edit_service
+    order_edit_service.edit(
+        cashier, bar.id, parent.id, [{"product_id": product.id, "quantity": 3}],
+        expected_revision=order_revision(parent),
+    )
+    db.session.commit()
+    db.session.refresh(parent)
+    assert parent.status == "DRAFT"
+    assert Decimal(parent.total_amount) == 500
+    assert Decimal(sub.total_amount) == 200
