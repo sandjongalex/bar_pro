@@ -140,7 +140,14 @@ def dashboard():
     notifications = list(
         db.session.scalars(
             select(UserNotification)
-            .where(UserNotification.user_id == current_user.id, UserNotification.read_at.is_(None))
+            # Only show notifications from bars the user can currently view.
+            # Locked (level-2) and foreign tenants must never leak via the
+            # global dashboard, even when a second bar remains accessible.
+            .where(
+                UserNotification.user_id == current_user.id,
+                UserNotification.read_at.is_(None),
+                UserNotification.bar_id.in_([bar.id for bar in reportable_bars]),
+            )
             .order_by(UserNotification.id.desc())
             .limit(20)
         )
@@ -167,10 +174,14 @@ def dashboard():
 def notification_read(notification_id):
     from app.customer_models import UserNotification
     from app.models import utcnow
+    from app.permissions import permissions
 
     item = db.session.get(UserNotification, notification_id)
     if not item or item.user_id != current_user.id:
         abort(404)
+    # This URL contains no bar_id, so the normal tenant HTTP guard alone
+    # cannot enforce read-only / locked administrative suspensions.
+    permissions.require(current_user, "notifications.acknowledge", item.bar_id)
     item.read_at = utcnow()
     db.session.commit()
     return redirect(url_for("web.dashboard"))
