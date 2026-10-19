@@ -325,7 +325,9 @@ def test_customer_edit_and_debt_filters_do_not_change_balances(env):
     no_debt = client.get(path + "?filter=settled")
     assert no_debt.status_code == 200
     assert "Marie Solde" in no_debt.text
-    assert "Jean Dupont" not in no_debt.text
+    # Full page also contains the unfiltered debt history and top-debtors report.
+    client_table = no_debt.text.split("customer-table", 1)[1].split("</table>", 1)[0]
+    assert "Jean Dupont" not in client_table
     manual = client.get(path + "?filter=manual")
     assert manual.status_code == 200
     assert "Jean Dupont" in manual.text
