@@ -50,10 +50,10 @@
     <div class="order-detail-stat"><span>Sous-commandes</span><strong>{{ suborders|length }}</strong></div>
   </section>
 
-  {% if is_server %}
+  {% if is_server or is_cashier %}
   <div class="server-invoice-launch">
     <button class="btn btn-outline-primary" type="button" data-server-invoice-open aria-controls="serverInvoicePreview" aria-expanded="false">👁 Aperçu de la facture</button>
-    <small>Consultation uniquement · l’impression reste réservée à la caisse.</small>
+    <small>{% if is_server %}Consultation uniquement · l’impression reste réservée à la caisse.{% else %}Choisissez la présentation détaillée ou cumulée, puis utilisez le bouton Imprimer pour éditer le ticket.{% endif %}</small>
   </div>
   {% endif %}
 
@@ -119,7 +119,7 @@
   </section>
   {% endif %}
 
-  {% if is_server %}
+  {% if is_server or is_cashier %}
   <section class="order-detail-card server-invoice-preview" id="serverInvoicePreview" data-server-invoice-preview data-currency="{{ display_currency }}" hidden>
     <div class="server-invoice-preview-head">
       <div>
@@ -213,7 +213,7 @@
       </div>
     </div>
 
-    <div class="server-invoice-readonly"><strong>Lecture seule :</strong> la serveuse peut vérifier la facture cumulée ou détaillée, mais l’impression et RawBT restent réservés à la caissière.</div>
+    <div class="server-invoice-readonly"><strong>Lecture seule :</strong> ce choix modifie uniquement l'affichage. Les commandes et les mouvements de stock restent séparés.{% if is_server %} L'impression reste réservée à la caisse.{% endif %}</div>
   </section>
   {% endif %}
 
@@ -290,5 +290,5 @@
 
 {% block scripts %}
 {{ super() }}
-{% if is_server %}<script src="{{ url_for('static', filename='server_invoice_preview.js') }}" defer></script>{% endif %}
+{% if is_server or is_cashier %}<script src="{{ url_for('static', filename='server_invoice_preview.js') }}" defer></script>{% endif %}
 {% endblock %}
