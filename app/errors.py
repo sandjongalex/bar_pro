@@ -22,7 +22,15 @@ def register_error_handlers(app: Flask) -> None:
     from app.extensions import db
     from sqlalchemy.exc import IntegrityError
     from flask_wtf.csrf import CSRFError
-    from werkzeug.exceptions import HTTPException
+    from werkzeug.exceptions import HTTPException, TooManyRequests
+
+    @app.errorhandler(TooManyRequests)
+    def rate_limit_error(error):
+        return _response(
+            429, "RATE_LIMITED",
+            "Trop de requêtes pour le moment. Patientez un instant, "
+            "vérifiez si la livraison a déjà été enregistrée, puis réessayez.",
+        )
 
     @app.errorhandler(CSRFError)
     def csrf_error(error):
