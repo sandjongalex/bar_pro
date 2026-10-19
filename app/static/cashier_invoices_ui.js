@@ -96,7 +96,7 @@
       if (count && currentCount && count.textContent !== currentCount.textContent) {
         currentCount.textContent = count.textContent;
       }
-    } else if (!results.contains(focused) && !results.querySelector('form[aria-busy="true"]') &&
+    } else if (!results.contains?.(focused) && !results.querySelector('form[aria-busy="true"]') &&
                results.innerHTML !== incoming.innerHTML) {
       // Empty/nonempty transition: the grid does not exist in one of the snapshots.
       results.replaceChildren(...Array.from(incoming.childNodes).map(node => document.importNode(node, true)));
