@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Relevé client · {{ customer.display_name }} · {{ bar.name }}</title>
+<style>
+:root{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;color:#13261f;background:#f4f7f5}
+*{box-sizing:border-box}body{max-width:1000px;margin:32px auto;padding:24px;background:#fff}
+.header{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}.subtle{color:#66736e}
+h1{margin:.4rem 0;font-size:1.6rem}.button{display:inline-block;padding:10px 15px;border:1px solid #1d6349;border-radius:9px;background:#1d6349;color:white;text-decoration:none;cursor:pointer}
+.button.alt{background:#fff;color:#1d6349}.totals{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:22px 0}
+.total{border:1px solid #dbe6df;border-radius:12px;padding:14px}.total strong{display:block;font-size:1.2rem;margin-top:6px}
+table{width:100%;border-collapse:collapse;font-size:.86rem}th,td{padding:10px 8px;border-bottom:1px solid #e4ebe6;text-align:left;vertical-align:top}
+th{background:#f2f7f4}td.num{text-align:right;white-space:nowrap}.negative{color:#087748}.positive{color:#9c3636}
+.actions{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}.print-notice{background:#fff8e6;padding:12px;border-radius:8px}
+@media(max-width:650px){body{padding:12px;margin:0}.header{display:block}.totals{grid-template-columns:1fr}table{font-size:.75rem}th,td{padding:7px 4px}}
+@media print{@page{size:A4 portrait;margin:13mm}body{margin:0;padding:0;max-width:none;background:white}.actions{display:none}.total{break-inside:avoid}table{font-size:9pt}thead{display:table-header-group}tr{break-inside:avoid}}
+</style>
+</head>
+<body>
+<div class="actions"><a class="button alt" href="{{ url_for('customers_web.manage', bar_id=bar.id) }}">← Retour aux clients</a><button type="button" class="button" onclick="window.print()">Imprimer / enregistrer en PDF</button></div>
+<header class="header">
+  <div><div class="subtle">BAR_PRO · {{ bar.name }}</div><h1>Relevé individuel du client</h1>
+    <strong>{{ customer.display_name }}</strong>
+    <div class="subtle">{{ customer.phone or 'Téléphone non renseigné' }}{% if customer.email %} · {{ customer.email }}{% endif %}</div>
+  </div>
+  <div class="subtle">Situation au {{ today.strftime('%d/%m/%Y') }}<div>Montants en {{ bar.currency }}</div></div>
+</header>
+<section class="totals">
+  <div class="total">Crédit sur commandes<strong>{{ "{:,.0f}".format(credit) }} {{ bar.currency }}</strong></div>
+  <div class="total">Dette manuelle hors caisse<strong>{{ "{:,.0f}".format(manual) }} {{ bar.currency }}</strong></div>
+  <div class="total">Total restant dû<strong>{{ "{:,.0f}".format(credit + manual) }} {{ bar.currency }}</strong></div>
+</section>
+{% if aging.overdue > 0 %}
+<p class="print-notice">Dette manuelle en retard : <strong>{{ "{:,.0f}".format(aging.overdue) }} {{ bar.currency }}</strong>.</p>
+{% endif %}
+<h2>Historique des mouvements</h2>
+{% if total_entries > 500 %}
+<p class="print-notice">Seuls les 500 derniers mouvements sur {{ total_entries }} sont affichés. Le solde ci-dessus prend en compte l'historique complet.</p>
+{% endif %}
+<table>
+<thead><tr><th>Date UTC</th><th>Type</th><th>Référence</th><th>Motif / échéance</th><th style="text-align:right">Montant</th></tr></thead>
+<tbody>
+{% for entry in entries %}
+<tr>
+  <td>{{ entry.occurred_at.strftime('%d/%m/%Y %H:%M') }}</td>
+  <td>{% if entry.entry_kind == "ADJUSTMENT" %}{{ "Annulation dette" if entry.reversal_of_id else ("Dette manuelle" if entry.amount_delta > 0 else "Remb. hors caisse") }}{% else %}{{ {"CREDIT_SALE":"Vente à crédit","PAYMENT":"Règlement","REVERSAL":"Annulation vente"}.get(entry.entry_kind,entry.entry_kind) }}{% endif %}</td>
+  <td>{{ entry.reference }}</td>
+  <td>{{ entry.reason }}{% if entry.due_date %}<div class="subtle">Échéance : {{ entry.due_date.strftime('%d/%m/%Y') }}</div>{% endif %}</td>
+  <td class="num {{ 'positive' if entry.amount_delta > 0 else 'negative' }}">{{ '+' if entry.amount_delta > 0 else '' }}{{ "{:,.0f}".format(entry.amount_delta) }}</td>
+</tr>
+{% else %}<tr><td colspan="5">Aucun mouvement.</td></tr>{% endfor %}
+</tbody></table>
+<p class="subtle" style="margin-top:22px;font-size:.82rem">Les écritures « hors caisse » servent au suivi des dettes et ne constituent pas une preuve d'encaissement dans le système de caisse.</p>
+</body></html>
