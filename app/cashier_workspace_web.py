@@ -30,6 +30,7 @@ from app.models import (
 )
 from app.order_services import order_service
 from app.order_line_views import effective_lines_by_order
+from app.order_suborder_models import OrderSuborder
 from app.cashier_order_rounds import cashier_rounds_by_order, pending_rounds
 from app.payment_services import payment_service
 from app.permissions import permissions
@@ -243,6 +244,18 @@ def workspace(bar_id: int):
             due = Decimal(order_balance(order, locking=True)["amount_due"] or 0)
             if due <= 0 or order.payment_status == "PAID":
                 raise ValueError("ORDER_NOT_PAYABLE")
+            # This also protects the credit path, which does not call PaymentService.
+            if action in {"cash_exact", "payment"}:
+                undelivered = db.session.scalar(
+                    select(OrderSuborder.id).where(
+                        OrderSuborder.bar_id == bar_id,
+                        OrderSuborder.order_id == order.id,
+                        OrderSuborder.status == "VALIDATED",
+                        OrderSuborder.delivery_status == "PENDING",
+                    ).limit(1)
+                )
+                if undelivered is not None:
+                    raise ValueError("ORDER_NOT_PAYABLE")
 
             if action == "cash_exact":
                 payment_service.record(
