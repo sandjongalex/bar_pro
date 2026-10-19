@@ -16,7 +16,7 @@ from app.saas_governance import (
     owner_enabled, suspension_level,
 )
 from app.saas_governance_models import BarGovernance, OwnerGovernance
-from test_employee_tenant_auth import _login
+from test_employee_tenant_auth import _login, _csrf
 from test_workflows import env
 
 
@@ -90,8 +90,11 @@ def test_suspension_level_one_preserves_read_but_denies_web_and_api_writes(env):
     assert permissions.evaluate(platform, "bars.governance.manage", bar.id).allowed
     client = app.test_client()
     assert _login(client, owner.email).status_code == 302
-    assert client.get(f"/bars/{bar.id}/customers").status_code == 200
-    assert client.post(f"/bars/{bar.id}/customers", data={"action":"manual_debt"}).status_code == 403
+    page = client.get(f"/bars/{bar.id}/customers")
+    assert page.status_code == 200
+    assert client.post(f"/bars/{bar.id}/customers", data={
+        "action": "manual_debt", "csrf_token": _csrf(page),
+    }).status_code == 403
     assert client.get(f"/api/v1/bars/{bar.id}/governance", headers=headers).status_code == 200
     blocked = client.post(f"/api/v1/bars/{bar.id}/orders", headers=headers, json={})
     assert blocked.status_code == 403
