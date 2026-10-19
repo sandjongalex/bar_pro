@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from collections import defaultdict
+from zoneinfo import ZoneInfo
 import secrets
 from decimal import Decimal
 
@@ -14,7 +16,7 @@ from app.cashier_secondary_async import begin, succeeded, failed
 from app.bar_services import update_bar
 from app.cash_services import cash_service
 from app.customer_models import CustomerCaseEntry, CustomerLedgerEntry
-from app.customer_services import customer_service
+from app.customer_services import customer_service, outstanding_manual_debts
 from app.extensions import db
 from app.models import Bar, CashSession, Customer, Product
 from app.permissions import permissions
@@ -42,6 +44,8 @@ def _message(code):
         "INVALID_CUSTOMER_EMAIL": "L'adresse e-mail est invalide.",
         "CUSTOMER_PAYMENT_LIMIT": "Le règlement dépasse la dette actuelle du client.",
         "MANUAL_DEBT_REPAYMENT_LIMIT": "Le remboursement dépasse la dette manuelle restante.",
+        "MANUAL_DEBT_HAS_REPAYMENTS": "Cette dette a eu un remboursement ultérieur. Annulation automatique bloquée : vérification du propriétaire nécessaire.",
+        "INVALID_DEBT_DUE_DATE": "La date limite de remboursement est invalide.",
         "INVALID_METHOD": "Le mode de règlement est invalide.",
         "PROVIDER_REFERENCE_REQUIRED": "Renseignez le prestataire et la référence de transaction ensemble.",
         "CASH_LOCATION_REQUIRED": "Sélectionnez une caisse ouverte pour un règlement en espèces.",
@@ -66,6 +70,7 @@ def manage(bar_id):
 
     can_manage = permissions.evaluate(current_user, "customers.manage", bar_id).allowed
     can_credit = permissions.evaluate(current_user, "customer_credit.manage", bar_id).allowed
+    can_manual_debt = permissions.evaluate(current_user, "customer_debt.manage", bar_id).allowed
     can_cases = permissions.evaluate(current_user, "cases.manage", bar_id).allowed
     can_settings = permissions.evaluate(current_user, "bars.update_settings", bar_id).allowed
 
@@ -130,12 +135,23 @@ def manage(bar_id):
                     request.form.get("reason", ""),
                 )
                 item = (
-                    customer_service.record_manual_debt(*params)
+                    customer_service.record_manual_debt(*params, due_date=request.form.get("due_date", ""))
                     if action == "manual_debt"
                     else customer_service.record_manual_repayment(*params)
                 )
                 message = "Dette manuelle enregistrée." if action == "manual_debt" else "Remboursement hors caisse enregistré."
                 response = succeeded(intent, action, message, data={"customer_id": item.customer_id, "entry_id": item.id})
+                if response is not None: return response
+
+            elif action == "manual_reverse":
+                item = customer_service.reverse_manual_debt(
+                    current_user,
+                    bar_id,
+                    int(request.form.get("entry_id", "0")),
+                    request.form.get("reference", "").strip() or _reference("ANN-DET"),
+                    request.form.get("reason", ""),
+                )
+                response = succeeded(intent, action, "Dette annulée avec traçabilité.", data={"entry_id": item.id, "customer_id": item.customer_id})
                 if response is not None: return response
 
             elif action == "payment":
@@ -251,6 +267,37 @@ def manage(bar_id):
     )
     cash_expected = {session.id: cash_service.expected(session) for session in open_sessions}
 
+    manual_entries = list(db.session.scalars(
+        select(CustomerLedgerEntry)
+        .where(CustomerLedgerEntry.bar_id == bar_id, CustomerLedgerEntry.entry_kind == "ADJUSTMENT")
+        .order_by(CustomerLedgerEntry.id)
+    ))
+    by_customer = defaultdict(list)
+    for entry in manual_entries:
+        by_customer[entry.customer_id].append(entry)
+    today = datetime.now(ZoneInfo(bar.timezone)).date()
+    aging_by_customer = {
+        customer.id: outstanding_manual_debts(by_customer[customer.id], today=today)
+        for customer in all_customers
+    }
+    overdue_total = sum((details["overdue"] for details in aging_by_customer.values()), Decimal(0))
+    overdue_count = sum(details["overdue"] > 0 for details in aging_by_customer.values())
+    manual_collected = sum((
+        -Decimal(entry.amount_delta) for entry in manual_entries
+        if entry.amount_delta < 0 and entry.reversal_of_id is None
+    ), Decimal(0))
+    credit_collected = -Decimal(db.session.scalar(
+        select(func.coalesce(func.sum(CustomerLedgerEntry.amount_delta), 0)).where(
+            CustomerLedgerEntry.bar_id == bar_id, CustomerLedgerEntry.entry_kind == "PAYMENT"
+        )
+    ) or 0)
+    top_debtors = sorted(
+        (customer for customer in all_customers
+         if debt_by_customer[customer.id] + manual_debt_by_customer[customer.id] > 0),
+        key=lambda customer: debt_by_customer[customer.id] + manual_debt_by_customer[customer.id],
+        reverse=True,
+    )[:5]
+
     total_manual_debt = sum((max(value, Decimal("0")) for value in manual_debt_by_customer.values()), Decimal("0"))
     total_debt = sum((max(value, Decimal("0")) for value in debt_by_customer.values()), Decimal("0")) + total_manual_debt
     stats = {
@@ -258,12 +305,16 @@ def manage(bar_id):
         "debtors": sum(1 for customer in customers if debt_by_customer[customer.id] > 0 or manual_debt_by_customer[customer.id] > 0),
         "debt": total_debt,
         "manual_debt": total_manual_debt,
+        "overdue": overdue_total,
+        "overdue_count": overdue_count,
+        "manual_collected": manual_collected,
+        "credit_collected": credit_collected,
         "cases": sum(max(value, 0) for value in cases_by_customer.values()),
     }
 
     query_text = request.args.get("q", "").strip()[:120]
     customer_filter = request.args.get("filter", "all")
-    if customer_filter not in {"all", "debtors", "manual", "settled", "inactive"}:
+    if customer_filter not in {"all", "debtors", "manual", "overdue", "settled", "inactive"}:
         customer_filter = "all"
     normalized = query_text.casefold()
 
@@ -279,6 +330,8 @@ def manage(bar_id):
             return credit + manual > 0
         if customer_filter == "manual":
             return manual > 0
+        if customer_filter == "overdue":
+            return aging_by_customer[customer.id]["overdue"] > 0
         if customer_filter == "settled":
             return credit + manual <= 0
         if customer_filter == "inactive":
@@ -296,6 +349,8 @@ def manage(bar_id):
         query_text=query_text,
         customer_filter=customer_filter,
         manual_debt_by_customer=manual_debt_by_customer,
+        aging_by_customer=aging_by_customer,
+        top_debtors=top_debtors,
         cases_by_customer=cases_by_customer,
         ledger=ledger,
         case_history=case_history,
@@ -308,6 +363,7 @@ def manage(bar_id):
         stats=stats,
         can_manage=can_manage,
         can_credit=can_credit,
+        can_manual_debt=can_manual_debt,
         can_cases=can_cases,
         can_settings=can_settings,
         new_intent_key=lambda: secrets.token_urlsafe(32),
