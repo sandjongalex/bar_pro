@@ -73,22 +73,31 @@
         let node = current.get(id);
         if (!node) {
           node = document.importNode(candidate, true);
-        } else if (node.outerHTML !== candidate.outerHTML) {
+        } else if (node.outerHTML !== candidate.outerHTML &&
+                   !node.contains(focused) &&
+                   !node.querySelector('form[aria-busy="true"], .modal.show')) {
           const replacement = document.importNode(candidate, true);
           node.replaceWith(replacement);
           node = replacement;
         }
-        if (oldGrid.children[index] !== node) oldGrid.insertBefore(node, oldGrid.children[index] || null);
+        // An active payment is never relocated by background reconciliation.
+        const protectedNode = node.contains(focused) ||
+          Boolean(node.querySelector('form[aria-busy="true"], .modal.show'));
+        if (!protectedNode && oldGrid.children[index] !== node) {
+          oldGrid.insertBefore(node, oldGrid.children[index] || null);
+        }
       });
       current.forEach((node, id) => {
-        if (!seen.has(id)) node.remove();
+        if (!seen.has(id) && !node.contains(focused) &&
+            !node.querySelector('form[aria-busy="true"], .modal.show')) node.remove();
       });
       const count = incoming.querySelector('.invoice-section-title span');
       const currentCount = results.querySelector('.invoice-section-title span');
       if (count && currentCount && count.textContent !== currentCount.textContent) {
         currentCount.textContent = count.textContent;
       }
-    } else if (results.innerHTML !== incoming.innerHTML) {
+    } else if (!results.contains(focused) && !results.querySelector('form[aria-busy="true"]') &&
+               results.innerHTML !== incoming.innerHTML) {
       // Empty/nonempty transition: the grid does not exist in one of the snapshots.
       results.replaceChildren(...Array.from(incoming.childNodes).map(node => document.importNode(node, true)));
     }
