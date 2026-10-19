@@ -155,7 +155,8 @@
     // a submit button has no explicit formaction, notably in mobile Safari.
     // Honor a button override only if the attribute is actually present.
     const actionOverride = submitter?.hasAttribute?.('formaction') ? submitter.formAction : '';
-    const action = actionOverride || form.action || root.location.href;
+    // Read the HTML attribute: form.action can be shadowed by input[name="action"].
+    const action = actionOverride || form.getAttribute('action') || root.location.href;
     webUrl(action);
     if (method === 'GET') throw new Error('Utilisez la navigation HTML pour les formulaires GET.');
     const buttons = Array.from(form.querySelectorAll('button[type="submit"], input[type="submit"]'));
