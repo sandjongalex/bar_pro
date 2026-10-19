@@ -87,3 +87,12 @@ def test_layout_load_order_and_no_automatic_business_form_optin():
     assert layout.index("barpro_async.js") < layout.index("server_pos_ui.js")
     assert layout.index("skeleton_loading.js") < layout.index("server_pos_ui.js")
     assert 'data-bp-ajax="json"' not in layout
+
+
+def test_ajax_customer_form_target_is_not_shadowed_by_action_input():
+    """input[name=action] must not replace the AJAX POST destination."""
+    template = (ROOT / "app/templates/customers.html").read_text(encoding="utf-8")
+    javascript = (ROOT / "app/static/barpro_async.js").read_text(encoding="utf-8")
+    assert 'name="action" value="create"' in template
+    assert "form.getAttribute('action') || root.location.href" in javascript
+    assert "actionOverride || form.action" not in javascript
