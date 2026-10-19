@@ -36,6 +36,28 @@ class CustomerService:
         record(actor, bar_id, "customers.create", "customers", item.id, item.display_name)
         return item
 
+    def update(self, actor, bar_id, customer_id, data):
+        """Update customer identity without changing debt, stock or cash."""
+        permissions.require(actor, "customers.manage", bar_id)
+        item = db.session.scalar(
+            select(Customer).where(Customer.id == customer_id, Customer.bar_id == bar_id).with_for_update()
+        )
+        if not item:
+            raise LookupError("NOT_FOUND")
+        name = required_text(data.get("display_name"), 160)
+        phone = (data.get("phone") or "").strip() or None
+        email = (data.get("email") or "").strip() or None
+        if phone and len(phone) > 32:
+            raise ValueError("INVALID_CUSTOMER_PHONE")
+        if email and ("@" not in email or len(email) > 254):
+            raise ValueError("INVALID_CUSTOMER_EMAIL")
+        item.display_name = name
+        item.phone = phone
+        item.email = email
+        db.session.flush()
+        record(actor, bar_id, "customers.update", "customers", item.id, item.display_name)
+        return item
+
     def set_active(self, actor, bar_id, customer_id, active):
         permissions.require(actor, "customers.manage", bar_id)
         item = db.session.scalar(
