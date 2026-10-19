@@ -28,6 +28,12 @@ on:
       - 'tests/test_cashier_async_safety.py'
       - 'tests/test_cashier_workspace_async.py'
       - 'tests/test_cashier_inline_rounds.py'
+      - 'tests/test_cashier_suborder_edit.py'
+      - 'app/order_edit_web.py'
+      - 'app/order_edit_service.py'
+      - 'app/order_concurrency.py'
+      - 'app/suborder_edit_service.py'
+      - 'app/static/order_edit_ui.js'
       - '.github/workflows/cashier-async-safety.yml'
   pull_request:
     paths:
@@ -56,6 +62,12 @@ on:
       - 'tests/test_cashier_async_safety.py'
       - 'tests/test_cashier_workspace_async.py'
       - 'tests/test_cashier_inline_rounds.py'
+      - 'tests/test_cashier_suborder_edit.py'
+      - 'app/order_edit_web.py'
+      - 'app/order_edit_service.py'
+      - 'app/order_concurrency.py'
+      - 'app/suborder_edit_service.py'
+      - 'app/static/order_edit_ui.js'
       - '.github/workflows/cashier-async-safety.yml'
 
 jobs:
@@ -85,8 +97,10 @@ jobs:
           tests/test_async_invoices_unpaid.py
           tests/test_unpaid_orders_web.py
           tests/test_cashier_inline_rounds.py
+          tests/test_cashier_suborder_edit.py
       - name: Client-side syntax
         run: |
+          node --check app/static/order_edit_ui.js
           node --check app/static/cashier_live_ui.js
           node --check app/static/cash_payment_ui.js
           node --check app/static/barpro_async.js
