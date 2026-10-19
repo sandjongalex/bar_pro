@@ -216,6 +216,11 @@ def _register_blueprints(app: Flask) -> None:
                 abort(403)
             if level == 1 and request.method not in {"GET", "HEAD", "OPTIONS"}:
                 abort(403)
+            if current_user.category == "SUPER_ADMIN" and request.method not in {"GET", "HEAD", "OPTIONS"}:
+                # Defense in depth: a new commerce endpoint cannot silently
+                # bypass a missing fine-grained service permission.
+                if not (request.endpoint or "").startswith(("staff.", "shifts_web.")):
+                    abort(403)
 
             # A cashier/server may keep a valid account while off duty, but no
             # operational bar page is available until a supervisor opens a shift.

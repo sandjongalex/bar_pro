@@ -111,6 +111,13 @@ def api_required(view):
             return error("BAR_ADMIN_LOCKED", 403)
         if level == 1 and request.method not in {"GET", "HEAD", "OPTIONS"} and request.endpoint not in governance_endpoints:
             return error("BAR_ADMIN_READ_ONLY", 403)
+        if user.category == "SUPER_ADMIN" and request.method not in {"GET", "HEAD", "OPTIONS"}:
+            administrative_endpoints = governance_endpoints | {
+                "api_bars.create", "api_bars.patch", "api_bars.staff",
+                "subscriptions.create", "subscriptions.pay",
+            }
+            if request.endpoint not in administrative_endpoints:
+                return error("PLATFORM_COMMERCE_FORBIDDEN", 403)
         return view(*args,**kwargs)
     return wrapped
 def issue(user,bar_id,family=None,parent=None):

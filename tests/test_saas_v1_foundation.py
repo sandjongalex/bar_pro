@@ -198,3 +198,15 @@ def test_governance_audit_survives_legitimate_owner_reset(env):
         AuditLog.bar_id == bar.id, AuditLog.action == "bars.governance.change"))
     assert retained is not None
     assert db.session.get(BarGovernance, bar.id).status == "APPROVED"
+
+
+def test_superadmin_http_api_cannot_post_commercial_transaction(env):
+    app, _, bar, _, _, _, _, _ = env
+    admin = platform_user()
+    headers = bearer(admin, bar.id)
+    response = app.test_client().post(
+        f"/api/v1/bars/{bar.id}/orders", headers=headers,
+        json={"reference": "PLATFORM-ATTEMPT", "lines": []},
+    )
+    assert response.status_code == 403
+    assert response.get_json()["error"]["code"] == "PLATFORM_COMMERCE_FORBIDDEN"
