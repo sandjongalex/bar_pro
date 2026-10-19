@@ -8,7 +8,7 @@ from sqlalchemy import func, select
 from app.audit import record
 from app.extensions import db
 from app.finance_totals import order_balance
-from app.models import Order, Product, StaffAssignment, utcnow
+from app.models import Order, Product, StaffAssignment, StockBalance, utcnow
 from app.order_suborder_models import OrderSuborder, OrderSuborderLine
 from app.permissions import permissions
 from app.stock_service import stock_service
@@ -61,6 +61,28 @@ class OrderSuborderService:
             validated.append((product, quantity, amount, line_note))
             total += amount
         return validated, total
+
+    def _require_stock_for_server_addition(self, bar_id: int, validated) -> None:
+        """Reject stale or forged suborders before adding to the customer invoice.
+
+        Server additions are not physically deducted until cashier delivery.
+        Lock products in the same order as stock_service.move so actual stock
+        cannot change between the availability check and transaction commit.
+        Existing pending rounds remain separate and are not deducted early.
+        """
+        for product, quantity, _, _ in sorted(validated, key=lambda row: row[0].id):
+            db.session.scalar(
+                select(Product.id)
+                .where(Product.bar_id == bar_id, Product.id == product.id)
+                .with_for_update()
+            )
+            available = db.session.scalar(
+                select(StockBalance.quantity)
+                .where(StockBalance.bar_id == bar_id, StockBalance.product_id == product.id)
+                .with_for_update()
+            )
+            if available is None or available < quantity:
+                raise ValueError("INSUFFICIENT_STOCK")
 
     def _next_sequence(self, bar_id: int, order_id: int) -> int:
         return int(
@@ -225,6 +247,7 @@ class OrderSuborderService:
             raise ValueError("ORDER_PAID")
 
         validated, total = self._validated_lines(bar_id, lines)
+        self._require_stock_for_server_addition(bar_id, validated)
         sequence_no = self._next_sequence(bar_id, order.id)
         now = utcnow()
         suborder = OrderSuborder(
