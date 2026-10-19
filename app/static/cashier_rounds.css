@@ -1,0 +1,33 @@
+/* Cashier order rounds: responsive, accessible native disclosure controls. */
+.cashier-order-rounds{border-top:1px solid #e2ebe6;padding:10px 12px 12px;display:grid;gap:8px;background:#fbfdfc}
+.cashier-rounds-heading{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;font-size:.72rem}
+.cashier-rounds-heading strong{color:#183e34}
+.cashier-rounds-alert{color:#955f15;font-weight:850}
+.cashier-rounds-done{color:#206f51;font-weight:800}
+.cashier-round{min-width:0;background:#fff;border:1px solid #dbe6e0;border-radius:12px;overflow:hidden}
+.cashier-round.is-pending{background:#fffcf5;border-color:#ecd9a5}
+.cashier-round summary{list-style:none;display:flex;justify-content:space-between;align-items:center;gap:8px;min-height:48px;padding:10px 11px;cursor:pointer}
+.cashier-round summary::-webkit-details-marker{display:none}
+.cashier-round summary:focus-visible{outline:3px solid #397d69;outline-offset:-3px}
+.cashier-round summary>span:first-child{min-width:0}
+.cashier-round summary strong,.cashier-round summary small{display:block}
+.cashier-round summary strong{font-size:.75rem;overflow-wrap:anywhere}
+.cashier-round summary small{font-size:.65rem;color:#747e78}
+.cashier-round.is-pending summary small{color:#986c22;font-weight:800}
+.cashier-round.is-delivered summary small{color:#237354;font-weight:800}
+.cashier-round-summary-amount{font-size:.73rem;font-weight:900;white-space:nowrap}
+.cashier-round-chevron{display:inline-block;margin-left:4px;font-size:1.25rem;line-height:1;transition:transform .15s ease}
+.cashier-round[open] .cashier-round-chevron{transform:rotate(180deg)}
+.cashier-round-body{border-top:1px dashed #dbe6e0;padding:10px 11px;display:grid;gap:8px}
+.cashier-round-line{display:flex;justify-content:space-between;gap:10px;font-size:.75rem}
+.cashier-round-line>span{min-width:0;overflow-wrap:anywhere}
+.cashier-round-line strong{white-space:nowrap}
+.cashier-round-note{font-size:.7rem;color:#64736b;margin:0}
+.cashier-round-delivery-form{margin:4px 0 0}
+.cashier-round-delivery-form .btn{width:100%;min-height:44px;font-weight:850}
+.cashier-round-delivered{color:#1f7850;font-size:.7rem;font-weight:800}
+.cashier-order-actions .cashier-pay-wait{grid-column:1 / -1;display:flex;align-items:center;justify-content:center;min-height:44px;background:#fff3dc;color:#855b19;border:1px solid #efd5a0;border-radius:9px;font-size:.75rem;font-weight:850;padding:8px}
+.cashier-delivery-block{border:1px solid #efd5a0;background:#fff8e7;border-radius:12px;padding:13px;font-size:.79rem;color:#795516;margin-top:12px}
+.cashier-delivery-block strong{display:block;margin-bottom:4px}
+@media (max-width:420px){.cashier-round-summary-amount{font-size:.68rem}.cashier-order-rounds{padding:9px}.cashier-round summary{padding:10px 9px}}
+@media (prefers-reduced-motion:reduce){.cashier-round-chevron{transition:none}}
