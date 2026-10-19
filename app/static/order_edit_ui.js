@@ -4,7 +4,8 @@
   const pathMatch = window.location.pathname.match(/\/bars\/(\d+)\//);
   if (!pathMatch) return;
   const barId = pathMatch[1];
-  const csrf = document.querySelector('input[name="csrf_token"]')?.value || '';
+  // Read the latest token when opening the editor: live sessions can rotate CSRF.
+  const currentCsrf = () => document.querySelector('input[name="csrf_token"]')?.value || '';
 
   function escapeHtml(value) {
     return String(value ?? '').replace(/[&<>"']/g, (char) => ({
@@ -68,7 +69,7 @@
 
     host.innerHTML = `
       <form method="post" action="${selectedRound ? `${stateEndpoint(order.id)}/suborders/${encodeURIComponent(selectedRound.id)}` : stateEndpoint(order.id)}" data-order-edit-form>
-        <input type="hidden" name="csrf_token" value="${escapeHtml(csrf)}">
+        <input type="hidden" name="csrf_token" value="${escapeHtml(currentCsrf())}">
         <input type="hidden" name="order_revision" value="${escapeHtml(order.revision || '')}">
         <div class="order-edit-head">
           <div>
