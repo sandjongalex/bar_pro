@@ -29,6 +29,23 @@
 </div>
 {% endif %}
 
+<form method="get" data-bp-secondary-filter="customers" class="customer-filter-bar mt-4" role="search">
+  <div class="customer-filter-field">
+    <label class="form-label" for="customerSearch">Rechercher un client</label>
+    <input id="customerSearch" class="form-control" type="search" name="q" value="{{ query_text }}" placeholder="Nom, téléphone ou e-mail" maxlength="120" autocomplete="off">
+  </div>
+  <div class="customer-filter-field">
+    <label class="form-label" for="customerFilter">Afficher</label>
+    <select id="customerFilter" class="form-select" name="filter">
+      {% for key, label in [('all','Tous les clients'),('debtors','Avec dette'),('manual','Dette manuelle'),('settled','Sans dette'),('inactive','Inactifs')] %}
+      <option value="{{ key }}" {% if customer_filter == key %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <button type="submit" class="btn btn-primary">Filtrer</button>
+  <a class="btn btn-outline-secondary" href="{{ url_for('customers_web.manage', bar_id=bar.id) }}">Effacer</a>
+</form>
+
 <div data-bp-secondary-section="customers-content">
 <section class="customer-stats mt-4">
   <article><span>Clients actifs</span><strong>{{ stats.customers }}</strong><small>Comptes disponibles</small></article>
@@ -39,7 +56,7 @@
 
 <div class="customer-layout mt-4">
   <section class="panel-card">
-    <div class="panel-header"><div><p class="eyebrow mb-1">Portefeuille</p><h2>Clients</h2></div></div>
+    <div class="panel-header"><div><p class="eyebrow mb-1">Portefeuille</p><h2>Clients</h2></div>{% if query_text or customer_filter != "all" %}<small class="text-secondary">Résultats : {{ customers|length }}</small>{% endif %}</div>
     {% if customers %}
     <div class="table-responsive">
       <table class="table align-middle mb-0 customer-table">
@@ -51,7 +68,7 @@
           <tr>
             <td><div class="customer-name"><span>{{ customer.display_name[0]|upper }}</span><strong>{{ customer.display_name }}</strong></div></td>
             <td><small>{{ customer.phone or customer.email or 'Non renseigné' }}</small></td>
-            <td><strong class="{% if debt + manual_debt > 0 %}text-danger{% else %}text-success{% endif %}">{{ "{:,.0f}".format(debt + manual_debt) }} {{ bar.currency }}</strong>{% if manual_debt > 0 %}<small class="d-block text-secondary">Dont manuel : {{ "{:,.0f}".format(manual_debt) }}</small>{% endif %}</td>
+            <td><strong class="{% if debt + manual_debt > 0 %}text-danger{% else %}text-success{% endif %}">{{ "{:,.0f}".format(debt + manual_debt) }} {{ bar.currency }}</strong>{% if debt > 0 %}<small class="d-block text-secondary">Ventes à crédit : {{ "{:,.0f}".format(debt) }}</small>{% endif %}{% if manual_debt > 0 %}<small class="d-block text-secondary">Dette manuelle : {{ "{:,.0f}".format(manual_debt) }}</small>{% endif %}</td>
             <td><strong>{{ cases_by_customer.get(customer.id, 0) }}</strong></td>
             <td><span class="badge {{ 'text-bg-success' if customer.is_active else 'text-bg-secondary' }}">{{ 'Actif' if customer.is_active else 'Inactif' }}</span></td>
             <td class="text-end">
@@ -60,6 +77,7 @@
                 {% if can_credit and customer.is_active and manual_debt > 0 %}<button class="btn btn-sm btn-outline-success" data-bs-toggle="modal" data-bs-target="#manualRepaymentModal{{ customer.id }}">Remb. hors caisse</button>{% endif %}
                 {% if can_credit and customer.is_active and debt > 0 %}<button class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#paymentModal{{ customer.id }}">Règlement</button>{% endif %}
                 {% if can_cases and customer.is_active %}<button class="btn btn-sm btn-light border" data-bs-toggle="modal" data-bs-target="#caseModal{{ customer.id }}">Casiers</button>{% endif %}
+                {% if can_manage %}<button class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#customerEditModal{{ customer.id }}">Modifier</button>{% endif %}
                 {% if can_manage %}<form method="post" data-bp-ajax="json" data-bp-secondary="customers"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="idempotency_key" value="{{ new_intent_key() }}"><input type="hidden" name="action" value="{{ 'disable' if customer.is_active else 'enable' }}"><input type="hidden" name="customer_id" value="{{ customer.id }}"><button class="btn btn-sm btn-link" type="submit">{{ 'Désactiver' if customer.is_active else 'Activer' }}</button></form>{% endif %}
               </div>
             </td>
@@ -68,7 +86,7 @@
         </tbody>
       </table>
     </div>
-    {% else %}<div class="empty-state"><div class="empty-icon">C</div><h3>Aucun client</h3><p>Créez un client pour gérer le crédit et les casiers.</p></div>{% endif %}
+    {% else %}<div class="empty-state"><div class="empty-icon">C</div><h3>{{ "Aucun résultat" if query_text or customer_filter != "all" else "Aucun client" }}</h3><p>{{ "Modifiez les filtres pour retrouver vos clients." if query_text or customer_filter != "all" else "Créez un client pour gérer le crédit et les casiers." }}</p></div>{% endif %}
   </section>
 
   <aside class="panel-card customer-side">
@@ -120,6 +138,30 @@
   <div class="modal-body"><div class="mb-3"><label class="form-label">Nom</label><input class="form-control" name="display_name" maxlength="160" required></div><div class="row g-3"><div class="col-md-6"><label class="form-label">Téléphone</label><input class="form-control" name="phone" maxlength="32"></div><div class="col-md-6"><label class="form-label">E-mail</label><input class="form-control" name="email" type="email" maxlength="254"></div></div></div>
   <div class="modal-footer"><button class="btn btn-light border" type="button" data-bs-dismiss="modal">Annuler</button><button class="btn btn-primary" type="submit">Créer</button></div>
 </form></div></div></div>
+{% endif %}
+
+
+{% if can_manage %}
+{% for customer in customers %}
+<div class="modal fade" id="customerEditModal{{ customer.id }}" tabindex="-1" aria-labelledby="customerEditTitle{{ customer.id }}">
+  <div class="modal-dialog modal-dialog-centered"><div class="modal-content">
+    <form method="post" data-bp-ajax="json" data-bp-secondary="customers">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="idempotency_key" value="{{ new_intent_key() }}">
+      <input type="hidden" name="action" value="update">
+      <input type="hidden" name="customer_id" value="{{ customer.id }}">
+      <div class="modal-header"><h2 class="modal-title h5" id="customerEditTitle{{ customer.id }}">Modifier le client</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button></div>
+      <div class="modal-body">
+        <div class="mb-3"><label for="customerEditName{{ customer.id }}" class="form-label">Nom du client</label><input id="customerEditName{{ customer.id }}" name="display_name" class="form-control" maxlength="160" value="{{ customer.display_name }}" required></div>
+        <div class="mb-3"><label for="customerEditPhone{{ customer.id }}" class="form-label">Téléphone</label><input id="customerEditPhone{{ customer.id }}" name="phone" class="form-control" maxlength="32" value="{{ customer.phone or '' }}"></div>
+        <div><label for="customerEditEmail{{ customer.id }}" class="form-label">E-mail</label><input id="customerEditEmail{{ customer.id }}" name="email" type="email" class="form-control" maxlength="254" value="{{ customer.email or '' }}"></div>
+        <p class="small text-secondary mt-3 mb-0">La modification des coordonnées n'affecte ni les dettes ni les mouvements financiers.</p>
+      </div>
+      <div class="modal-footer"><button type="button" class="btn btn-light border" data-bs-dismiss="modal">Annuler</button><button type="submit" class="btn btn-primary">Enregistrer</button></div>
+    </form>
+  </div></div>
+</div>
+{% endfor %}
 {% endif %}
 
 {% for customer in customers if customer.is_active %}
