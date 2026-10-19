@@ -31,6 +31,7 @@ ROLE_ACTIONS = {
     "customers.read": {"SUPER_ADMIN", "OWNER", "BAR_ADMIN", "CASHIER"},
     "customers.manage": {"SUPER_ADMIN", "OWNER", "BAR_ADMIN", "CASHIER"},
     "customer_credit.manage": {"SUPER_ADMIN", "OWNER", "BAR_ADMIN", "CASHIER"},
+    "customer_debt.manage": {"SUPER_ADMIN", "OWNER"},  # Manual off-cash adjustments need owner control.
     "cases.manage": {"SUPER_ADMIN", "OWNER", "BAR_ADMIN", "CASHIER"},
     "orders.read": {"SUPER_ADMIN", "OWNER", "BAR_ADMIN", "CASHIER", "SERVER"},
     # Servers create table orders; cashiers may also create direct counter-sale orders.
@@ -71,6 +72,7 @@ WRITES.update(
         "cash.operate",
         "customers.manage",
         "customer_credit.manage",
+        "customer_debt.manage",
         "cases.manage",
     }
 )
