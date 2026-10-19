@@ -7,6 +7,7 @@ from app.auth import issue
 from app.bar_reset_service import reset_bar
 from app.bar_services import assign_staff
 from app.customer_models import CustomerLedgerEntry
+from app.customer_models import UserNotification
 from app.extensions import db
 from app.models import AuditLog, Bar, Order, StockBalance, User, utcnow
 from app.order_services import order_service
@@ -210,3 +211,78 @@ def test_superadmin_http_api_cannot_post_commercial_transaction(env):
     )
     assert response.status_code == 403
     assert response.get_json()["error"]["code"] == "PLATFORM_COMMERCE_FORBIDDEN"
+
+
+def test_superadmin_web_can_manage_staff_but_not_operational_shifts(env):
+    app, owner, bar, _, _, _, _, _ = env
+    platform = platform_user()
+    db.session.commit()
+    assert permissions.evaluate(platform, "staff.manage", bar.id).allowed
+    assert not permissions.evaluate(platform, "shifts.manage", bar.id).allowed
+    client = app.test_client()
+    assert _login(client, platform.email).status_code == 302
+    page = client.get(f"/bars/{bar.id}/staff")
+    assert page.status_code == 200
+    token = _csrf(page)
+    response = client.post(f"/bars/{bar.id}/staff", data={
+        "csrf_token": token, "action": "create",
+        "display_name": "Employé Plateforme", "email": "platform-employee@example.invalid",
+        "password": "test-password", "password_confirm": "test-password",
+        "role": "BAR_ADMIN",
+    })
+    assert response.status_code == 302
+    employee = db.session.scalar(select(User).where(User.email == "platform-employee@example.invalid"))
+    assert employee is not None
+    assert permissions.evaluate(employee, "staff.read", bar.id).allowed
+    assert client.post(f"/bars/{bar.id}/shifts", data={
+        "csrf_token": token,
+        "action": "start", "assignment_id": "1",
+    }).status_code == 403
+
+
+def test_global_notification_endpoints_respect_each_bar_suspension(env):
+    app, owner, bar, _, _, _, _, _ = env
+    platform = platform_user()
+    second = Bar(owner_id=owner.id, name="Second bar accessible",
+                 timezone="Africa/Douala", currency="XAF")
+    db.session.add(second)
+    db.session.flush()
+    note = UserNotification(bar_id=bar.id, user_id=owner.id, kind="SYSTEM",
+                            title="TENANT_LOCKED_PRIVATE_NOTICE",
+                            body="Do not expose this in other bar dashboards")
+    db.session.add(note)
+    db.session.commit()
+
+    client = app.test_client()
+    assert _login(client, owner.email).status_code == 302
+    page = client.get("/dashboard")
+    assert page.status_code == 200
+    assert "TENANT_LOCKED_PRIVATE_NOTICE" in page.text
+    csrf = _csrf(page)
+
+    change_bar_governance(platform, bar.id, status="SUSPENDED", suspension_level=1,
+                          reason="Lecture seule")
+    db.session.commit()
+    assert client.post(f"/notifications/{note.id}/read",
+                       data={"csrf_token": csrf}).status_code == 403
+    db.session.refresh(note)
+    assert note.read_at is None
+
+    change_bar_governance(platform, bar.id, status="SUSPENDED", suspension_level=2,
+                          reason="Confidentialité")
+    db.session.commit()
+    dashboard = client.get("/dashboard")
+    assert dashboard.status_code == 200
+    assert "TENANT_LOCKED_PRIVATE_NOTICE" not in dashboard.text
+    assert client.post(f"/notifications/{note.id}/read",
+                       data={"csrf_token": csrf}).status_code == 403
+    db.session.refresh(note)
+    assert note.read_at is None
+
+    change_bar_governance(platform, bar.id, status="APPROVED", suspension_level=0,
+                          reason="Accès rétabli")
+    db.session.commit()
+    assert client.post(f"/notifications/{note.id}/read",
+                       data={"csrf_token": csrf}).status_code == 302
+    db.session.refresh(note)
+    assert note.read_at is not None
