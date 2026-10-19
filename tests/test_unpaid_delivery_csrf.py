@@ -2,6 +2,7 @@
 from decimal import Decimal
 
 from sqlalchemy import select
+from flask import g
 
 from app.extensions import db
 from app.models import StockBalance
@@ -68,6 +69,11 @@ def test_cashier_unpaid_delivery_recovers_from_rotated_csrf_without_replaying_st
     assert _stock(bar.id, product.id) == stock_before
     db.session.refresh(suborder)
     assert suborder.delivery_status == "PENDING"
+
+    # The legacy test fixture retains one Flask app_context across synthetic
+    # requests. In production g is request-local; clear its cached CSRF token
+    # to model the real boundary after the simulated session rotation.
+    g.pop("csrf_token", None)
 
     # Even an unchanged ETag response provides fresh, session-valid CSRF.
     rotated = client.get(data_url, headers={"If-None-Match": live.headers["ETag"]})
