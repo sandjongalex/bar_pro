@@ -1,0 +1,87 @@
+name: Employee UI final review
+
+on:
+  push:
+    branches:
+      - feature/employee-ui-final-review
+      - main
+    paths:
+      - 'app/templates/layout.html'
+      - 'app/templates/_app_navigation.html'
+      - 'app/templates/_context_navigation.html'
+      - 'app/templates/cashier_workspace*.html'
+      - 'app/templates/cashier_invoices*.html'
+      - 'app/templates/cashier_suborders.html'
+      - 'app/static/navigation.css'
+      - 'app/static/server_pos.css'
+      - 'app/static/employee_*'
+      - 'app/static/suborders_live.js'
+      - 'app/static/cashier_invoices_ui.js'
+      - 'app/static/unpaid_orders_ui.js'
+      - 'tests/test_employee_ui_final_review.py'
+      - '.github/workflows/employee-ui-final-review.yml'
+  pull_request:
+    paths:
+      - 'app/templates/layout.html'
+      - 'app/templates/_app_navigation.html'
+      - 'app/templates/_context_navigation.html'
+      - 'app/templates/cashier_workspace*.html'
+      - 'app/templates/cashier_invoices*.html'
+      - 'app/templates/cashier_suborders.html'
+      - 'app/static/navigation.css'
+      - 'app/static/server_pos.css'
+      - 'app/static/employee_*'
+      - 'app/static/suborders_live.js'
+      - 'app/static/cashier_invoices_ui.js'
+      - 'app/static/unpaid_orders_ui.js'
+      - 'tests/test_employee_ui_final_review.py'
+      - '.github/workflows/employee-ui-final-review.yml'
+
+jobs:
+  employee-ui:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: python -m pip install -r requirements.txt
+      - name: Parse updated JavaScript
+        run: |
+          node --check app/static/employee_mobile_nav.js
+          node --check app/static/suborders_live.js
+          node --check app/static/unpaid_orders_ui.js
+          node --check app/static/cashier_invoices_ui.js
+      - name: Browser-equivalent JavaScript mock regressions
+        run: |
+          node --test tests/async_invoice_unpaid_ui.test.cjs tests/barpro_async.test.cjs tests/server_async_orders.test.cjs tests/skeleton_loading.test.cjs tests/theme.test.cjs
+      - name: Role, tenant, navigation, checkout, stock, PWA and print regressions
+        run: >-
+          python -m pytest -q
+          tests/test_employee_ui_final_review.py
+          tests/test_role_navigation.py
+          tests/test_order_suborder_ui.py
+          tests/test_cashier_workspace.py
+          tests/test_cashier_async_safety.py
+          tests/test_async_suborders.py
+          tests/test_cashier_invoices_ui.py
+          tests/test_async_invoices_unpaid.py
+          tests/test_unpaid_orders_web.py
+          tests/test_cashier_financial_async.py
+          tests/test_cashier_secondary_async.py
+          tests/test_auto_dark_theme.py
+          tests/test_receipt_rawbt.py
+          tests/test_change_vouchers.py
+          tests/test_employee_tenant_auth.py
+  all-python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -r requirements.txt
+      - run: python -m pytest -q
