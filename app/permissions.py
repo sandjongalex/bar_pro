@@ -87,7 +87,7 @@ WRITES.add("shifts.manage")
 # The platform can govern tenants but must not alter their commercial data.
 PLATFORM_COMMERCIAL_WRITES = WRITES - {
     "bars.suspend", "bars.reactivate", "bars.update_settings",
-    "staff.manage", "subscriptions.manage", "bars.governance.manage", "shifts.manage",
+    "staff.manage", "subscriptions.manage", "bars.governance.manage",
 }
 
 
