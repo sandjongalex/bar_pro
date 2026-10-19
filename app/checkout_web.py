@@ -138,54 +138,56 @@ def _message(code) -> str:
     return messages.get(str(code), "Opération refusée. Vérifiez les informations saisies.")
 
 
-def _receipt_lines(bar_id: int, order_id: int):
-    """Return original order lines plus every validated sub-order line on the invoice.
+def _receipt_sections(bar_id: int, order_id: int) -> list[dict]:
+    """Keep invoice origins distinct for detailed display and RawBT printing.
 
-    A sub-order remains a distinct historical record.  It is only part of the
-    customer invoice once its business status is VALIDATED; pending/rejected/
-    cancelled additions must therefore never leak onto the receipt.
+    VALIDATED additions already count financially in the parent invoice. Their
+    original rows must remain untouched even when the view is cumulative.
     """
-    lines = list(
-        db.session.scalars(
-            select(OrderLine)
-            .where(OrderLine.bar_id == bar_id, OrderLine.order_id == order_id)
-            .order_by(OrderLine.line_no, OrderLine.id)
-        )
-    )
+    initial = list(db.session.scalars(
+        select(OrderLine)
+        .where(OrderLine.bar_id == bar_id, OrderLine.order_id == order_id)
+        .order_by(OrderLine.line_no, OrderLine.id)
+    ))
+    sections = [{"label": "Commande initiale", "print_label": "Commande initiale", "lines": initial}]
 
-    suborders = list(
-        db.session.scalars(
-            select(OrderSuborder)
-            .where(
-                OrderSuborder.bar_id == bar_id,
-                OrderSuborder.order_id == order_id,
-                OrderSuborder.status == "VALIDATED",
-            )
-            .order_by(OrderSuborder.sequence_no, OrderSuborder.id)
+    suborders = list(db.session.scalars(
+        select(OrderSuborder)
+        .where(
+            OrderSuborder.bar_id == bar_id,
+            OrderSuborder.order_id == order_id,
+            OrderSuborder.status == "VALIDATED",
         )
-    )
+        .order_by(OrderSuborder.sequence_no, OrderSuborder.id)
+    ))
     if not suborders:
-        return lines
+        return sections
 
-    sequence_by_id = {item.id: item.sequence_no for item in suborders}
-    addition_lines = list(
-        db.session.scalars(
-            select(OrderSuborderLine).where(
-                OrderSuborderLine.bar_id == bar_id,
-                OrderSuborderLine.order_id == order_id,
-                OrderSuborderLine.order_suborder_id.in_(sequence_by_id),
-            )
+    lines_by_suborder = {item.id: [] for item in suborders}
+    for line in db.session.scalars(
+        select(OrderSuborderLine)
+        .where(
+            OrderSuborderLine.bar_id == bar_id,
+            OrderSuborderLine.order_id == order_id,
+            OrderSuborderLine.order_suborder_id.in_([item.id for item in suborders]),
         )
-    )
-    addition_lines.sort(
-        key=lambda line: (
-            sequence_by_id.get(line.order_suborder_id, 0),
-            line.line_no,
-            line.id,
-        )
-    )
-    lines.extend(addition_lines)
-    return lines
+        .order_by(OrderSuborderLine.order_suborder_id, OrderSuborderLine.line_no, OrderSuborderLine.id)
+    ):
+        lines_by_suborder[line.order_suborder_id].append(line)
+
+    for item in suborders:
+        delivery_label = "Livrée" if item.delivery_status == "DELIVERED" else "À livrer"
+        sections.append({
+            "label": f"Sous-commande n°{item.sequence_no} · {delivery_label}",
+            "print_label": f"Sous-commande {item.sequence_no} - {'Livree' if item.delivery_status == 'DELIVERED' else 'A livrer'}",
+            "lines": lines_by_suborder[item.id],
+        })
+    return sections
+
+
+def _receipt_lines(bar_id: int, order_id: int):
+    """Backward-compatible flattened view without merging historical rows."""
+    return [line for section in _receipt_sections(bar_id, order_id) for line in section["lines"]]
 
 
 @bp.get("/orders/<int:order_id>/receipt")
@@ -201,7 +203,8 @@ def receipt(bar_id: int, order_id: int):
     if not order or order.status == "DRAFT":
         raise LookupError("NOT_FOUND")
 
-    lines = _receipt_lines(bar_id, order_id)
+    receipt_sections = _receipt_sections(bar_id, order_id)
+    lines = [line for section in receipt_sections for line in section["lines"]]
     payments = list(
         db.session.scalars(
             select(Payment)
@@ -245,6 +248,7 @@ def receipt(bar_id: int, order_id: int):
 
     receipt_context = dict(
         bar=bar,
+        receipt_sections=receipt_sections,
         order=order,
         lines=lines,
         payments=payments,

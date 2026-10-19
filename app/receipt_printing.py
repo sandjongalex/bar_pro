@@ -72,7 +72,7 @@ def cumulative_receipt_lines(lines):
 
 def _rawbt_receipt_intent(*, bar, order, lines, payments, refunds, balance, server_name,
                           customer_name, payment_times, refund_times, payment_labels,
-                          sale_time, issued_at, mode_label):
+                          sale_time, issued_at, mode_label, receipt_sections=None):
     rows = []
 
     def add(value):
@@ -102,11 +102,18 @@ def _rawbt_receipt_intent(*, bar, order, lines, payments, refunds, balance, serv
     if order.table_label_snapshot:
         add(f"Table: {order.table_label_snapshot}")
     rule()
-    for line in lines:
-        add(line.product_name_snapshot)
-        add(f"{number(line.quantity)} x {number(line.unit_sale_price_snapshot)}")
-        amount("Total", line.total_amount)
-    rule()
+    sections = receipt_sections if receipt_sections is not None else [{"label": None, "lines": lines}]
+    for section in sections:
+        if section["label"]:
+            add(section.get("print_label") or section["label"])
+        for line in section["lines"]:
+            add(line.product_name_snapshot)
+            add(f"{number(line.quantity)} x {number(line.unit_sale_price_snapshot)}")
+            amount("Total", line.total_amount)
+        if section["label"]:
+            rule()
+    if receipt_sections is None:
+        rule()
     amount("Total commande", order.total_amount)
     if balance["return_credit"] > 0:
         amount("Retours / avoirs", -balance["return_credit"])
@@ -146,7 +153,7 @@ def _rawbt_receipt_intent(*, bar, order, lines, payments, refunds, balance, serv
 
 def rawbt_receipt(*, bar, order, lines, payments, refunds, balance, server_name,
                   customer_name, payment_times, refund_times, payment_labels,
-                  sale_time, issued_at):
+                  sale_time, issued_at, receipt_sections=None):
     cumulative_lines = cumulative_receipt_lines(lines)
     common = dict(
         bar=bar,
@@ -164,6 +171,7 @@ def rawbt_receipt(*, bar, order, lines, payments, refunds, balance, server_name,
     )
     detailed = _rawbt_receipt_intent(
         lines=lines,
+        receipt_sections=receipt_sections,
         mode_label="FACTURE DETAILLEE",
         **common,
     )

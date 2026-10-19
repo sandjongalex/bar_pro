@@ -27,6 +27,7 @@ on:
       - 'app/templates/checkout.html'
       - 'tests/test_cashier_async_safety.py'
       - 'tests/test_cashier_workspace_async.py'
+      - 'tests/test_cashier_inline_rounds.py'
       - '.github/workflows/cashier-async-safety.yml'
   pull_request:
     paths:
@@ -54,6 +55,7 @@ on:
       - 'app/templates/checkout.html'
       - 'tests/test_cashier_async_safety.py'
       - 'tests/test_cashier_workspace_async.py'
+      - 'tests/test_cashier_inline_rounds.py'
       - '.github/workflows/cashier-async-safety.yml'
 
 jobs:
@@ -82,6 +84,7 @@ jobs:
           tests/test_cashier_invoices_ui.py
           tests/test_async_invoices_unpaid.py
           tests/test_unpaid_orders_web.py
+          tests/test_cashier_inline_rounds.py
       - name: Client-side syntax
         run: |
           node --check app/static/cashier_live_ui.js

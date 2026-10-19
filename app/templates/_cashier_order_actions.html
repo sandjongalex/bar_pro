@@ -1,4 +1,6 @@
 <div class="cashier-order-actions" data-order-actions="{{ order.id }}">
+  {% set rounds = rounds_by_order.get(order.id, []) %}
+  {% set pending_delivery = rounds|selectattr('delivery_status', 'equalto', 'PENDING')|list|length > 0 %}
   {% if order.status == 'DRAFT' %}
   <form method="post" action="{{ url_for('cashier_workspace_web.workspace', bar_id=bar_id) }}" data-bp-ajax="json" data-cashier-async="1">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -7,11 +9,48 @@
     <button class="btn btn-sm btn-primary" type="submit">Livrée</button>
   </form>
   {% else %}
-  <a class="btn btn-sm btn-primary" href="{{ url_for('cashier_workspace_web.workspace', bar_id=bar_id, order_id=order.id, focus='payment') }}#paymentPanel">Payer</a>
-  <a class="btn btn-sm btn-outline-primary" href="{{ url_for('checkout_web.receipt', bar_id=bar_id, order_id=order.id) }}" target="_blank" rel="noopener">Imprimer</a>
+    {% if pending_delivery %}
+      <span class="cashier-pay-wait" title="Confirmez la livraison de tous les ajouts avant l'encaissement">Livraison à confirmer</span>
+    {% else %}
+      <a class="btn btn-sm btn-primary" href="{{ url_for('cashier_workspace_web.workspace', bar_id=bar_id, order_id=order.id, focus='payment') }}#paymentPanel">Payer</a>
+    {% endif %}
+    <a class="btn btn-sm btn-outline-primary" href="{{ url_for('checkout_web.receipt', bar_id=bar_id, order_id=order.id) }}" target="_blank" rel="noopener">Imprimer</a>
   {% endif %}
   <a class="btn btn-sm btn-light border" href="{{ url_for('orders_web.detail', bar_id=bar_id, order_id=order.id) }}">Détails / aperçu</a>
   {% if order.assigned_staff_id %}
   <a class="btn btn-sm btn-light border" data-cashier-add-suborder href="{{ url_for('suborders_web.new_suborder', bar_id=bar_id, order_id=order.id) }}">＋ Sous-commande</a>
   {% endif %}
 </div>
+
+{% if rounds %}
+<div class="cashier-order-rounds" data-rounds-pending="{{ '1' if pending_delivery else '0' }}">
+  <div class="cashier-rounds-heading">
+    <strong>{{ rounds|length }} sous-commande{{ 's' if rounds|length > 1 else '' }}</strong>
+    {% if pending_delivery %}<span class="cashier-rounds-alert">● Livraison à confirmer</span>{% else %}<span class="cashier-rounds-done">✓ Livrées</span>{% endif %}
+  </div>
+  {% for item in rounds %}
+  <details class="cashier-round {% if item.delivery_status == 'PENDING' %}is-pending{% else %}is-delivered{% endif %}" data-cashier-round-id="{{ item.id }}">
+    <summary>
+      <span><strong>Sous-commande n°{{ item.sequence_no }}</strong><small>{{ 'À livrer' if item.delivery_status == 'PENDING' else 'Livrée' }}</small></span>
+      <span class="cashier-round-summary-amount">{{ "{:,.0f}".format(item.total_amount) }} {{ item.currency }} <span aria-hidden="true" class="cashier-round-chevron">⌄</span></span>
+    </summary>
+    <div class="cashier-round-body">
+      {% for line in item.lines %}
+      <div class="cashier-round-line"><span>{{ line.quantity|int if line.quantity == line.quantity|int else line.quantity }} × {{ line.name }}</span><strong>{{ "{:,.0f}".format(line.amount) }}</strong></div>
+      {% endfor %}
+      {% if item.note %}<p class="cashier-round-note">Note : {{ item.note }}</p>{% endif %}
+      {% if item.delivery_status == 'PENDING' %}
+        {% if can_confirm_round %}
+        <form class="cashier-round-delivery-form" data-bp-ajax="json" method="post" action="{{ url_for('unpaid_orders_web.confirm_delivery', bar_id=bar_id, order_id=order.id, suborder_id=item.id) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button type="submit" class="btn btn-primary">✓ Livré</button>
+        </form>
+        {% else %}<p class="cashier-round-note">En attente de confirmation par la caissière.</p>{% endif %}
+      {% else %}
+        <div class="cashier-round-delivered">✓ Livraison confirmée · historique conservé</div>
+      {% endif %}
+    </div>
+  </details>
+  {% endfor %}
+</div>
+{% endif %}
