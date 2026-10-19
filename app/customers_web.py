@@ -291,6 +291,19 @@ def manage(bar_id):
             CustomerLedgerEntry.bar_id == bar_id, CustomerLedgerEntry.entry_kind == "PAYMENT"
         )
     ) or 0)
+    reversed_manual_ids = {
+        entry.reversal_of_id for entry in manual_entries if entry.reversal_of_id is not None
+    }
+    latest_repayment_id = defaultdict(int)
+    for entry in manual_entries:
+        if entry.amount_delta < 0 and entry.reversal_of_id is None:
+            latest_repayment_id[entry.customer_id] = max(latest_repayment_id[entry.customer_id], entry.id)
+    reversible_manual_ids = {
+        entry.id for entry in manual_entries
+        if entry.amount_delta > 0 and entry.id not in reversed_manual_ids
+        and latest_repayment_id[entry.customer_id] < entry.id
+        and manual_debt_by_customer.get(entry.customer_id, Decimal(0)) >= entry.amount_delta
+    }
     top_debtors = sorted(
         (customer for customer in all_customers
          if debt_by_customer[customer.id] + manual_debt_by_customer[customer.id] > 0),
@@ -351,6 +364,7 @@ def manage(bar_id):
         manual_debt_by_customer=manual_debt_by_customer,
         aging_by_customer=aging_by_customer,
         top_debtors=top_debtors,
+        reversible_manual_ids=reversible_manual_ids,
         cases_by_customer=cases_by_customer,
         ledger=ledger,
         case_history=case_history,
