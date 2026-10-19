@@ -17,6 +17,7 @@ from app.extensions import db, limiter
 from app.finance_totals import order_balance
 from app.models import Order, Product, StaffAssignment, StockBalance, User
 from app.order_line_views import effective_lines_by_order
+from app.cashier_order_rounds import cashier_rounds_by_order, pending_rounds
 from app.permissions import permissions
 
 bp = Blueprint("live_orders_web", __name__, url_prefix="/bars/<int:bar_id>/live")
@@ -178,6 +179,7 @@ def orders(bar_id: int):
     )
     lines_by_order = effective_lines_by_order(bar_id, [order.id for order in active_orders])
     server_names = _server_names(active_orders)
+    rounds_by_order = cashier_rounds_by_order(bar_id, [order.id for order in active_orders])
 
     payload_orders = []
     total_due = Decimal("0")
@@ -201,7 +203,11 @@ def orders(bar_id: int):
                 "state": _order_state(order),
                 "table": order.table_label_snapshot or "Sans table",
                 "server_name": server_names.get(order.id, "Comptoir"),
-                "actions_html": render_template("_cashier_order_actions.html", order=order, bar_id=bar_id),
+                "actions_html": render_template(
+                    "_cashier_order_actions.html", order=order, bar_id=bar_id,
+                    rounds_by_order=rounds_by_order, can_confirm_round=(role == "CASHIER"),
+                ),
+                "pending_delivery": pending_rounds(rounds_by_order.get(order.id, [])),
                 "currency": order.currency,
                 "amount_due": _decimal_text(balance["amount_due"]),
                 "net_sale": _decimal_text(balance["net_sale"]),
