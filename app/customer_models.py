@@ -22,6 +22,7 @@ class CustomerLedgerEntry(Tenant, db.Model):
     cash_session_id = db.Column(ID)
     reversal_of_id = db.Column(ID)
     reason = db.Column(db.String(500), nullable=False)
+    due_date = db.Column(db.Date)
     occurred_at = db.Column(datetime_type(fsp=6), nullable=False)
     recorded_by_id = db.Column(ID, db.ForeignKey("users.id", ondelete="RESTRICT"), nullable=False)
 
@@ -56,6 +57,7 @@ class CustomerLedgerEntry(Tenant, db.Model):
         ),
         Index("ix_customer_ledger_customer_time", "bar_id", "customer_id", "occurred_at", "id"),
         Index("ix_customer_ledger_order", "bar_id", "order_id", "id"),
+        Index("ix_customer_ledger_due_date", "bar_id", "due_date", "id"),
     )
 
 
