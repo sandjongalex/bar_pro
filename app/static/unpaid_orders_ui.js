@@ -41,7 +41,6 @@
     grid.querySelectorAll('.unpaid-delivery-form input[name="csrf_token"]').forEach(input => {
       input.value = value;
     });
-    mergeForm?.querySelector?.('input[name="csrf_token"]')?.setAttribute('value', value);
     const mergeInput = mergeForm?.querySelector?.('input[name="csrf_token"]');
     if (mergeInput) mergeInput.value = value;
   }
