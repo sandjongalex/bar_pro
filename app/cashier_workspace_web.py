@@ -30,6 +30,7 @@ from app.models import (
 )
 from app.order_services import order_service
 from app.order_line_views import effective_lines_by_order
+from app.cashier_order_rounds import cashier_rounds_by_order, pending_rounds
 from app.payment_services import payment_service
 from app.permissions import permissions
 from app.product_display_order import product_order_expression
@@ -457,6 +458,7 @@ def workspace(bar_id: int):
 
     order_ids = [item.id for item in active_orders]
     lines_by_order = effective_lines_by_order(bar_id, order_ids)
+    rounds_by_order = cashier_rounds_by_order(bar_id, order_ids)
 
     balances = {item.id: order_balance(item) for item in active_orders}
 
@@ -523,6 +525,9 @@ def workspace(bar_id: int):
         selected_order=selected_order,
         selected_server_assignment=selected_server_assignment,
         lines_by_order=lines_by_order,
+        rounds_by_order=rounds_by_order,
+        can_confirm_round=True,
+        selected_pending_delivery=(pending_rounds(rounds_by_order.get(selected_order.id, [])) if selected_order else False),
         balances=balances,
         server_name_by_order=server_name_by_order,
         products=products,
