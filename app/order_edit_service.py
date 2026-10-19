@@ -15,6 +15,7 @@ from app.audit import record
 from app.extensions import db
 from app.finance_totals import order_balance
 from app.models import Order, OrderLine, OrderReturn, OrderReturnLine, Product, StaffAssignment
+from app.order_suborder_models import OrderSuborder
 from app.order_concurrency import revision_matches
 from app.order_services import order_service
 from app.permissions import permissions
@@ -171,11 +172,20 @@ class OrderEditService:
                 price = Decimal(product.sale_price)
             target_subtotal += number(target_qty * price)
 
+        # The parent invoice already includes validated additions. Never replace
+        # that amount with only the initial OrderLine subtotal.
+        validated_subtotal = sum((Decimal(x or 0) for x in db.session.scalars(
+            select(OrderSuborder.subtotal_amount).where(
+                OrderSuborder.bar_id == bar_id,
+                OrderSuborder.order_id == order.id,
+                OrderSuborder.status == 'VALIDATED',
+            )
+        )), Decimal(0))
         discount = Decimal(order.discount_amount or 0)
         tax = Decimal(order.tax_amount or 0)
         if discount > target_subtotal:
             raise ValueError("ORDER_NOT_EDITABLE")
-        target_total = target_subtotal - discount + tax
+        target_total = target_subtotal + validated_subtotal - discount + tax
         current_balance = order_balance(order)
         if target_total < Decimal(current_balance["net_settled"] or 0):
             raise ValueError("ORDER_TOTAL_BELOW_SETTLED")
@@ -239,9 +249,9 @@ class OrderEditService:
                     Decimal(line.quantity) * Decimal(line.unit_sale_price_snapshot)
                 )
 
-        order.subtotal_amount = order.total_amount = number(
-            sum((Decimal(line.total_amount) for line in existing_lines), Decimal("0"))
-        )
+        gross_initial = sum((Decimal(line.total_amount) for line in existing_lines), Decimal("0"))
+        order.subtotal_amount = number(gross_initial + validated_subtotal)
+        order.total_amount = number(order.subtotal_amount - discount + tax)
 
         reductions = []
         for line in existing_lines:
@@ -260,6 +270,9 @@ class OrderEditService:
         if reductions:
             order_service.return_lines(actor, bar_id, order.id, reductions, reason_text)
 
+        final_balance = order_balance(order)
+        if final_balance['net_sale'] < final_balance['net_settled']:
+            raise ValueError('ORDER_TOTAL_BELOW_SETTLED')
         order_balance(order, update=True)
         record(actor, bar_id, "orders.adjust", "orders", order.id, reason_text)
         return order
