@@ -3,6 +3,7 @@ from decimal import Decimal
 from sqlalchemy import select
 
 from app.extensions import db
+from app.cash_services import cash_service
 from app.models import AuditLog, OrderLine, StockBalance
 from app.order_services import order_service
 from app.order_suborder_models import OrderSuborderLine
@@ -35,6 +36,11 @@ def test_cashier_can_edit_round_before_and_after_delivery_and_server_sees_change
         server, bar.id, order.id, [{"product_id": product.id, "quantity": 2}])
     db.session.commit()
     initial_stock = stock(bar.id, product.id)
+
+    # A cashier's workspace requires a legitimately opened cash session.
+    # Keep that production guard intact; establish the missing test precondition.
+    cash_service.open(cashier, bar.id, "ROUND-EDIT-CASH", 0)
+    db.session.commit()
 
     client = app.test_client()
     assert _login(client, cashier.email).status_code == 302
