@@ -160,6 +160,38 @@ test('opt-in form prevents concurrent sends and restores submit buttons on error
   assert.equal(attributes.has('aria-busy'), false);
 });
 
+test('async delivery uses the form route unless submitter has explicit formaction (mobile Safari)', async () => {
+  const sent = [];
+  const { api } = start(async (url) => {
+    sent.push(url);
+    return response({ success: true, message: 'Livraison confirmée' });
+  }, { window: { location: { href: 'https://example.test/bars/1/unpaid-orders', origin: 'https://example.test' } } });
+
+  const submitButton = { disabled: false };
+  const destination = 'https://example.test/bars/1/unpaid-orders/42/suborders/7/confirm-delivery';
+  const form = {
+    action: destination,
+    getAttribute(name) { return name === 'method' ? 'post' : null; },
+    querySelector() { return { value: 'signed-csrf-token' }; },
+    querySelectorAll() { return [submitButton]; },
+    setAttribute() {}, removeAttribute() {}, dispatchEvent() {},
+  };
+  const submitter = {
+    // Browsers can expose the document URL here even with NO formaction attribute.
+    formAction: 'https://example.test/bars/1/unpaid-orders',
+    hasAttribute() { return false; },
+    name: '',
+  };
+
+  await api.submit(form, submitter);
+  assert.equal(sent[0], destination, 'default button must not override the form action');
+
+  submitter.formAction = 'https://example.test/bars/1/orders/alternate';
+  submitter.hasAttribute = name => name === 'formaction';
+  await api.submit(form, submitter);
+  assert.equal(sent[1], submitter.formAction, 'explicit formaction must still override the form action');
+});
+
 test('watch does not perform hidden or offline polling and provides cleanup', async () => {
   let tick;
   const { api, document } = start(async () => response('<section></section>', { html: true }), {
