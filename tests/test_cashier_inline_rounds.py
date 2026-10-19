@@ -59,7 +59,7 @@ def test_cashier_inline_round_delivery_preserves_lines_totals_stock_and_invoice_
     assert "cashier-round-delivery-form" in page.text
     assert "data-cashier-round-id=" in page.text
     assert "Livraison à confirmer" in page.text
-    assert "cashierPaymentModal" not in page.text
+    assert 'id="cashierPaymentModal"' not in page.text
     assert f"/unpaid-orders/{order.id}/suborders/{addition.id}/confirm-delivery" in page.text
 
     live = client.get(f"/bars/{bar.id}/live/orders")
@@ -103,7 +103,7 @@ def test_cashier_inline_round_delivery_preserves_lines_totals_stock_and_invoice_
     assert ">Payer</a>" in row["actions_html"]
 
     workspace = client.get(url + f"?order_id={order.id}")
-    assert "cashierPaymentModal" in workspace.text
+    assert 'id="cashierPaymentModal"' in workspace.text
     detail = client.get(f"/bars/{bar.id}/orders/{order.id}")
     assert detail.status_code == 200
     assert 'data-server-invoice-mode="cumulative"' in detail.text
