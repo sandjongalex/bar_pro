@@ -37,7 +37,7 @@
   <div class="customer-filter-field">
     <label class="form-label" for="customerFilter">Afficher</label>
     <select id="customerFilter" class="form-select" name="filter">
-      {% for key, label in [('all','Tous les clients'),('debtors','Avec dette'),('manual','Dette manuelle'),('settled','Sans dette'),('inactive','Inactifs')] %}
+      {% for key, label in [('all','Tous les clients'),('debtors','Avec dette'),('manual','Dette manuelle'),('overdue','En retard'),('settled','Sans dette'),('inactive','Inactifs')] %}
       <option value="{{ key }}" {% if customer_filter == key %}selected{% endif %}>{{ label }}</option>
       {% endfor %}
     </select>
@@ -51,6 +51,9 @@
   <article><span>Clients actifs</span><strong>{{ stats.customers }}</strong><small>Comptes disponibles</small></article>
   <article><span>Clients débiteurs</span><strong>{{ stats.debtors }}</strong><small>Solde supérieur à zéro</small></article>
   <article><span>Dette clients</span><strong>{{ "{:,.0f}".format(stats.debt) }} {{ bar.currency }}</strong><small>Dont {{ "{:,.0f}".format(stats.manual_debt) }} {{ bar.currency }} de dettes manuelles</small></article>
+  <article><span>Dettes en retard</span><strong class="text-danger">{{ "{:,.0f}".format(stats.overdue) }} {{ bar.currency }}</strong><small>{{ stats.overdue_count }} client(s) concerné(s)</small></article>
+  <article><span>Remb. hors caisse</span><strong>{{ "{:,.0f}".format(stats.manual_collected) }} {{ bar.currency }}</strong><small>Suivi manuel, sans impact caisse</small></article>
+  <article><span>Règlements crédits</span><strong>{{ "{:,.0f}".format(stats.credit_collected) }} {{ bar.currency }}</strong><small>Règlements des crédits sur commande</small></article>
   <article><span>Casiers dehors</span><strong>{{ stats.cases }}</strong><small>Chez les clients</small></article>
 </section>
 
@@ -68,15 +71,16 @@
           <tr>
             <td><div class="customer-name"><span>{{ customer.display_name[0]|upper }}</span><strong>{{ customer.display_name }}</strong></div></td>
             <td><small>{{ customer.phone or customer.email or 'Non renseigné' }}</small></td>
-            <td><strong class="{% if debt + manual_debt > 0 %}text-danger{% else %}text-success{% endif %}">{{ "{:,.0f}".format(debt + manual_debt) }} {{ bar.currency }}</strong>{% if debt > 0 %}<small class="d-block text-secondary">Ventes à crédit : {{ "{:,.0f}".format(debt) }}</small>{% endif %}{% if manual_debt > 0 %}<small class="d-block text-secondary">Dette manuelle : {{ "{:,.0f}".format(manual_debt) }}</small>{% endif %}</td>
+            <td><strong class="{% if debt + manual_debt > 0 %}text-danger{% else %}text-success{% endif %}">{{ "{:,.0f}".format(debt + manual_debt) }} {{ bar.currency }}</strong>{% if aging_by_customer[customer.id].overdue > 0 %}<small class="d-block text-danger">En retard : {{ "{:,.0f}".format(aging_by_customer[customer.id].overdue) }} {{ bar.currency }}</small>{% elif aging_by_customer[customer.id].next_due %}<small class="d-block text-secondary">Échéance : {{ aging_by_customer[customer.id].next_due.strftime('%d/%m/%Y') }}</small>{% endif %}{% if debt > 0 %}<small class="d-block text-secondary">Ventes à crédit : {{ "{:,.0f}".format(debt) }}</small>{% endif %}{% if manual_debt > 0 %}<small class="d-block text-secondary">Dette manuelle : {{ "{:,.0f}".format(manual_debt) }}</small>{% endif %}</td>
             <td><strong>{{ cases_by_customer.get(customer.id, 0) }}</strong></td>
             <td><span class="badge {{ 'text-bg-success' if customer.is_active else 'text-bg-secondary' }}">{{ 'Actif' if customer.is_active else 'Inactif' }}</span></td>
             <td class="text-end">
               <div class="d-flex justify-content-end gap-2 flex-wrap">
-                {% if can_credit and customer.is_active %}<button class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#manualDebtModal{{ customer.id }}">＋ Dette</button>{% endif %}
-                {% if can_credit and customer.is_active and manual_debt > 0 %}<button class="btn btn-sm btn-outline-success" data-bs-toggle="modal" data-bs-target="#manualRepaymentModal{{ customer.id }}">Remb. hors caisse</button>{% endif %}
+                {% if can_manual_debt and customer.is_active %}<button class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#manualDebtModal{{ customer.id }}">＋ Dette</button>{% endif %}
+                {% if can_manual_debt and customer.is_active and manual_debt > 0 %}<button class="btn btn-sm btn-outline-success" data-bs-toggle="modal" data-bs-target="#manualRepaymentModal{{ customer.id }}">Remb. hors caisse</button>{% endif %}
                 {% if can_credit and customer.is_active and debt > 0 %}<button class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#paymentModal{{ customer.id }}">Règlement</button>{% endif %}
                 {% if can_cases and customer.is_active %}<button class="btn btn-sm btn-light border" data-bs-toggle="modal" data-bs-target="#caseModal{{ customer.id }}">Casiers</button>{% endif %}
+                <a class="btn btn-sm btn-outline-primary" href="{{ url_for('customers_web.customer_statement', bar_id=bar.id, customer_id=customer.id) }}" target="_blank" rel="noopener">Relevé</a>
                 {% if can_manage %}<button class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#customerEditModal{{ customer.id }}">Modifier</button>{% endif %}
                 {% if can_manage %}<form method="post" data-bp-ajax="json" data-bp-secondary="customers"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="idempotency_key" value="{{ new_intent_key() }}"><input type="hidden" name="action" value="{{ 'disable' if customer.is_active else 'enable' }}"><input type="hidden" name="customer_id" value="{{ customer.id }}"><button class="btn btn-sm btn-link" type="submit">{{ 'Désactiver' if customer.is_active else 'Activer' }}</button></form>{% endif %}
               </div>
@@ -100,6 +104,17 @@
   </aside>
 </div>
 
+{% if top_debtors %}
+<section class="panel-card mt-4">
+ <div class="panel-header"><div><p class="eyebrow mb-1">Recouvrement</p><h2>Clients les plus endettés</h2></div><small class="text-secondary">Top 5, tous types de dettes</small></div>
+ <div class="table-responsive"><table class="table mb-0 align-middle"><thead><tr><th>Client</th><th>Crédits commandes</th><th>Dettes manuelles</th><th>Total dû</th><th></th></tr></thead><tbody>
+ {% for debtor in top_debtors %}
+ <tr><td>{{ debtor.display_name }}</td><td>{{ "{:,.0f}".format(debt_by_customer[debtor.id]) }}</td><td>{{ "{:,.0f}".format(manual_debt_by_customer[debtor.id]) }}</td><td><strong>{{ "{:,.0f}".format(debt_by_customer[debtor.id] + manual_debt_by_customer[debtor.id]) }} {{ bar.currency }}</strong></td><td><a class="btn btn-sm btn-outline-secondary" href="{{ url_for('customers_web.customer_statement', bar_id=bar.id, customer_id=debtor.id) }}" target="_blank" rel="noopener">Relevé</a></td></tr>
+ {% endfor %}
+ </tbody></table></div>
+</section>
+{% endif %}
+
 <div class="row g-4 mt-1">
   <div class="col-xl-7">
     <section class="panel-card h-100">
@@ -109,11 +124,11 @@
         {% set customer = customer_by_id.get(entry.customer_id) %}
         <tr>
           <td>{{ customer.display_name if customer else entry.customer_id }}</td>
-          <td>{% if entry.entry_kind == 'ADJUSTMENT' %}{{ 'Dette manuelle' if entry.amount_delta > 0 else 'Remb. hors caisse' }}{% else %}{{ {'CREDIT_SALE':'Vente à crédit','PAYMENT':'Règlement','REVERSAL':'Annulation'}.get(entry.entry_kind, entry.entry_kind) }}{% endif %}</td>
-          <td><strong>{{ entry.reference }}</strong>{% if entry.entry_kind == "ADJUSTMENT" %}<small class="d-block text-secondary">{{ entry.reason }}</small>{% endif %}</td>
+          <td>{% if entry.entry_kind == 'ADJUSTMENT' %}{{ 'Annulation dette' if entry.reversal_of_id else ('Dette manuelle' if entry.amount_delta > 0 else 'Remb. hors caisse') }}{% else %}{{ {'CREDIT_SALE':'Vente à crédit','PAYMENT':'Règlement','REVERSAL':'Annulation'}.get(entry.entry_kind, entry.entry_kind) }}{% endif %}</td>
+          <td><strong>{{ entry.reference }}</strong>{% if entry.entry_kind == "ADJUSTMENT" %}<small class="d-block text-secondary">{{ entry.reason }}</small>{% if entry.due_date %}<small class="d-block text-secondary">Échéance : {{ entry.due_date.strftime("%d/%m/%Y") }}</small>{% endif %}{% endif %}</td>
           <td class="{{ 'text-danger' if entry.amount_delta > 0 else 'text-success' }}"><strong>{{ '+' if entry.amount_delta > 0 else '' }}{{ "{:,.0f}".format(entry.amount_delta) }} {{ entry.currency }}</strong></td>
           <td><small>{{ entry.occurred_at }}</small></td>
-          <td class="text-end">{% if can_credit and entry.entry_kind == 'CREDIT_SALE' %}<button class="btn btn-sm btn-link text-danger" data-bs-toggle="modal" data-bs-target="#reverseCredit{{ entry.id }}">Annuler vente</button>{% endif %}</td>
+          <td class="text-end">{% if can_manual_debt and entry.id in reversible_manual_ids %}<button class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#reverseManualDebt{{ entry.id }}">Annuler dette</button>{% endif %} {% if can_credit and entry.entry_kind == 'CREDIT_SALE' %}<button class="btn btn-sm btn-link text-danger" data-bs-toggle="modal" data-bs-target="#reverseCredit{{ entry.id }}">Annuler vente</button>{% endif %}</td>
         </tr>
       {% else %}<tr><td colspan="6" class="p-4 text-secondary">Aucun mouvement client.</td></tr>{% endfor %}
       </tbody></table></div>
@@ -184,7 +199,7 @@
   </form></div></div></div>
   {% endif %}
 
-  {% if can_credit %}
+  {% if can_manual_debt %}
   <div class="modal fade" id="manualDebtModal{{ customer.id }}" tabindex="-1" aria-labelledby="manualDebtTitle{{ customer.id }}"><div class="modal-dialog modal-dialog-centered"><div class="modal-content">
     <form method="post" data-bp-ajax="json" data-bp-secondary="customers">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="idempotency_key" value="{{ new_intent_key() }}">
@@ -193,6 +208,7 @@
       <div class="modal-body">
         <div class="alert alert-light border">Enregistrement indépendant du stock, des commandes et de la caisse.</div>
         <label class="form-label">Montant ({{ bar.currency }})</label><input class="form-control mb-3" name="amount" type="number" min="1" step="1" required>
+        <label class="form-label" for="manualDue{{ customer.id }}">Échéance (facultative)</label><input class="form-control mb-3" id="manualDue{{ customer.id }}" name="due_date" type="date">
         <label class="form-label">Motif de la dette</label><textarea class="form-control" name="reason" maxlength="500" rows="2" placeholder="Ex. ancienne dette, avance accordée au client" required></textarea>
       </div>
       <div class="modal-footer"><button class="btn btn-light border" type="button" data-bs-dismiss="modal">Annuler</button><button class="btn btn-primary" type="submit">Enregistrer la dette</button></div>
@@ -230,6 +246,31 @@
   </form></div></div></div>
   {% endif %}
 {% endfor %}
+
+
+{% if can_manual_debt %}
+{% for entry in ledger if entry.id in reversible_manual_ids %}
+<div class="modal fade" id="reverseManualDebt{{ entry.id }}" tabindex="-1" aria-labelledby="reverseManualDebtTitle{{ entry.id }}">
+  <div class="modal-dialog modal-dialog-centered"><div class="modal-content">
+    <form method="post" data-bp-ajax="json" data-bp-secondary="customers">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="idempotency_key" value="{{ new_intent_key() }}">
+      <input type="hidden" name="action" value="manual_reverse">
+      <input type="hidden" name="entry_id" value="{{ entry.id }}">
+      <div class="modal-header"><h2 class="modal-title h5" id="reverseManualDebtTitle{{ entry.id }}">Annuler une dette manuelle</h2><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">
+        <p>Client : <strong>{{ customer_by_id[entry.customer_id].display_name }}</strong></p>
+        <p>Montant : <strong>{{ "{:,.0f}".format(entry.amount_delta) }} {{ entry.currency }}</strong></p>
+        <p class="small text-secondary">Une écriture inverse sera créée. Aucun historique, stock ou mouvement de caisse ne sera supprimé. Si des remboursements sont intervenus, la correction sera refusée.</p>
+        <label class="form-label" for="reverseManualReason{{ entry.id }}">Motif obligatoire de l'annulation</label>
+        <textarea class="form-control" name="reason" id="reverseManualReason{{ entry.id }}" maxlength="500" required rows="3"></textarea>
+      </div>
+      <div class="modal-footer"><button class="btn btn-light border" type="button" data-bs-dismiss="modal">Retour</button><button class="btn btn-danger" type="submit">Confirmer l'annulation</button></div>
+    </form>
+  </div></div>
+</div>
+{% endfor %}
+{% endif %}
 
 {% for entry in ledger if entry.entry_kind == 'CREDIT_SALE' and can_credit %}
 <div class="modal fade" id="reverseCredit{{ entry.id }}" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content"><form method="post" data-bp-ajax="json" data-bp-secondary="customers">
