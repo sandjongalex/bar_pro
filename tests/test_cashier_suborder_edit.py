@@ -65,7 +65,7 @@ def test_cashier_can_edit_round_before_and_after_delivery_and_server_sees_change
     assert follow.status_code == 200
     round_row = next(item for item in follow.get_json()["suborders"] if item["id"] == sub.id)
     assert round_row["lines"][0]["quantity"] == "1"
-    assert round_row["total"] == "100.0000"
+    assert Decimal(round_row["total"]) == 100
 
     delivered = order_suborder_service.deliver_by_cashier(cashier, bar.id, order.id, sub.id)
     db.session.commit()
@@ -99,8 +99,8 @@ def test_cashier_can_edit_round_before_and_after_delivery_and_server_sees_change
         AuditLog.action == "orders.suborder.edit", AuditLog.target_id == sub.id,
     )))
     assert len(logs) == 2
-    assert logs[0].changes["before"][0]["quantity"] == "2.000000"
-    assert logs[1].changes["after"][0]["quantity"] == "2.000000"
+    assert Decimal(logs[0].changes["before"][0]["quantity"]) == 2
+    assert Decimal(logs[1].changes["after"][0]["quantity"]) == 2
 
 
 def test_cashier_edits_own_delivered_round_before_server_validation(env):
@@ -126,7 +126,7 @@ def test_cashier_edits_own_delivered_round_before_server_validation(env):
     pending = client.get(f"/bars/{bar.id}/orders/suborders/pending/data")
     assert pending.status_code == 200
     entry = next(item for item in pending.get_json()["pending"] if item["id"] == sub.id)
-    assert entry["lines"][0]["quantity"] == "1.000000"
+    assert Decimal(entry["lines"][0]["quantity"]) == 1
 
     validated = order_suborder_service.validate_by_server(server, bar.id, order.id, sub.id)
     db.session.commit()
