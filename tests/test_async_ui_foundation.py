@@ -94,5 +94,7 @@ def test_ajax_customer_form_target_is_not_shadowed_by_action_input():
     template = (ROOT / "app/templates/customers.html").read_text(encoding="utf-8")
     javascript = (ROOT / "app/static/barpro_async.js").read_text(encoding="utf-8")
     assert 'name="action" value="create"' in template
-    assert "form.getAttribute('action') || root.location.href" in javascript
+    assert "const htmlAction = form.getAttribute('action');" in javascript
+    assert "typeof form.action === 'string'" in javascript
+    assert "actionOverride || htmlAction || nativeAction || root.location.href" in javascript
     assert "actionOverride || form.action" not in javascript
