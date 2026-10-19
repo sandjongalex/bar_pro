@@ -138,6 +138,7 @@
   <aside class="panel-card cashier-pay-panel{% if focus_payment or request.args.get('order_id') %} is-open{% endif %}" id="paymentPanel">
     <button type="button" class="btn btn-light border cashier-panel-collapse" data-cashier-panel-close aria-label="Refermer le détail de la commande">← Retour aux commandes</button>
     {% if selected_order %}
+      <input type="hidden" data-cashier-selected-order name="order_id" value="{{ selected_order.id }}">
       {% set b = balances[selected_order.id] %}
       {% set selected_lines = lines_by_order.get(selected_order.id, []) %}
       <div class="cashier-pay-title"><div><p class="eyebrow mb-1">Commande</p><h2 class="cashier-human-order-title">{{ selected_order.customer_name_snapshot or selected_order.table_label_snapshot or 'COMPTOIR' }}</h2><small class="cashier-selected-system-ref">Réf. système : {{ selected_order.reference }}</small></div><span class="cashier-pay-total">{{ "{:,.0f}".format(b.amount_due if selected_order.status != 'DRAFT' else b.net_sale) }} {{ selected_order.currency }}</span></div>
