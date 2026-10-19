@@ -56,14 +56,14 @@
         {% for product in products %}
           {% set stock = balances.get(product.id, 0) %}
           {% set category = categories_by_id.get(product.category_id) %}
-          <button class="suborder-product" type="button" data-product-id="{{ product.id }}" data-name="{{ product.name }}" data-price="{{ product.sale_price }}" data-stock="{{ stock }}" data-category="{{ product.category_id }}" {% if stock <= 0 %}disabled{% endif %}>
-            <span class="suborder-stock {% if stock <= 0 %}out{% elif stock <= product.stock_alert_threshold %}low{% endif %}">{% if stock <= 0 %}Rupture{% else %}Stock {{ stock }}{% endif %}</span>
+          <button class="suborder-product" type="button" data-product-id="{{ product.id }}" data-name="{{ product.name }}" data-price="{{ product.sale_price }}" data-stock="{{ stock }}" data-category="{{ product.category_id }}">
+            <span class="suborder-stock {% if stock <= product.stock_alert_threshold %}low{% endif %}">Stock {{ stock }}</span>
             <strong>{{ product.name }}</strong>
             <small>{{ category.name if category else 'Produit' }} · {{ product.base_unit }}</small>
             <span class="suborder-price">{{ "{:,.0f}".format(product.sale_price) }} {{ bar.currency }}</span>
           </button>
         {% else %}
-          <div class="suborder-empty"><strong>Aucun produit disponible</strong><small>Le catalogue actif est vide.</small></div>
+          <div class="suborder-empty" role="status"><strong>Aucun produit en stock</strong><small>Les produits épuisés sont masqués. Contactez la caisse ou le responsable pour un réapprovisionnement.</small></div>
         {% endfor %}
       </div>
     </section>

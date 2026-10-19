@@ -78,24 +78,40 @@ def _active_order(bar_id: int, order_id: int):
 
 
 def _builder_data(bar_id: int):
-    products = list(
-        db.session.scalars(
-            select(Product)
-            .where(Product.bar_id == bar_id, Product.is_active.is_(True))
+    """Only offer active products with positive physical stock for this bar.
+
+    A missing StockBalance is out of stock, never an implicit unlimited item.
+    The joining bar_id prevents leaking another tenant's balances.
+    """
+    available = list(
+        db.session.execute(
+            select(Product, StockBalance.quantity)
+            .join(
+                StockBalance,
+                (StockBalance.bar_id == Product.bar_id)
+                & (StockBalance.product_id == Product.id),
+            )
+            .where(
+                Product.bar_id == bar_id,
+                Product.is_active.is_(True),
+                StockBalance.quantity > 0,
+            )
             .order_by(product_order_expression(Product.name), Product.name, Product.id)
         )
     )
+    products = [product for product, _ in available]
+    balances = {product.id: quantity for product, quantity in available}
     categories = list(
         db.session.scalars(
             select(ProductCategory)
-            .where(ProductCategory.bar_id == bar_id, ProductCategory.is_active.is_(True))
+            .where(
+                ProductCategory.bar_id == bar_id,
+                ProductCategory.is_active.is_(True),
+                ProductCategory.id.in_({product.category_id for product in products}),
+            )
             .order_by(ProductCategory.name, ProductCategory.id)
         )
     )
-    balances = {
-        row.product_id: row.quantity
-        for row in db.session.scalars(select(StockBalance).where(StockBalance.bar_id == bar_id))
-    }
     return products, categories, {item.id: item for item in categories}, balances
 
 

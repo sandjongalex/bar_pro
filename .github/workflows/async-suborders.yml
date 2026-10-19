@@ -38,3 +38,13 @@ jobs:
       - run: node --check app/static/unpaid_orders_ui.js
       - run: python -m compileall -q app/suborder_web.py app/unpaid_orders_web.py app/orders.py
       - run: python -m pytest -q tests/test_async_suborders.py tests/test_order_suborder_service.py tests/test_order_suborder_ui.py tests/test_order_suborder_web.py tests/test_cashier_delivery_confirmation.py
+
+  complete-python-regressions:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -r requirements.txt
+      - run: python -m pytest -q
