@@ -93,6 +93,20 @@ def manage(bar_id):
                 response = succeeded(intent, action, "Client créé avec succès.", data={"customer_id": created.id})
                 if response is not None: return response
 
+            elif action == "update":
+                updated = customer_service.update(
+                    current_user,
+                    bar_id,
+                    int(request.form.get("customer_id", "0")),
+                    {
+                        "display_name": request.form.get("display_name", ""),
+                        "phone": request.form.get("phone", ""),
+                        "email": request.form.get("email", ""),
+                    },
+                )
+                response = succeeded(intent, action, "Informations du client enregistrées.", data={"customer_id": updated.id})
+                if response is not None: return response
+
             elif action in {"enable", "disable"}:
                 updated = customer_service.set_active(
                     current_user,
@@ -180,6 +194,7 @@ def manage(bar_id):
         )
     )
     active_customers = [item for item in customers if item.is_active]
+    all_customers = customers
 
     debt_rows = dict(
         db.session.execute(
@@ -222,7 +237,7 @@ def manage(bar_id):
             .limit(100)
         )
     )
-    customer_by_id = {customer.id: customer for customer in customers}
+    customer_by_id = {customer.id: customer for customer in all_customers}
     products = list(
         db.session.scalars(
             select(Product).where(Product.bar_id == bar_id, Product.is_active.is_(True)).order_by(Product.name, Product.id)
@@ -246,12 +261,40 @@ def manage(bar_id):
         "cases": sum(max(value, 0) for value in cases_by_customer.values()),
     }
 
+    query_text = request.args.get("q", "").strip()[:120]
+    customer_filter = request.args.get("filter", "all")
+    if customer_filter not in {"all", "debtors", "manual", "settled", "inactive"}:
+        customer_filter = "all"
+    normalized = query_text.casefold()
+
+    def matches_customer(customer):
+        credit = debt_by_customer[customer.id]
+        manual = manual_debt_by_customer[customer.id]
+        if normalized and not any(
+            normalized in str(value or "").casefold()
+            for value in (customer.display_name, customer.phone, customer.email)
+        ):
+            return False
+        if customer_filter == "debtors":
+            return credit + manual > 0
+        if customer_filter == "manual":
+            return manual > 0
+        if customer_filter == "settled":
+            return credit + manual <= 0
+        if customer_filter == "inactive":
+            return not customer.is_active
+        return True
+
+    customers = [customer for customer in all_customers if matches_customer(customer)]
+
     return render_template(
         "customers.html",
         bar=bar,
         customers=customers,
         active_customers=active_customers,
         debt_by_customer=debt_by_customer,
+        query_text=query_text,
+        customer_filter=customer_filter,
         manual_debt_by_customer=manual_debt_by_customer,
         cases_by_customer=cases_by_customer,
         ledger=ledger,
