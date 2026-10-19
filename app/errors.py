@@ -21,7 +21,19 @@ def _response(status: int, code: str, message: str):
 def register_error_handlers(app: Flask) -> None:
     from app.extensions import db
     from sqlalchemy.exc import IntegrityError
+    from flask_wtf.csrf import CSRFError
     from werkzeug.exceptions import HTTPException
+
+    @app.errorhandler(CSRFError)
+    def csrf_error(error):
+        # CSRF is still mandatory; only replace the opaque HTTP error with
+        # instructions that do not encourage blind replays of stock movements.
+        db.session.rollback()
+        return _response(
+            400, "CSRF_REJECTED",
+            "Session de sécurité expirée ou modifiée. Actualisez la page, "
+            "vérifiez si la livraison est déjà confirmée, puis réessayez si nécessaire.",
+        )
 
     @app.errorhandler(HTTPException)
     def http_error(error):
