@@ -149,7 +149,7 @@ def _receipt_sections(bar_id: int, order_id: int) -> list[dict]:
         .where(OrderLine.bar_id == bar_id, OrderLine.order_id == order_id)
         .order_by(OrderLine.line_no, OrderLine.id)
     ))
-    sections = [{"label": "Commande initiale", "lines": initial}]
+    sections = [{"label": "Commande initiale", "print_label": "Commande initiale", "lines": initial}]
 
     suborders = list(db.session.scalars(
         select(OrderSuborder)
@@ -179,6 +179,7 @@ def _receipt_sections(bar_id: int, order_id: int) -> list[dict]:
         delivery_label = "Livrée" if item.delivery_status == "DELIVERED" else "À livrer"
         sections.append({
             "label": f"Sous-commande n°{item.sequence_no} · {delivery_label}",
+            "print_label": f"Sous-commande {item.sequence_no} - {'Livree' if item.delivery_status == 'DELIVERED' else 'A livrer'}",
             "lines": lines_by_suborder[item.id],
         })
     return sections
