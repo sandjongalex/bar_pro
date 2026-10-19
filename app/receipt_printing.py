@@ -105,7 +105,7 @@ def _rawbt_receipt_intent(*, bar, order, lines, payments, refunds, balance, serv
     sections = receipt_sections if receipt_sections is not None else [{"label": None, "lines": lines}]
     for section in sections:
         if section["label"]:
-            add(section["label"])
+            add(section.get("print_label") or section["label"])
         for line in section["lines"]:
             add(line.product_name_snapshot)
             add(f"{number(line.quantity)} x {number(line.unit_sale_price_snapshot)}")
