@@ -54,15 +54,103 @@ class CustomerService:
             values = db.session.scalars(select(CustomerLedgerEntry.amount_delta).where(
                 CustomerLedgerEntry.bar_id == bar_id,
                 CustomerLedgerEntry.customer_id == customer_id,
+                CustomerLedgerEntry.entry_kind != "ADJUSTMENT",
             ).with_for_update())
             return sum((Decimal(x or 0) for x in values), Decimal("0"))
         value = db.session.scalar(
             select(func.coalesce(func.sum(CustomerLedgerEntry.amount_delta), 0)).where(
                 CustomerLedgerEntry.bar_id == bar_id,
                 CustomerLedgerEntry.customer_id == customer_id,
+                CustomerLedgerEntry.entry_kind != "ADJUSTMENT",
             )
         )
         return Decimal(value or 0)
+
+    def manual_debt_balance(self, bar_id, customer_id, *, locking=False):
+        """Off-cash manual balance, kept separate from order-linked credit."""
+        query = select(CustomerLedgerEntry.amount_delta).where(
+            CustomerLedgerEntry.bar_id == bar_id,
+            CustomerLedgerEntry.customer_id == customer_id,
+            CustomerLedgerEntry.entry_kind == "ADJUSTMENT",
+        )
+        if locking:
+            return sum((Decimal(value or 0) for value in db.session.scalars(
+                query.with_for_update()
+            )), Decimal("0"))
+        value = db.session.scalar(
+            select(func.coalesce(func.sum(CustomerLedgerEntry.amount_delta), 0)).where(
+                CustomerLedgerEntry.bar_id == bar_id,
+                CustomerLedgerEntry.customer_id == customer_id,
+                CustomerLedgerEntry.entry_kind == "ADJUSTMENT",
+            )
+        )
+        return Decimal(value or 0)
+
+    def record_manual_debt(self, actor, bar_id, customer_id, reference, amount, reason):
+        """Track a customer debt without creating an order, stock movement or cash entry."""
+        permissions.require(actor, "customer_credit.manage", bar_id)
+        customer = db.session.scalar(
+            select(Customer).where(
+                Customer.id == customer_id,
+                Customer.bar_id == bar_id,
+                Customer.is_active.is_(True),
+            ).with_for_update()
+        )
+        if not customer:
+            raise LookupError("NOT_FOUND")
+        amount = number(amount, positive=True)
+        note = required_text(reason, 500)
+        bar = db.session.get(Bar, bar_id)
+        item = CustomerLedgerEntry(
+            bar_id=bar_id,
+            customer_id=customer.id,
+            order_id=None,
+            reference=required_text(reference, 64),
+            entry_kind="ADJUSTMENT",
+            amount_delta=amount,
+            currency=bar.currency,
+            reason=note,
+            occurred_at=utcnow(),
+            recorded_by_id=actor.id,
+        )
+        db.session.add(item)
+        db.session.flush()
+        record(actor, bar_id, "customer_debt.manual_add", "customer_ledger_entries", item.id, item.reference)
+        return item
+
+    def record_manual_repayment(self, actor, bar_id, customer_id, reference, amount, reason):
+        """Reduce manual debt only; do not record a cash or order payment."""
+        permissions.require(actor, "customer_credit.manage", bar_id)
+        customer = db.session.scalar(
+            select(Customer).where(
+                Customer.id == customer_id,
+                Customer.bar_id == bar_id,
+                Customer.is_active.is_(True),
+            ).with_for_update()
+        )
+        if not customer:
+            raise LookupError("NOT_FOUND")
+        amount = number(amount, positive=True)
+        note = required_text(reason, 500)
+        if amount > self.manual_debt_balance(bar_id, customer.id, locking=True):
+            raise ValueError("MANUAL_DEBT_REPAYMENT_LIMIT")
+        bar = db.session.get(Bar, bar_id)
+        item = CustomerLedgerEntry(
+            bar_id=bar_id,
+            customer_id=customer.id,
+            order_id=None,
+            reference=required_text(reference, 64),
+            entry_kind="ADJUSTMENT",
+            amount_delta=-amount,
+            currency=bar.currency,
+            reason=note,
+            occurred_at=utcnow(),
+            recorded_by_id=actor.id,
+        )
+        db.session.add(item)
+        db.session.flush()
+        record(actor, bar_id, "customer_debt.manual_repayment", "customer_ledger_entries", item.id, item.reference)
+        return item
 
     def case_balance(self, bar_id, customer_id, product_id=None, *, locking=False):
         query = select(CustomerCaseEntry.quantity_delta).where(
