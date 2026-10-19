@@ -7,7 +7,7 @@
 
   const baseLiveUrl = root.dataset.liveUrl || '';
   const role = root.dataset.role || '';
-  const csrfToken = root.dataset.csrfToken || '';
+  let csrfToken = root.dataset.csrfToken || '';
   let staffFilter = root.dataset.staffFilter || 'all';
   const staffSelect = document.getElementById('staff');
   const badge = document.querySelector('[data-unpaid-live-badge]');
@@ -30,6 +30,20 @@
   let mergeConflict = '';
   const etags = new Map();
   let renderedKey = null;
+
+  function refreshCsrfToken(response) {
+    // Flask-WTF signs tokens with a finite lifetime; business snapshots can
+    // remain unchanged for hours. Read refreshed credentials on both 200/304.
+    const value = response.headers?.get?.('X-BarPro-CSRF');
+    if (!value) return;
+    csrfToken = value;
+    root.dataset.csrfToken = value;
+    grid.querySelectorAll('.unpaid-delivery-form input[name="csrf_token"]').forEach(input => {
+      input.value = value;
+    });
+    const mergeInput = mergeForm?.querySelector?.('input[name="csrf_token"]');
+    if (mergeInput) mergeInput.value = value;
+  }
 
   function escapeHtml(value) {
     return String(value ?? '').replace(/[&<>"']/g, (char) => ({
@@ -269,6 +283,7 @@
         credentials: 'same-origin', headers, cache: 'no-store', signal: controller.signal,
       });
       if (generation !== requestGeneration) return;
+      if (response.ok || response.status === 304) refreshCsrfToken(response);
       if (response.status === 304) {
         if (badge && badge.textContent === '● Reconnexion…') badge.textContent = '● Mise à jour auto';
         return;

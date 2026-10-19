@@ -180,3 +180,68 @@ test('unpaid keyed poll preserves selected DOM, uses ETag and warns when selecte
   assert.match(warning.textContent, /ne sont plus éligibles/);
   assert.equal(count.textContent, '0');
 });
+
+
+test('unpaid AJAX polling renews CSRF on unchanged 304 without rebuilding cards', async () => {
+  const tokenInput = { value: 'old-token' };
+  const mergeToken = { value: 'old-token' };
+  const root = {dataset: {liveUrl: '/bars/1/unpaid-orders/data?staff=all',
+    role: 'CASHIER', csrfToken: 'old-token', staffFilter: 'all'}};
+  const grid = {
+    children: [],
+    querySelectorAll(selector) {
+      if (selector === '.unpaid-delivery-form input[name="csrf_token"]') return [tokenInput];
+      return [];
+    },
+    querySelector() { return null; },
+    addEventListener() {},
+    insertBefore() {throw new Error('Do not reconstruct unchanged cards');},
+  };
+  const mergeForm = { querySelector() { return mergeToken; }, addEventListener() {} };
+  const mergeButton = {disabled:true, textContent:''};
+  const attrs = {
+    '[data-unpaid-monitor]': root, '[data-unpaid-grid]': grid,
+    '[data-merge-form]': mergeForm, '[data-merge-submit]': mergeButton,
+  };
+  const document = {
+    hidden: false, activeElement: null,
+    querySelector(selector) { return attrs[selector] || null; },
+    getElementById() { return null; }, addEventListener() {},
+  };
+  const intervals = {};
+  const window = {
+    location: {href:'https://example.test/bars/1/unpaid-orders'},
+    scrollX:0, scrollY:0, scrollTo() {},
+    setTimeout() {}, setInterval(fn, ms) { intervals[ms] = fn; },
+    addEventListener() {},
+  };
+  const calls = [];
+  const fetch = async (url, options) => {
+    calls.push({url,options});
+    const current = calls.length === 1 ? 'fresh-token-1' : 'fresh-token-2';
+    return {
+      status: calls.length === 1 ? 200 : 304,
+      ok: calls.length === 1,
+      headers: {get(key) {
+        return key === 'X-BarPro-CSRF' ? current
+          : key === 'ETag' ? '"business-snapshot-unchanged"' : null;
+      }},
+      json: async () => ({orders: [],
+        stats: {count: 0, partial: 0, due: '0', pending_delivery: 0}}),
+    };
+  };
+
+  vm.runInNewContext(unpaidCode, {document,window,fetch,URL,AbortController,
+    navigator:{onLine:true},Intl,Date,Number,Set,Map});
+  await flush();
+  assert.equal(root.dataset.csrfToken, 'fresh-token-1');
+  assert.equal(tokenInput.value, 'fresh-token-1');
+  assert.equal(mergeToken.value, 'fresh-token-1');
+
+  intervals[4000]();
+  await flush();
+  assert.equal(calls[1].options.headers['If-None-Match'], '"business-snapshot-unchanged"');
+  assert.equal(root.dataset.csrfToken, 'fresh-token-2');
+  assert.equal(tokenInput.value, 'fresh-token-2');
+  assert.equal(mergeToken.value, 'fresh-token-2');
+});
