@@ -4,7 +4,7 @@ Ce fichier est généré par [`scripts/schema_document.py`](../scripts/schema_do
 Ne pas l'éditer librement : [`tests/test_schema.py`](../tests/test_schema.py) compare exactement
 son contenu à `scripts.schema_document.render()`.
 
-Révision Alembic terminale observée : `d1e2f3a4b5c6`. Le dictionnaire décrit les tables,
+Révision Alembic terminale observée : `ba5a5a1f0001`. Le dictionnaire décrit les tables,
 colonnes, clés, contraintes, index et relations dérivables de `app.models`.
 Les types sont compilés pour MySQL et SQLite quand ils diffèrent. Une compilation SQL ou
 un test SQLite ne constitue pas une validation sur serveur MySQL.
@@ -38,6 +38,7 @@ un test SQLite ne constitue pas une validation sur serveur MySQL.
 | `a7b8c9d0e1f2` | `f6a7b8c9d0e1` | `a7b8c9d0e1f2_reconcile_inventory_purchase_schema.py` | Reconcile purchase extensions and inventory-period snapshots after f6.  This migration repairs an earlier revision-id collision: two independent files used revision ``e5f6a7b8c9d0``.  Production databases may therefore have either set of schema changes while reporting the same Alembic ancestry.  The upgrade below is intentionally idempotent and creates whichever pieces are missing. |
 | `b2c3d4e5f6a7` | `a1b2c3d4e5f6` | `b2c3d4e5f6a7_payment_amounts.py` | payment tender amounts |
 | `b8c9d0e1f2a3` | `a7b8c9d0e1f2` | `b8c9d0e1f2a3_order_suborders.py` | Add persistent cashier sub-orders awaiting server validation. |
+| `ba5a5a1f0001` | `d1e2f3a4b5c6` | `ba5a5a1f0001_saas_governance.py` | Independent bar and owner administrative governance (no data backfill). |
 | `c3d4e5f6a7b8` | `b2c3d4e5f6a7` | `c3d4e5f6a7b8_integrity.py` | Reconcile tender and tenant source integrity without rewriting history. |
 | `c9d0e1f2a3b4` | `b8c9d0e1f2a3` | `c9d0e1f2a3b4_employee_shifts.py` | Add employee attendance and on-duty shifts. |
 | `d0e1f2a3b4c5` | `c9d0e1f2a3b4` | `d0e1f2a3b4c5_change_vouchers.py` | Add customer change vouchers and settlement journal.  Revision ID: d0e1f2a3b4c5 Revises: c9d0e1f2a3b4 |
@@ -78,6 +79,8 @@ erDiagram
     users ||--o{ api_tokens : "user_id"
     users ||--o{ audit_logs : "actor_id"
     bars ||--o{ audit_logs : "bar_id"
+    bars ||--o{ bar_governance : "bar_id"
+    users ||--o{ bar_governance : "changed_by_id"
     bars ||--o{ bar_tables : "bar_id"
     users ||--o{ bars : "owner_id"
     bars ||--o{ cash_handovers : "bar_id"
@@ -167,6 +170,8 @@ erDiagram
     customers ||--o{ orders : "bar_id, customer_id"
     bar_tables ||--o{ orders : "bar_id, table_id"
     users ||--o{ orders : "created_by_id"
+    users ||--o{ owner_governance : "changed_by_id"
+    users ||--o{ owner_governance : "owner_id"
     bars ||--o{ payments : "bar_id"
     cash_sessions ||--o{ payments : "bar_id, cash_session_id"
     orders ||--o{ payments : "bar_id, order_id"
@@ -249,6 +254,8 @@ erDiagram
 | `api_tokens` | `—` | `user_id` | `users.id` | `RESTRICT` |
 | `audit_logs` | `—` | `actor_id` | `users.id` | `RESTRICT` |
 | `audit_logs` | `—` | `bar_id` | `bars.id` | `RESTRICT` |
+| `bar_governance` | `—` | `bar_id` | `bars.id` | `RESTRICT` |
+| `bar_governance` | `—` | `changed_by_id` | `users.id` | `RESTRICT` |
 | `bar_tables` | `—` | `bar_id` | `bars.id` | `RESTRICT` |
 | `bars` | `—` | `owner_id` | `users.id` | `RESTRICT` |
 | `cash_handovers` | `—` | `bar_id` | `bars.id` | `RESTRICT` |
@@ -338,6 +345,8 @@ erDiagram
 | `orders` | `—` | `bar_id, customer_id` | `customers.bar_id, customers.id` | `RESTRICT` |
 | `orders` | `—` | `bar_id, table_id` | `bar_tables.bar_id, bar_tables.id` | `RESTRICT` |
 | `orders` | `—` | `created_by_id` | `users.id` | `RESTRICT` |
+| `owner_governance` | `—` | `changed_by_id` | `users.id` | `RESTRICT` |
+| `owner_governance` | `—` | `owner_id` | `users.id` | `RESTRICT` |
 | `payments` | `—` | `bar_id` | `bars.id` | `RESTRICT` |
 | `payments` | `—` | `bar_id, cash_session_id` | `cash_sessions.bar_id, cash_sessions.id` | `RESTRICT` |
 | `payments` | `—` | `bar_id, order_id` | `orders.bar_id, orders.id` | `RESTRICT` |
@@ -458,6 +467,26 @@ erDiagram
 - FK `—` : `bar_id` → `bars.id` ; ON DELETE `RESTRICT`.
 - INDEX `ix_audit_bar_occurred` : `bar_id, occurred_at, id`.
 - INDEX `ix_audit_request` : `request_id`.
+
+### `bar_governance`
+
+| Colonne | Type | NULL | PK | Default ORM | Default serveur | Calcul |
+| --- | --- | --- | --- | --- | --- | --- |
+| `bar_id` | MySQL `BIGINT` / SQLite `INTEGER` | non | oui | — | — | — |
+| `status` | VARCHAR(16) | non | non | — | — | — |
+| `suspension_level` | SMALLINT | non | non | 0 | — | — |
+| `reason` | VARCHAR(500) | non | non | — | — | — |
+| `changed_by_id` | MySQL `BIGINT` / SQLite `INTEGER` | non | non | — | — | — |
+| `changed_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | non | non | — | — | — |
+| `created_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | non | non | utcnow | — | — |
+| `updated_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | non | non | utcnow | — | — |
+
+- PK : `bar_id`.
+- CHECK `ck_bar_governance_level` : `(status = 'SUSPENDED' AND suspension_level IN (1,2)) OR (status <> 'SUSPENDED' AND suspension_level = 0)`.
+- CHECK `ck_bar_governance_status` : `status IN ('DRAFT','PENDING','INCOMPLETE','APPROVED','REJECTED','SUSPENDED')`.
+- FK `—` : `bar_id` → `bars.id` ; ON DELETE `RESTRICT`.
+- FK `—` : `changed_by_id` → `users.id` ; ON DELETE `RESTRICT`.
+- INDEX `ix_bar_governance_status` : `status, suspension_level, bar_id`.
 
 ### `bar_tables`
 
@@ -1206,6 +1235,24 @@ erDiagram
 - UNIQUE `uq_orders_reference` : `bar_id, reference`.
 - INDEX `ix_orders_bar_created` : `bar_id, created_at, id`.
 - INDEX `ix_orders_bar_id` : `bar_id`.
+
+### `owner_governance`
+
+| Colonne | Type | NULL | PK | Default ORM | Default serveur | Calcul |
+| --- | --- | --- | --- | --- | --- | --- |
+| `owner_id` | MySQL `BIGINT` / SQLite `INTEGER` | non | oui | — | — | — |
+| `status` | VARCHAR(16) | non | non | — | — | — |
+| `reason` | VARCHAR(500) | non | non | — | — | — |
+| `changed_by_id` | MySQL `BIGINT` / SQLite `INTEGER` | non | non | — | — | — |
+| `changed_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | non | non | — | — | — |
+| `created_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | non | non | utcnow | — | — |
+| `updated_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | non | non | utcnow | — | — |
+
+- PK : `owner_id`.
+- CHECK `ck_owner_governance_status` : `status IN ('DRAFT','PENDING','INCOMPLETE','APPROVED','REJECTED','SUSPENDED')`.
+- FK `—` : `changed_by_id` → `users.id` ; ON DELETE `RESTRICT`.
+- FK `—` : `owner_id` → `users.id` ; ON DELETE `RESTRICT`.
+- INDEX `ix_owner_governance_status` : `status, owner_id`.
 
 ### `payments`
 
