@@ -301,3 +301,54 @@ def test_customer_manual_debt_html_form_fallback(env):
     }, follow_redirects=False)
     assert response.status_code == 302
     assert customer_service.manual_debt_balance(bar.id, customer.id) == Decimal("2500")
+
+
+def test_customer_edit_and_debt_filters_do_not_change_balances(env):
+    app, owner, bar, foreign, *_ = env
+    first = customer_service.create(owner, bar.id, {
+        "display_name": "Jean Dupont", "phone": "699000000", "email": "jean@example.invalid",
+    })
+    second = customer_service.create(owner, bar.id, {"display_name": "Marie Solde"})
+    other = customer_service.create(db.session.get(type(owner), foreign.owner_id), foreign.id, {"display_name": "Client extérieur"})
+    customer_service.record_manual_debt(owner, bar.id, first.id, "MANU-TEST-FILTER-1", "3000", "Créance ancienne")
+    db.session.commit()
+    client = app.test_client()
+    assert _login(client, owner.email).status_code == 302
+    path = f"/bars/{bar.id}/customers"
+    page = client.get(path)
+    assert page.status_code == 200
+
+    filtered = client.get(path + "?q=699000000&filter=debtors")
+    assert filtered.status_code == 200
+    assert "Jean Dupont" in filtered.text
+    assert "Marie Solde" not in filtered.text
+    no_debt = client.get(path + "?filter=settled")
+    assert no_debt.status_code == 200
+    assert "Marie Solde" in no_debt.text
+    assert "Jean Dupont" not in no_debt.text
+    manual = client.get(path + "?filter=manual")
+    assert manual.status_code == 200
+    assert "Jean Dupont" in manual.text
+
+    baseline = customer_service.manual_debt_balance(bar.id, first.id)
+    edited = post(client, path, _csrf(page),
+        action="update", customer_id=str(first.id), display_name="Jean Nouveau",
+        phone="677100100", email="nouveau@example.invalid",
+        idempotency_key="customer-contact-update-01")
+    assert edited.status_code == 200, edited.text
+    db.session.refresh(first)
+    assert (first.display_name, first.phone, first.email) == (
+        "Jean Nouveau", "677100100", "nouveau@example.invalid"
+    )
+    assert customer_service.manual_debt_balance(bar.id, first.id) == baseline
+    assert post(client, path, _csrf(page),
+        action="update", customer_id=str(first.id), display_name="Jean Nouveau",
+        phone="677100100", email="nouveau@example.invalid",
+        idempotency_key="customer-contact-update-01").status_code == 409
+
+    foreign_edit = post(client, path, _csrf(page), action="update", customer_id=str(other.id),
+        display_name="Intrus", phone="", email="", idempotency_key="foreign-edit-01")
+    assert foreign_edit.status_code == 404
+    db.session.refresh(other)
+    assert other.display_name == "Client extérieur"
+    assert customer_service.manual_debt_balance(bar.id, first.id) == baseline
