@@ -7,7 +7,7 @@ from zoneinfo import ZoneInfo
 import secrets
 from decimal import Decimal
 
-from flask import Blueprint, flash, redirect, render_template, request, url_for
+from flask import Blueprint, flash, make_response, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
@@ -368,3 +368,40 @@ def manage(bar_id):
         can_settings=can_settings,
         new_intent_key=lambda: secrets.token_urlsafe(32),
     )
+
+
+@bp.get("/<int:customer_id>/statement")
+@login_required
+def customer_statement(bar_id, customer_id):
+    """Printable customer statement. Always scoped to one authenticated bar."""
+    permissions.require(current_user, "customers.read", bar_id)
+    bar = db.session.get(Bar, bar_id)
+    customer = db.session.scalar(select(Customer).where(
+        Customer.bar_id == bar_id, Customer.id == customer_id
+    ))
+    if not bar or not customer:
+        raise LookupError("NOT_FOUND")
+    entry_query = select(CustomerLedgerEntry).where(
+        CustomerLedgerEntry.bar_id == bar_id,
+        CustomerLedgerEntry.customer_id == customer_id,
+    )
+    entries = list(db.session.scalars(entry_query.order_by(CustomerLedgerEntry.id.desc()).limit(500)))
+    total_entries = db.session.scalar(select(func.count()).select_from(CustomerLedgerEntry).where(
+        CustomerLedgerEntry.bar_id == bar_id, CustomerLedgerEntry.customer_id == customer_id
+    )) or 0
+    manual_entries = list(db.session.scalars(entry_query.where(
+        CustomerLedgerEntry.entry_kind == "ADJUSTMENT"
+    ).order_by(CustomerLedgerEntry.id)))
+    manual = customer_service.manual_debt_balance(bar_id, customer_id)
+    credit = customer_service.debt(bar_id, customer_id)
+    today = datetime.now(ZoneInfo(bar.timezone)).date()
+    aging = outstanding_manual_debts(manual_entries, today=today)
+    html = render_template(
+        "customer_statement.html",
+        bar=bar, customer=customer, entries=entries,
+        total_entries=total_entries, manual=manual, credit=credit,
+        aging=aging, today=today,
+    )
+    response = make_response(html)
+    response.headers["Cache-Control"] = "private, no-store"
+    return response
