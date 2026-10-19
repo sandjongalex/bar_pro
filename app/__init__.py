@@ -219,7 +219,9 @@ def _register_blueprints(app: Flask) -> None:
             if current_user.category == "SUPER_ADMIN" and request.method not in {"GET", "HEAD", "OPTIONS"}:
                 # Defense in depth: a new commerce endpoint cannot silently
                 # bypass a missing fine-grained service permission.
-                if not (request.endpoint or "").startswith(("staff.", "shifts_web.")):
+                # Only tenant staff administration is a permitted platform
+                # write here. Operational shifts are never platform actions.
+                if request.endpoint != "staff_web.manage":
                     abort(403)
 
             # A cashier/server may keep a valid account while off duty, but no
