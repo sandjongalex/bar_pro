@@ -9,7 +9,7 @@ from app.customer_models import CustomerLedgerEntry
 from app.customer_services import customer_service
 from app.expense_services import expense_service
 from app.extensions import db
-from app.models import CashMovement, Customer, Expense, IdempotencyRecord
+from app.models import CashMovement, Customer, Expense, IdempotencyRecord, Order, StockBalance
 from test_cashier_expenses import _cashier, _csrf, _login
 from test_change_vouchers import _issue_voucher
 from test_workflows import env, order
@@ -206,3 +206,98 @@ def test_history_filter_is_get_and_preserves_print_links(env):
     # GET and its query string are still the canonical source of filtering.
     assert client.get(path + "?type=PAYMENT&method=CASH").status_code == 200
     assert 'checkout_web.receipt' in open("app/templates/cashier_history.html", encoding="utf-8").read()
+
+
+def test_manual_customer_debt_and_repayment_never_touch_stock_cash_or_orders(env):
+    app, owner, bar, foreign, product, *_ = env
+    # A manual debt must be usable even when credit sales are disabled.
+    assert not bar.credit_sales_enabled
+    customer = customer_service.create(owner, bar.id, {"display_name": "Dette autonome"})
+    other = Customer(bar_id=foreign.id, display_name="Client autre bar")
+    db.session.add(other)
+    db.session.commit()
+
+    client = app.test_client()
+    assert _login(client, owner.email).status_code == 302
+    path = f"/bars/{bar.id}/customers"
+    page = client.get(path)
+    assert page.status_code == 200
+    assert 'name="action" value="manual_debt"' in page.text
+    csrf = _csrf(page)
+
+    stock_before = db.session.scalar(
+        select(StockBalance.quantity).where(StockBalance.product_id == product.id)
+    )
+    cash_before = count(CashMovement, bar_id=bar.id)
+    orders_before = count(Order, bar_id=bar.id)
+    fields = dict(
+        action="manual_debt", customer_id=str(customer.id), amount="15000",
+        reason="Dette précédente", idempotency_key="manual-debt-01",
+    )
+    created = post(client, path, csrf, **fields)
+    assert created.status_code == 200, created.text
+    assert created.json["data"]["customer_id"] == customer.id
+    assert customer_service.manual_debt_balance(bar.id, customer.id) == Decimal("15000")
+    assert customer_service.debt(bar.id, customer.id) == Decimal("0")
+    assert post(client, path, csrf, **fields).status_code == 409
+    assert count(CustomerLedgerEntry, bar_id=bar.id, entry_kind="ADJUSTMENT") == 1
+
+    # The original POS payment route cannot settle manual balances.
+    rejected = post(client, path, csrf, action="payment", customer_id=str(customer.id),
+                    amount="500", method="MOBILE_MONEY", provider_code="MTN",
+                    provider_transaction_id="manual-is-not-a-sale",
+                    idempotency_key="manual-wrong-payment-01")
+    assert rejected.status_code == 409
+    assert customer_service.manual_debt_balance(bar.id, customer.id) == Decimal("15000")
+
+    repaid = dict(
+        action="manual_repayment", customer_id=str(customer.id), amount="5000",
+        reason="Remboursement confirmé hors caisse",
+        idempotency_key="manual-repayment-01",
+    )
+    paid = post(client, path, csrf, **repaid)
+    assert paid.status_code == 200, paid.text
+    assert customer_service.manual_debt_balance(bar.id, customer.id) == Decimal("10000")
+    assert post(client, path, csrf, **repaid).status_code == 409
+
+    excessive = post(client, path, csrf, action="manual_repayment",
+                     customer_id=str(customer.id), amount="10001",
+                     reason="Montant excessif", idempotency_key="manual-overpay-01")
+    assert excessive.status_code == 409
+    assert customer_service.manual_debt_balance(bar.id, customer.id) == Decimal("10000")
+
+    foreign_debt = post(client, path, csrf, action="manual_debt",
+                        customer_id=str(other.id), amount="700",
+                        reason="Client étranger", idempotency_key="manual-foreign-01")
+    assert foreign_debt.status_code == 404
+    assert customer_service.manual_debt_balance(foreign.id, other.id) == Decimal("0")
+
+    assert db.session.scalar(
+        select(StockBalance.quantity).where(StockBalance.product_id == product.id)
+    ) == stock_before
+    assert count(CashMovement, bar_id=bar.id) == cash_before
+    assert count(Order, bar_id=bar.id) == orders_before
+    refreshed = client.get(path)
+    assert refreshed.status_code == 200
+    assert "Dette manuelle" in refreshed.text
+    assert "10,000" in refreshed.text
+
+
+def test_customer_manual_debt_html_form_fallback(env):
+    app, owner, bar, *_ = env
+    customer = customer_service.create(owner, bar.id, {"display_name": "Client manuel"})
+    db.session.commit()
+    client = app.test_client()
+    assert _login(client, owner.email).status_code == 302
+    path = f"/bars/{bar.id}/customers"
+    page = client.get(path)
+    response = client.post(path, data={
+        "csrf_token": _csrf(page),
+        "action": "manual_debt",
+        "customer_id": str(customer.id),
+        "amount": "2500",
+        "reason": "Ancienne dette",
+        "idempotency_key": "manual-html-fallback-01",
+    }, follow_redirects=False)
+    assert response.status_code == 302
+    assert customer_service.manual_debt_balance(bar.id, customer.id) == Decimal("2500")
