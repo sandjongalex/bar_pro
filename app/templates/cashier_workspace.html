@@ -401,6 +401,13 @@
   });
 
   window.CashierWorkspace = Object.freeze({
+    refreshSelected: async () => {
+      const orderId = document.querySelector('#paymentPanel input[name="order_id"]')?.value;
+      if (!orderId) return;
+      const url = new URL(window.location.href);
+      url.searchParams.set('order_id', orderId);
+      await refreshWorkspaceFragments(url.href, {historyMode:'none'});
+    },
     selectOrder: async href => {
       try {
         await refreshWorkspaceFragments(href, {historyMode:'push', selection:true});
