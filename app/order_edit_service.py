@@ -111,6 +111,21 @@ class OrderEditService:
                 for product_id, quantity in targets.items()
             ]
             order_service.replace_lines(actor, order, normalized)
+            # A DRAFT parent may already have validated server additions. Their
+            # independent financial contributions must survive a line replacement.
+            additions = list(db.session.scalars(select(OrderSuborder).where(
+                OrderSuborder.bar_id == bar_id,
+                OrderSuborder.order_id == order.id,
+                OrderSuborder.status == 'VALIDATED',
+            )))
+            order.subtotal_amount = number(Decimal(order.subtotal_amount) + sum(
+                (Decimal(s.subtotal_amount) for s in additions), Decimal(0)))
+            order.discount_amount = number(Decimal(order.discount_amount) + sum(
+                (Decimal(s.discount_amount) for s in additions), Decimal(0)))
+            order.tax_amount = number(Decimal(order.tax_amount) + sum(
+                (Decimal(s.tax_amount) for s in additions), Decimal(0)))
+            order.total_amount = number(Decimal(order.subtotal_amount) -
+                                        Decimal(order.discount_amount) + Decimal(order.tax_amount))
             record(actor, bar_id, "orders.edit", "orders", order.id, "Modification avant livraison")
             return order
 
