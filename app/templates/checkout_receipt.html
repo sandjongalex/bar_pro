@@ -75,13 +75,16 @@
     <table class="items receipt-lines" data-receipt-mode="detailed" aria-label="Facture détaillée">
       <thead><tr><th>Article</th><th>Qté</th><th>PU</th><th>Total</th></tr></thead>
       <tbody>
-        {% for line in lines %}
-        <tr>
-          <td>{{ line.product_name_snapshot }}</td>
-          <td>{{ "{:,.0f}".format(line.quantity) }}</td>
-          <td>{{ "{:,.0f}".format(line.unit_sale_price_snapshot) }}</td>
-          <td>{{ "{:,.0f}".format(line.total_amount) }}</td>
-        </tr>
+        {% for section in receipt_sections %}
+        <tr class="receipt-section-label"><td colspan="4">{{ section.label }}</td></tr>
+          {% for line in section.lines %}
+          <tr>
+            <td>{{ line.product_name_snapshot }}</td>
+            <td>{{ "{:,.0f}".format(line.quantity) }}</td>
+            <td>{{ "{:,.0f}".format(line.unit_sale_price_snapshot) }}</td>
+            <td>{{ "{:,.0f}".format(line.total_amount) }}</td>
+          </tr>
+          {% endfor %}
         {% endfor %}
       </tbody>
     </table>
