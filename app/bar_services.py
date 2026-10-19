@@ -244,6 +244,8 @@ def assign_staff(actor, bar_id, user_id, role):
         assignment.role = role
 
     db.session.add(assignment)
+    # Revoke all earlier web/JWT credentials when a role or assignment is granted.
+    user.credentials_version += 1
     db.session.flush()
     record(
         actor,
@@ -271,6 +273,8 @@ def end_staff_assignment(actor, bar_id, assignment_id):
 
     _close_open_staff_shift(actor, bar_id, assignment)
     assignment.ended_at = datetime.now(timezone.utc)
+    user = db.session.get(User, assignment.user_id)
+    user.credentials_version += 1
     db.session.flush()
     record(
         actor,

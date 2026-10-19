@@ -10,13 +10,14 @@ from app.employee_context import get_current_employee_context
 from app.extensions import db, limiter, login_manager
 from app.models import ApiToken, TokenRevocation, User, utcnow
 from app.permissions import permissions
+from app.saas_governance import owner_enabled, suspension_level
 
 auth_bp=Blueprint("auth",__name__)
 api_auth_bp=Blueprint("api_auth",__name__,url_prefix="/api/v1/auth")
 
 def error(code,status): return jsonify({"success":False,"error":{"code":code,"message":"Authentication failed.","details":None}}),status
 def digest(value): return hashlib.sha256(value.encode() if isinstance(value,str) else b"invalid").digest()
-def accessible(user,bar_id): return permissions.evaluate(user,"bars.read",bar_id).allowed
+def accessible(user,bar_id): return permissions.evaluate(user,"bars.support.read",bar_id).allowed
 
 def _web_destination(user, employee_context=None):
     """Route an authenticated user only to a page they can actually view.
@@ -34,7 +35,7 @@ def _web_destination(user, employee_context=None):
     bar = db.session.get(Bar, context.bar_id)
     if not bar:
         raise LookupError("EMPLOYEE_BAR_UNAVAILABLE")
-    if bar.status == "SUSPENDED":
+    if bar.status == "SUSPENDED" or suspension_level(bar.id) == 2:
         return url_for("web.dashboard")
     if context.role == "CASHIER":
         if not get_active_shift_for_assignment(context.bar_id, context.assignment.id):
@@ -93,7 +94,7 @@ def api_required(view):
             claims=jwt.decode(header[7:],key,algorithms=["ES256"],audience=current_app.config["JWT_AUDIENCE"],issuer=current_app.config["JWT_ISSUER"],options={"require":["exp","iat","nbf","sub","bar_id","jti","token_use","credentials_version","sid"]})
             if claims.get("token_use")!="access": raise jwt.InvalidTokenError()
             user=db.session.get(User,int(claims["sub"]))
-            if not user or not user.is_active or user.credentials_version!=claims.get("credentials_version"): raise jwt.InvalidTokenError()
+            if not owner_enabled(user) or user.credentials_version!=claims.get("credentials_version"): raise jwt.InvalidTokenError()
             request.api_user=user; request.api_bar_id=int(claims["bar_id"])
             token=db.session.get(ApiToken,int(claims["sid"]))
             if not token or token.user_id!=user.id or token.bar_id!=request.api_bar_id: raise jwt.InvalidTokenError()
@@ -101,6 +102,15 @@ def api_required(view):
             if revoked or not accessible(user,request.api_bar_id): raise jwt.InvalidTokenError()
         except (jwt.PyJWTError,KeyError,ValueError,TypeError): return error("INVALID_ACCESS_TOKEN",401)
         if "bar_id" in kwargs and kwargs["bar_id"]!=request.api_bar_id: return error("NOT_FOUND",404)
+        level = suspension_level(request.api_bar_id)
+        governance_endpoints = {
+            "saas_governance_api.update_bar_governance",
+            "saas_governance_api.update_owner_governance",
+        }
+        if level == 2 and request.endpoint not in governance_endpoints | {"saas_governance_api.read_bar_governance"}:
+            return error("BAR_ADMIN_LOCKED", 403)
+        if level == 1 and request.method not in {"GET", "HEAD", "OPTIONS"} and request.endpoint not in governance_endpoints:
+            return error("BAR_ADMIN_READ_ONLY", 403)
         return view(*args,**kwargs)
     return wrapped
 def issue(user,bar_id,family=None,parent=None):
@@ -114,7 +124,7 @@ def issue(user,bar_id,family=None,parent=None):
 def load_user(user_id):
     try: user=db.session.get(User,int(user_id))
     except (TypeError,ValueError): return None
-    return user if user and user.is_active and session.get("credentials_version")==user.credentials_version else None
+    return user if owner_enabled(user) and session.get("credentials_version")==user.credentials_version else None
 
 @auth_bp.route("/login",methods=["GET","POST"])
 @limiter.limit(lambda: current_app.config["LOGIN_RATE_LIMIT"])
@@ -131,7 +141,7 @@ def web_login():
         return render_template("login.html",error=None,email="")
     email=request.form.get("email","").strip().lower()
     user=db.session.scalar(select(User).where(User.email==email))
-    if not user or not user.is_active or not user.check_password(request.form.get("password", "")):
+    if not owner_enabled(user) or not user.check_password(request.form.get("password", "")):
         return render_template("login.html",error="Adresse e-mail ou mot de passe incorrect.",email=email),401
     try:
         context=get_current_employee_context(user)
@@ -147,7 +157,7 @@ def web_logout(): logout_user(); return "",302,{"Location":"/login"}
 @limiter.limit(lambda: current_app.config["LOGIN_RATE_LIMIT"])
 def token_login():
     body=request.get_json(silent=True) or {}; user=db.session.scalar(select(User).where(User.email==str(body.get("email","")).strip().lower()))
-    if not user or not user.is_active or not user.check_password(str(body.get("password",""))): return error("INVALID_CREDENTIALS",401)
+    if not owner_enabled(user) or not user.check_password(str(body.get("password",""))): return error("INVALID_CREDENTIALS",401)
     if user.category=="EMPLOYEE":
         try:
             context=get_current_employee_context(user)
@@ -172,7 +182,7 @@ def refresh():
         revoke_family(row,"refresh_reuse"); db.session.commit()
         return error("REFRESH_TOKEN_REUSED",401)
     user=db.session.get(User,row.user_id)
-    if not user or not user.is_active or row.expires_at<=utcnow().replace(tzinfo=None) or row.credentials_version_snapshot!=user.credentials_version or not accessible(user,row.bar_id): return error("INVALID_REFRESH_TOKEN",401)
+    if not owner_enabled(user) or row.expires_at<=utcnow().replace(tzinfo=None) or row.credentials_version_snapshot!=user.credentials_version or not accessible(user,row.bar_id): return error("INVALID_REFRESH_TOKEN",401)
     db.session.add(TokenRevocation(bar_id=row.bar_id,api_token_id=row.id,revoked_by_id=user.id,revoked_at=utcnow(),reason="rotation")); access,new=issue(user,row.bar_id,row.family_id,row.id); db.session.commit()
     return jsonify({"success":True,"data":{"token_type":"Bearer","access_token":access,"expires_in":900,"refresh_token":new},"meta":{}})
 

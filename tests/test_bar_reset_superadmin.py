@@ -1,4 +1,5 @@
 from decimal import Decimal
+import pytest
 
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ec
@@ -12,7 +13,7 @@ from app.models import Bar, Product, ProductCategory, StockBalance, User
 from app.stock_service import stock_service
 
 
-def test_superadmin_can_reset_one_bar_without_touching_another(tmp_path):
+def test_superadmin_cannot_reset_a_bar_or_modify_commercial_history(tmp_path):
     key = ec.generate_private_key(ec.SECP256R1())
     pem = key.private_bytes(
         serialization.Encoding.PEM,
@@ -76,10 +77,11 @@ def test_superadmin_can_reset_one_bar_without_touching_another(tmp_path):
         stock_service.move(owner2, bar2.id, p2.id, "INITIAL", 7, "Initial")
         db.session.commit()
 
-        reset_bar(admin, bar1.id, "REINITIALISER", "admin-password")
-        db.session.commit()
+        with pytest.raises(PermissionError):
+            reset_bar(admin, bar1.id, "REINITIALISER", "admin-password")
+        db.session.rollback()
 
         b1 = db.session.scalar(select(StockBalance.quantity).where(StockBalance.bar_id == bar1.id, StockBalance.product_id == p1.id))
         b2 = db.session.scalar(select(StockBalance.quantity).where(StockBalance.bar_id == bar2.id, StockBalance.product_id == p2.id))
-        assert b1 == 0
+        assert b1 == 10
         assert b2 == 7
