@@ -64,7 +64,7 @@ def test_cashier_unpaid_delivery_recovers_from_rotated_csrf_without_replaying_st
     assert blocked.status_code == 400
     assert blocked.is_json
     assert blocked.get_json()["error"]["code"] == "CSRF_REJECTED"
-    assert "Actualisez la page" in blocked.get_json()["message"]
+    assert "Actualisez la page" in blocked.get_json()["error"]["message"]
     assert _stock(bar.id, product.id) == stock_before
     db.session.refresh(suborder)
     assert suborder.delivery_status == "PENDING"
