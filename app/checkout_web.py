@@ -201,7 +201,8 @@ def receipt(bar_id: int, order_id: int):
     if not order or order.status == "DRAFT":
         raise LookupError("NOT_FOUND")
 
-    lines = _receipt_lines(bar_id, order_id)
+    receipt_sections = _receipt_sections(bar_id, order_id)
+    lines = [line for section in receipt_sections for line in section["lines"]]
     payments = list(
         db.session.scalars(
             select(Payment)
@@ -245,6 +246,7 @@ def receipt(bar_id: int, order_id: int):
 
     receipt_context = dict(
         bar=bar,
+        receipt_sections=receipt_sections,
         order=order,
         lines=lines,
         payments=payments,
