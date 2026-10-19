@@ -187,7 +187,10 @@
     orders.forEach((order, index) => {
       const id = String(order.id);
       let node = existing.get(id);
-      if (!node || node.dataset.unpaidSignature !== order.signature) {
+      const protectedNode = node && (node.contains(focused) ||
+        node.querySelector('form[aria-busy="true"], .modal.show') ||
+        node.querySelector('input[type="checkbox"]:checked'));
+      if (!node || (node.dataset.unpaidSignature !== order.signature && !protectedNode)) {
         const wrapper = document.createElement('div');
         wrapper.innerHTML = orderCard(order, selectedIds);
         const replacement = wrapper.firstElementChild;
@@ -195,10 +198,13 @@
         if (node) node.replaceWith(replacement);
         node = replacement;
       }
-      if (grid.children[index] !== node) grid.insertBefore(node, grid.children[index] || null);
+      if (!protectedNode && grid.children[index] !== node) {
+        grid.insertBefore(node, grid.children[index] || null);
+      }
     });
     existing.forEach((node, id) => {
-      if (!nextIds.has(id)) node.remove();
+      if (!nextIds.has(id) && !node.contains(focused) &&
+          !node.querySelector('form[aria-busy="true"], .modal.show')) node.remove();
     });
     refreshMergeButton();
     if (empty) empty.hidden = orders.length !== 0;
