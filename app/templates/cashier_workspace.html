@@ -14,9 +14,8 @@
 .cashier-fast-cash{border:1px solid #cfe1d8;background:#eef7f2;border-radius:12px;padding:12px;margin:12px 0}.cashier-fast-cash strong,.cashier-fast-cash small{display:block}.cashier-fast-cash small{font-size:.7rem;color:#4e695a;margin-top:2px}.cashier-fast-cash .btn{margin-top:10px}
 .cashier-methods{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}.cashier-method{border:1px solid #dce5e1;border-radius:10px;padding:9px 6px;text-align:center;cursor:pointer;position:relative;background:#fff}.cashier-method input{position:absolute;opacity:0}.cashier-method span,.cashier-method strong{display:block}.cashier-method span{font-size:1rem;font-weight:900;color:var(--brand)}.cashier-method strong{font-size:.67rem;margin-top:2px}.cashier-method.active{border-color:var(--brand);background:var(--brand-soft);box-shadow:0 0 0 1px var(--brand)}
 .cashier-advanced{margin-top:10px;border-top:1px solid var(--line);padding-top:9px}.cashier-advanced summary{cursor:pointer;font-size:.73rem;font-weight:800;color:var(--brand)}.cashier-empty{padding:34px 18px;text-align:center}.cashier-empty h3{font-size:1.05rem}.cashier-empty p{font-size:.78rem;color:var(--muted)}
-.cashier-mobile-bar{display:none}
 @media(max-width:1050px){.cashier-main-grid{grid-template-columns:1fr}.cashier-pay-panel{position:static}.cashier-sale-layout{grid-template-columns:1fr}.cashier-sale-catalog{border-right:0;border-bottom:1px solid var(--line)}}
-@media(max-width:760px){.cashier-workspace-head{display:block}.cashier-head-actions{margin-top:10px}.cashier-head-actions .btn{flex:1 1 45%;min-height:44px}.cashier-kpis{grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}.cashier-kpis a,.cashier-kpis article{padding:10px}.cashier-kpis strong{font-size:1.05rem}.cashier-kpis small{display:none}.cashier-sale-panel{border-radius:12px}.cashier-pay-panel{padding:13px}.cashier-methods{grid-template-columns:repeat(3,minmax(0,1fr))}.cashier-mobile-bar{display:grid;position:fixed;left:10px;right:10px;bottom:10px;z-index:1030;grid-template-columns:repeat(4,1fr);gap:4px;background:#fff;border:1px solid var(--line);border-radius:14px;padding:6px;box-shadow:0 12px 34px rgba(20,40,33,.18)}.cashier-mobile-bar a,.cashier-mobile-bar button{border:0;background:transparent;text-decoration:none;color:#5f6d67;font-size:.68rem;font-weight:800;padding:8px 4px;border-radius:9px;text-align:center}.cashier-mobile-bar .primary{background:var(--brand);color:#fff}.content-area{padding-bottom:92px!important}}
+@media(max-width:760px){.cashier-workspace-head{display:block}.cashier-head-actions{margin-top:10px}.cashier-head-actions .btn{flex:1 1 45%;min-height:44px}.cashier-kpis{grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}.cashier-kpis a,.cashier-kpis article{padding:10px}.cashier-kpis strong{font-size:1.05rem}.cashier-kpis small{display:none}.cashier-sale-panel{border-radius:12px}.cashier-pay-panel{padding:13px}.cashier-methods{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media(max-width:480px){.cashier-workspace-head h1{font-size:1.25rem}.cashier-kpis{grid-template-columns:1fr 1fr 1fr}.cashier-order-link{padding:11px}.cashier-methods{grid-template-columns:1fr 1fr}.cashier-sale-head{align-items:flex-start}.cashier-sale-layout .pos-products{grid-template-columns:1fr 1fr}.cashier-sale-layout .pos-product{min-height:128px}.cashier-sale-layout .pos-cart-line{grid-template-columns:minmax(0,1fr) auto}.cashier-sale-layout .pos-line-total{grid-column:2}}
 
 /* Responsive command cards: keep actions attached to their own order. */
@@ -242,12 +241,7 @@
 </div>
 {% endif %}
 
-<nav class="cashier-mobile-bar" aria-label="Actions rapides caissière">
-  <button class="primary" id="mobileQuickSale" type="button">＋<br>Vente</button>
-  <a href="#queue">☰<br>File</a>
-  <a href="{{ url_for('cashier_handovers_web.manage', bar_id=bar.id) }}">⇄<br>Remises</a>
-  <a href="{{ url_for('cashier_web.daily', bar_id=bar.id) }}">•••<br>Plus</a>
-</nav>
+
 
 <script>
 (() => {

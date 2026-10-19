@@ -1,0 +1,166 @@
+/* Employee UI final audit: scoped responsive and deep-dark overrides.
+ * Preserves existing Bootstrap, Glassmorphism and Soft Brutalism components. */
+:root {
+  --employee-nav-height: 76px;
+  --employee-keyboard-offset: 0px;
+}
+.app-main, .content-area { min-width: 0; }
+.content-area :is(.panel-card, .cashier-main-grid, .cash-sub-grid, .invoice-grid,
+                   .server-orders-grid, .pos-layout, .unpaid-grid, .cashier-workspace-head) {
+  min-width: 0;
+}
+:is(.cashier-order-card, .cash-sub-card, .invoice-card, .unpaid-card, .server-order-card) {
+  overflow-wrap: anywhere;
+}
+:is(.cashier-order-actions, .cash-sub-card, .invoice-actions, .server-order-actions) .btn {
+  min-width: 0;
+}
+@media (max-width: 767px) {
+  /* All employee pages have ONE primary navigation from layout.html. */
+  body[data-employee-role="CASHIER"] .global-mobile-bottom,
+  body[data-employee-role="SERVER"] .global-mobile-bottom {
+    bottom: max(8px, env(safe-area-inset-bottom));
+    left: max(6px, env(safe-area-inset-left));
+    right: max(6px, env(safe-area-inset-right));
+  }
+  body[data-employee-role="CASHIER"] .content-area,
+  body[data-employee-role="SERVER"] .content-area {
+    padding-bottom: calc(var(--employee-nav-height) + 22px + env(safe-area-inset-bottom)) !important;
+  }
+  body[data-employee-role="SERVER"].server-cart-active .content-area {
+    padding-bottom: calc(var(--employee-nav-height) + 116px + env(safe-area-inset-bottom)) !important;
+  }
+  /* Hide nav when the OS keyboard is visible; still show transaction CTA above it. */
+  body.bp-keyboard-open .global-mobile-bottom { display: none !important; }
+  body[data-employee-role="SERVER"] .server-cart-dock:not([hidden]) {
+    bottom: calc(var(--employee-nav-height) + 10px + env(safe-area-inset-bottom));
+    z-index: 1026;
+  }
+  body[data-employee-role="SERVER"].bp-keyboard-open .server-cart-dock:not([hidden]) {
+    bottom: calc(8px + var(--employee-keyboard-offset));
+  }
+  body.bp-keyboard-open .content-area { padding-bottom: 130px !important; }
+  body[data-employee-role="SERVER"].server-cart-active.bp-keyboard-open .content-area {
+    padding-bottom: 150px !important;
+  }
+  .global-mobile-bottom a,
+  .global-mobile-bottom button {
+    min-height: 48px;
+    touch-action: manipulation;
+  }
+  .global-mobile-bottom strong { font-size: clamp(.55rem, 2.2vw, .68rem); }
+  .context-navigation-shell { min-width: 0; }
+  .context-shortcuts { overscroll-behavior-x: contain; }
+  .cash-sub-mobile { margin: 12px 0 0; }
+  .cash-sub-mobile a { min-height: 44px; }
+  .cashier-head-actions,
+  .invoice-hero,
+  .cash-sub-head,
+  .cashier-order-actions { min-width: 0; }
+  :is(.cashier-workspace-head, .cash-sub-head, .invoice-hero) h1 {
+    overflow-wrap: anywhere;
+  }
+  /* tables intentionally scroll inside their own wrapper, not the document. */
+  .table-responsive { max-width: 100%; }
+  :is(.invoice-actions, .cashier-order-row, .cash-sub-card-head) { min-width: 0; }
+  :is(.invoice-actions, .cashier-order-actions) button { white-space: normal; line-height: 1.2; }
+}
+@media (max-width: 430px) {
+  .cashier-main-grid { gap: 10px; }
+  .cashier-pay-panel { padding: 11px; }
+  .invoice-card-top, .cash-sub-card-head { gap: 7px; }
+}
+@media (max-width: 360px) {
+  .global-mobile-bottom { gap: 1px; padding: 4px; }
+  .global-mobile-bottom a, .global-mobile-bottom button { padding: 4px 1px; }
+  .global-mobile-bottom strong { font-size: .54rem; letter-spacing: -.02em; }
+  .invoice-actions > a, .invoice-actions button { font-size: .63rem; padding: 6px 4px; }
+  .cashier-order-row-actions { width: 74px; }
+  .cashier-order-direct-detail, .cashier-order-direct-suborder { font-size: .56rem; }
+}
+@media (max-width: 320px) {
+  .global-mobile-bottom { left: 3px; right: 3px; }
+  .cashier-methods { grid-template-columns: repeat(2, minmax(0,1fr)); }
+  .cash-sub-card-head { flex-wrap: wrap; }
+  .cash-sub-amount { width: 100%; text-align: left; }
+}
+@media (min-width: 768px) and (max-width: 1024px) {
+  .cashier-main-grid, .cash-sub-grid { grid-template-columns: minmax(0,1fr); }
+  .invoice-grid { grid-template-columns: repeat(2, minmax(0,1fr)); }
+}
+@media (min-width: 1025px) and (max-width: 1366px) {
+  .cashier-main-grid { grid-template-columns: minmax(0,1fr) minmax(320px, 400px); }
+}
+html[data-bs-theme="dark"] {
+  /* Local dark tokens; keep translucent glass materials intact. */
+  --employee-dark-surface: #1e2830;
+  --employee-dark-line: #41515a;
+  --employee-dark-ink: #f0f5f7;
+  --employee-dark-muted: #bbcad1;
+}
+html[data-bs-theme="dark"] :is(
+  .cashier-workspace-head, .cashier-kpis article, .cashier-order-card,
+  .cashier-order-row-actions, .cashier-order-direct-detail, .cashier-sale-head,
+  .invoice-hero, .invoice-stat, .invoice-filter-card, .invoice-card,
+  .invoice-actions > a, .invoice-actions button, .invoice-empty,
+  .cash-sub-head, .cash-sub-panel, .cash-sub-card, .cash-sub-order,
+  .cashier-performance-card, .cashier-team-empty,
+  .server-mine-hero, .server-mine-summary article, .server-mine-workspace,
+  .server-order-filters, .server-order-filters button,
+  .expenses-hero, .expenses-filter-card, .expenses-category-row,
+  .customer-hero, .customer-stats article, .voucher-card, .voucher-list,
+  .checkout-hero, .cash-close-result, .cash-closing-card
+) {
+  background: var(--employee-dark-surface);
+  color: var(--employee-dark-ink);
+  border-color: var(--employee-dark-line);
+}
+html[data-bs-theme="dark"] :is(
+  .cashier-order-link, .cash-sub-order, .invoice-actions > a,
+  .invoice-actions button, .cashier-order-direct-detail,
+  .server-order-filters button, .cash-sub-card
+):hover { background: #2b414a; color: #fff; }
+html[data-bs-theme="dark"] :is(
+  .cashier-order-link.active, .server-order-filters button.active,
+  .invoice-mobile-nav a.active, .cashier-selected-suborder-plus
+) { background: #185b50; color: #fff; }
+html[data-bs-theme="dark"] :is(
+  .cashier-performance-card small, .cashier-performance-card span,
+  .cashier-team-name small, .cash-sub-meta, .cash-sub-system-ref,
+  .invoice-origin, .invoice-stat span, .server-order-reference,
+  .cashier-selected-system-ref, .cashier-human-tech-ref,
+  .customer-table small, .voucher-customer small
+) { color: var(--employee-dark-muted) !important; opacity: 1; }
+html[data-bs-theme="dark"] :is(
+  .cashier-selected-suborder-cta, .cashier-order-summary,
+  .invoice-due, .invoice-badge, .cash-sub-count, .cash-sub-status,
+  .cashier-open-pill, .cashier-counter-name-help
+) { background: #2a4048; color: #e8f4f3; border-color: #49676b; }
+html[data-bs-theme="dark"] .cashier-selected-suborder-cta small { color: #c3d3d6; }
+html[data-bs-theme="dark"] .global-mobile-bottom { background: rgba(25,35,42,.94); border-color: #526169; }
+html[data-bs-theme="dark"] .context-shortcuts a:not(.active) { background: #202c33; border-color: #43525a; color: #e6eff1; }
+html[data-bs-theme="dark"] :is(.cash-sub-empty, .invoice-empty, .server-orders-filter-empty) {
+  color: #cbd5d9;
+}
+html[data-bs-theme="dark"] :is(.cashier-pay-panel .btn, .cash-sub-card .btn, .invoice-actions .btn):focus-visible {
+  outline: 3px solid #7dbbeb; outline-offset: 2px;
+}
+html[data-bs-theme="dark"] :is(.bp-async-notice, .bp-secondary-warning, .bp-financial-refresh-warning) {
+  border-color: #64777c;
+}
+@media (prefers-reduced-motion: reduce) {
+  .invoice-live-status.syncing .invoice-live-dot,
+  .server-cart-dock,
+  .server-order-card,
+  .global-mobile-bottom,
+  .bp-skeleton,
+  .skeleton-shimmer,
+  [class*="skeleton"] { animation: none !important; transition: none !important; }
+  html { scroll-behavior: auto !important; }
+}
+@media print {
+  .global-mobile-bottom, .server-cart-dock,
+  .context-navigation-shell, .nav-menu-trigger,
+  .cash-sub-mobile { display: none !important; }
+  .content-area { padding-bottom: 0 !important; }
+}

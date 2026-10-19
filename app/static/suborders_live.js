@@ -32,7 +32,9 @@
       const signature = JSON.stringify(item);
       let card = existing.get(id);
       if (!card || card.dataset.liveSignature !== signature) {
-        if (card && card.contains(focused) && card.getAttribute('aria-busy') === 'true') return;
+        // A poll must never replace a focused field, a pending form or an open editor.
+        if (card && (card.contains(focused) ||
+            card.querySelector('form[aria-busy="true"], [data-bp-editing], .modal.show'))) return;
         const holder = document.createElement('div');
         holder.innerHTML = render(item);
         const replacement = holder.firstElementChild;
@@ -44,7 +46,8 @@
       if (container.children[index] !== card) container.insertBefore(card, container.children[index] || null);
     });
     existing.forEach((card, id) => {
-      if (!ids.has(id) && card.getAttribute('aria-busy') !== 'true') card.remove();
+      if (!ids.has(id) && !card.contains(focused) &&
+          !card.querySelector('form[aria-busy="true"], [data-bp-editing], .modal.show')) card.remove();
     });
     if (window.scrollX !== previousX || window.scrollY !== previousY) {
       window.scrollTo(previousX, previousY);

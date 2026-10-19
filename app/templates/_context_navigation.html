@@ -43,6 +43,13 @@
       {% set context_scope = 'sales' %}
     {% endif %}
 
+  {% elif endpoint.startswith('cashier_invoices_web.') or endpoint.startswith('suborders_web.cashier_') or endpoint == 'suborders_web.cashier_queue' %}
+    {% set context_section = 'Caisse' %}
+    {% set context_title = 'Factures' if endpoint.startswith('cashier_invoices_web.') else 'Sous-commandes' %}
+    {% set context_parent_label = 'Poste de caisse' %}
+    {% set context_parent_url = url_for('cashier_workspace_web.workspace', bar_id=nav_bar_id) %}
+    {% set context_scope = 'cashier' %}
+
   {% elif endpoint.startswith('checkout_web.') %}
     {% set context_section = 'Ventes' %}
     {% set context_title = 'Caisse' %}
@@ -227,6 +234,6 @@
   </div>
 
   <style>
-    .context-navigation-shell{margin-bottom:18px}.context-navigation-shell .context-nav{margin-bottom:8px}.context-shortcuts{display:flex;align-items:center;gap:7px;overflow-x:auto;scrollbar-width:none;padding:0 2px 2px}.context-shortcuts::-webkit-scrollbar{display:none}.context-shortcuts a{flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;min-height:36px;padding:7px 11px;border:1px solid var(--line);border-radius:999px;background:#fff;color:#65736e;font-size:.75rem;font-weight:800;white-space:nowrap}.context-shortcuts a:hover{color:var(--brand);border-color:#cfe2dc;background:#f6faf8}.context-shortcuts a.active{color:#fff;border-color:var(--brand);background:var(--brand)}body:has(.context-shortcuts) .purchase-hero-actions>a.btn-outline-primary,body:has(.context-shortcuts) .stock-hero-actions>a.btn-outline-primary,body:has(.context-shortcuts) .expenses-hero>a.btn,body:has(.context-shortcuts) .pos-hero>a.btn-outline-primary,body:has(.context-shortcuts) .pos-recent-head>a.btn{display:none!important}@media(max-width:767px){.context-navigation-shell{margin-bottom:12px}.context-navigation-shell .context-nav{margin-bottom:5px}.context-shortcuts{margin:0 -2px;padding-bottom:3px}.context-shortcuts a{min-height:38px;padding:8px 12px;font-size:.72rem}}
+    .context-navigation-shell{margin-bottom:18px}.context-navigation-shell .context-nav{margin-bottom:8px}.context-shortcuts{display:flex;align-items:center;gap:7px;overflow-x:auto;scrollbar-width:none;padding:0 2px 2px}.context-shortcuts::-webkit-scrollbar{display:none}.context-shortcuts a{flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;min-height:36px;padding:7px 11px;border:1px solid var(--line);border-radius:999px;background:#fff;color:#65736e;font-size:.75rem;font-weight:800;white-space:nowrap}.context-shortcuts a:hover{color:var(--brand);border-color:#cfe2dc;background:#f6faf8}.context-shortcuts a.active{color:#fff;border-color:var(--brand);background:var(--brand)}/* Do not hide page-specific actions: contextual navigation is supplementary. */@media(max-width:767px){.context-navigation-shell{margin-bottom:12px}.context-navigation-shell .context-nav{margin-bottom:5px}.context-shortcuts{margin:0 -2px;padding-bottom:3px}.context-shortcuts a{min-height:38px;padding:8px 12px;font-size:.72rem}}
   </style>
 {% endif %}
