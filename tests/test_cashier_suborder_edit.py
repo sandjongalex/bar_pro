@@ -65,13 +65,16 @@ def test_cashier_can_edit_round_before_and_after_delivery_and_server_sees_change
     assert sub.total_amount == Decimal("100")
     assert stock(bar.id, product.id) == initial_stock
 
-    server_client = app.test_client()
-    assert _login(server_client, server.email).status_code == 302
-    follow = server_client.get(f"/bars/{bar.id}/orders/{order.id}/suborders/data")
-    assert follow.status_code == 200
-    round_row = next(item for item in follow.get_json()["suborders"] if item["id"] == sub.id)
-    assert round_row["lines"][0]["quantity"] == "1"
-    assert Decimal(round_row["total"]) == 100
+    # The shared fixture holds an outer Flask app context; a nested context
+    # isolates flask.g's login cache for this second independent browser.
+    with app.app_context():
+        server_client = app.test_client()
+        assert _login(server_client, server.email).status_code == 302
+        follow = server_client.get(f"/bars/{bar.id}/orders/{order.id}/suborders/data")
+        assert follow.status_code == 200
+        round_row = next(item for item in follow.get_json()["suborders"] if item["id"] == sub.id)
+        assert round_row["lines"][0]["quantity"] == "1"
+        assert Decimal(round_row["total"]) == 100
 
     delivered = order_suborder_service.deliver_by_cashier(cashier, bar.id, order.id, sub.id)
     db.session.commit()
