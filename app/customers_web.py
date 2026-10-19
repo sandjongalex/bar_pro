@@ -41,6 +41,7 @@ def _message(code):
         "INVALID_CUSTOMER_PHONE": "Le numéro de téléphone est trop long.",
         "INVALID_CUSTOMER_EMAIL": "L'adresse e-mail est invalide.",
         "CUSTOMER_PAYMENT_LIMIT": "Le règlement dépasse la dette actuelle du client.",
+        "MANUAL_DEBT_REPAYMENT_LIMIT": "Le remboursement dépasse la dette manuelle restante.",
         "INVALID_METHOD": "Le mode de règlement est invalide.",
         "PROVIDER_REFERENCE_REQUIRED": "Renseignez le prestataire et la référence de transaction ensemble.",
         "CASH_LOCATION_REQUIRED": "Sélectionnez une caisse ouverte pour un règlement en espèces.",
@@ -100,6 +101,27 @@ def manage(bar_id):
                     action == "enable",
                 )
                 response = succeeded(intent, action, "Client mis à jour.", data={"customer_id": updated.id})
+                if response is not None: return response
+
+            elif action in {"manual_debt", "manual_repayment"}:
+                reference = request.form.get("reference", "").strip()
+                if not reference:
+                    reference = _reference("DET" if action == "manual_debt" else "REM")
+                params = (
+                    current_user,
+                    bar_id,
+                    int(request.form.get("customer_id", "0")),
+                    reference,
+                    request.form.get("amount", ""),
+                    request.form.get("reason", ""),
+                )
+                item = (
+                    customer_service.record_manual_debt(*params)
+                    if action == "manual_debt"
+                    else customer_service.record_manual_repayment(*params)
+                )
+                message = "Dette manuelle enregistrée." if action == "manual_debt" else "Remboursement hors caisse enregistré."
+                response = succeeded(intent, action, message, data={"customer_id": item.customer_id, "entry_id": item.id})
                 if response is not None: return response
 
             elif action == "payment":
@@ -162,7 +184,14 @@ def manage(bar_id):
     debt_rows = dict(
         db.session.execute(
             select(CustomerLedgerEntry.customer_id, func.coalesce(func.sum(CustomerLedgerEntry.amount_delta), 0))
-            .where(CustomerLedgerEntry.bar_id == bar_id)
+            .where(CustomerLedgerEntry.bar_id == bar_id, CustomerLedgerEntry.entry_kind != "ADJUSTMENT")
+            .group_by(CustomerLedgerEntry.customer_id)
+        ).all()
+    )
+    manual_debt_rows = dict(
+        db.session.execute(
+            select(CustomerLedgerEntry.customer_id, func.coalesce(func.sum(CustomerLedgerEntry.amount_delta), 0))
+            .where(CustomerLedgerEntry.bar_id == bar_id, CustomerLedgerEntry.entry_kind == "ADJUSTMENT")
             .group_by(CustomerLedgerEntry.customer_id)
         ).all()
     )
@@ -174,6 +203,7 @@ def manage(bar_id):
         ).all()
     )
     debt_by_customer = {customer.id: Decimal(debt_rows.get(customer.id, 0) or 0) for customer in customers}
+    manual_debt_by_customer = {customer.id: Decimal(manual_debt_rows.get(customer.id, 0) or 0) for customer in customers}
     cases_by_customer = {customer.id: int(case_rows.get(customer.id, 0) or 0) for customer in customers}
 
     ledger = list(
@@ -206,11 +236,13 @@ def manage(bar_id):
     )
     cash_expected = {session.id: cash_service.expected(session) for session in open_sessions}
 
-    total_debt = sum((max(value, Decimal("0")) for value in debt_by_customer.values()), Decimal("0"))
+    total_manual_debt = sum((max(value, Decimal("0")) for value in manual_debt_by_customer.values()), Decimal("0"))
+    total_debt = sum((max(value, Decimal("0")) for value in debt_by_customer.values()), Decimal("0")) + total_manual_debt
     stats = {
         "customers": len(active_customers),
-        "debtors": sum(1 for value in debt_by_customer.values() if value > 0),
+        "debtors": sum(1 for customer in customers if debt_by_customer[customer.id] > 0 or manual_debt_by_customer[customer.id] > 0),
         "debt": total_debt,
+        "manual_debt": total_manual_debt,
         "cases": sum(max(value, 0) for value in cases_by_customer.values()),
     }
 
@@ -220,6 +252,7 @@ def manage(bar_id):
         customers=customers,
         active_customers=active_customers,
         debt_by_customer=debt_by_customer,
+        manual_debt_by_customer=manual_debt_by_customer,
         cases_by_customer=cases_by_customer,
         ledger=ledger,
         case_history=case_history,
