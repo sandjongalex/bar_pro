@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from decimal import Decimal
+from datetime import date
 from sqlalchemy import func, select
 
 from app.audit import record
@@ -108,9 +109,9 @@ class CustomerService:
         )
         return Decimal(value or 0)
 
-    def record_manual_debt(self, actor, bar_id, customer_id, reference, amount, reason):
+    def record_manual_debt(self, actor, bar_id, customer_id, reference, amount, reason, due_date=None):
         """Track a customer debt without creating an order, stock movement or cash entry."""
-        permissions.require(actor, "customer_credit.manage", bar_id)
+        permissions.require(actor, "customer_debt.manage", bar_id)
         customer = db.session.scalar(
             select(Customer).where(
                 Customer.id == customer_id,
@@ -122,6 +123,10 @@ class CustomerService:
             raise LookupError("NOT_FOUND")
         amount = number(amount, positive=True)
         note = required_text(reason, 500)
+        try:
+            deadline = date.fromisoformat(due_date) if due_date else None
+        except (TypeError, ValueError):
+            raise ValueError("INVALID_DEBT_DUE_DATE") from None
         bar = db.session.get(Bar, bar_id)
         item = CustomerLedgerEntry(
             bar_id=bar_id,
@@ -132,6 +137,7 @@ class CustomerService:
             amount_delta=amount,
             currency=bar.currency,
             reason=note,
+            due_date=deadline,
             occurred_at=utcnow(),
             recorded_by_id=actor.id,
         )
@@ -142,7 +148,7 @@ class CustomerService:
 
     def record_manual_repayment(self, actor, bar_id, customer_id, reference, amount, reason):
         """Reduce manual debt only; do not record a cash or order payment."""
-        permissions.require(actor, "customer_credit.manage", bar_id)
+        permissions.require(actor, "customer_debt.manage", bar_id)
         customer = db.session.scalar(
             select(Customer).where(
                 Customer.id == customer_id,
@@ -172,6 +178,62 @@ class CustomerService:
         db.session.add(item)
         db.session.flush()
         record(actor, bar_id, "customer_debt.manual_repayment", "customer_ledger_entries", item.id, item.reference)
+        return item
+
+    def reverse_manual_debt(self, actor, bar_id, entry_id, reference, reason):
+        """Append an audited reversal, never delete the debt or touch stock/cash.
+
+        Without payment allocation by debt, reject reversals after subsequent
+        repayments so an unrelated debt cannot silently absorb the correction.
+        """
+        permissions.require(actor, "customer_debt.manage", bar_id)
+        source = db.session.scalar(select(CustomerLedgerEntry).where(
+            CustomerLedgerEntry.id == entry_id,
+            CustomerLedgerEntry.bar_id == bar_id,
+            CustomerLedgerEntry.entry_kind == "ADJUSTMENT",
+            CustomerLedgerEntry.amount_delta > 0,
+            CustomerLedgerEntry.reversal_of_id.is_(None),
+        ).with_for_update())
+        if not source:
+            raise LookupError("NOT_FOUND")
+        customer = db.session.scalar(select(Customer).where(
+            Customer.bar_id == bar_id, Customer.id == source.customer_id
+        ).with_for_update())
+        if not customer:
+            raise LookupError("NOT_FOUND")
+        reversed_already = db.session.scalar(select(CustomerLedgerEntry.id).where(
+            CustomerLedgerEntry.bar_id == bar_id,
+            CustomerLedgerEntry.reversal_of_id == source.id,
+        ))
+        if reversed_already:
+            raise ValueError("ALREADY_REVERSED")
+        later_repayments = db.session.scalar(select(CustomerLedgerEntry.id).where(
+            CustomerLedgerEntry.bar_id == bar_id,
+            CustomerLedgerEntry.customer_id == source.customer_id,
+            CustomerLedgerEntry.entry_kind == "ADJUSTMENT",
+            CustomerLedgerEntry.amount_delta < 0,
+            CustomerLedgerEntry.id > source.id,
+            CustomerLedgerEntry.reversal_of_id.is_(None),
+        ).limit(1))
+        if later_repayments or self.manual_debt_balance(bar_id, source.customer_id, locking=True) < source.amount_delta:
+            raise ValueError("MANUAL_DEBT_HAS_REPAYMENTS")
+        item = CustomerLedgerEntry(
+            bar_id=bar_id,
+            customer_id=source.customer_id,
+            order_id=None,
+            reference=required_text(reference, 64),
+            entry_kind="ADJUSTMENT",
+            amount_delta=-source.amount_delta,
+            currency=source.currency,
+            reversal_of_id=source.id,
+            reason=required_text(reason, 500),
+            occurred_at=utcnow(),
+            recorded_by_id=actor.id,
+        )
+        db.session.add(item)
+        db.session.flush()
+        record(actor, bar_id, "customer_debt.manual_reverse", "customer_ledger_entries",
+               item.id, item.reason, changes={"reversal_of_id": source.id, "amount": str(item.amount_delta)})
         return item
 
     def case_balance(self, bar_id, customer_id, product_id=None, *, locking=False):
@@ -414,3 +476,38 @@ def notify_server(order, kind, title, body):
 
 
 customer_service = CustomerService()
+
+
+def outstanding_manual_debts(entries, today=None):
+    """Allocate manual repayments oldest-first to identify unpaid debt due dates.
+
+    Input entries must belong to one bar/customer. Credit sales and cash receipts
+    are deliberately excluded from this computation.
+    """
+    today = today or date.today()
+    open_debts = {}
+    for entry in sorted(entries, key=lambda item: item.id):
+        if entry.entry_kind != "ADJUSTMENT":
+            continue
+        amount = Decimal(entry.amount_delta)
+        if amount > 0:
+            open_debts[entry.id] = [entry, amount]
+        elif entry.reversal_of_id is not None:
+            # A reversal targets its original debt, not an unrelated entry.
+            if entry.reversal_of_id in open_debts:
+                open_debts[entry.reversal_of_id][1] = max(
+                    Decimal(0), open_debts[entry.reversal_of_id][1] + amount
+                )
+        else:
+            remainder = -amount
+            for row in open_debts.values():
+                used = min(row[1], remainder)
+                row[1] -= used
+                remainder -= used
+                if remainder <= 0:
+                    break
+    unpaid = [(entry, amount) for entry, amount in open_debts.values() if amount > 0]
+    overdue = sum((amount for entry, amount in unpaid
+                   if entry.due_date is not None and entry.due_date < today), Decimal(0))
+    next_due = min((entry.due_date for entry, amount in unpaid if entry.due_date), default=None)
+    return {"unpaid": unpaid, "overdue": overdue, "next_due": next_due}
