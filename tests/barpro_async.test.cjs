@@ -192,6 +192,26 @@ test('async delivery uses the form route unless submitter has explicit formactio
   assert.equal(sent[1], submitter.formAction, 'explicit formaction must still override the form action');
 });
 
+test('customer form named action cannot shadow POST destination', async () => {
+  const sent = [];
+  const { api } = start(async (url) => {
+    sent.push(url);
+    return response({ success: true, message: 'Client enregistré' });
+  }, { window: { location: {
+    href: 'https://example.test/bars/1/customers', origin: 'https://example.test'
+  } } });
+  const form = {
+    // Browser named property collision: input[name=action] shadows form.action.
+    action: { toString() { return '[object HTMLInputElement]'; } },
+    getAttribute(name) { return name === 'method' ? 'post' : null; },
+    querySelector() { return { value: 'csrf-token' }; },
+    querySelectorAll() { return [{ disabled: false }]; },
+    setAttribute() {}, removeAttribute() {}, dispatchEvent() {},
+  };
+  await api.submit(form);
+  assert.equal(sent[0], 'https://example.test/bars/1/customers');
+});
+
 test('watch does not perform hidden or offline polling and provides cleanup', async () => {
   let tick;
   const { api, document } = start(async () => response('<section></section>', { html: true }), {
