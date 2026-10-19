@@ -120,10 +120,8 @@ class OrderEditService:
             )))
             order.subtotal_amount = number(Decimal(order.subtotal_amount) + sum(
                 (Decimal(s.subtotal_amount) for s in additions), Decimal(0)))
-            order.discount_amount = number(Decimal(order.discount_amount) + sum(
-                (Decimal(s.discount_amount) for s in additions), Decimal(0)))
-            order.tax_amount = number(Decimal(order.tax_amount) + sum(
-                (Decimal(s.tax_amount) for s in additions), Decimal(0)))
+            # replace_lines resets only subtotal/total, not discount/tax:
+            # these parent fields already include validated-round adjustments.
             order.total_amount = number(Decimal(order.subtotal_amount) -
                                         Decimal(order.discount_amount) + Decimal(order.tax_amount))
             record(actor, bar_id, "orders.edit", "orders", order.id, "Modification avant livraison")
