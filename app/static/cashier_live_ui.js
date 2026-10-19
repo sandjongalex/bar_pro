@@ -44,6 +44,9 @@
     catch (_) { return null; }
   }).filter(Boolean);
   let knownOrderIds = new Set(initialIds);
+  let pendingStates = new Map(Array.from(queue.querySelectorAll('.cashier-order-card')).map(card => [
+    String(card.dataset.liveOrderId), card.querySelector('[data-rounds-pending]')?.dataset.roundsPending === '1'
+  ]));
   let firstSuccessfulPoll = true;
   let inFlight = false;
   let refreshAgain = false;
@@ -96,8 +99,10 @@
 
   function isEditing(card) {
     const active = document.activeElement;
-    return !!(card && active && (active === card || card.contains(active))) ||
-      !!card?.querySelector('form[aria-busy="true"]');
+    // Allow live status updates while a disclosure is focused/open. Only protect
+    // actual form edits and in-flight mutations from being replaced.
+    return !!card?.querySelector('form[aria-busy="true"]') ||
+      !!(card && active && card.contains(active) && active.closest?.('form, input, textarea, select'));
   }
 
   function reconcileSection(section, orders, selectedId, emptyText) {
@@ -135,13 +140,26 @@
         changed = true;
       } else {
         if (!busy && card.dataset.liveFingerprint !== fingerprint) {
+          const expandedRounds = new Set(Array.from(card.querySelectorAll('details[data-cashier-round-id][open]'))
+            .map(details => details.dataset.cashierRoundId));
+          const activeSummary = document.activeElement?.closest?.('details[data-cashier-round-id]');
+          const focusedRoundId = activeSummary && card.contains(activeSummary) &&
+            document.activeElement?.tagName === 'SUMMARY' ? activeSummary.dataset.cashierRoundId : null;
           const template = document.createElement('template');
           template.innerHTML = cardMarkup(order, selectedId);
           const replacement = template.content.firstElementChild;
           if (replacement) {
+            replacement.querySelectorAll('details[data-cashier-round-id]').forEach(details => {
+              if (expandedRounds.has(details.dataset.cashierRoundId)) details.open = true;
+            });
             const atCursor = card === cursor;
             card.replaceWith(replacement);
             card = replacement;
+            if (focusedRoundId) {
+              const currentSummary = Array.from(card.querySelectorAll('details[data-cashier-round-id]'))
+                .find(details => details.dataset.cashierRoundId === focusedRoundId)?.querySelector('summary');
+              currentSummary?.focus({preventScroll:true});
+            }
             // Keep the insertion cursor attached when the current card changes.
             if (atCursor) cursor = replacement;
             changed = true;
@@ -222,6 +240,12 @@
     if (dueKpi) dueKpi.textContent = money.format(Number(payload.stats?.due || 0));
     syncStock(payload.stock || {});
 
+    const nextPending = new Map(orders.map(order => [String(order.id), Boolean(order.pending_delivery)]));
+    const selectedPendingChanged = !firstSuccessfulPoll && selectedId && nextPending.has(selectedId) &&
+      pendingStates.get(selectedId) !== nextPending.get(selectedId);
+    pendingStates = nextPending;
+    if (selectedPendingChanged) void window.CashierWorkspace?.refreshSelected?.();
+
     const nextIds = new Set(orders.map(order => String(order.id)));
     if (!firstSuccessfulPoll && orders.some(order => !knownOrderIds.has(String(order.id)))) {
       liveBadge.className = 'badge text-bg-warning mt-1';
@@ -272,6 +296,12 @@
     if (!window.CashierWorkspace?.selectOrder) return;
     event.preventDefault();
     void window.CashierWorkspace.selectOrder(link.href);
+  });
+  queue.addEventListener('barpro:async-success', event => {
+    if (!event.target?.matches?.('.cashier-round-delivery-form')) return;
+    // The confirmed addition is already committed. Never repeat its POST.
+    event.target.querySelector('button[type="submit"]')?.blur();
+    void poll();
   });
   document.addEventListener('cashier:refresh', () => void poll());
   document.addEventListener('visibilitychange', () => { if (!document.hidden) void poll(); });
