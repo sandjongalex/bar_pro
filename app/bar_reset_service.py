@@ -87,7 +87,11 @@ def reset_bar(actor, bar_id: int, confirmation: str, password: str) -> dict:
         if "bar_id" not in table.c or table.name in PRESERVED_BAR_TABLES:
             continue
         _clear_nullable_self_references(table, bar_id)
-        result = db.session.execute(table.delete().where(table.c.bar_id == bar_id))
+        # Administrative governance decisions must survive a commercial reset.
+        stmt = table.delete().where(table.c.bar_id == bar_id)
+        if table.name == "audit_logs":
+            stmt = stmt.where(table.c.action != "bars.governance.change")
+        result = db.session.execute(stmt)
         if result.rowcount and result.rowcount > 0:
             deleted[table.name] += result.rowcount
 

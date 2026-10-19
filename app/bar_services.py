@@ -245,7 +245,8 @@ def assign_staff(actor, bar_id, user_id, role):
 
     db.session.add(assignment)
     # Revoke all earlier web/JWT credentials when a role or assignment is granted.
-    user.credentials_version += 1
+    if old_role != role:
+        user.credentials_version += 1
     db.session.flush()
     record(
         actor,

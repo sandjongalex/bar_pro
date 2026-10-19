@@ -184,3 +184,17 @@ def test_bar_status_independent_of_subscription_and_owner_governance(env):
     assert db.session.get(OwnerGovernance, owner.id) is None
     assert db.session.scalar(select(func.count()).select_from(AuditLog).where(
         AuditLog.action == "bars.governance.change", AuditLog.bar_id == bar.id)) == 1
+
+
+def test_governance_audit_survives_legitimate_owner_reset(env):
+    _, owner, bar, _, _, _, _, _ = env
+    admin = platform_user()
+    change_bar_governance(admin, bar.id, status="APPROVED",
+                          suspension_level=0, reason="Decision tracee")
+    db.session.commit()
+    reset_bar(owner, bar.id, "REINITIALISER", "test-password")
+    db.session.commit()
+    retained = db.session.scalar(select(AuditLog).where(
+        AuditLog.bar_id == bar.id, AuditLog.action == "bars.governance.change"))
+    assert retained is not None
+    assert db.session.get(BarGovernance, bar.id).status == "APPROVED"

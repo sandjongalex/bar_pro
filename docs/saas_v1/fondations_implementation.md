@@ -31,3 +31,6 @@ Révision `ba5a5a1f0001` après `d1e2f3a4b5c6`, deux tables additives et contrai
 Tests : 5 rôles, propriétaire multi-bars, changement de rôle et jetons révoqués, niveaux 1/2, appels API directs et IDOR, indépendance suspension compte/établissement, interdiction SUPER_ADMIN sur commerce et reset. Suite complète et frontend exécutés par workflow dédié. `docs/DATA_MODEL.md` est régénéré par la CI en conservant son test d'égalité avec le schéma.
 
 **Point de non-régression :** `main` avait un échec connu sur l'édition de sous-commandes et la redirection vers la session de caisse (335 passés, 1 échoué), sans correction dans cette phase. Aucun succès de test n'est déclaré avant publication des logs CI. Les barrières serveur ne remplacent pas une revue exhaustif de toutes les routes.
+
+## Conservation des traces administratives
+Un reset opérationnel autorisé du bar n'efface pas les traces de `bars.governance.change` dans le journal d'audit, et ne supprime pas `bar_governance`. Les autres journaux restent soumis au comportement historique du reset. Une affectation répétée sans changement de rôle ne provoque plus de déconnexion superflue.
