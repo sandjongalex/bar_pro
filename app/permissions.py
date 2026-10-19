@@ -183,7 +183,7 @@ class PermissionService:
             if not active_shift:
                 return Decision(False, "OFF_DUTY")
 
-        if bar.status == "SUSPENDED" and action in WRITES and action not in {"bars.reactivate"}:
+        if bar.status == "SUSPENDED" and action in WRITES and action not in {"bars.reactivate", "bars.governance.manage"}:
             return Decision(False, "BAR_SUSPENDED")
         return Decision(True, "ALLOWED")
 
