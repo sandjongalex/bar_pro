@@ -2,6 +2,7 @@
 {% block title %}Caisse rapide · {{ bar.name }} · Bar Manager Pro{% endblock %}
 {% block header %}Caisse rapide · {{ bar.name }}{% endblock %}
 {% block content %}
+<link rel="stylesheet" href="{{ url_for('static', filename='cashier_rounds.css') }}">
 <style>
 .cashier-order-actions{display:flex;flex-wrap:wrap;gap:8px;padding:8px 12px 12px;border-bottom:1px solid var(--line)}.cashier-order-actions form{margin:0}.cashier-order-actions .btn{min-height:44px;display:inline-flex;align-items:center;justify-content:center}
 
@@ -160,6 +161,8 @@
           <button class="btn btn-primary btn-lg w-100" type="submit">Livrer & encaisser</button>
           <div class="form-text text-center mt-2">Un clic déduit le stock et ouvre immédiatement le paiement.</div>
         </form>
+      {% elif selected_pending_delivery %}
+        <div class="cashier-delivery-block" role="status"><strong>Livraison à confirmer</strong>Livrez tous les ajouts de cette commande avant d'encaisser le client. Ouvrez la sous-commande dans la file active et appuyez sur « Livré » après remise des produits.</div>
       {% else %}
         <div class="cashier-fast-cash">
           <strong>Paiement espèces exact</strong><small>Si le client donne exactement {{ "{:,.0f}".format(b.amount_due) }} {{ selected_order.currency }}, encaissez en un clic.</small>
@@ -177,7 +180,7 @@
   </aside>
 </div>
 
-{% if selected_order and selected_order.status != 'DRAFT' %}
+{% if selected_order and selected_order.status != 'DRAFT' and not selected_pending_delivery %}
 <div class="modal fade" id="cashierPaymentModal" tabindex="-1" aria-labelledby="cashierPaymentModalTitle" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-lg">
     <div class="modal-content modal-liquid-glass">
