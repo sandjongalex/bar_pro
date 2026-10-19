@@ -44,7 +44,10 @@ def test_employee_templates_compile_and_render_one_primary_navigation(env):
 
     workspace = client.get(f"/bars/{bar.id}/cashier/workspace")
     assert workspace.text.count('id="mobileQuickSale"') == 1
-    assert 'id="cashierPaymentForm"' in workspace.text or "Paiement espèces exact" in workspace.text
+    # The payment form exists only after selecting a payable order.
+    # With an empty queue, the new-sale controls must still be accessible.
+    assert 'id="quickSaleForm"' in workspace.text
+    assert 'id="openQuickSale"' in workspace.text or 'id="emptyQuickSale"' in workspace.text
     invoice = client.get(f"/bars/{bar.id}/cashier/invoices")
     assert 'invoiceFilters' in invoice.text
     assert 'Imprimer' in invoice.text or 'invoiceResults' in invoice.text
