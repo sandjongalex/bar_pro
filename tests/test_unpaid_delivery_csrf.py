@@ -3,6 +3,7 @@ from decimal import Decimal
 
 from sqlalchemy import select
 from flask import g
+from werkzeug.exceptions import TooManyRequests
 
 from app.extensions import db
 from app.models import StockBalance
@@ -110,3 +111,14 @@ def test_unauthorized_unpaid_data_cannot_supply_valid_csrf_for_other_bar(env):
     cross_bar = client.get(f"/bars/{foreign.id}/unpaid-orders/data")
     assert cross_bar.status_code == 404
     assert not cross_bar.headers.get("X-BarPro-CSRF")
+
+
+def test_rate_limit_error_is_distinct_from_csrf_and_never_confirms_delivery(env):
+    app = env[0]
+    with app.test_request_context(
+        "/bars/1/unpaid-orders", headers={"Accept": "application/json"}
+    ):
+        result, status = app.handle_http_exception(TooManyRequests())
+        assert status == 429
+        assert result.get_json()["error"]["code"] == "RATE_LIMITED"
+        assert "Patientez" in result.get_json()["error"]["message"]
