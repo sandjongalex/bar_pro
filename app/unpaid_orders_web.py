@@ -432,6 +432,7 @@ def merge_payment(bar_id: int):
 
 
 @bp.post("/<int:order_id>/suborders/<int:suborder_id>/confirm-delivery")
+@limiter.limit("30 per minute;300 per hour", override_defaults=True)
 @login_required
 def confirm_delivery(bar_id: int, order_id: int, suborder_id: int):
     """Cashier acknowledgement that a server-added round was physically delivered."""
