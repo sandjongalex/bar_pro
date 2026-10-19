@@ -4,7 +4,7 @@ Ce fichier est généré par [`scripts/schema_document.py`](../scripts/schema_do
 Ne pas l'éditer librement : [`tests/test_schema.py`](../tests/test_schema.py) compare exactement
 son contenu à `scripts.schema_document.render()`.
 
-Révision Alembic terminale observée : `e1f2a3b4c5d6`. Le dictionnaire décrit les tables,
+Révision Alembic terminale observée : `d1e2f3a4b5c6`. Le dictionnaire décrit les tables,
 colonnes, clés, contraintes, index et relations dérivables de `app.models`.
 Les types sont compilés pour MySQL et SQLite quand ils diffèrent. Une compilation SQL ou
 un test SQLite ne constitue pas une validation sur serveur MySQL.
@@ -41,6 +41,7 @@ un test SQLite ne constitue pas une validation sur serveur MySQL.
 | `c3d4e5f6a7b8` | `b2c3d4e5f6a7` | `c3d4e5f6a7b8_integrity.py` | Reconcile tender and tenant source integrity without rewriting history. |
 | `c9d0e1f2a3b4` | `b8c9d0e1f2a3` | `c9d0e1f2a3b4_employee_shifts.py` | Add employee attendance and on-duty shifts. |
 | `d0e1f2a3b4c5` | `c9d0e1f2a3b4` | `d0e1f2a3b4c5_change_vouchers.py` | Add customer change vouchers and settlement journal.  Revision ID: d0e1f2a3b4c5 Revises: c9d0e1f2a3b4 |
+| `d1e2f3a4b5c6` | `e1f2a3b4c5d6` | `d1e2f3a4b5c6_customer_manual_debt_due_date.py` | Add optional due date to manual customer debt ledger entries. |
 | `d4e5f6a7b8c9` | `c3d4e5f6a7b8` | `d4e5f6a7b8c9_customer_credit_cases_notifications.py` | Add customer receivables, returnable cases and persistent notifications. |
 | `e1f2a3b4c5d6` | `d0e1f2a3b4c5` | `e1f2a3b4c5d6_missing_tenant_indexes.py` | Reconcile tenant indexes declared by newer customer and shift ORM models.  Safe for existing deployments: only missing indexes are created. No table, order, stock or payment data is modified. |
 | `e5f6a7b8c9d0` | `d4e5f6a7b8c9` | `e5f6a7b8c9d0_purchase_units_supplier_notes.py` | Add supplier notes and purchase unit/conversion metadata.  Revision ID: e5f6a7b8c9d0 Revises: d4e5f6a7b8c9 |
@@ -727,6 +728,7 @@ erDiagram
 | `cash_session_id` | MySQL `BIGINT` / SQLite `INTEGER` | oui | non | — | — | — |
 | `reversal_of_id` | MySQL `BIGINT` / SQLite `INTEGER` | oui | non | — | — | — |
 | `reason` | VARCHAR(500) | non | non | — | — | — |
+| `due_date` | DATE | oui | non | — | — | — |
 | `occurred_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | non | non | — | — | — |
 | `recorded_by_id` | MySQL `BIGINT` / SQLite `INTEGER` | non | non | — | — | — |
 | `bar_id` | MySQL `BIGINT` / SQLite `INTEGER` | non | non | — | — | — |
@@ -746,6 +748,7 @@ erDiagram
 - UNIQUE `uq_customer_ledger_reference` : `bar_id, reference`.
 - UNIQUE `uq_customer_ledger_reversal` : `bar_id, reversal_of_id`.
 - INDEX `ix_customer_ledger_customer_time` : `bar_id, customer_id, occurred_at, id`.
+- INDEX `ix_customer_ledger_due_date` : `bar_id, due_date, id`.
 - INDEX `ix_customer_ledger_entries_bar_created` : `bar_id, created_at, id`.
 - INDEX `ix_customer_ledger_entries_bar_id` : `bar_id`.
 - INDEX `ix_customer_ledger_order` : `bar_id, order_id, id`.
