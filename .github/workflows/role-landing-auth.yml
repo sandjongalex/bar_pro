@@ -1,0 +1,53 @@
+name: Role landing authentication regressions
+
+on:
+  push:
+    branches:
+      - feature/auth-role-home-landing
+      - main
+    paths:
+      - 'app/auth.py'
+      - 'app/web.py'
+      - 'app/__init__.py'
+      - 'app/templates/employee_unavailable.html'
+      - 'tests/test_role_landing.py'
+      - '.github/workflows/role-landing-auth.yml'
+  pull_request:
+    paths:
+      - 'app/auth.py'
+      - 'app/web.py'
+      - 'app/__init__.py'
+      - 'app/templates/employee_unavailable.html'
+      - 'tests/test_role_landing.py'
+      - '.github/workflows/role-landing-auth.yml'
+
+jobs:
+  auth-and-tenant:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -r requirements.txt
+      - run: python -m compileall -q app/auth.py app/web.py app/__init__.py
+      - name: Login, on/off duty, tenant, shift and role navigation
+        run: >-
+          python -m pytest -q
+          tests/test_role_landing.py
+          tests/test_employee_tenant_auth.py
+          tests/test_employee_shifts.py
+          tests/test_role_navigation.py
+          tests/test_cashier_workspace.py
+          tests/test_cashier_session.py
+          tests/test_owner_multibar_tenant_regression.py
+          tests/test_auth.py
+  full-regressions:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -r requirements.txt
+      - run: python -m pytest -q

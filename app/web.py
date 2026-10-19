@@ -15,7 +15,15 @@ api_bp = Blueprint("api", __name__, url_prefix="/api/v1")
 
 @web_bp.get("/")
 def index():
-    return redirect(url_for("web.dashboard")) if current_user.is_authenticated else redirect(url_for("auth.web_login"))
+    if not current_user.is_authenticated:
+        return redirect(url_for("auth.web_login"))
+    # Keep the root entry point consistent with /login for every role.
+    # Tenant/shift resolution remains server-side; never trust session hints.
+    from app.auth import _web_destination
+    try:
+        return redirect(_web_destination(current_user))
+    except LookupError:
+        return redirect(url_for("auth.web_login"))
 
 
 @web_bp.get("/dashboard")
@@ -46,6 +54,14 @@ def dashboard():
         assigned_bar = db.session.get(Bar, employee_context.bar_id)
         if not assigned_bar:
             abort(404)
+
+        # An authenticated employee must reach an informative home even if the
+        # assigned venue has been suspended. Never render operational metrics.
+        if assigned_bar.status == "SUSPENDED":
+            return render_template(
+                "employee_unavailable.html", bar=assigned_bar,
+                role=employee_context.role,
+            )
 
         if employee_context.role in {"CASHIER", "SERVER"}:
             shift = get_active_shift_for_assignment(

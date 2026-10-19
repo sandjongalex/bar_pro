@@ -174,6 +174,7 @@ def _register_blueprints(app: Flask) -> None:
         from flask import abort, redirect, request, url_for
         from flask_login import current_user
         from app.employee_context import get_current_employee_context
+        from app.models import Bar
         from app.permissions import permissions
         from app.shift_service import get_active_shift_for_assignment
 
@@ -183,16 +184,29 @@ def _register_blueprints(app: Flask) -> None:
 
         bar_id = (request.view_args or {}).get("bar_id")
         if not request.path.startswith("/api/") and bar_id is not None and current_user.is_authenticated:
+            context = None
+            if current_user.category == "EMPLOYEE":
+                try:
+                    context = get_current_employee_context(current_user)
+                except LookupError:
+                    abort(404)
+                # No existence or suspension information about a foreign bar.
+                if context.bar_id != bar_id:
+                    abort(404)
+                bar = db.session.get(Bar, bar_id)
+                if not bar:
+                    abort(404)
+                if bar.status == "SUSPENDED":
+                    if request.method in {"GET", "HEAD"}:
+                        return redirect(url_for("web.dashboard"))
+                    abort(404)
+
             if not permissions.evaluate(current_user, "bars.read", bar_id).allowed:
                 abort(404)
 
             # A cashier/server may keep a valid account while off duty, but no
             # operational bar page is available until a supervisor opens a shift.
-            if current_user.category == "EMPLOYEE" and request.endpoint != "shifts_web.manage":
-                try:
-                    context = get_current_employee_context(current_user)
-                except LookupError:
-                    abort(404)
+            if context is not None and request.endpoint != "shifts_web.manage":
                 if context.role in {"CASHIER", "SERVER"}:
                     active_shift = get_active_shift_for_assignment(bar_id, context.assignment.id)
                     if not active_shift:

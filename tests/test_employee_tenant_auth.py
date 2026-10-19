@@ -61,6 +61,9 @@ def test_cashier_login_redirects_directly_to_cashier_dashboard(env):
 
 def test_server_login_redirects_directly_to_server_dashboard(env):
     app, _, bar, _, _, server, _, _ = env
+    # An employee may only land on the order-entry workspace while on duty.
+    # Off-duty entry is asserted separately in test_role_landing.py.
+    activate_employee(bar, server)
     assignment = db.session.query(StaffAssignment).filter_by(user_id=server.id, ended_at=None).one()
     client = app.test_client()
 

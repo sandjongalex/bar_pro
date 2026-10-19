@@ -1,0 +1,23 @@
+{% extends 'layout.html' %}
+{% block title %}Établissement indisponible · Bar Manager Pro{% endblock %}
+{% block header %}Accès temporairement suspendu{% endblock %}
+{% block content %}
+<section class="panel-card mx-auto mt-4 mt-md-5" style="max-width:720px">
+  <div class="p-4 p-md-5 text-center">
+    <div class="display-5 mb-3" aria-hidden="true">ℹ</div>
+    <p class="eyebrow mb-2">Compte connecté</p>
+    <h1 class="h2">Établissement temporairement indisponible</h1>
+    <p class="text-secondary mt-3">
+      Votre connexion est valide, mais l'établissement
+      <strong>{{ bar.name }}</strong> est actuellement suspendu.
+      Les ventes, commandes, encaissements et opérations de stock restent
+      inaccessibles jusqu'à sa réactivation.
+    </p>
+    <p class="text-secondary">Contactez le responsable de votre établissement.</p>
+    <form method="post" action="{{ url_for('auth.web_logout') }}" class="mt-4">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button type="submit" class="btn btn-outline-primary">Se déconnecter</button>
+    </form>
+  </div>
+</section>
+{% endblock %}

@@ -19,12 +19,30 @@ def digest(value): return hashlib.sha256(value.encode() if isinstance(value,str)
 def accessible(user,bar_id): return permissions.evaluate(user,"bars.read",bar_id).allowed
 
 def _web_destination(user, employee_context=None):
+    """Route an authenticated user only to a page they can actually view.
+
+    A cashier/server retains a valid login off duty, but cannot access sales.
+    Suspended venues similarly receive a safe informational dashboard.
+    The caller must never use the browser's stored role/bar as authority.
+    """
     if user.category != "EMPLOYEE":
         return url_for("web.dashboard")
     context = employee_context or get_current_employee_context(user)
+    from app.models import Bar
+    from app.shift_service import get_active_shift_for_assignment
+
+    bar = db.session.get(Bar, context.bar_id)
+    if not bar:
+        raise LookupError("EMPLOYEE_BAR_UNAVAILABLE")
+    if bar.status == "SUSPENDED":
+        return url_for("web.dashboard")
     if context.role == "CASHIER":
+        if not get_active_shift_for_assignment(context.bar_id, context.assignment.id):
+            return url_for("web.dashboard")
         return url_for("checkout_web.checkout", bar_id=context.bar_id)
     if context.role == "SERVER":
+        if not get_active_shift_for_assignment(context.bar_id, context.assignment.id):
+            return url_for("web.dashboard")
         return url_for("orders_web.quick", bar_id=context.bar_id)
     if context.role == "BAR_ADMIN":
         return url_for("web.dashboard", bar_id=context.bar_id)
