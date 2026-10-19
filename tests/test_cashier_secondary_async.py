@@ -352,3 +352,88 @@ def test_customer_edit_and_debt_filters_do_not_change_balances(env):
     db.session.refresh(other)
     assert other.display_name == "Client extérieur"
     assert customer_service.manual_debt_balance(bar.id, first.id) == baseline
+
+
+def test_manual_debt_due_dates_recovery_and_controlled_reversal(env):
+    app, owner, bar, foreign, product, *_ = env
+    customer = customer_service.create(owner, bar.id, {"display_name": "Débiteur test"})
+    remote = Customer(bar_id=foreign.id, display_name="Client externe")
+    db.session.add(remote)
+    db.session.commit()
+    client = app.test_client()
+    assert _login(client, owner.email).status_code == 302
+    path = f"/bars/{bar.id}/customers"
+    page = client.get(path)
+    assert page.status_code == 200
+    token = _csrf(page)
+    stock_before = db.session.scalar(select(StockBalance.quantity).where(StockBalance.product_id == product.id))
+    cash_before = count(CashMovement, bar_id=bar.id)
+
+    old = post(client, path, token, action="manual_debt", customer_id=str(customer.id),
+               amount="8000", reason="Dette ancienne", due_date="2020-01-10",
+               idempotency_key="debt-with-due-date-1")
+    assert old.status_code == 200, old.text
+    old_id = old.json["data"]["entry_id"]
+    future = post(client, path, token, action="manual_debt", customer_id=str(customer.id),
+                  amount="3000", reason="Dette suivante", due_date="2035-01-10",
+                  idempotency_key="debt-with-due-date-2")
+    assert future.status_code == 200, future.text
+    invalid = post(client, path, token, action="manual_debt", customer_id=str(customer.id),
+                   amount="300", reason="Échéance invalide", due_date="not-a-date",
+                   idempotency_key="debt-invalid-date")
+    assert invalid.status_code == 422
+    paid = post(client, path, token, action="manual_repayment", customer_id=str(customer.id),
+                amount="2000", reason="Remboursement externe confirmé",
+                idempotency_key="debt-recovery-1")
+    assert paid.status_code == 200, paid.text
+    assert customer_service.manual_debt_balance(bar.id, customer.id) == Decimal("9000")
+    overdue_page = client.get(path + "?filter=overdue")
+    assert overdue_page.status_code == 200
+    assert "Débiteur test" in overdue_page.text
+    assert "6,000" in overdue_page.text
+
+    blocked = post(client, path, token, action="manual_reverse", entry_id=str(old_id),
+                   reason="Correction post paiement", idempotency_key="debt-cancel-paid")
+    assert blocked.status_code == 409, blocked.text
+    new = post(client, path, token, action="manual_debt", customer_id=str(customer.id),
+               amount="500", reason="Erreur de saisie", idempotency_key="debt-error-500")
+    assert new.status_code == 200, new.text
+    new_id = new.json["data"]["entry_id"]
+    cancel = post(client, path, token, action="manual_reverse", entry_id=str(new_id),
+                  reason="Saisie incorrecte", idempotency_key="debt-error-cancel")
+    assert cancel.status_code == 200, cancel.text
+    assert customer_service.manual_debt_balance(bar.id, customer.id) == Decimal("9000")
+    assert post(client, path, token, action="manual_reverse", entry_id=str(new_id),
+                reason="Recommence", idempotency_key="debt-error-second-cancel").status_code == 409
+    record = db.session.scalar(select(CustomerLedgerEntry).where(
+        CustomerLedgerEntry.bar_id == bar.id,
+        CustomerLedgerEntry.reversal_of_id == new_id
+    ))
+    assert record and record.amount_delta == Decimal("-500")
+    assert record.order_id is None and record.cash_session_id is None
+    statement = client.get(f"{path}/{customer.id}/statement")
+    assert statement.status_code == 200
+    assert "Relevé individuel" in statement.text
+    assert "6,000" in statement.text
+    assert "no-store" in statement.headers["Cache-Control"]
+    assert client.get(f"{path}/{remote.id}/statement").status_code == 404
+    assert db.session.scalar(select(StockBalance.quantity).where(StockBalance.product_id == product.id)) == stock_before
+    assert count(CashMovement, bar_id=bar.id) == cash_before
+
+
+def test_manual_debt_edits_are_owner_only_but_cashier_credit_still_works(env):
+    app, owner, bar, *_ = env
+    customer = customer_service.create(owner, bar.id, {"display_name": "Test autorisations"})
+    db.session.commit()
+    cashier, _ = _cashier(owner, bar)
+    client = app.test_client()
+    assert _login(client, cashier.email).status_code == 302
+    path = f"/bars/{bar.id}/customers"
+    page = client.get(path)
+    assert page.status_code == 200
+    assert 'data-bs-target="#manualDebtModal' not in page.text
+    forbidden = post(client, path, _csrf(page),
+                     action="manual_debt", customer_id=str(customer.id), amount="1000",
+                     reason="Non autorisée", idempotency_key="cashier-unauthorized-debt")
+    assert forbidden.status_code == 403
+    assert customer_service.manual_debt_balance(bar.id, customer.id) == Decimal("0")
