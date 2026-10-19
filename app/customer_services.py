@@ -204,7 +204,7 @@ class CustomerService:
         reversed_already = db.session.scalar(select(CustomerLedgerEntry.id).where(
             CustomerLedgerEntry.bar_id == bar_id,
             CustomerLedgerEntry.reversal_of_id == source.id,
-        ))
+        ).with_for_update())
         if reversed_already:
             raise ValueError("ALREADY_REVERSED")
         later_repayments = db.session.scalar(select(CustomerLedgerEntry.id).where(
@@ -214,7 +214,7 @@ class CustomerService:
             CustomerLedgerEntry.amount_delta < 0,
             CustomerLedgerEntry.id > source.id,
             CustomerLedgerEntry.reversal_of_id.is_(None),
-        ).limit(1))
+        ).limit(1).with_for_update())
         if later_repayments or self.manual_debt_balance(bar_id, source.customer_id, locking=True) < source.amount_delta:
             raise ValueError("MANUAL_DEBT_HAS_REPAYMENTS")
         item = CustomerLedgerEntry(
