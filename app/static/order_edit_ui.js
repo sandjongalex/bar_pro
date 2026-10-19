@@ -4,7 +4,8 @@
   const pathMatch = window.location.pathname.match(/\/bars\/(\d+)\//);
   if (!pathMatch) return;
   const barId = pathMatch[1];
-  const csrf = document.querySelector('input[name="csrf_token"]')?.value || '';
+  // Read the latest token when opening the editor: live sessions can rotate CSRF.
+  const currentCsrf = () => document.querySelector('input[name="csrf_token"]')?.value || '';
 
   function escapeHtml(value) {
     return String(value ?? '').replace(/[&<>"']/g, (char) => ({
@@ -51,10 +52,12 @@
     host.innerHTML = `<div class="order-edit-lock">${escapeHtml(message || 'Cette commande ne peut plus être modifiée.')}</div>`;
   }
 
-  function renderEditor(host, payload, context) {
+  function renderEditor(host, payload, context, selectedTarget = 'initial') {
     const order = payload.order || {};
     const products = Array.isArray(payload.products) ? payload.products : [];
-    const originalLines = Array.isArray(order.lines) ? order.lines : [];
+    const rounds = context === 'cashier' && Array.isArray(payload.suborders) ? payload.suborders : [];
+    const selectedRound = rounds.find(item => String(item.id) === String(selectedTarget));
+    const originalLines = selectedRound ? selectedRound.lines : (Array.isArray(order.lines) ? order.lines : []);
     const originalByProduct = new Map(originalLines.map((line) => [String(line.product_id), line]));
 
     if (!order.editable) {
@@ -65,26 +68,38 @@
     }
 
     host.innerHTML = `
-      <form method="post" action="${stateEndpoint(order.id)}" data-order-edit-form>
-        <input type="hidden" name="csrf_token" value="${escapeHtml(csrf)}">
+      <form method="post" action="${selectedRound ? `${stateEndpoint(order.id)}/suborders/${encodeURIComponent(selectedRound.id)}` : stateEndpoint(order.id)}" data-order-edit-form>
+        <input type="hidden" name="csrf_token" value="${escapeHtml(currentCsrf())}">
         <input type="hidden" name="order_revision" value="${escapeHtml(order.revision || '')}">
         <div class="order-edit-head">
           <div>
-            <strong>Modifier ${escapeHtml(order.reference || 'la commande')}</strong>
+            <strong>${selectedRound ? `Modifier sous-commande n°${escapeHtml(selectedRound.sequence_no)}` : `Modifier ${escapeHtml(order.reference || 'la commande')}`}</strong>
             <small>${context === 'server'
               ? 'Ajoutez, retirez ou changez les quantités avant la livraison.'
-              : (order.delivered
-                ? 'La caisse peut modifier les produits tant que la commande n’est pas totalement payée.'
-                : 'Ajoutez, retirez ou changez les quantités avant la livraison.')}</small>
+              : (selectedRound
+                ? (selectedRound.delivered
+                  ? 'Déjà livrée : seul l’écart de stock sera corrigé ; la serveuse verra le nouveau détail.'
+                  : 'À livrer : les produits sont mis à jour pour la serveuse sans mouvement de stock.')
+                : (order.delivered
+                  ? 'La caisse peut modifier les produits tant que la commande n’est pas totalement payée.'
+                  : 'Ajoutez, retirez ou changez les quantités avant la livraison.'))}</small>
           </div>
           <button class="order-edit-close" type="button" aria-label="Fermer">×</button>
         </div>
+        ${context === 'cashier' && rounds.length ? `
+        <div class="order-edit-target">
+          <label for="orderEditTarget${escapeHtml(order.id)}">Choisir la partie de la facture</label>
+          <select id="orderEditTarget${escapeHtml(order.id)}" class="form-select" data-order-edit-target>
+            <option value="initial" ${!selectedRound ? 'selected' : ''}>Commande initiale</option>
+            ${rounds.map(item => `<option value="${escapeHtml(item.id)}" ${selectedRound?.id === item.id ? 'selected' : ''}>Sous-commande n°${escapeHtml(item.sequence_no)} — ${item.delivery_status === 'DELIVERED' ? 'Livrée' : 'À livrer'}</option>`).join('')}
+          </select>
+        </div>` : ''}
         <div class="order-edit-lines" data-order-edit-lines></div>
         <div class="order-edit-add">
           <select class="form-select" data-order-edit-product-select aria-label="Ajouter un produit"></select>
           <button class="btn btn-light border" type="button" data-order-edit-add>＋ Ajouter</button>
         </div>
-        ${context === 'cashier' && order.delivered ? `
+        ${context === 'cashier' && (order.delivered || selectedRound?.delivered) ? `
         <div class="order-edit-reason">
           <label for="orderEditReason${escapeHtml(order.id)}">Motif de la modification <span class="text-secondary">(facultatif)</span></label>
           <input class="form-control" id="orderEditReason${escapeHtml(order.id)}" name="reason" maxlength="500" placeholder="Ex. le client ajoute une bière / retire une eau">
@@ -96,6 +111,8 @@
       </form>`;
 
     const form = host.querySelector('[data-order-edit-form]');
+    const targetSelect = host.querySelector('[data-order-edit-target]');
+    targetSelect?.addEventListener('change', () => renderEditor(host, payload, context, targetSelect.value));
     const linesNode = host.querySelector('[data-order-edit-lines]');
     const select = host.querySelector('[data-order-edit-product-select]');
     const addButton = host.querySelector('[data-order-edit-add]');
@@ -297,7 +314,29 @@
     button.addEventListener('click', () => openEditor(button, host, orderId, 'cashier'));
   }
 
-  window.BarProOrderEdit = Object.freeze({ setupServerEditors });
+  window.BarProOrderEdit = Object.freeze({ setupServerEditors, setupCashierEditor });
+  document.addEventListener('cashier:refresh', setupCashierEditor);
+  document.addEventListener('submit', event => {
+    const form = event.target;
+    if (!(form instanceof HTMLFormElement) || !form.matches('[data-order-edit-form]') ||
+        !form.closest('.cashier-order-edit-host') || !window.BarProAsync?.submit) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    if (!form.checkValidity()) { form.reportValidity(); return; }
+    const host = form.closest('.cashier-order-edit-host');
+    const button = form.querySelector('[data-order-edit-save]');
+    if (button?.disabled) return;
+    void (async () => {
+      try {
+        await window.BarProAsync.submit(form);
+        host.hidden = true;
+        const toggle = document.querySelector(`[data-order-edit-toggle][aria-controls="${CSS.escape(host.id)}"]`);
+        toggle?.setAttribute('aria-expanded', 'false');
+        await window.CashierWorkspace?.refreshSelected?.();
+        await window.CashierLive?.refresh?.();
+      } catch (_) { /* BarProAsync already displays the server's precise error. */ }
+    })();
+  }, true);
   setupServerEditors();
   setupCashierEditor();
 })();

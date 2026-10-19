@@ -13,6 +13,8 @@ from app.extensions import db
 from app.models import Order, Product, StaffAssignment, StockBalance
 from app.order_concurrency import order_revision
 from app.order_edit_service import order_edit_service
+from app.suborder_edit_service import edit_cashier_suborder
+from app.order_suborder_models import OrderSuborder, OrderSuborderLine
 from app.order_line_views import effective_lines_by_order
 from app.permissions import permissions
 from app.product_display_order import product_order_expression
@@ -44,6 +46,7 @@ def _message(code) -> str:
         "INVALID_LINES": "La commande doit garder au moins un produit avec une quantité valide.",
         "ORDER_PAID": "Cette commande est déjà payée et ne peut plus être modifiée.",
         "ORDER_NOT_EDITABLE": "Cette commande ne peut plus être modifiée.",
+        "SUBORDER_NOT_EDITABLE": "Cette sous-commande ne peut plus être modifiée.",
         "ORDER_TOTAL_BELOW_SETTLED": "Le nouveau total ne peut pas être inférieur au montant déjà encaissé.",
         "ORDER_LINES_AMBIGUOUS": "Les lignes de cette commande ne peuvent pas être modifiées automatiquement.",
         "ORDER_CONFLICT": "Cette commande a changé sur un autre appareil. Rouvrez « Modifier » pour charger la version actuelle.",
@@ -163,6 +166,41 @@ def state(bar_id: int, order_id: int):
             }
         )
 
+    rounds = []
+    if editable and not (assignment and assignment.role != "CASHIER"):
+        suborders = list(db.session.scalars(select(OrderSuborder).where(
+            OrderSuborder.bar_id == bar_id,
+            OrderSuborder.order_id == order.id,
+            OrderSuborder.status.in_(["VALIDATED", "PENDING_VALIDATION"]),
+        ).order_by(OrderSuborder.sequence_no, OrderSuborder.id)))
+        sub_ids = [sub.id for sub in suborders]
+        lines_by_sub = {sub.id: [] for sub in suborders}
+        if sub_ids:
+            for line in db.session.scalars(select(OrderSuborderLine).where(
+                OrderSuborderLine.bar_id == bar_id,
+                OrderSuborderLine.order_id == order.id,
+                OrderSuborderLine.order_suborder_id.in_(sub_ids),
+            ).order_by(OrderSuborderLine.order_suborder_id,
+                       OrderSuborderLine.line_no, OrderSuborderLine.id)):
+                lines_by_sub[line.order_suborder_id].append(line)
+        for sub in suborders:
+            is_delivered = sub.delivery_status == "DELIVERED"
+            rounds.append({
+                "id": sub.id, "sequence_no": sub.sequence_no,
+                "status": sub.status, "delivery_status": sub.delivery_status,
+                "delivered": is_delivered,
+                "lines": [{
+                    "product_id": row.product_id,
+                    "name": row.product_name_snapshot,
+                    "quantity": _decimal_text(row.quantity),
+                    "stock": _decimal_text(stock.get(row.product_id, Decimal(0))),
+                    "max_quantity": _decimal_text(
+                        Decimal(row.quantity) + stock.get(row.product_id, Decimal(0))
+                        if is_delivered else max(Decimal(row.quantity), stock.get(row.product_id, Decimal(0)))
+                    ),
+                } for row in lines_by_sub[sub.id]],
+            })
+
     return jsonify(
         {
             "success": True,
@@ -177,6 +215,7 @@ def state(bar_id: int, order_id: int):
                 "lines": line_payload,
             },
             "products": product_payload,
+            "suborders": rounds,
         }
     )
 
@@ -224,3 +263,41 @@ def update(bar_id: int, order_id: int):
             )
         flash(_message(code), "danger")
     return _redirect_after_edit(bar_id, order_id, assignment)
+
+
+@bp.post("/<int:order_id>/suborders/<int:suborder_id>")
+@login_required
+def update_suborder(bar_id: int, order_id: int, suborder_id: int):
+    """Update exactly one historical round. No edit touches other rounds."""
+    async_web = wants_async_web_response()
+    try:
+        sub = edit_cashier_suborder(
+            current_user, bar_id, order_id, suborder_id, _form_lines(),
+            expected_revision=(request.form.get("order_revision") or "").strip(),
+            reason=(request.form.get("reason") or "").strip() or None,
+        )
+        db.session.commit()
+        message = f"Sous-commande {sub.sequence_no} mise à jour. La serveuse voit les nouveaux produits."
+        if async_web:
+            return web_json_response(
+                data={"id": sub.id, "order_id": order_id, "revision": order_revision(
+                    db.session.get(Order, order_id))}, message=message,
+            )
+        flash(message, "success")
+    except LookupError:
+        db.session.rollback()
+        if async_web:
+            return web_json_response(error={"code": "NOT_FOUND"},
+                                     message=_message("NOT_FOUND"), status=404)
+        abort(404)
+    except (ValueError, PermissionError, TypeError, IntegrityError) as exc:
+        db.session.rollback()
+        code = "INVALID_LINES" if isinstance(exc, IntegrityError) else str(exc)
+        if async_web:
+            return web_json_response(
+                error={"code": code}, message=_message(code),
+                status=403 if isinstance(exc, PermissionError) else (
+                    409 if code in {"ORDER_CONFLICT", "ORDER_TOTAL_BELOW_SETTLED"} else 422),
+            )
+        flash(_message(code), "danger")
+    return _redirect_after_edit(bar_id, order_id, _assignment(bar_id))

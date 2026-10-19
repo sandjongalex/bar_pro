@@ -52,3 +52,9 @@
   .order-edit-foot{align-items:stretch;flex-direction:column}
   .order-edit-save{width:100%;min-height:46px}
 }
+
+/* Selection stays visible and touch-friendly on narrow cashier screens. */
+.order-edit-target{display:grid;gap:6px;margin:8px 0 13px}
+.order-edit-target label{font-size:.72rem;font-weight:850;color:var(--ink)}
+.order-edit-target select{min-height:44px;max-width:100%;font-size:.85rem;border-radius:10px}
+@media(max-width:767px){.order-edit-target select{min-height:48px;font-size:16px}}
