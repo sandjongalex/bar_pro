@@ -104,7 +104,7 @@ def test_cashier_inline_round_delivery_preserves_lines_totals_stock_and_invoice_
 
     workspace = client.get(url + f"?order_id={order.id}")
     assert 'id="cashierPaymentModal"' in workspace.text
-    detail = client.get(f"/bars/{bar.id}/orders/{order.id}")
+    detail = client.get(f"/bars/{bar.id}/orders/{order.id}/detail")
     assert detail.status_code == 200
     assert 'data-server-invoice-mode="cumulative"' in detail.text
     assert 'data-server-invoice-mode="detailed"' in detail.text
