@@ -23,6 +23,7 @@ ROLE_ACTIONS = {
     "auth.self.read": {"SUPER_ADMIN", "OWNER", "BAR_ADMIN", "CASHIER", "SERVER"},
     "bars.read": {"SUPER_ADMIN", "OWNER", "BAR_ADMIN", "CASHIER", "SERVER"},
     "bars.support.read": {"SUPER_ADMIN", "OWNER", "BAR_ADMIN", "CASHIER", "SERVER"},
+    "notifications.acknowledge": {"SUPER_ADMIN", "OWNER", "BAR_ADMIN", "CASHIER", "SERVER"},
     "bars.governance.manage": {"SUPER_ADMIN"},
     "shifts.manage": {"SUPER_ADMIN", "OWNER", "CASHIER"},
     "bars.update_settings": {"SUPER_ADMIN", "OWNER"},
@@ -83,11 +84,13 @@ WRITES.update(
 WRITES.add("subscriptions.manage")
 WRITES.add("bars.governance.manage")
 WRITES.add("shifts.manage")
+WRITES.add("notifications.acknowledge")
 
 # The platform can govern tenants but must not alter their commercial data.
 PLATFORM_COMMERCIAL_WRITES = WRITES - {
     "bars.suspend", "bars.reactivate", "bars.update_settings",
     "staff.manage", "subscriptions.manage", "bars.governance.manage",
+    "notifications.acknowledge",
 }
 
 
@@ -95,6 +98,7 @@ PLATFORM_COMMERCIAL_WRITES = WRITES - {
 # operational/sales information becomes unavailable until a shift is active.
 SHIFT_GATED_ACTIONS = {
     "catalog.read",
+    "notifications.acknowledge",
     "customers.read",
     "customers.manage",
     "customer_credit.manage",
