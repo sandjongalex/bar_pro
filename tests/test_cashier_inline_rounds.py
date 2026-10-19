@@ -118,7 +118,7 @@ def test_cashier_inline_round_delivery_preserves_lines_totals_stock_and_invoice_
     assert 'data-receipt-mode="detailed"' in ticket.text
     detailed = _rawbt_detailed(ticket)
     assert "Commande initiale" in detailed
-    assert "Sous-commande n1" in detailed  # ASCII transliteration of degree sign
+    assert "Sous-commande 1 - Livree" in detailed
     assert "Total commande: 300 FCFA" in detailed
 
     again = client.post(
