@@ -12,6 +12,7 @@ from sqlalchemy.exc import IntegrityError
 from app.auth import api_required
 from app.extensions import db
 from app.inventory_period_models import InventoryLineSnapshot, InventoryPeriodSnapshot
+from app.inventory_assignment_models import InventoryCashierAssignment
 from app.inventory_services import inventory_service
 from app.models import Bar, Inventory, InventoryLine, Product
 from app.permissions import permissions
@@ -32,6 +33,9 @@ def _message(code):
         "INVENTORY_STALE": "Le stock machine a changé depuis le début de l'inventaire. Annulez ce brouillon et recommencez pour éviter un mauvais ajustement.",
         "INVENTORY_IMMUTABLE": "Cet inventaire est déjà terminé et ne peut plus être modifié.",
         "INVENTORY_PERIOD_DATA_MISSING": "Les données de période de cet inventaire sont incomplètes.",
+        "INVENTORY_V2_PENDING_APPROVAL": "Inventaire affecté à une caissière : la validation V2 sera disponible après activation du circuit d'approbation.",
+        "INVALID_CASHIER_SHIFT": "Session de caissière invalide.",
+        "CASHIER_SHIFT_NOT_FOUND": "Aucune session de caissière active ne correspond à cette sélection.",
         "NOTE_TOO_LONG": "Une note dépasse 500 caractères.",
         "NOT_FOUND": "Inventaire ou produit introuvable.",
         "FORBIDDEN": "Vous n'êtes pas autorisé à gérer cet inventaire.",
@@ -44,6 +48,12 @@ def _decimal(value):
 
 
 def payload(inv):
+    cashier_assignment = db.session.scalar(
+        select(InventoryCashierAssignment).where(
+            InventoryCashierAssignment.bar_id == inv.bar_id,
+            InventoryCashierAssignment.inventory_id == inv.id,
+        )
+    )
     period = db.session.scalar(
         select(InventoryPeriodSnapshot).where(
             InventoryPeriodSnapshot.bar_id == inv.bar_id,
@@ -101,6 +111,10 @@ def payload(inv):
     return {
         "id": str(inv.id),
         "reference": inv.reference,
+        "v2_assigned": cashier_assignment is not None,
+        "cashier_user_id": str(cashier_assignment.cashier_user_id) if cashier_assignment else None,
+        "cashier_shift_id": str(cashier_assignment.cashier_shift_id) if cashier_assignment else None,
+        "cashier_name": cashier_assignment.cashier_name_snapshot if cashier_assignment else None,
         "reason": inv.reason,
         "status": inv.status,
         "counted_at": inv.counted_at.isoformat() if inv.counted_at else None,
@@ -138,7 +152,14 @@ def result(inv, status=200):
 def listing(bar_id):
     permissions.require(current_user, "inventory.read", bar_id)
     bar = db.session.get(Bar, bar_id)
-    rows = Inventory.query.filter_by(bar_id=bar_id).order_by(Inventory.created_at.desc(), Inventory.id.desc()).paginate(
+    query = Inventory.query.filter_by(bar_id=bar_id)
+    if inventory_service._is_cashier(current_user, bar_id):
+        query = query.join(
+            InventoryCashierAssignment,
+            (InventoryCashierAssignment.bar_id == Inventory.bar_id)
+            & (InventoryCashierAssignment.inventory_id == Inventory.id),
+        ).filter(InventoryCashierAssignment.cashier_user_id == current_user.id)
+    rows = query.order_by(Inventory.created_at.desc(), Inventory.id.desc()).paginate(
         page=request.args.get("page", 1, type=int), per_page=20, error_out=False
     )
     period_by_inventory = {
@@ -157,13 +178,14 @@ def listing(bar_id):
         bar_id=bar_id,
         period_by_inventory=period_by_inventory,
         can_adjust=permissions.evaluate(current_user, "inventory.adjust", bar_id).allowed,
+        can_create=permissions.evaluate(current_user, "inventory.create", bar_id).allowed,
     )
 
 
 @inventories_bp.route("/new", methods=["GET", "POST"])
 @login_required
 def new(bar_id):
-    permissions.require(current_user, "inventory.adjust", bar_id)
+    permissions.require(current_user, "inventory.create", bar_id)
     bar = db.session.get(Bar, bar_id)
     if not bar:
         raise LookupError("NOT_FOUND")
@@ -197,6 +219,7 @@ def new(bar_id):
                 None,
                 defaults["reason"],
                 defaults["period_end"],
+                request.form.get("cashier_shift_id") or None,
             )
             db.session.commit()
             flash("Inventaire créé. Comptez maintenant les bouteilles réellement présentes.", "success")
@@ -221,6 +244,7 @@ def detail(bar_id, inventory_id):
     inv = inventory_service.get(current_user, bar_id, inventory_id)
     bar = db.session.get(Bar, bar_id)
     can_adjust = permissions.evaluate(current_user, "inventory.adjust", bar_id).allowed
+    can_count = permissions.evaluate(current_user, "inventory.count", bar_id).allowed
 
     if request.method == "POST":
         action = request.form.get("action")
@@ -260,6 +284,7 @@ def detail(bar_id, inventory_id):
         bar=bar,
         bar_id=bar_id,
         can_adjust=can_adjust,
+        can_count=can_count,
     )
 
 
@@ -278,7 +303,14 @@ def printable(bar_id, inventory_id):
 @api_required
 def api_list(bar_id):
     permissions.require(request.api_user, "inventory.read", bar_id)
-    rows = Inventory.query.filter_by(bar_id=bar_id).order_by(Inventory.created_at.desc(), Inventory.id.desc()).paginate(
+    query = Inventory.query.filter_by(bar_id=bar_id)
+    if inventory_service._is_cashier(request.api_user, bar_id):
+        query = query.join(
+            InventoryCashierAssignment,
+            (InventoryCashierAssignment.bar_id == Inventory.bar_id)
+            & (InventoryCashierAssignment.inventory_id == Inventory.id),
+        ).filter(InventoryCashierAssignment.cashier_user_id == request.api_user.id)
+    rows = query.order_by(Inventory.created_at.desc(), Inventory.id.desc()).paginate(
         page=request.args.get("page", 1, type=int), per_page=20, error_out=False
     )
     return jsonify(success=True, data=[payload(inv) for inv in rows.items], meta={"page": rows.page, "pages": rows.pages, "total": rows.total})
@@ -302,6 +334,7 @@ def create(bar_id):
             value.get("product_ids"),
             value.get("reason", "Inventaire physique"),
             value.get("period_end"),
+            value.get("cashier_shift_id"),
         ),
         201,
     )
