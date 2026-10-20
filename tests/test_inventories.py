@@ -130,7 +130,8 @@ def test_web_create_count_post_print_with_csrf(env):
     assert 'Validé' in page.text and 'Valider et ajuster' not in page.text
     assert db.session.get(Inventory, int(detail.rstrip('/').split('/')[-1])).status == 'POSTED'
     printed = client.get(detail+'/print')
-    assert 'Water' in printed.text and '-2.000000' in printed.text
+    assert 'Water' in printed.text and '<td>-2</td>' in printed.text
+    assert '-2.000000' not in printed.text  # quantity display omits database-scale zero padding
 
 
 def test_foreign_inventory_and_product_references(env):
