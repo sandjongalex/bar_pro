@@ -9,7 +9,7 @@
     <h1>Inventaires</h1>
     <p>Comparez le stock théorique, le stock machine et les bouteilles réellement présentes, puis rapprochez les ventes et la caisse.</p>
   </div>
-  {% if can_adjust %}<a class="btn btn-primary" href="{{ url_for('inventories.new',bar_id=bar_id) }}">＋ Nouvel inventaire</a>{% endif %}
+  {% if can_create or can_adjust %}<a class="btn btn-primary" href="{{ url_for('inventories.new',bar_id=bar_id) }}">＋ Nouvel inventaire</a>{% endif %}
 </section>
 
 <section class="panel-card mt-4 inventory-history-card">
@@ -37,7 +37,7 @@
       </tbody>
     </table>
   </div>
-  {% else %}<div class="empty-state"><div class="empty-icon">I</div><h3>Aucun inventaire</h3><p>Créez le premier inventaire pour établir le stock physique de référence.</p>{% if can_adjust %}<a class="btn btn-primary" href="{{ url_for('inventories.new',bar_id=bar_id) }}">Démarrer l'inventaire</a>{% endif %}</div>{% endif %}
+  {% else %}<div class="empty-state"><div class="empty-icon">I</div><h3>Aucun inventaire</h3><p>Créez le premier inventaire pour établir le stock physique de référence.</p>{% if can_create or can_adjust %}<a class="btn btn-primary" href="{{ url_for('inventories.new',bar_id=bar_id) }}">Démarrer l'inventaire</a>{% endif %}</div>{% endif %}
 </section>
 
 {% if rows.pages > 1 %}<nav class="d-flex justify-content-between mt-3" aria-label="Pages des inventaires">{% if rows.has_prev %}<a class="btn btn-light border" href="{{ url_for('inventories.listing',bar_id=bar_id,page=rows.prev_num) }}">← Précédente</a>{% else %}<span></span>{% endif %}<span class="align-self-center text-secondary">Page {{ rows.page }} / {{ rows.pages }}</span>{% if rows.has_next %}<a class="btn btn-light border" href="{{ url_for('inventories.listing',bar_id=bar_id,page=rows.next_num) }}">Suivante →</a>{% endif %}</nav>{% endif %}
