@@ -476,13 +476,23 @@ def create(bar_id):
 @api_required
 def counts(bar_id, inventory_id):
     value = body()
+    inv = inventory_service.get(request.api_user, bar_id, inventory_id)
+    v2 = db.session.scalar(
+        select(InventoryCashierAssignment.id).where(
+            InventoryCashierAssignment.bar_id == bar_id,
+            InventoryCashierAssignment.inventory_id == inv.id,
+        )
+    ) is not None
+    if v2:
+        # V2 clients must supply the per-line revision; legacy raw quantities
+        # would bypass the optimistic conflict guard.
+        return result(inventory_service.count_v2_entries(
+            request.api_user, bar_id, inventory_id, value.get("entries"),
+        ))
     return result(
         inventory_service.count(
-            request.api_user,
-            bar_id,
-            inventory_id,
-            value.get("quantities"),
-            value.get("notes"),
+            request.api_user, bar_id, inventory_id,
+            value.get("quantities"), value.get("notes"),
         )
     )
 
