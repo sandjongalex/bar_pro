@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - feature/inventory-v2-mysql-concurrency
+      - feature/inventory-v2-operational-races
   pull_request:
     branches:
       - main
