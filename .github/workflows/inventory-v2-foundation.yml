@@ -8,6 +8,7 @@ on:
       - feature/inventory-v2-live-reconciliation
       - feature/inventory-v2-approval
       - feature/inventory-v2-reporting
+      - feature/inventory-v2-hardening-responsive
   pull_request:
     branches:
       - main
@@ -34,10 +35,12 @@ jobs:
         run: python -m pip install -r requirements.txt
       - name: Generate physical schema documentation
         run: python scripts/schema_document.py
+      - name: Validate progressive inventory JavaScript syntax
+        run: node --check app/static/inventory_count_v2.js
       - name: Run inventory V2 and legacy regressions
         env:
           SECRET_KEY: test-only-workflow-value
-        run: python -m pytest tests/test_inventory_v2_reporting.py tests/test_inventory_v2_approval.py tests/test_inventory_v2_reconciliation.py tests/test_inventory_v2_foundation.py tests/test_inventory_v2_counting.py tests/test_inventories.py tests/test_schema.py -q
+        run: python -m pytest tests/test_inventory_v2_responsive.py tests/test_inventory_v2_reporting.py tests/test_inventory_v2_approval.py tests/test_inventory_v2_reconciliation.py tests/test_inventory_v2_foundation.py tests/test_inventory_v2_counting.py tests/test_inventories.py tests/test_schema.py -q
       - name: Run complete regression suite
         env:
           SECRET_KEY: test-only-workflow-value
