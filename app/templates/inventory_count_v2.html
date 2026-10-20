@@ -91,7 +91,7 @@
     <form method="post" action="{{ url_for('inventories.v2_decision',bar_id=bar_id,inventory_id=inventory.id) }}" class="mt-3">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <label for="inv2-decision-reason" class="form-label">Motif et résultat du contrôle (obligatoire)</label>
-      <textarea id="inv2-decision-reason" class="form-control" name="reason" rows="2" required maxlength="430" placeholder="Vérification des bouteilles manquantes, retours, casse, etc."></textarea>
+      <textarea id="inv2-decision-reason" class="form-control" name="reason" rows="2" required maxlength="400" placeholder="Vérification des bouteilles manquantes, retours, casse, etc."></textarea>
       <div class="d-flex gap-2 flex-wrap mt-2">
         <button class="btn btn-outline-primary" type="submit" name="decision" value="recount">Demander un recomptage</button>
         <button class="btn btn-success" type="submit" name="decision" value="approve" {% if approval.error or (approval.owner_required and not approval.is_owner) %}disabled{% endif %}>Approuver et ajuster le stock</button>
