@@ -38,6 +38,8 @@ def upgrade():
         sa.UniqueConstraint("bar_id", "id", name="uq_inventory_cashier_assignments_bar_id_id"),
         sa.UniqueConstraint("bar_id", "inventory_id", name="uq_inventory_cashier_one_inventory"),
     )
+    op.create_index("ix_inventory_cashier_assignments_bar_id",
+                    "inventory_cashier_assignments", ["bar_id"])
     op.create_index("ix_inventory_cashier_assignments_bar_created",
                     "inventory_cashier_assignments", ["bar_id", "created_at", "id"])
     op.create_index("ix_inventory_cashier_shift", "inventory_cashier_assignments",
@@ -53,4 +55,5 @@ def downgrade():
     op.drop_index("ix_inventory_cashier_user", table_name="inventory_cashier_assignments")
     op.drop_index("ix_inventory_cashier_shift", table_name="inventory_cashier_assignments")
     op.drop_index("ix_inventory_cashier_assignments_bar_created", table_name="inventory_cashier_assignments")
+    op.drop_index("ix_inventory_cashier_assignments_bar_id", table_name="inventory_cashier_assignments")
     op.drop_table("inventory_cashier_assignments")
