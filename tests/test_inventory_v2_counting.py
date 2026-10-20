@@ -200,3 +200,42 @@ def test_v2_draft_never_triggers_stock_adjustment(env):
     assert balance(env) == 10
     assert db.session.query(InventoryLineCountState).count() == 1
     assert db.session.query(InventoryCashierAssignment).count() == 1
+
+
+def test_api_v2_requires_revision_entries_and_preserves_legacy_contract(env):
+    from app.auth import issue
+    cashier, _, _ = on_duty_cashier(env, "api-stage2")
+    inv = create_v2(env, cashier, "API-STAGE2")
+    token, _ = issue(cashier, env[2].id)
+    db.session.commit()
+    client = env[0].test_client()
+    headers = {"Authorization": "Bearer " + token}
+    path = f"/api/v1/bars/{env[2].id}/inventories/{inv.id}/counts"
+    old_shape = client.patch(path, json={
+        "quantities": {str(env[4].id): "0"}
+    }, headers=headers)
+    assert old_shape.status_code == 422
+    assert line(env, inv).counted_quantity is None
+    current = client.patch(path, json={
+        "entries": [{"product_id": env[4].id, "cases": "",
+                     "units": "0", "note": "", "revision": 0}]
+    }, headers=headers)
+    assert current.status_code == 200, current.text
+    assert current.json["data"]["complete"] is True
+    assert line(env, inv).counted_quantity == 0
+    stale = client.patch(path, json={
+        "entries": [{"product_id": env[4].id,
+                     "units": "5", "revision": 0}]
+    }, headers=headers)
+    assert stale.status_code == 422
+    assert line(env, inv).counted_quantity == 0
+
+
+def test_case_counts_without_case_size_cannot_be_added(env):
+    cashier, _, _ = on_duty_cashier(env, "no-pack")
+    inv = create_v2(env, cashier, "NO-PACK")
+    with pytest.raises(ValueError):
+        save(env, cashier, inv, cases="1", units="")
+    db.session.rollback()
+    assert line(env, inv).counted_quantity is None
+    assert balance(env) == 10
