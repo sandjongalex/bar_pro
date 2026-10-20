@@ -7,7 +7,7 @@
     <a class="bar-back" href="{{ url_for('bars.web_detail', bar_id=bar.id) }}">← Retour à {{ bar.name }}</a>
     <p class="eyebrow mt-3 mb-2">Contrôle physique</p>
     <h1>Inventaires</h1>
-    <p>Comparez le stock théorique, le stock machine et les bouteilles réellement présentes, puis rapprochez les ventes et la caisse.</p>
+    <p>Retrouvez les comptages en cours, les demandes de recomptage et les rapports de stock validés. Les rapprochements financiers historiques V1 sont présentés séparément des inventaires V2.</p>
   </div>
   {% if can_create or can_adjust %}<a class="btn btn-primary" href="{{ url_for('inventories.new',bar_id=bar_id) }}">＋ Nouvel inventaire</a>{% endif %}
 </section>
@@ -17,21 +17,35 @@
   {% if rows.items %}
   <div class="table-responsive">
     <table class="table inventory-history-table align-middle mb-0">
-      <thead><tr><th>Référence</th><th>Fin de période</th><th>État</th><th>Ventes théoriques</th><th>Écart caisse</th><th class="text-end">Actions</th></tr></thead>
+      <thead><tr><th>Référence</th><th>Fin de période</th><th>État</th><th>Ventes théoriques V1</th><th>Écart caisse V1</th><th class="text-end">Actions</th></tr></thead>
       <tbody>
       {% for row in rows.items %}
         {% set period = period_by_inventory.get(row.id) %}
+        {% set assignment = v2_assignments.get(row.id) %}
+        {% set approval = approval_by_inventory.get(row.id) %}
+        {% set is_v2 = assignment is not none %}
         <tr>
-          <td><a class="fw-semibold text-decoration-none" href="{{ url_for('inventories.detail',bar_id=bar_id,inventory_id=row.id) }}">{{ row.reference }}</a><small class="d-block text-secondary">{{ row.reason }}</small></td>
+          <td><a class="fw-semibold text-decoration-none" href="{{ url_for('inventories.v2_report' if is_v2 and row.status != 'DRAFT' else 'inventories.detail',bar_id=bar_id,inventory_id=row.id) }}">{{ row.reference }}</a>
+            {% if is_v2 %}<span class="badge text-bg-info ms-1">V2</span><small class="d-block text-secondary">Caissière : {{ assignment.cashier_name_snapshot }}</small>
+            {% else %}<small class="d-block text-secondary">Inventaire historique V1</small>{% endif %}
+            <small class="d-block text-secondary">{{ row.reason }}</small></td>
           <td>{{ period.period_end_at.strftime('%d/%m/%Y') if period else row.counted_at.strftime('%d/%m/%Y') }}</td>
-          <td><span class="inventory-status inventory-status-{{ row.status|lower }}">{{ {'DRAFT':'En cours','POSTED':'Validé','CANCELLED':'Annulé'}.get(row.status,row.status) }}</span></td>
-          <td>{% if period %}<strong>{{ "{:,.0f}".format(period.theoretical_sales_amount) }} {{ bar.currency }}</strong>{% else %}<span class="text-secondary">—</span>{% endif %}</td>
-          <td>{% if period and row.status == 'POSTED' %}
+          <td>{% if is_v2 %}
+              {% set v2_status = 'POSTED' if row.status == 'POSTED' else approval.status if approval else row.status %}
+              <span class="inventory-status inventory-status-{{ 'posted' if v2_status == 'POSTED' else 'draft' }}">{{ {'DRAFT':'Comptage en cours','SUBMITTED':'En contrôle','RECOUNT':'Recomptage demandé','POSTED':'Approuvé','CANCELLED':'Annulé'}.get(v2_status,v2_status) }}</span>
+            {% else %}
+              <span class="inventory-status inventory-status-{{ row.status|lower }}">{{ {'DRAFT':'En cours','POSTED':'Validé','CANCELLED':'Annulé'}.get(row.status,row.status) }}</span>
+            {% endif %}</td>
+          <td>{% if period and not is_v2 %}<strong>{{ "{:,.0f}".format(period.theoretical_sales_amount) }} {{ bar.currency }}</strong>{% else %}<span class="text-secondary">—</span>{% endif %}</td>
+          <td>{% if period and row.status == 'POSTED' and not is_v2 %}
             {% if period.cash_difference_amount < 0 %}<span class="text-danger fw-semibold">−{{ "{:,.0f}".format(-period.cash_difference_amount) }} {{ bar.currency }}</span>
             {% elif period.cash_difference_amount > 0 %}<span class="text-warning fw-semibold">+{{ "{:,.0f}".format(period.cash_difference_amount) }} {{ bar.currency }}</span>
             {% else %}<span class="text-success fw-semibold">0 {{ bar.currency }}</span>{% endif %}
           {% else %}<span class="text-secondary">—</span>{% endif %}</td>
-          <td class="text-end"><a class="btn btn-sm btn-outline-primary" href="{{ url_for('inventories.detail',bar_id=bar_id,inventory_id=row.id) }}">Ouvrir</a> <a class="btn btn-sm btn-light border" href="{{ url_for('inventories.printable',bar_id=bar_id,inventory_id=row.id) }}" target="_blank">Imprimer</a></td>
+          <td class="text-end">
+            <a class="btn btn-sm btn-outline-primary" href="{{ url_for('inventories.v2_report' if is_v2 and row.status != 'DRAFT' else 'inventories.detail',bar_id=bar_id,inventory_id=row.id) }}">{{ 'Rapport' if is_v2 and row.status != 'DRAFT' else 'Ouvrir' }}</a>
+            <a class="btn btn-sm btn-light border" href="{{ url_for('inventories.printable',bar_id=bar_id,inventory_id=row.id) }}" target="_blank" rel="noopener">Imprimer</a>
+          </td>
         </tr>
       {% endfor %}
       </tbody>
