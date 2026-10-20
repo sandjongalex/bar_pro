@@ -23,9 +23,13 @@ from app.inventory_approval import decide, submit
 from app.inventory_services import inventory_service
 from app.inventory_reconciliation import inventory_live_reconciliation
 from app.models import (
-    Bar, Inventory, Product, ProductCategory, StaffAssignment, StockBalance,
-    StockMovement, User, utcnow,
+    Bar, Inventory, Order, Product, ProductCategory, StaffAssignment, StockBalance,
+    StockMovement, Supplier, Purchase, User, utcnow,
 )
+from app.inventory_assignment_models import InventoryCashierAssignment
+from app.order_suborder_models import OrderSuborder
+from app.order_suborder_service import order_suborder_service
+from app.purchase_services import purchase_service
 from app.order_services import order_service
 from app.permissions import permissions
 from app.shift_service import start_shift
@@ -146,6 +150,24 @@ def _work(app, operation, *, ready=None, release=None):
                     [{"product_id": product_id, "quantity": 2}],
                 )
                 order_service.confirm(owner, bar_id, order.id)
+            elif fn == "suborder_delivery":
+                order_suborder_service.deliver_by_cashier(
+                    owner, bar_id, operation["order_id"], operation["suborder_id"]
+                )
+            elif fn == "cashier_addition":
+                order_suborder_service.create_cashier_addition(
+                    owner, bar_id, operation["order_id"],
+                    [{"product_id": product_id, "quantity": 2}],
+                )
+            elif fn == "return_restock" or fn == "return_loss":
+                order_service.return_lines(
+                    owner, bar_id, operation["order_id"], [{
+                        "order_line_id": operation["order_line_id"],
+                        "quantity": 1,
+                        "disposition": "RESTOCK" if fn == "return_restock" else "LOSS",
+                    }], "CI retour boisson pendant validation")
+            elif fn == "purchase_receipt":
+                purchase_service.receive(owner, bar_id, operation["purchase_id"])
             elif fn == "approval":
                 decide(owner, bar_id, inv_id, decision="approve",
                        reason="Inventaire contrôlé sur MySQL CI")
@@ -160,14 +182,24 @@ def _work(app, operation, *, ready=None, release=None):
             db.session.remove()
 
 
-def _interleave(app, ids, first_kind, second_kind):
-    gates = {"sale": "orders.edit", "approval": "inventory.approve"}
+def _interleave(app, ids, first_kind, second_kind, extra=None):
+    gates = {
+        "sale": "orders.deliver",
+        "approval": "inventory.approve",
+        "suborder_delivery": "orders.deliver",
+        "cashier_addition": "orders.deliver",
+        "return_restock": "orders.edit",
+        "return_loss": "orders.edit",
+        "purchase_receipt": "purchases.manage",
+    }
+    extra = dict(extra or {})
     first_ready, release_first = Event(), Event()
     second_started = Event()
 
     def first():
         return _work(app, {
             "ids": ids, "kind": first_kind, "permission": gates[first_kind],
+            **extra,
         }, ready=first_ready, release=release_first)
 
     def second():
@@ -176,6 +208,7 @@ def _interleave(app, ids, first_kind, second_kind):
             "ids": ids, "kind": second_kind,
             "permission": gates[second_kind],
             "read_before_lock": True,
+            **extra,
         })
 
     with ThreadPoolExecutor(max_workers=2) as pool:
