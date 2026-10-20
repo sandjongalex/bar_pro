@@ -27,7 +27,9 @@ des API sont préservées pour ne pas casser les clients existants.
 `22.000001 → 22.000001`. Un produit non compté reste distinct du zéro.
 
 La règle est appliquée au comptage V2, au rapprochement, au rapport de stock,
-à l'impression A4 et aux plafonds de validation.
+à l'impression A4 et aux plafonds de validation. Les pages historiques V1
+(détail et impression) bénéficient également du format court des quantités,
+sans aucune modification de calcul.
 
 ## Responsive
 
