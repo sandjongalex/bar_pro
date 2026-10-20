@@ -10,6 +10,9 @@ from sqlalchemy import func, select
 from app.customer_models import CustomerLedgerEntry
 from app.extensions import db
 from app.inventory_period_models import InventoryLineSnapshot, InventoryPeriodSnapshot
+from app.inventory_assignment_models import InventoryCashierAssignment
+from app.shift_models import EmployeeShift
+from app.shift_service import get_active_shift_for_user
 from app.models import (
     Bar,
     Expense,
@@ -21,6 +24,7 @@ from app.models import (
     Refund,
     StockBalance,
     StockMovement,
+    StaffAssignment,
     utcnow,
 )
 from app.permissions import permissions
@@ -60,15 +64,39 @@ def _in_period(column, start_at, end_at):
 
 
 class InventoryService:
-    def get(self, actor, bar_id, inventory_id, *, write=False):
-        permissions.require(actor, "inventory.adjust" if write else "inventory.read", bar_id)
+    def _is_cashier(self, actor, bar_id):
+        if actor.category != "EMPLOYEE":
+            return False
+        return db.session.scalar(
+            select(StaffAssignment.id).where(
+                StaffAssignment.bar_id == bar_id,
+                StaffAssignment.user_id == actor.id,
+                StaffAssignment.role == "CASHIER",
+                StaffAssignment.ended_at.is_(None),
+            ).limit(1)
+        ) is not None
+
+    def get(self, actor, bar_id, inventory_id, *, write=False, for_count=False):
+        action = "inventory.count" if for_count else "inventory.adjust" if write else "inventory.read"
+        permissions.require(actor, action, bar_id)
         query = select(Inventory).where(Inventory.id == inventory_id, Inventory.bar_id == bar_id)
-        if write:
+        if write or for_count:
             query = query.with_for_update().execution_options(populate_existing=True)
         inv = db.session.scalar(query)
         if inv is None:
             raise LookupError("NOT_FOUND")
-        if write and inv.status != "DRAFT":
+        if self._is_cashier(actor, bar_id):
+            # A cashier may inspect/count only inventories attributed to them.
+            belongs = db.session.scalar(
+                select(InventoryCashierAssignment.id).where(
+                    InventoryCashierAssignment.bar_id == bar_id,
+                    InventoryCashierAssignment.inventory_id == inventory_id,
+                    InventoryCashierAssignment.cashier_user_id == actor.id,
+                )
+            )
+            if belongs is None:
+                raise LookupError("NOT_FOUND")
+        if (write or for_count) and inv.status != "DRAFT":
             raise ValueError("INVENTORY_IMMUTABLE")
         return inv
 
@@ -142,8 +170,51 @@ class InventoryService:
             query = query.where(StockMovement.movement_type == movement_type)
         return Decimal(db.session.scalar(query) or 0)
 
-    def create(self, actor, bar_id, reference, product_ids=None, reason="Inventaire physique", period_end=None):
-        permissions.require(actor, "inventory.adjust", bar_id)
+    def create(self, actor, bar_id, reference, product_ids=None, reason="Inventaire physique", period_end=None, cashier_shift_id=None):
+        # Legacy owners/admins retain the V1 flow until the V2 approval flow ships.
+        # Cashiers cannot use that legacy path: they always need an active cashier shift.
+        is_cashier = self._is_cashier(actor, bar_id)
+        shift = None
+        if is_cashier or cashier_shift_id is not None:
+            permissions.require(actor, "inventory.create", bar_id)
+            if is_cashier:
+                shift = get_active_shift_for_user(actor.id, bar_id)
+                if not shift or shift.role_snapshot != "CASHIER":
+                    raise PermissionError("CASHIER_OFF_DUTY")
+                if cashier_shift_id is not None and str(cashier_shift_id) != str(shift.id):
+                    raise LookupError("NOT_FOUND")
+            else:
+                if (isinstance(cashier_shift_id, bool)
+                        or not isinstance(cashier_shift_id, (str, int))
+                        or not str(cashier_shift_id).isascii()
+                        or not str(cashier_shift_id).isdigit()
+                        or int(cashier_shift_id) <= 0):
+                    raise ValueError("INVALID_CASHIER_SHIFT")
+                shift = db.session.scalar(
+                    select(EmployeeShift).where(
+                        EmployeeShift.bar_id == bar_id,
+                        EmployeeShift.id == int(cashier_shift_id),
+                        EmployeeShift.role_snapshot == "CASHIER",
+                        EmployeeShift.status == "OPEN",
+                    ).with_for_update()
+                )
+            if shift is None or shift.bar_id != bar_id or shift.status != "OPEN":
+                raise LookupError("CASHIER_SHIFT_NOT_FOUND")
+            assignment = db.session.scalar(
+                select(StaffAssignment).where(
+                    StaffAssignment.id == shift.staff_assignment_id,
+                    StaffAssignment.bar_id == bar_id,
+                    StaffAssignment.role == "CASHIER",
+                    StaffAssignment.ended_at.is_(None),
+                )
+            )
+            if not assignment or not assignment.user.is_active:
+                raise LookupError("CASHIER_SHIFT_NOT_FOUND")
+            if is_cashier and assignment.user_id != actor.id:
+                raise LookupError("NOT_FOUND")
+        else:
+            permissions.require(actor, "inventory.adjust", bar_id)
+            assignment = None
         bar = db.session.get(Bar, bar_id)
         if not bar:
             raise LookupError("NOT_FOUND")
@@ -205,6 +276,18 @@ class InventoryService:
         )
         db.session.add(inv)
         db.session.flush()
+        if shift is not None:
+            db.session.add(
+                InventoryCashierAssignment(
+                    bar_id=bar_id,
+                    inventory_id=inv.id,
+                    cashier_shift_id=shift.id,
+                    cashier_user_id=assignment.user_id,
+                    cashier_name_snapshot=assignment.user.display_name,
+                    assigned_by_id=actor.id,
+                    assigned_at=utcnow(),
+                )
+            )
         period = InventoryPeriodSnapshot(
             bar_id=bar_id,
             inventory_id=inv.id,
@@ -265,7 +348,7 @@ class InventoryService:
         return inv
 
     def count(self, actor, bar_id, inventory_id, quantities, notes=None):
-        inv = self.get(actor, bar_id, inventory_id, write=True)
+        inv = self.get(actor, bar_id, inventory_id, for_count=True)
         if not isinstance(quantities, dict) or not quantities:
             raise ValueError("COUNT_REQUIRED")
         notes = notes or {}
@@ -400,6 +483,14 @@ class InventoryService:
 
     def post(self, actor, bar_id, inventory_id):
         inv = self.get(actor, bar_id, inventory_id, write=True)
+        # Fail closed: V2 assignments must wait for the approval workflow.
+        if db.session.scalar(
+            select(InventoryCashierAssignment.id).where(
+                InventoryCashierAssignment.bar_id == bar_id,
+                InventoryCashierAssignment.inventory_id == inv.id,
+            )
+        ) is not None:
+            raise ValueError("INVENTORY_V2_PENDING_APPROVAL")
         lines = list(
             db.session.scalars(
                 select(InventoryLine)
