@@ -53,7 +53,7 @@ def _message(code):
         "INVENTORY_REVIEW_STATE": "Cet inventaire ne se trouve pas dans un état autorisant cette action.",
         "INVENTORY_OWNER_APPROVAL_REQUIRED": "Les plafonds sont dépassés ou il s’agit du premier inventaire : approbation du propriétaire obligatoire.",
         "INVENTORY_SELF_APPROVAL": "La caissière ne peut pas valider son propre inventaire.",
-        "INVENTORY_REASON_REQUIRED": "Une justification obligatoire ne doit pas dépasser 430 caractères.",
+        "INVENTORY_REASON_REQUIRED": "Une justification obligatoire ne doit pas dépasser 400 caractères.",
         "INVALID_INVENTORY_LIMIT": "Les plafonds sont invalides ou supérieurs aux limites de sécurité.",
         "NOT_FOUND": "Inventaire ou produit introuvable.",
         "FORBIDDEN": "Vous n'êtes pas autorisé à gérer cet inventaire.",
