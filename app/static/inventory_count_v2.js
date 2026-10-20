@@ -22,7 +22,7 @@
   // "22.000000" -> "22", "-1.250000" -> "-1.25", "0.000000" -> "0".
   function qty(value) {
     if (value === null || value === undefined || value === "") return "—";
-    return String(value).replace(/(\\.\\d*?[1-9])0+$|\\.0+$/, "$1");
+    return String(value).replace(/(\.\d*?[1-9])0+$|\.0+$/, "$1");
   }
 
   function setText(node, selector, value) {
