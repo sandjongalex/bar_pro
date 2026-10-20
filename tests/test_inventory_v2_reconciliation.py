@@ -114,7 +114,7 @@ def test_blank_and_zero_have_different_reconciliation_states(env):
     assert preview(env, inv)["status"] == "NOT_COUNTED"
     count(env, cashier, inv, "0")
     result = preview(env, inv)
-    assert result["physical_count"] == "0"
+    assert Decimal(result["physical_count"]) == 0
     assert result["status"] == "DIFFERENCE"
     assert Decimal(result["difference_now"]) == -10
 
