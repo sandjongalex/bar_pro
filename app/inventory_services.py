@@ -171,6 +171,20 @@ class InventoryService:
             query = query.where(StockMovement.movement_type == movement_type)
         return Decimal(db.session.scalar(query) or 0)
 
+    @staticmethod
+    def _latest_stock_movement_cursor(bar_id):
+        # MySQL REPEATABLE READ can retain a stale snapshot if normal reads
+        # occurred earlier in the request. A locking read after acquiring the
+        # tenant bar write lock obtains the latest committed ledger row.
+        cursor = db.session.scalar(
+            select(StockMovement.id)
+            .where(StockMovement.bar_id == bar_id)
+            .order_by(StockMovement.id.desc())
+            .limit(1)
+            .with_for_update()
+        )
+        return cursor or 0
+
     def create(self, actor, bar_id, reference, product_ids=None, reason="Inventaire physique", period_end=None, cashier_shift_id=None):
         # Legacy owners/admins retain the V1 flow until the V2 approval flow ships.
         # Cashiers cannot use that legacy path: they always need an active cashier shift.
@@ -269,9 +283,9 @@ class InventoryService:
 
         # All commerce stock movements acquire the same bar write lock as this
         # transaction; the cursor is captured at a consistent ledger boundary.
-        opening_checkpoint = db.session.scalar(
-            select(func.max(StockMovement.id)).where(StockMovement.bar_id == bar_id)
-        ) or 0 if shift is not None else None
+        opening_checkpoint = (
+            self._latest_stock_movement_cursor(bar_id) if shift is not None else None
+        )
         inv = Inventory(
             bar_id=bar_id,
             reference=reference,
@@ -386,9 +400,9 @@ class InventoryService:
                 .with_for_update()
             )
         }
-        count_checkpoint = db.session.scalar(
-            select(func.max(StockMovement.id)).where(StockMovement.bar_id == bar_id)
-        ) or 0 if attribution is not None else None
+        count_checkpoint = (
+            self._latest_stock_movement_cursor(bar_id) if attribution is not None else None
+        )
         values = {}
         for key, raw in quantities.items():
             product_id = product_identifier(key)
