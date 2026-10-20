@@ -103,6 +103,11 @@ def payload(inv):
         sold = _decimal(snap.theoretical_sold_quantity) if snap and counted is not None else None
         sales_amount = _decimal(snap.theoretical_sales_amount) if snap and counted is not None else None
         difference = _decimal(counted) - _decimal(line.expected_quantity_snapshot) if counted is not None else None
+        case_size = product.units_per_case if product.units_per_case and product.units_per_case > 1 else None
+        counted_cases = (int(Decimal(counted) // case_size)
+                         if counted is not None and case_size else None)
+        counted_units = (Decimal(counted) - counted_cases * case_size
+                         if counted is not None and case_size else counted)
         lines.append(
             {
                 "line_id": str(line.id),
@@ -111,6 +116,8 @@ def payload(inv):
                 "sku": product.sku,
                 "unit": product.base_unit,
                 "units_per_case": product.units_per_case if product.units_per_case and product.units_per_case > 1 else None,
+                "counted_cases": str(counted_cases) if counted_cases is not None else None,
+                "counted_units": str(counted_units) if counted_units is not None else None,
                 "count_revision": count_state.revision if count_state else 0,
                 "last_counted_at": count_state.counted_at.isoformat() if count_state and count_state.counted_at else None,
                 "sale_price": str(snap.sale_price_snapshot if snap else product.sale_price),
