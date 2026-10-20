@@ -30,6 +30,9 @@ from app.inventory_assignment_models import InventoryCashierAssignment
 from app.order_suborder_models import OrderSuborder
 from app.order_suborder_service import order_suborder_service
 from app.purchase_services import purchase_service
+from app.exchange_services import exchange_service
+from app.cash_services import cash_service
+from app.models import CashSession, CashMovement, AuditLog
 from app.order_services import order_service
 from app.permissions import permissions
 from app.shift_service import start_shift
@@ -168,6 +171,17 @@ def _work(app, operation, *, ready=None, release=None):
                     }], "CI retour boisson pendant validation")
             elif fn == "purchase_receipt":
                 purchase_service.receive(owner, bar_id, operation["purchase_id"])
+            elif fn in {"exchange_restock", "exchange_loss"}:
+                exchange_service.create(
+                    owner, bar_id,
+                    returned_product_id=product_id,
+                    replacement_product_id=operation["replacement_id"],
+                    returned_quantity=1,
+                    replacement_quantity=1,
+                    returned_disposition="RESTOCK" if fn == "exchange_restock" else "LOSS",
+                    reason="CI échange sans facture pendant inventaire",
+                    settlement_method="CASH",
+                )
             elif fn == "approval":
                 decide(owner, bar_id, inv_id, decision="approve",
                        reason="Inventaire contrôlé sur MySQL CI")
@@ -191,6 +205,8 @@ def _interleave(app, ids, first_kind, second_kind, extra=None):
         "return_restock": "orders.edit",
         "return_loss": "orders.edit",
         "purchase_receipt": "purchases.manage",
+        "exchange_restock": "payments.record",
+        "exchange_loss": "payments.record",
     }
     extra = dict(extra or {})
     first_ready, release_first = Event(), Event()
@@ -506,4 +522,94 @@ def test_supplier_receipt_during_inventory_approval(mysql_app, scenario, first):
     with mysql_app.app_context():
         purchase = db.session.get(Purchase, extra["purchase_id"])
         assert purchase.status == "POSTED"
+        db.session.rollback()
+
+
+def _prepare_standalone_exchange(app, ids):
+    """A cash-handled beer swap independent of any order or invoice."""
+    owner_id, bar_id, returned_id, _ = ids
+    with app.app_context():
+        owner = db.session.get(User, owner_id)
+        returned = db.session.get(Product, returned_id)
+        replacement = Product(
+            bar_id=bar_id,
+            category_id=returned.category_id,
+            name="CI Castel replacement", sku="CI-CASTEL-" + uuid4().hex[:7],
+            base_unit="bottle", sale_price=150, valuation_unit_cost=60,
+            is_active=True,
+        )
+        db.session.add(replacement)
+        db.session.flush()
+        stock_service.move(owner, bar_id, replacement.id, "INITIAL", 5,
+                           "CI stock autre bière")
+        session = cash_service.open(owner, bar_id, "CI-SWAP-" + uuid4().hex[:9], 1000)
+        db.session.commit()
+        params = {"replacement_id": replacement.id, "cash_session_id": session.id}
+        db.session.remove()
+        return params
+
+
+@pytest.mark.parametrize("first", ["exchange_restock", "approval"])
+def test_invoice_independent_beer_exchange_during_inventory_approval(mysql_app, scenario, first):
+    ids = scenario
+    extra = _prepare_standalone_exchange(mysql_app, ids)
+    second = "approval" if first != "approval" else "exchange_restock"
+    _interleave(mysql_app, ids, first, second, extra)
+
+    # The original beer is returned +1, then inventory fixes the initial -1.
+    _verify_operational(mysql_app, ids, expected_stock=10, movements={
+        "INITIAL": 1, "RETURN": 1, "INVENTORY_ADJUSTMENT": 1,
+    })
+    with mysql_app.app_context():
+        _, bar_id, original_id, _ = ids
+        replacement_movements = db.session.scalars(select(StockMovement).where(
+            StockMovement.bar_id == bar_id,
+            StockMovement.product_id == extra["replacement_id"],
+        )).all()
+        replacement_balance = db.session.scalar(select(StockBalance.quantity).where(
+            StockBalance.bar_id == bar_id,
+            StockBalance.product_id == extra["replacement_id"],
+        ))
+        assert replacement_balance == Decimal("4.000000")
+        assert sum(x.quantity_delta for x in replacement_movements) == replacement_balance
+        assert [x.movement_type for x in replacement_movements].count("SALE") == 1
+        assert [x.movement_type for x in replacement_movements].count("INITIAL") == 1
+
+        cash = db.session.get(CashSession, extra["cash_session_id"])
+        money = db.session.scalars(select(CashMovement).where(
+            CashMovement.bar_id == bar_id,
+            CashMovement.cash_session_id == cash.id,
+            CashMovement.manual_kind == "EXCHANGE",
+        )).all()
+        assert len(money) == 1
+        assert money[0].amount_delta == Decimal("50.0000")
+        assert cash_service.expected(cash) == Decimal("1050")
+        audit_count = db.session.scalar(select(func.count()).select_from(AuditLog).where(
+            AuditLog.bar_id == bar_id, AuditLog.action == "exchanges.record",
+        ))
+        assert audit_count == 1
+        db.session.rollback()
+
+
+def test_broken_beer_standalone_exchange_avoids_restock_and_collects_once(mysql_app, scenario):
+    ids = scenario
+    extra = _prepare_standalone_exchange(mysql_app, ids)
+    _interleave(mysql_app, ids, "exchange_loss", "approval", extra)
+    _verify_operational(mysql_app, ids, expected_stock=9, movements={
+        "INITIAL": 1, "RETURN": 0, "INVENTORY_ADJUSTMENT": 1,
+    })
+    with mysql_app.app_context():
+        _, bar_id, _, _ = ids
+        replacement_balance = db.session.scalar(select(StockBalance.quantity).where(
+            StockBalance.bar_id == bar_id,
+            StockBalance.product_id == extra["replacement_id"],
+        ))
+        assert replacement_balance == Decimal("4.000000")
+        cash = db.session.get(CashSession, extra["cash_session_id"])
+        assert cash_service.expected(cash) == Decimal("1050")
+        assert db.session.scalar(select(func.count()).select_from(CashMovement).where(
+            CashMovement.bar_id == bar_id,
+            CashMovement.cash_session_id == cash.id,
+            CashMovement.manual_kind == "EXCHANGE",
+        )) == 1
         db.session.rollback()
