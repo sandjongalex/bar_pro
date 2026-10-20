@@ -24,3 +24,73 @@
 .inv2-movement-details p{margin-bottom:5px}
 @media(max-width:900px){.inv2-reconcile-list{grid-template-columns:1fr}}
 @media(max-width:500px){.inv2-reconcile{padding:12px}.inv2-reconcile-values{grid-template-columns:1fr 1fr}.inv2-reconcile-head button{width:100%}}
+
+
+/* Inventory V2: prevent content-sized grid/flex children from widening phones
+   (320/360/390px), old tablets (768px), and desktop viewport containers. */
+.inv2-summary,
+.inv2-items,
+.inv2-reconcile,
+.inv2-reconcile-list,
+.inv2-reconcile-item,
+.inv2-product,
+.inv2-approval,
+.inv2-report-card,
+.inv2-policy-panel { min-width:0; max-width:100%; box-sizing:border-box; }
+.inv2-summary > div,
+.inv2-reconcile-values > div,
+.inv2-head > div,
+.inv2-reconcile-head > div,
+.inv2-policy-panel .row > div { min-width:0; }
+.inv2-summary strong,
+.inv2-summary span,
+.inv2-reconcile-head p,
+.inv2-reconcile-item strong,
+.inv2-reconcile-item span,
+.inv2-reconcile-item p,
+.inv2-head h2,
+.inv2-head small,
+.inv2-product label,
+.inv2-global-state,
+.inv2-approval .alert,
+.inv2-info,
+.inv2-footer,
+.inv2-policy-panel label,
+.inv2-policy-panel p { overflow-wrap:anywhere; word-break:normal; }
+.inv2-reconcile-line,
+.inv2-head { flex-wrap:wrap; }
+.inv2-reconcile-line > strong { min-width:0; flex:1 1 130px; }
+.inv2-reconcile-status,.inv2-row-state { white-space:normal; max-width:100%; text-align:center; }
+.inv2-reconcile-head > div { flex:1 1 240px; }
+.inv2-reconcile-head .btn { white-space:normal; }
+.inv2-reconcile-values strong { font-variant-numeric:tabular-nums; }
+.inv2-reconcile-values { grid-template-columns:repeat(3,minmax(0,1fr)); }
+.inv2-reconcile-item details,.inv2-reconcile-item summary { min-width:0; max-width:100%; }
+.inv2-product input,
+.inv2-note input,
+.inv2-policy-panel input,
+.inv2-policy-panel textarea,
+.inv2-fields > div { width:100%; min-width:0; box-sizing:border-box; }
+.inv2-actions > * { min-width:0; }
+.inv2-actions button, .inv2-approval .btn { white-space:normal; }
+.inv2-approval textarea { max-width:100%; }
+.inv2-table-scroll { max-width:100%; overflow-x:auto; overscroll-behavior-x:contain; -webkit-overflow-scrolling:touch; }
+.inv2-table-scroll table { min-width:760px; width:100%; }
+.inv2-table-scroll td,.inv2-table-scroll th { overflow-wrap:anywhere; vertical-align:top; }
+.inv2-report-card .panel-header,.inv2-approval .d-flex { flex-wrap:wrap; }
+.inv2-approval .inv2-summary { margin:12px 0; }
+@media(max-width:768px) {
+  .inv2-summary { grid-template-columns:repeat(2,minmax(0,1fr));gap:8px; }
+  .inv2-summary > div { padding:12px; }
+  .inv2-reconcile-list { grid-template-columns:1fr; }
+}
+@media(max-width:520px) {
+  .inv2-summary { grid-template-columns:1fr; }
+  .inv2-reconcile { padding:12px; }
+  .inv2-reconcile-values { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .inv2-fields { grid-template-columns:1fr; }
+  .inv2-product { padding:12px; }
+  .inv2-reconcile-head button { width:100%; }
+  .inv2-approval .btn,
+  .inv2-policy-panel .btn { width:100%; }
+}
