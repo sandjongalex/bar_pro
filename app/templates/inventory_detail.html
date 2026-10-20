@@ -88,7 +88,13 @@
 </section>
 {% endif %}
 
-{% if inventory.status == 'POSTED' %}
+{% if inventory.v2_assigned and inventory.status == 'POSTED' %}
+<section class="panel-card mt-4 p-4">
+  <h2>Inventaire V2 validé</h2>
+  <p>L'approbation a enregistré les mouvements correctifs du stock. Les montants de caisse, crédits et paiements restent gérés séparément.</p>
+</section>
+{% endif %}
+{% if inventory.status == 'POSTED' and not inventory.v2_assigned %}
 <section class="panel-card mt-4 inventory-reconciliation">
   <div class="panel-header"><div><p class="eyebrow mb-1">Clôture</p><h2>Rapprochement des ventes et de la caisse</h2></div></div>
   <div class="inventory-finance-grid">
