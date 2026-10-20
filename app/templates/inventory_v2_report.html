@@ -24,23 +24,23 @@
   La valeur des écarts est calculée au coût d'acquisition enregistré lors de l'ajustement et ne correspond pas à un manquant de caisse.
   Aucun paiement, crédit ni vente n'est modifié depuis cette page.
 </div>
-<section class="panel-card mt-4 inventory-table-card">
+<section class="panel-card mt-4 inventory-table-card inv2-report-card">
   <div class="panel-header">
     <div><p class="eyebrow mb-1">Contrôle détaillé</p><h2>Produits et ajustements</h2></div>
   </div>
-  <div class="table-responsive">
+  <div class="table-responsive inv2-table-scroll" tabindex="0" role="region" aria-label="Tableau des quantités et corrections, défilement horizontal sur petit écran">
     <table class="table inventory-table align-middle mb-0">
       <thead><tr><th>Produit</th><th>Machine à l'ouverture</th><th>Comptage physique</th><th>Écart approuvé</th><th>Valeur du correctif</th><th>Compté par</th><th>Observation</th></tr></thead>
       <tbody>
         {% for item in report.lines %}
         <tr>
           <td><strong>{{ item.product_name }}</strong><small class="d-block text-secondary">{{ item.sku }} · {{ item.unit }}</small></td>
-          <td>{{ item.start_machine_quantity }}</td>
-          <td><strong>{{ item.counted_quantity if item.counted_quantity is not none else "Non compté" }}</strong></td>
+          <td>{{ item.start_machine_quantity|inventory_qty }}</td>
+          <td><strong>{{ item.counted_quantity|inventory_qty if item.counted_quantity is not none else "Non compté" }}</strong></td>
           <td>
             {% if item.approved_delta is none %}—
-            {% elif item.approved_delta|float < 0 %}<span class="text-danger fw-semibold">{{ item.approved_delta }}</span>
-            {% elif item.approved_delta|float > 0 %}<span class="text-warning fw-semibold">+{{ item.approved_delta }}</span>
+            {% elif item.approved_delta|float < 0 %}<span class="text-danger fw-semibold">{{ item.approved_delta|inventory_qty }}</span>
+            {% elif item.approved_delta|float > 0 %}<span class="text-warning fw-semibold">+{{ item.approved_delta|inventory_qty }}</span>
             {% else %}<span class="text-success">0</span>{% endif %}
           </td>
           <td>{% if item.approved_value is not none %}{{ "{:,.0f}".format(item.approved_value|float) }} {{ bar.currency }}{% else %}—{% endif %}</td>
