@@ -1,0 +1,75 @@
+{% extends "layout.html" %}
+{% block title %}Rapport V2 · {{ report.reference }}{% endblock %}
+{% block header %}Rapport inventaire · {{ bar.name }}{% endblock %}
+{% block content %}
+<section class="inventory-hero">
+  <div>
+    <a class="bar-back" href="{{ url_for('inventories.listing',bar_id=bar_id) }}">← Historique des inventaires</a>
+    <p class="eyebrow mt-3">Rapport de stock · Inventaire V2</p>
+    <h1>{{ report.reference }}</h1>
+    <p>{{ bar.name }} · Caissière responsable : <strong>{{ report.cashier_name }}</strong> · Session {{ report.shift_id }}</p>
+  </div>
+  <div class="d-flex align-items-center gap-2 flex-wrap">
+    <span class="inventory-status inventory-status-{{ 'posted' if report.status == 'POSTED' else 'draft' }}">{{ report.status_label }}</span>
+    <a class="btn btn-outline-primary" target="_blank" rel="noopener" href="{{ url_for('inventories.v2_report',bar_id=bar_id,inventory_id=report.inventory_id,print=1) }}">Imprimer le rapport</a>
+  </div>
+</section>
+<section class="inv2-summary" aria-label="Indicateurs du rapport">
+  <div><span>Produits comptés</span><strong>{{ report.counted_count }} / {{ report.product_count }}</strong></div>
+  <div><span>Produits corrigés après approbation</span><strong>{% if report.approved_discrepancy_count is not none %}{{ report.approved_discrepancy_count }}{% else %}En attente{% endif %}</strong></div>
+  <div><span>Valeur absolue des corrections</span><strong>{% if report.approved_absolute_value is not none %}{{ "{:,.0f}".format(report.approved_absolute_value|float) }} {{ bar.currency }}{% else %}Non approuvée{% endif %}</strong></div>
+</section>
+<div class="inv2-info" role="note">
+  <strong>Rapport de stock uniquement.</strong> {{ report.historical_note }}
+  La valeur des écarts est calculée au coût d'acquisition enregistré lors de l'ajustement et ne correspond pas à un manquant de caisse.
+  Aucun paiement, crédit ni vente n'est modifié depuis cette page.
+</div>
+<section class="panel-card mt-4 inventory-table-card">
+  <div class="panel-header">
+    <div><p class="eyebrow mb-1">Contrôle détaillé</p><h2>Produits et ajustements</h2></div>
+  </div>
+  <div class="table-responsive">
+    <table class="table inventory-table align-middle mb-0">
+      <thead><tr><th>Produit</th><th>Machine à l'ouverture</th><th>Comptage physique</th><th>Écart approuvé</th><th>Valeur du correctif</th><th>Compté par</th><th>Observation</th></tr></thead>
+      <tbody>
+        {% for item in report.lines %}
+        <tr>
+          <td><strong>{{ item.product_name }}</strong><small class="d-block text-secondary">{{ item.sku }} · {{ item.unit }}</small></td>
+          <td>{{ item.start_machine_quantity }}</td>
+          <td><strong>{{ item.counted_quantity if item.counted_quantity is not none else "Non compté" }}</strong></td>
+          <td>
+            {% if item.approved_delta is none %}—
+            {% elif item.approved_delta|float < 0 %}<span class="text-danger fw-semibold">{{ item.approved_delta }}</span>
+            {% elif item.approved_delta|float > 0 %}<span class="text-warning fw-semibold">+{{ item.approved_delta }}</span>
+            {% else %}<span class="text-success">0</span>{% endif %}
+          </td>
+          <td>{% if item.approved_value is not none %}{{ "{:,.0f}".format(item.approved_value|float) }} {{ bar.currency }}{% else %}—{% endif %}</td>
+          <td>{{ item.counted_by or "—" }}{% if item.counted_at %}<small class="d-block text-secondary">{{ item.counted_at[:16] | replace("T"," ") }} UTC</small>{% endif %}</td>
+          <td>{{ item.note or "—" }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+<section class="panel-card mt-4 p-3 p-md-4">
+  <h2>Historique des validations</h2>
+  <p class="text-secondary">Soumissions, demandes de recomptage et approbations enregistrées dans le journal d'audit.</p>
+  {% if report.history %}
+  <ol class="list-group list-group-numbered">
+  {% for step in report.history %}
+    <li class="list-group-item">
+      <strong>{{ step.label }}</strong> · {{ step.actor }}
+      <span class="text-secondary">· {{ step.at[:16]|replace("T"," ") }} UTC</span>
+      {% if step.reason %}<p class="mb-0 mt-1">{{ step.reason }}</p>{% endif %}
+    </li>
+  {% endfor %}
+  </ol>
+  {% else %}
+  <p>Aucune décision enregistrée.</p>
+  {% endif %}
+</section>
+{% if report.status == "POSTED" %}
+<p class="text-secondary small mt-3">Ce rapport utilise les mouvements d'inventaire validés : les ventes ultérieures ne modifient pas les corrections historiques. Les noms affichés sont ceux du catalogue actuel.</p>
+{% endif %}
+{% endblock %}
