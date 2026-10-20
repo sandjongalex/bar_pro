@@ -4,7 +4,7 @@ Ce fichier est généré par [`scripts/schema_document.py`](../scripts/schema_do
 Ne pas l'éditer librement : [`tests/test_schema.py`](../tests/test_schema.py) compare exactement
 son contenu à `scripts.schema_document.render()`.
 
-Révision Alembic terminale observée : `c1d2e3f4a5b6`. Le dictionnaire décrit les tables,
+Révision Alembic terminale observée : `f4a5b6c7d8e9`. Le dictionnaire décrit les tables,
 colonnes, clés, contraintes, index et relations dérivables de `app.models`.
 Les types sont compilés pour MySQL et SQLite quand ils diffèrent. Une compilation SQL ou
 un test SQLite ne constitue pas une validation sur serveur MySQL.
@@ -44,9 +44,12 @@ un test SQLite ne constitue pas une validation sur serveur MySQL.
 | `c9d0e1f2a3b4` | `b8c9d0e1f2a3` | `c9d0e1f2a3b4_employee_shifts.py` | Add employee attendance and on-duty shifts. |
 | `d0e1f2a3b4c5` | `c9d0e1f2a3b4` | `d0e1f2a3b4c5_change_vouchers.py` | Add customer change vouchers and settlement journal.  Revision ID: d0e1f2a3b4c5 Revises: c9d0e1f2a3b4 |
 | `d1e2f3a4b5c6` | `e1f2a3b4c5d6` | `d1e2f3a4b5c6_customer_manual_debt_due_date.py` | Add optional due date to manual customer debt ledger entries. |
+| `d2e3f4a5b6c7` | `c1d2e3f4a5b6` | `d2e3f4a5b6c7_inventory_v2_count_states.py` | Add per-product count timestamps and authors without modifying legacy inventory. |
 | `d4e5f6a7b8c9` | `c3d4e5f6a7b8` | `d4e5f6a7b8c9_customer_credit_cases_notifications.py` | Add customer receivables, returnable cases and persistent notifications. |
 | `e1f2a3b4c5d6` | `d0e1f2a3b4c5` | `e1f2a3b4c5d6_missing_tenant_indexes.py` | Reconcile tenant indexes declared by newer customer and shift ORM models.  Safe for existing deployments: only missing indexes are created. No table, order, stock or payment data is modified. |
+| `e3f4a5b6c7d8` | `d2e3f4a5b6c7` | `e3f4a5b6c7d8_inventory_live_reconciliation.py` | Add non-destructive ledger cursors for V2 live reconciliation.  Older V2 draft inventories deliberately retain NULL cursors and require recount rather than silently assuming an inaccurate inventory start snapshot. |
 | `e5f6a7b8c9d0` | `d4e5f6a7b8c9` | `e5f6a7b8c9d0_purchase_units_supplier_notes.py` | Add supplier notes and purchase unit/conversion metadata.  Revision ID: e5f6a7b8c9d0 Revises: d4e5f6a7b8c9 |
+| `f4a5b6c7d8e9` | `e3f4a5b6c7d8` | `f4a5b6c7d8e9_inventory_v2_approval.py` | Add per-bar inventory approval policy and per-inventory review transitions. |
 | `f6a7b8c9d0e1` | `e5f6a7b8c9d0` | `f6a7b8c9d0e1_default_case_sizes.py` | Backfill default bottles-per-case values for known catalogue products.  Revision ID: f6a7b8c9d0e1 Revises: e5f6a7b8c9d0 |
 
 ## Migrations structurantes
@@ -136,11 +139,20 @@ erDiagram
     bars ||--o{ idempotency_records : "bar_id"
     bars ||--o{ inventories : "bar_id"
     users ||--o{ inventories : "created_by_id"
+    bars ||--o{ inventory_approval_policies : "bar_id"
+    users ||--o{ inventory_approval_policies : "changed_by_id"
+    bars ||--o{ inventory_approvals : "bar_id"
+    inventories ||--o{ inventory_approvals : "bar_id, inventory_id"
+    users ||--o{ inventory_approvals : "decided_by_id"
+    users ||--o{ inventory_approvals : "submitted_by_id"
     users ||--o{ inventory_cashier_assignments : "assigned_by_id"
     bars ||--o{ inventory_cashier_assignments : "bar_id"
     employee_shifts ||--o{ inventory_cashier_assignments : "bar_id, cashier_shift_id"
     inventories ||--o{ inventory_cashier_assignments : "bar_id, inventory_id"
     users ||--o{ inventory_cashier_assignments : "cashier_user_id"
+    bars ||--o{ inventory_line_count_states : "bar_id"
+    inventory_lines ||--o{ inventory_line_count_states : "bar_id, inventory_line_id"
+    users ||--o{ inventory_line_count_states : "counted_by_id"
     bars ||--o{ inventory_line_snapshots : "bar_id"
     inventory_lines ||--o{ inventory_line_snapshots : "bar_id, inventory_line_id"
     bars ||--o{ inventory_lines : "bar_id"
@@ -316,11 +328,20 @@ erDiagram
 | `idempotency_records` | `—` | `bar_id` | `bars.id` | `RESTRICT` |
 | `inventories` | `—` | `bar_id` | `bars.id` | `RESTRICT` |
 | `inventories` | `—` | `created_by_id` | `users.id` | `RESTRICT` |
+| `inventory_approval_policies` | `—` | `bar_id` | `bars.id` | `RESTRICT` |
+| `inventory_approval_policies` | `—` | `changed_by_id` | `users.id` | `RESTRICT` |
+| `inventory_approvals` | `—` | `bar_id` | `bars.id` | `RESTRICT` |
+| `inventory_approvals` | `—` | `bar_id, inventory_id` | `inventories.bar_id, inventories.id` | `RESTRICT` |
+| `inventory_approvals` | `—` | `decided_by_id` | `users.id` | `RESTRICT` |
+| `inventory_approvals` | `—` | `submitted_by_id` | `users.id` | `RESTRICT` |
 | `inventory_cashier_assignments` | `—` | `assigned_by_id` | `users.id` | `RESTRICT` |
 | `inventory_cashier_assignments` | `—` | `bar_id` | `bars.id` | `RESTRICT` |
 | `inventory_cashier_assignments` | `—` | `bar_id, cashier_shift_id` | `employee_shifts.bar_id, employee_shifts.id` | `RESTRICT` |
 | `inventory_cashier_assignments` | `—` | `bar_id, inventory_id` | `inventories.bar_id, inventories.id` | `RESTRICT` |
 | `inventory_cashier_assignments` | `—` | `cashier_user_id` | `users.id` | `RESTRICT` |
+| `inventory_line_count_states` | `—` | `bar_id` | `bars.id` | `RESTRICT` |
+| `inventory_line_count_states` | `—` | `bar_id, inventory_line_id` | `inventory_lines.bar_id, inventory_lines.id` | `RESTRICT` |
+| `inventory_line_count_states` | `—` | `counted_by_id` | `users.id` | `RESTRICT` |
 | `inventory_line_snapshots` | `—` | `bar_id` | `bars.id` | `RESTRICT` |
 | `inventory_line_snapshots` | `—` | `bar_id, inventory_line_id` | `inventory_lines.bar_id, inventory_lines.id` | `RESTRICT` |
 | `inventory_lines` | `—` | `bar_id` | `bars.id` | `RESTRICT` |
@@ -953,6 +974,51 @@ erDiagram
 - INDEX `ix_inventories_bar_created` : `bar_id, created_at, id`.
 - INDEX `ix_inventories_bar_id` : `bar_id`.
 
+### `inventory_approval_policies`
+
+| Colonne | Type | NULL | PK | Default ORM | Default serveur | Calcul |
+| --- | --- | --- | --- | --- | --- | --- |
+| `bar_id` | MySQL `BIGINT` / SQLite `INTEGER` | non | oui | — | — | — |
+| `max_unit_difference` | NUMERIC(20, 6) | non | non | 0 | — | — |
+| `max_product_value` | NUMERIC(19, 4) | non | non | 0 | — | — |
+| `max_total_value` | NUMERIC(19, 4) | non | non | 0 | — | — |
+| `changed_by_id` | MySQL `BIGINT` / SQLite `INTEGER` | non | non | — | — | — |
+| `created_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | non | non | utcnow | — | — |
+| `updated_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | non | non | utcnow | — | — |
+
+- PK : `bar_id`.
+- CHECK `ck_inventory_policy_nonnegative` : `max_unit_difference >= 0 AND max_product_value >= 0 AND max_total_value >= 0`.
+- FK `—` : `bar_id` → `bars.id` ; ON DELETE `RESTRICT`.
+- FK `—` : `changed_by_id` → `users.id` ; ON DELETE `RESTRICT`.
+
+### `inventory_approvals`
+
+| Colonne | Type | NULL | PK | Default ORM | Default serveur | Calcul |
+| --- | --- | --- | --- | --- | --- | --- |
+| `id` | MySQL `BIGINT` / SQLite `INTEGER` | non | oui | — | — | — |
+| `inventory_id` | MySQL `BIGINT` / SQLite `INTEGER` | non | non | — | — | — |
+| `status` | VARCHAR(16) | non | non | 'SUBMITTED' | — | — |
+| `submitted_by_id` | MySQL `BIGINT` / SQLite `INTEGER` | non | non | — | — | — |
+| `submitted_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | non | non | — | — | — |
+| `decided_by_id` | MySQL `BIGINT` / SQLite `INTEGER` | oui | non | — | — | — |
+| `decided_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | oui | non | — | — | — |
+| `decision_reason` | VARCHAR(500) | oui | non | — | — | — |
+| `bar_id` | MySQL `BIGINT` / SQLite `INTEGER` | non | non | — | — | — |
+| `created_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | non | non | utcnow | — | — |
+| `updated_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | non | non | utcnow | — | — |
+
+- PK : `id`.
+- CHECK `ck_inventory_approval_status` : `status IN ('SUBMITTED','RECOUNT','POSTED')`.
+- FK `—` : `bar_id` → `bars.id` ; ON DELETE `RESTRICT`.
+- FK `—` : `bar_id, inventory_id` → `inventories.bar_id, inventories.id` ; ON DELETE `RESTRICT`.
+- FK `—` : `decided_by_id` → `users.id` ; ON DELETE `RESTRICT`.
+- FK `—` : `submitted_by_id` → `users.id` ; ON DELETE `RESTRICT`.
+- UNIQUE `uq_inventory_approval_per_inventory` : `bar_id, inventory_id`.
+- UNIQUE `uq_inventory_approvals_bar_id_id` : `bar_id, id`.
+- INDEX `ix_inventory_approvals_bar_created` : `bar_id, created_at, id`.
+- INDEX `ix_inventory_approvals_bar_id` : `bar_id`.
+- INDEX `ix_inventory_approvals_status` : `bar_id, status, submitted_at`.
+
 ### `inventory_cashier_assignments`
 
 | Colonne | Type | NULL | PK | Default ORM | Default serveur | Calcul |
@@ -964,6 +1030,7 @@ erDiagram
 | `cashier_name_snapshot` | VARCHAR(120) | non | non | — | — | — |
 | `assigned_by_id` | MySQL `BIGINT` / SQLite `INTEGER` | non | non | — | — | — |
 | `assigned_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | non | non | utcnow | — | — |
+| `movement_checkpoint_id` | MySQL `BIGINT` / SQLite `INTEGER` | oui | non | — | — | — |
 | `bar_id` | MySQL `BIGINT` / SQLite `INTEGER` | non | non | — | — | — |
 | `created_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | non | non | utcnow | — | — |
 | `updated_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | non | non | utcnow | — | — |
@@ -980,6 +1047,31 @@ erDiagram
 - INDEX `ix_inventory_cashier_assignments_bar_id` : `bar_id`.
 - INDEX `ix_inventory_cashier_shift` : `bar_id, cashier_shift_id, inventory_id`.
 - INDEX `ix_inventory_cashier_user` : `bar_id, cashier_user_id, inventory_id`.
+
+### `inventory_line_count_states`
+
+| Colonne | Type | NULL | PK | Default ORM | Default serveur | Calcul |
+| --- | --- | --- | --- | --- | --- | --- |
+| `id` | MySQL `BIGINT` / SQLite `INTEGER` | non | oui | — | — | — |
+| `inventory_line_id` | MySQL `BIGINT` / SQLite `INTEGER` | non | non | — | — | — |
+| `counted_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | oui | non | — | — | — |
+| `counted_by_id` | MySQL `BIGINT` / SQLite `INTEGER` | non | non | — | — | — |
+| `revision` | MySQL `BIGINT` / SQLite `INTEGER` | non | non | 1 | — | — |
+| `movement_checkpoint_id` | MySQL `BIGINT` / SQLite `INTEGER` | oui | non | — | — | — |
+| `bar_id` | MySQL `BIGINT` / SQLite `INTEGER` | non | non | — | — | — |
+| `created_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | non | non | utcnow | — | — |
+| `updated_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | non | non | utcnow | — | — |
+
+- PK : `id`.
+- CHECK `ck_inventory_line_count_revision` : `revision > 0`.
+- FK `—` : `bar_id` → `bars.id` ; ON DELETE `RESTRICT`.
+- FK `—` : `bar_id, inventory_line_id` → `inventory_lines.bar_id, inventory_lines.id` ; ON DELETE `RESTRICT`.
+- FK `—` : `counted_by_id` → `users.id` ; ON DELETE `RESTRICT`.
+- UNIQUE `uq_inventory_line_count_state` : `bar_id, inventory_line_id`.
+- UNIQUE `uq_inventory_line_count_states_bar_id_id` : `bar_id, id`.
+- INDEX `ix_inventory_line_count_actor` : `bar_id, counted_by_id, counted_at`.
+- INDEX `ix_inventory_line_count_states_bar_created` : `bar_id, created_at, id`.
+- INDEX `ix_inventory_line_count_states_bar_id` : `bar_id`.
 
 ### `inventory_line_snapshots`
 

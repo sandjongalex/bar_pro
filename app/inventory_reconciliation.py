@@ -23,7 +23,7 @@ def _qty(value):
     return str(Decimal(value))
 
 
-def inventory_live_reconciliation(inv):
+def inventory_live_reconciliation(inv, *, lock=False):
     assignment = db.session.scalar(
         select(InventoryCashierAssignment).where(
             InventoryCashierAssignment.bar_id == inv.bar_id,
@@ -33,14 +33,15 @@ def inventory_live_reconciliation(inv):
     if assignment is None:
         raise ValueError("INVENTORY_V2_REQUIRED")
 
-    items = db.session.execute(
+    items_query = (
         select(InventoryLine, Product)
         .join(Product, (Product.bar_id == InventoryLine.bar_id)
               & (Product.id == InventoryLine.product_id))
         .where(InventoryLine.bar_id == inv.bar_id,
                InventoryLine.inventory_id == inv.id)
         .order_by(Product.name, Product.id)
-    ).all()
+    )
+    items = db.session.execute(items_query.with_for_update() if lock else items_query).all()
     ids = [line.product_id for line, _ in items]
     states = {
         state.inventory_line_id: state
@@ -53,13 +54,13 @@ def inventory_live_reconciliation(inv):
             )
         )
     }
+    balances_query = select(StockBalance).where(
+        StockBalance.bar_id == inv.bar_id,
+        StockBalance.product_id.in_(ids or [-1]),
+    )
     balances = {
-        bal.product_id: bal
-        for bal in db.session.scalars(
-            select(StockBalance).where(
-                StockBalance.bar_id == inv.bar_id,
-                StockBalance.product_id.in_(ids or [-1]),
-            )
+        bal.product_id: bal for bal in db.session.scalars(
+            balances_query.with_for_update() if lock else balances_query
         )
     }
     baseline = assignment.movement_checkpoint_id
@@ -67,13 +68,12 @@ def inventory_live_reconciliation(inv):
     if baseline is not None:
         # One query for every relevant movement, including sales, returns,
         # losses, purchases, reversals, and inventory adjustments.
-        for mv in db.session.scalars(
-            select(StockMovement).where(
-                StockMovement.bar_id == inv.bar_id,
-                StockMovement.product_id.in_(ids or [-1]),
-                StockMovement.id > baseline,
-            ).order_by(StockMovement.id)
-        ):
+        movement_query = select(StockMovement).where(
+            StockMovement.bar_id == inv.bar_id,
+            StockMovement.product_id.in_(ids or [-1]),
+            StockMovement.id > baseline,
+        ).order_by(StockMovement.id)
+        for mv in db.session.scalars(movement_query.with_for_update() if lock else movement_query):
             movements[mv.product_id].append(mv)
 
     result = []

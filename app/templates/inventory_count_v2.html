@@ -69,6 +69,43 @@
   </div>
 </section>
 
+<section class="panel-card mt-4 p-3 p-md-4" aria-labelledby="inv2-approval-title">
+  <h2 id="inv2-approval-title">Validation du comptage</h2>
+  <p>Le comptage doit être terminé et les écarts justifiés avant soumission. La validation est indépendante des encaissements et dettes clients.</p>
+  <div class="inv2-summary">
+    <div><span>État du dossier</span><strong>{{ {"DRAFT":"Brouillon", "SUBMITTED":"En contrôle", "RECOUNT":"Recomptage demandé", "POSTED":"Validé"}.get(approval.status, approval.status) }}</strong></div>
+    <div><span>Valeur absolue des écarts</span><strong>{{ approval.total_absolute_value }} {{ bar.currency }}</strong></div>
+    <div><span>Approbateur requis</span><strong>{% if approval.owner_required %}Propriétaire{% else %}Administrateur ou propriétaire{% endif %}</strong></div>
+  </div>
+  {% if approval.error %}<div class="alert alert-warning">Élément à corriger avant validation : {{ approval.error }}</div>{% endif %}
+  {% if approval.status in ('DRAFT','RECOUNT') and can_submit %}
+  <form method="post" action="{{ url_for('inventories.v2_submit',bar_id=bar_id,inventory_id=inventory.id) }}" class="mt-3">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <button class="btn btn-success" type="submit">Soumettre le comptage au responsable</button>
+    <span class="text-secondary small ms-2">Vérifiez que toutes les saisies ont bien été enregistrées.</span>
+  </form>
+  {% endif %}
+  {% if approval.status == 'SUBMITTED' %}
+    <p class="alert alert-info">Les quantités sont figées pendant le contrôle. Le responsable peut demander un recomptage, sans ajustement du stock.</p>
+    {% if approval.can_approve %}
+    <form method="post" action="{{ url_for('inventories.v2_decision',bar_id=bar_id,inventory_id=inventory.id) }}" class="mt-3">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <label for="inv2-decision-reason" class="form-label">Motif et résultat du contrôle (obligatoire)</label>
+      <textarea id="inv2-decision-reason" class="form-control" name="reason" rows="2" required maxlength="400" placeholder="Vérification des bouteilles manquantes, retours, casse, etc."></textarea>
+      <div class="d-flex gap-2 flex-wrap mt-2">
+        <button class="btn btn-outline-primary" type="submit" name="decision" value="recount">Demander un recomptage</button>
+        <button class="btn btn-success" type="submit" name="decision" value="approve" {% if approval.error or (approval.owner_required and not approval.is_owner) %}disabled{% endif %}>Approuver et ajuster le stock</button>
+      </div>
+    </form>
+    {% endif %}
+  {% endif %}
+  {% if approval.is_owner %}
+  <p class="mt-3 mb-0"><a href="{{ url_for('inventories.v2_policy',bar_id=bar_id) }}">Configurer les plafonds d'approbation de ce bar →</a></p>
+  {% endif %}
+  <p class="text-secondary small mt-2">La caisse, les paiements et les dettes ne sont pas modifiés par cette validation.</p>
+</section>
+
+{% if approval.status != 'SUBMITTED' %}
 <form id="inv2-form" class="inv2-form" method="post" action="{{ url_for('inventories.v2_count',bar_id=bar_id,inventory_id=inventory.id) }}"
       data-count-url="{{ url_for('inventories.v2_count',bar_id=bar_id,inventory_id=inventory.id) }}">
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -116,7 +153,8 @@
     <button type="submit" class="btn btn-primary btn-lg" id="inv2-save-all">Enregistrer le comptage</button>
   </div>
 </form>
+{% endif %}
 
-<p class="inv2-footer">Ce rapprochement est indicatif : il ne certifie pas l'instant réel de la sortie physique d'une boisson. Le circuit d’approbation sera ajouté dans une prochaine étape. Ne pas utiliser ce brouillon comme clôture définitive.</p>
+<p class="inv2-footer">Ce rapprochement est indicatif : il ne certifie pas l'instant réel de la sortie physique d'une boisson. Le contrôle et l'approbation s'effectuent selon les plafonds définis par le propriétaire. Ne pas utiliser ce brouillon comme clôture définitive.</p>
 <script defer src="{{ url_for('static',filename='inventory_count_v2.js') }}"></script>
 {% endblock %}
