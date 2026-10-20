@@ -65,7 +65,9 @@ def test_actual_order_confirmation_uses_same_stock_movement_ledger(env):
     order(env, quantity=2, actor=env[1])
     count(env, cashier, inv, "8")
     assert preview(env, inv)["status"] == "RECONCILED"
-    order(env, quantity=1, actor=env[1])
+    stock_service.move(env[1], env[2].id, env[4].id,
+                       "SALE", -1, "Nouvelle vente")
+    db.session.commit()
     row = preview(env, inv)
     assert Decimal(row["projected_physical_now"]) == 7
     assert Decimal(row["current_machine"]) == 7
