@@ -19,6 +19,7 @@ from app.models import StaffAssignment, User
 from app.inventory_services import inventory_service
 from app.inventory_reconciliation import inventory_live_reconciliation
 from app.inventory_approval import evaluation, policy_data, update_policy, submit, decide
+from app.inventory_v2_reports import inventory_v2_report
 from app.inventory_approval_models import InventoryApproval
 from app.models import Bar, Inventory, InventoryLine, Product
 from app.permissions import permissions
@@ -150,6 +151,7 @@ def payload(inv):
         "id": str(inv.id),
         "reference": inv.reference,
         "v2_assigned": cashier_assignment is not None,
+        "financial_metrics_available": cashier_assignment is None,  # V1 only; V2 has a separate stock report
         "cashier_user_id": str(cashier_assignment.cashier_user_id) if cashier_assignment else None,
         "cashier_shift_id": str(cashier_assignment.cashier_shift_id) if cashier_assignment else None,
         "cashier_name": cashier_assignment.cashier_name_snapshot if cashier_assignment else None,
@@ -209,9 +211,26 @@ def listing(bar_id):
             )
         )
     }
+    ids = [row.id for row in rows.items] or [-1]
+    v2_assignments = {
+        item.inventory_id: item
+        for item in db.session.scalars(select(InventoryCashierAssignment).where(
+            InventoryCashierAssignment.bar_id == bar_id,
+            InventoryCashierAssignment.inventory_id.in_(ids),
+        ))
+    }
+    reviews = {
+        item.inventory_id: item
+        for item in db.session.scalars(select(InventoryApproval).where(
+            InventoryApproval.bar_id == bar_id,
+            InventoryApproval.inventory_id.in_(ids),
+        ))
+    }
     return render_template(
         "inventories.html",
         rows=rows,
+        v2_assignments=v2_assignments,
+        approval_by_inventory=reviews,
         bar=bar,
         bar_id=bar_id,
         period_by_inventory=period_by_inventory,
@@ -299,13 +318,14 @@ def detail(bar_id, inventory_id):
     can_adjust = permissions.evaluate(current_user, "inventory.adjust", bar_id).allowed
     can_count = permissions.evaluate(current_user, "inventory.count", bar_id).allowed
 
-    if request.method == "GET" and inv.status == "DRAFT" and db.session.scalar(
+    if request.method == "GET" and db.session.scalar(
         select(InventoryCashierAssignment.id).where(
             InventoryCashierAssignment.bar_id == bar_id,
             InventoryCashierAssignment.inventory_id == inv.id,
         )
     ) is not None:
-        return redirect(url_for("inventories.v2_count", bar_id=bar_id, inventory_id=inv.id))
+        endpoint = "inventories.v2_count" if inv.status == "DRAFT" else "inventories.v2_report"
+        return redirect(url_for(endpoint, bar_id=bar_id, inventory_id=inv.id))
 
     if request.method == "POST":
         action = request.form.get("action")
@@ -548,9 +568,31 @@ def api_reconciliation(bar_id, inventory_id):
     return jsonify(success=True, data=inventory_live_reconciliation(inv), meta={})
 
 
+@inventories_bp.get("/<int:inventory_id>/v2-report")
+@login_required
+def v2_report(bar_id, inventory_id):
+    data = inventory_v2_report(current_user, bar_id, inventory_id)
+    bar = db.session.get(Bar, bar_id)
+    template = "inventory_v2_print.html" if request.args.get("print") == "1" else "inventory_v2_report.html"
+    return render_template(template, report=data, bar=bar, bar_id=bar_id)
+
+
+@api_inventories_bp.get("/<int:inventory_id>/report")
+@api_required
+def api_v2_report(bar_id, inventory_id):
+    return jsonify(success=True, data=inventory_v2_report(request.api_user, bar_id, inventory_id), meta={})
+
+
 @inventories_bp.get("/<int:inventory_id>/print")
 @login_required
 def printable(bar_id, inventory_id):
+    inv = inventory_service.get(current_user, bar_id, inventory_id)
+    if db.session.scalar(select(InventoryCashierAssignment.id).where(
+        InventoryCashierAssignment.bar_id == bar_id,
+        InventoryCashierAssignment.inventory_id == inv.id,
+    )) is not None:
+        return redirect(url_for("inventories.v2_report", bar_id=bar_id,
+                                inventory_id=inv.id, print=1))
     bar = db.session.get(Bar, bar_id)
     return render_template(
         "inventory_print.html",
