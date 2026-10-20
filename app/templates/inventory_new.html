@@ -2,7 +2,7 @@
 {% block title %}Nouvel inventaire · {{ bar.name }} · Bar Manager Pro{% endblock %}
 {% block header %}Nouvel inventaire · {{ bar.name }}{% endblock %}
 {% block content %}
-<section class="inventory-hero">
+<section class="inventory-hero inventory-new-hero">
   <div>
     <a class="bar-back" href="{{ url_for('inventories.listing', bar_id=bar.id) }}">← Tous les inventaires</a>
     <p class="eyebrow mt-3 mb-2">Clôture physique</p>
@@ -19,11 +19,11 @@
   <div><strong>Le comptage se fait en bouteilles réellement présentes.</strong><p class="mb-0">Un casier de 12 contenant seulement 8 bouteilles doit être saisi comme <strong>8 bouteilles</strong>, jamais comme 1 casier.</p></div>
 </div>
 
-<div class="row g-4 mt-1">
-  <div class="col-xl-8">
+<div class="inventory-new-layout mt-4">
+  <div class="inventory-new-primary">
     <section class="panel-card inventory-start-card">
       <div class="panel-header"><div><p class="eyebrow mb-1">Période</p><h2>Paramètres de l'inventaire</h2></div></div>
-      <form method="post" class="p-4">
+      <form method="post" class="p-3 p-md-4 inventory-new-form">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <div class="row g-3">
           <div class="col-md-6">
@@ -55,16 +55,16 @@
             <div class="form-text">Vous pourrez aussi ajouter une note spécifique par produit : casse, perte, produit offert, erreur, etc.</div>
           </div>
         </div>
-        <div class="inventory-start-summary mt-4">
+        <div class="inventory-start-summary mt-4" aria-label="Résumé de l’inventaire">
           <div><span>Produits à compter</span><strong>{{ product_count }}</strong></div>
           <div><span>Dernier inventaire</span><strong>{{ previous.reference if previous else 'Premier inventaire' }}</strong></div>
           <div><span>Devise</span><strong>{{ bar.currency }}</strong></div>
         </div>
-        <button class="btn btn-primary btn-lg mt-4" type="submit" {% if not product_count %}disabled{% endif %}>Démarrer l'inventaire →</button>
+        <button class="btn btn-primary btn-lg mt-4 inventory-start-button" type="submit" {% if not product_count %}disabled{% endif %}>Démarrer l'inventaire →</button>
       </form>
     </section>
   </div>
-  <div class="col-xl-4">
+  <div class="inventory-new-help">
     <section class="panel-card inventory-method-card h-100">
       <div class="panel-header"><div><p class="eyebrow mb-1">Méthode</p><h2>Calcul automatique</h2></div></div>
       <div class="p-4 inventory-formulas">

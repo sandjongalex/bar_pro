@@ -13,6 +13,7 @@ from test_inventory_v2_approval import make_count
 from test_workflows import env
 from app.extensions import db
 from app.inventory_approval import submit
+from app.inventory_services import inventory_service
 
 
 def _login_owner(client, owner):
@@ -40,6 +41,15 @@ def test_inventory_v2_pages_fit_mobile_tablet_and_desktop(env, tmp_path):
         env, reference="V2-VIEWPORT", quantity="9",
         justification="Vérification du casier et des bouteilles",
     )
+    # Cover the actual new-inventory form and legacy inventory counting page,
+    # which were not part of the previous responsive test.
+    source_product = env[4]
+    legacy = inventory_service.create(
+        owner, bar.id, "V1-MOBILE-VIEW",
+        [source_product.id], "Contrôle affichage sans sortie de stock",
+    )
+    db.session.commit()
+    legacy_id = legacy.id
     client = app.test_client()
     _login_owner(client, owner)
 
@@ -49,6 +59,8 @@ def test_inventory_v2_pages_fit_mobile_tablet_and_desktop(env, tmp_path):
         f"/bars/{bar.id}/inventories/{inv.id}/v2-report",
         f"/bars/{bar.id}/inventories/v2-policy",
         f"/bars/{bar.id}/inventories",
+        f"/bars/{bar.id}/inventories/new",
+        f"/bars/{bar.id}/inventories/{legacy_id}",
     ]
 
     def serve(route):
@@ -71,7 +83,7 @@ def test_inventory_v2_pages_fit_mobile_tablet_and_desktop(env, tmp_path):
     with sync_playwright() as playwright:
         browser = playwright.chromium.launch(headless=True, args=["--no-sandbox"])
         try:
-            for width in (320, 360, 390, 768, 1366):
+            for width in (320, 360, 390, 600, 768, 800, 1024, 1366):
                 context = browser.new_context(
                     viewport={"width": width, "height": 900},
                     device_scale_factor=1,
@@ -101,6 +113,33 @@ def test_inventory_v2_pages_fit_mobile_tablet_and_desktop(env, tmp_path):
                             f"Horizontal document overflow {scroll_width}px at "
                             f"viewport {width}px on {route_path}"
                         )
+                    # Creation fields / CTA must remain physically visible.
+                    page.goto(root + f"/bars/{bar.id}/inventories/new")
+                    assert page.locator(".inventory-new-layout").count() == 1
+                    assert page.locator("#reference").is_visible()
+                    assert page.locator("#period_end").is_visible()
+                    assert page.locator(".inventory-start-button").is_visible()
+                    bounds = page.locator(".inventory-start-button").bounding_box()
+                    assert bounds and bounds["x"] >= -1
+                    assert bounds["x"] + bounds["width"] <= width + 1
+
+                    # V1 table is a 1450px table on desktop, but should be
+                    # product cards on phones/tablets with usable count inputs.
+                    page.goto(root + f"/bars/{bar.id}/inventories/{legacy_id}")
+                    if width < 1200:
+                        assert page.locator(".inventory-table tbody tr").count() > 0
+                        assert page.locator(".inventory-table").evaluate(
+                            "(node) => getComputedStyle(node).minWidth === '0px'"
+                        )
+                        assert page.locator(".inventory-table tbody tr").first.evaluate(
+                            "(node) => getComputedStyle(node).display === 'grid'"
+                        )
+                        count_input = page.locator(".inventory-count-input").first
+                        assert count_input.is_visible()
+                        input_box = count_input.bounding_box()
+                        assert input_box and input_box["x"] >= -1
+                        assert input_box["x"] + input_box["width"] <= width + 1
+
                     if width <= 390:
                         report_path = f"/bars/{bar.id}/inventories/{inv.id}/v2-report"
                         page.goto(root + report_path, wait_until="domcontentloaded")
