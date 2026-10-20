@@ -267,6 +267,11 @@ class InventoryService:
                 )
             }
 
+        # All commerce stock movements acquire the same bar write lock as this
+        # transaction; the cursor is captured at a consistent ledger boundary.
+        opening_checkpoint = db.session.scalar(
+            select(func.max(StockMovement.id)).where(StockMovement.bar_id == bar_id)
+        ) or 0 if shift is not None else None
         inv = Inventory(
             bar_id=bar_id,
             reference=reference,
@@ -287,6 +292,7 @@ class InventoryService:
                     cashier_name_snapshot=assignment.user.display_name,
                     assigned_by_id=actor.id,
                     assigned_at=utcnow(),
+                    movement_checkpoint_id=opening_checkpoint,
                 )
             )
         period = InventoryPeriodSnapshot(
@@ -329,7 +335,7 @@ class InventoryService:
                 bar_id=bar_id,
                 inventory_id=inv.id,
                 product_id=product.id,
-                expected_quantity_snapshot=machine_at_end,
+                expected_quantity_snapshot=balance.quantity if shift is not None else machine_at_end,
                 balance_version_snapshot=balance.version,
             )
             db.session.add(line)
@@ -380,6 +386,9 @@ class InventoryService:
                 .with_for_update()
             )
         }
+        count_checkpoint = db.session.scalar(
+            select(func.max(StockMovement.id)).where(StockMovement.bar_id == bar_id)
+        ) or 0 if attribution is not None else None
         values = {}
         for key, raw in quantities.items():
             product_id = product_identifier(key)
@@ -422,12 +431,14 @@ class InventoryService:
                         inventory_line_id=line.id,
                         counted_by_id=actor.id,
                         counted_at=utcnow() if value is not None else None,
+                        movement_checkpoint_id=count_checkpoint if value is not None else None,
                         revision=1,
                     ))
                 else:
                     state.counted_by_id = actor.id
                     if previous_quantity != value:
                         state.counted_at = utcnow() if value is not None else None
+                        state.movement_checkpoint_id = count_checkpoint if value is not None else None
                     state.revision += 1
 
         inv.counted_at = utcnow()
