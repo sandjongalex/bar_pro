@@ -18,6 +18,8 @@ from app.shift_models import EmployeeShift
 from app.models import StaffAssignment, User
 from app.inventory_services import inventory_service
 from app.inventory_reconciliation import inventory_live_reconciliation
+from app.inventory_approval import evaluation, policy_data, update_policy, submit, decide
+from app.inventory_approval_models import InventoryApproval
 from app.models import Bar, Inventory, InventoryLine, Product
 from app.permissions import permissions
 from app.product_display_order import product_order_expression
@@ -44,6 +46,15 @@ def _message(code):
         "INVALID_CASHIER_SHIFT": "Session de caissière invalide.",
         "CASHIER_SHIFT_NOT_FOUND": "Aucune session de caissière active ne correspond à cette sélection.",
         "NOTE_TOO_LONG": "Une note dépasse 500 caractères.",
+        "INVENTORY_SUBMITTED_LOCKED": "Ce comptage a été soumis. Demandez un recomptage pour le modifier.",
+        "INVENTORY_RECOUNT_REQUIRED": "Des mouvements ou une référence de stock exigent un nouveau comptage.",
+        "INVENTORY_COUNT_INCOMPLETE": "Tous les produits doivent être comptés avant soumission.",
+        "INVENTORY_JUSTIFICATION_REQUIRED": "Justifiez chaque écart physique avant soumission.",
+        "INVENTORY_REVIEW_STATE": "Cet inventaire ne se trouve pas dans un état autorisant cette action.",
+        "INVENTORY_OWNER_APPROVAL_REQUIRED": "Les plafonds sont dépassés ou il s’agit du premier inventaire : approbation du propriétaire obligatoire.",
+        "INVENTORY_SELF_APPROVAL": "La caissière ne peut pas valider son propre inventaire.",
+        "INVENTORY_REASON_REQUIRED": "Une justification obligatoire ne doit pas dépasser 430 caractères.",
+        "INVALID_INVENTORY_LIMIT": "Les plafonds sont invalides ou supérieurs aux limites de sécurité.",
         "NOT_FOUND": "Inventaire ou produit introuvable.",
         "FORBIDDEN": "Vous n'êtes pas autorisé à gérer cet inventaire.",
     }
@@ -361,6 +372,10 @@ def v2_count(bar_id, inventory_id):
     if inv.status != "DRAFT":
         return redirect(url_for("inventories.detail", bar_id=bar_id, inventory_id=inv.id))
     permissions.require(current_user, "inventory.count", bar_id)
+    review = db.session.scalar(select(InventoryApproval).where(
+        InventoryApproval.bar_id == bar_id,
+        InventoryApproval.inventory_id == inv.id,
+    ))
     if request.method == "POST":
         is_json = request.is_json
         if is_json:
@@ -417,9 +432,106 @@ def v2_count(bar_id, inventory_id):
         "inventory_count_v2.html",
         inventory=payload(inv),
         reconciliation=inventory_live_reconciliation(inv),
+        approval=evaluation(current_user, bar_id, inv.id),
+        can_submit=permissions.evaluate(current_user, "inventory.submit", bar_id).allowed,
         bar=db.session.get(Bar, bar_id),
         bar_id=bar_id,
     )
+
+
+@inventories_bp.route("/v2-policy", methods=["GET", "POST"])
+@login_required
+def v2_policy(bar_id):
+    permissions.require(current_user, "inventory.policy", bar_id)
+    if request.method == "POST":
+        try:
+            update_policy(
+                current_user, bar_id,
+                max_unit_difference=request.form.get("max_unit_difference"),
+                max_product_value=request.form.get("max_product_value"),
+                max_total_value=request.form.get("max_total_value"),
+            )
+            db.session.commit()
+            flash("Plafonds d'inventaire enregistrés.", "success")
+        except (ValueError, PermissionError, IntegrityError) as exc:
+            db.session.rollback()
+            flash(_message(exc), "danger")
+        return redirect(url_for("inventories.v2_policy", bar_id=bar_id))
+    return render_template("inventory_policy_v2.html", bar=db.session.get(Bar, bar_id),
+                           bar_id=bar_id, policy=policy_data(bar_id))
+
+
+@inventories_bp.post("/<int:inventory_id>/v2-submit")
+@login_required
+def v2_submit(bar_id, inventory_id):
+    try:
+        submit(current_user, bar_id, inventory_id)
+        db.session.commit()
+        flash("Comptage soumis au responsable. Modifications suspendues.", "success")
+    except (PermissionError, LookupError, ValueError, IntegrityError) as exc:
+        db.session.rollback()
+        flash(_message(exc), "danger")
+    return redirect(url_for("inventories.v2_count", bar_id=bar_id, inventory_id=inventory_id))
+
+
+@inventories_bp.post("/<int:inventory_id>/v2-decision")
+@login_required
+def v2_decision(bar_id, inventory_id):
+    try:
+        choice = request.form.get("decision")
+        decide(current_user, bar_id, inventory_id,
+               decision=choice, reason=request.form.get("reason"))
+        db.session.commit()
+        flash("Inventaire validé et stock ajusté." if choice == "approve"
+              else "Recomptage demandé à la caissière.", "success")
+    except (PermissionError, LookupError, ValueError, IntegrityError) as exc:
+        db.session.rollback()
+        flash(_message(exc), "danger")
+    return redirect(url_for("inventories.v2_count", bar_id=bar_id, inventory_id=inventory_id)
+                    if request.form.get("decision") != "approve"
+                    else url_for("inventories.detail", bar_id=bar_id, inventory_id=inventory_id))
+
+
+@api_inventories_bp.post("/<int:inventory_id>/submit")
+@api_required
+def api_v2_submit(bar_id, inventory_id):
+    review = submit(request.api_user, bar_id, inventory_id)
+    db.session.commit()
+    return jsonify(success=True, data={
+        "inventory_id": str(review.inventory_id), "status": review.status,
+    }, meta={})
+
+
+@api_inventories_bp.post("/<int:inventory_id>/decision")
+@api_required
+def api_v2_decision(bar_id, inventory_id):
+    value = body()
+    review = decide(request.api_user, bar_id, inventory_id,
+                    decision=value.get("decision"), reason=value.get("reason"))
+    db.session.commit()
+    return jsonify(success=True, data={
+        "inventory_id": str(review.inventory_id), "status": review.status,
+    }, meta={})
+
+
+@api_inventories_bp.get("/<int:inventory_id>/approval")
+@api_required
+def api_v2_approval(bar_id, inventory_id):
+    return jsonify(success=True, data=evaluation(request.api_user, bar_id, inventory_id), meta={})
+
+
+@api_inventories_bp.route("/approval-policy", methods=["GET", "PUT"])
+@api_required
+def api_v2_policy(bar_id):
+    permissions.require(request.api_user, "inventory.policy", bar_id)
+    if request.method == "PUT":
+        value = body()
+        update_policy(request.api_user, bar_id,
+                      max_unit_difference=value.get("max_unit_difference"),
+                      max_product_value=value.get("max_product_value"),
+                      max_total_value=value.get("max_total_value"))
+        db.session.commit()
+    return jsonify(success=True, data=policy_data(bar_id), meta={})
 
 
 @inventories_bp.get("/<int:inventory_id>/v2-reconciliation")
