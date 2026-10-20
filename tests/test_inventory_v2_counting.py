@@ -45,15 +45,16 @@ def test_blank_stays_uncounted_and_zero_is_real(env):
     inv = create_v2(env, cashier)
     save(env, cashier, inv)
     db.session.commit()
+    assert db.session.query(InventoryLineCountState).count() == 0
     assert line(env, inv).counted_quantity is None
     assert payload(inv)["complete"] is False
     assert payload(inv)["lines"][0]["last_counted_at"] is None
-    save(env, cashier, inv, units="0", revision=1)
+    save(env, cashier, inv, units="0", revision=0)
     db.session.commit()
     assert line(env, inv).counted_quantity == Decimal("0")
     assert payload(inv)["complete"] is True
     assert payload(inv)["lines"][0]["last_counted_at"]
-    save(env, cashier, inv, revision=2)
+    save(env, cashier, inv, revision=1)
     db.session.commit()
     assert line(env, inv).counted_quantity is None
     assert balance(env) == Decimal(10)
@@ -238,4 +239,26 @@ def test_case_counts_without_case_size_cannot_be_added(env):
         save(env, cashier, inv, cases="1", units="")
     db.session.rollback()
     assert line(env, inv).counted_quantity is None
+    assert balance(env) == 10
+
+
+def test_unchanged_form_or_note_only_does_not_reset_physical_count_time(env):
+    cashier, _, _ = on_duty_cashier(env, "time-stable")
+    inv = create_v2(env, cashier, "COUNT-TIME")
+    save(env, cashier, inv, units="5")
+    db.session.commit()
+    first = payload(inv)["lines"][0]
+    assert first["count_revision"] == 1
+    saved_time = first["last_counted_at"]
+    save(env, cashier, inv, units="5", revision=1)
+    db.session.commit()
+    unchanged = payload(inv)["lines"][0]
+    assert unchanged["count_revision"] == 1
+    assert unchanged["last_counted_at"] == saved_time
+    save(env, cashier, inv, units="5", note="Photo vérifiée", revision=1)
+    db.session.commit()
+    note_only = payload(inv)["lines"][0]
+    assert note_only["count_revision"] == 2
+    assert note_only["last_counted_at"] == saved_time
+    assert note_only["note"] == "Photo vérifiée"
     assert balance(env) == 10
