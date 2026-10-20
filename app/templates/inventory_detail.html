@@ -1,21 +1,5 @@
 {% extends 'layout.html' %}
-{% block title %}Inventaire {{ inventory.reference }} · {{ bar.name }}<script>
-/* Compact inventory cards: reveal secondary facts on demand on narrow screens.
-   This only changes visibility. Inputs, form actions and stock calculations stay intact. */
-document.querySelectorAll('.inventory-details-toggle').forEach((button) => {
-  button.addEventListener('click', () => {
-    const row = button.closest('tr');
-    if (!row) return;
-    const expanded = row.classList.toggle('inventory-details-open');
-    button.setAttribute('aria-expanded', String(expanded));
-    const label = expanded ? 'Réduire' : 'Détails';
-    button.innerHTML = label + ' <span aria-hidden="true">' + (expanded ? '⌃' : '⌄') + '</span>';
-    const product = row.querySelector('.inventory-item-title strong');
-    button.setAttribute('aria-label', (expanded ? 'Masquer' : 'Afficher') +
-      ' les détails de ' + (product ? product.textContent.trim() : 'ce produit'));
-  });
-});
-</script>
+{% block title %}Inventaire {{ inventory.reference }} · {{ bar.name }}
 {% endblock %}
 {% block header %}Inventaire · {{ bar.name }}{% endblock %}
 {% block content %}
@@ -190,4 +174,21 @@ document.querySelectorAll('.inventory-details-toggle').forEach((button) => {
 })();
 </script>
 {% endif %}
+<script>
+/* Compact inventory cards: reveal secondary facts on demand on narrow screens.
+   This only changes visibility. Inputs, form actions and stock calculations stay intact. */
+document.querySelectorAll('.inventory-details-toggle').forEach((button) => {
+  button.addEventListener('click', () => {
+    const row = button.closest('tr');
+    if (!row) return;
+    const expanded = row.classList.toggle('inventory-details-open');
+    button.setAttribute('aria-expanded', String(expanded));
+    const label = expanded ? 'Réduire' : 'Détails';
+    button.innerHTML = label + ' <span aria-hidden="true">' + (expanded ? '⌃' : '⌄') + '</span>';
+    const product = row.querySelector('.inventory-item-title strong');
+    button.setAttribute('aria-label', (expanded ? 'Masquer' : 'Afficher') +
+      ' les détails de ' + (product ? product.textContent.trim() : 'ce produit'));
+  });
+});
+</script>
 {% endblock %}
