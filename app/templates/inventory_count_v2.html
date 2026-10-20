@@ -81,7 +81,7 @@
   {% if approval.status in ('DRAFT','RECOUNT') and can_submit %}
   <form method="post" action="{{ url_for('inventories.v2_submit',bar_id=bar_id,inventory_id=inventory.id) }}" class="mt-3">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <button class="btn btn-success" type="submit" {% if approval.error %}disabled{% endif %}>Soumettre le comptage au responsable</button>
+    <button class="btn btn-success" type="submit">Soumettre le comptage au responsable</button>
     <span class="text-secondary small ms-2">Vérifiez que toutes les saisies ont bien été enregistrées.</span>
   </form>
   {% endif %}
