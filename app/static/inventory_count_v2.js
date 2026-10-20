@@ -2,14 +2,7 @@
 (function () {
   "use strict";
   var form = document.getElementById("inv2-form");
-  if (!form || typeof window.fetch !== "function") return;
-
-  var rows = Array.prototype.slice.call(form.querySelectorAll(".inv2-product"));
-  var progress = document.getElementById("inv2-progress");
-  var globalState = document.getElementById("inv2-global-state");
-  var saveAllButton = document.getElementById("inv2-save-all");
-  var csrf = form.querySelector('input[name="csrf_token"]').value;
-  var url = form.getAttribute("data-count-url");
+  if (typeof window.fetch !== "function") return;
 
   var previewRoot = document.querySelector(".inv2-reconcile");
   var refreshBtn = document.getElementById("inv2-reconcile-refresh");
@@ -25,9 +18,16 @@
   };
   var previewTimer = null;
 
+  // Format API quantity strings without rounding their fractional units.
+  // "22.000000" -> "22", "-1.250000" -> "-1.25", "0.000000" -> "0".
+  function qty(value) {
+    if (value === null || value === undefined || value === "") return "—";
+    return String(value).replace(/(\\.\\d*?[1-9])0+$|\\.0+$/, "$1");
+  }
+
   function setText(node, selector, value) {
     var target = node.querySelector(selector);
-    if (target) target.textContent = value === null || value === undefined ? "—" : String(value);
+    if (target) target.textContent = qty(value);
   }
 
   function refreshPreview() {
@@ -49,14 +49,14 @@
         if (!node) return;
         node.setAttribute("data-reconcile-state", line.status);
         setText(node, "[data-reconcile-status]", previewMessages[line.status] || line.status);
-        setText(node, "[data-reconcile-machine]", line.current_machine + " " + line.base_unit);
+        setText(node, "[data-reconcile-machine]", qty(line.current_machine) + " " + line.base_unit);
         setText(node, "[data-reconcile-projected]", line.projected_physical_now);
         setText(node, "[data-reconcile-difference]", line.difference_now);
         setText(node, "[data-reconcile-opening]", line.opening_stock);
         setText(node, "[data-reconcile-at-count]", line.expected_at_count);
         setText(node, "[data-reconcile-after]", line.delta_after_count);
         setText(node, "[data-reconcile-breakdown]", line.movement_breakdown.map(function (movement) {
-          return movement.type + " (" + movement.quantity_delta + ")";
+          return movement.type + " (" + qty(movement.quantity_delta) + ")";
         }).join(", ") || "Aucun");
       });
       if (message) message.textContent = data.data.requires_review
@@ -75,6 +75,16 @@
   }
 
   if (refreshBtn) refreshBtn.addEventListener("click", refreshPreview);
+
+  // Read-only preview must remain active while submission locks count editing.
+  if (!form) return;
+  var rows = Array.prototype.slice.call(form.querySelectorAll(".inv2-product"));
+  var progress = document.getElementById("inv2-progress");
+  var globalState = document.getElementById("inv2-global-state");
+  var saveAllButton = document.getElementById("inv2-save-all");
+  var csrf = form.querySelector('input[name="csrf_token"]').value;
+  var url = form.getAttribute("data-count-url");
+
 
   function status(row, kind, message) {
     row.setAttribute("data-state", kind);
