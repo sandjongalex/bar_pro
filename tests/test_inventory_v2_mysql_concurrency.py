@@ -9,6 +9,7 @@ from __future__ import annotations
 import os
 from concurrent.futures import ThreadPoolExecutor
 from decimal import Decimal
+from time import sleep
 from threading import Event
 from uuid import uuid4
 
@@ -186,7 +187,7 @@ def _interleave(app, ids, first_kind, second_kind):
             assert not fb.done(), "Second worker committed before bar lock release"
             # A real InnoDB row lock must hold the second writer beyond the
             # time needed for thread setup, not just ordinary thread queuing.
-            assert not Event().wait(0.3) or True
+            sleep(0.3)
             assert not fb.done(), "Concurrent transaction bypassed bar lock"
         finally:
             release_first.set()
