@@ -8,6 +8,7 @@
     <p class="eyebrow mt-3 mb-2">Inventaire physique</p>
     <div class="d-flex align-items-center gap-2 flex-wrap"><h1>{{ inventory.reference }}</h1><span class="inventory-status inventory-status-{{ inventory.status|lower }}">{{ {'DRAFT':'En cours','POSTED':'Validé','CANCELLED':'Annulé'}.get(inventory.status,inventory.status) }}</span></div>
     <p>{{ inventory.reason }}</p>
+    {% if inventory.v2_assigned %}<p class="text-secondary">Caissière responsable : <strong>{{ inventory.cashier_name }}</strong> · session {{ inventory.cashier_shift_id }}</p>{% endif %}
   </div>
   <div class="d-flex gap-2 flex-wrap">
     <a class="btn btn-outline-primary" href="{{ url_for('inventories.printable',bar_id=bar_id,inventory_id=inventory.id) }}" target="_blank">Imprimer</a>
@@ -29,7 +30,7 @@
   <article><span>Comptage</span><strong id="countProgress">{{ inventory.lines|selectattr('physical_quantity','ne',none)|list|length }}/{{ inventory.lines|length }}</strong><small>Vide = 0 bouteille</small></article>
 </section>
 
-{% if inventory.status == 'DRAFT' %}
+{% if inventory.status == 'DRAFT' and can_count %}
 <form method="post" id="inventoryForm" class="mt-4">
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   <section class="panel-card inventory-table-card">
@@ -64,7 +65,7 @@
     <div><strong id="inventoryReady">Les cases vides seront enregistrées à 0 bouteille.</strong><small>Vous pouvez enregistrer un brouillon avant la validation définitive.</small></div>
     <div class="d-flex gap-2 flex-wrap">
       <button class="btn btn-light border" name="action" value="counts" type="submit">Enregistrer le comptage</button>
-      <button class="btn btn-success" id="postInventory" name="action" value="post" type="submit">Valider inventaire et ajuster stock</button>
+{% if can_adjust and not inventory.v2_assigned %}      <button class="btn btn-success" id="postInventory" name="action" value="post" type="submit">Valider inventaire et ajuster stock</button>{% elif inventory.v2_assigned %}<span class="text-secondary">La validation V2 attend le circuit d’approbation.</span>{% endif %}
     </div>
   </div>
 </form>
@@ -99,7 +100,7 @@
 </section>
 {% endif %}
 
-{% if inventory.status == 'DRAFT' %}
+{% if inventory.status == 'DRAFT' and can_count %}
 <script>
 (() => {
   const form = document.getElementById('inventoryForm');
@@ -139,7 +140,7 @@
     totalNode.textContent = `${money.format(total)} ${currency}`;
     progressNode.textContent = `${rows.length}/${rows.length}`;
     const done = rows.length > 0;
-    postButton.disabled = !done;
+    if (postButton) postButton.disabled = !done;
     readyNode.textContent = done ? 'Prêt : toute case vide sera enregistrée à 0 bouteille.' : 'Aucun produit à inventorier.';
   }
 
