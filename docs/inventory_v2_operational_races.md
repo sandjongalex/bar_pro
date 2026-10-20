@@ -17,7 +17,15 @@ existantes et ne modifient pas les fonctionnalités du bar.
 3. **Retour de bière** : retour réel enregistré avec la disposition
    `RESTOCK`, qui rajoute une seule bouteille ; puis variante
    `LOSS`, qui n'en réinjecte aucune. Test avec approbation concurrente.
-4. **Réception fournisseur** : enregistrement et réception réelle d'un achat
+4. **Échange de bière indépendant d'une facture** : l'échange réel
+   `exchange_service.create` entre deux bières modifie deux produits. Le cas
+   `RESTOCK` rend l'ancienne bouteille au stock et retire la nouvelle ;
+   le cas `LOSS` ne réinjecte aucune boisson. Le supplément de 50 FCFA
+   est collecté en caisse une seule fois et audité, même quand une
+   validation d'inventaire s'effectue au même instant. Le test vérifie
+   l'intégrité **des deux stocks**, le mouvement financier, l'audit et
+   l'absence de facture liée.
+5. **Réception fournisseur** : enregistrement et réception réelle d'un achat
    de trois unités, dans les deux ordres possibles avec l'approbation.
 
 Chaque scénario utilise des transactions SQLAlchemy indépendantes sur InnoDB,
@@ -34,5 +42,5 @@ L'étape est une extension de tests **sans migration ni modification de code
 métier**.
 
 La suite ne couvre pas encore tous les cas de pénurie sous concurrence,
-les échanges indépendants des factures s'ils reposent sur un service distinct,
-ni les opérations sur deux produits dans des ordres de verrouillage inversés.
+ni toutes les opérations sur plusieurs produits avec acquisitions de verrous
+dans un ordre inversé. Les échanges indépendants sont maintenant couverts.
