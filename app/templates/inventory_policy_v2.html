@@ -1,0 +1,35 @@
+{% extends 'layout.html' %}
+{% block title %}Plafonds inventaire · {{ bar.name }}{% endblock %}
+{% block header %}Contrôle des inventaires · {{ bar.name }}{% endblock %}
+{% block content %}
+<section class="inventory-hero">
+  <div><a class="bar-back" href="{{ url_for('inventories.listing',bar_id=bar_id) }}">← Inventaires</a>
+    <h1>Plafonds d'approbation</h1>
+    <p>Le propriétaire définit les limites des écarts que l'administrateur peut valider. Un dépassement nécessite toujours votre approbation.</p>
+  </div>
+</section>
+{% for category,message in get_flashed_messages(with_categories=true) %}
+<div class="alert alert-{{ category }}" role="alert">{{ message }}</div>
+{% endfor %}
+<div class="panel-card mt-3 p-4">
+  <form method="post" class="row g-3">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="col-12 col-md-4">
+      <label class="form-label" for="max_unit_difference">Écart maximal par produit (unités)</label>
+      <input id="max_unit_difference" class="form-control" type="number" inputmode="decimal" min="0" max="1000000" step="0.000001" name="max_unit_difference" required value="{{ policy.max_unit_difference }}">
+    </div>
+    <div class="col-12 col-md-4">
+      <label class="form-label" for="max_product_value">Valeur maximale par produit ({{ bar.currency }})</label>
+      <input id="max_product_value" class="form-control" type="number" inputmode="decimal" min="0" max="1000000000" step="0.0001" name="max_product_value" required value="{{ policy.max_product_value }}">
+    </div>
+    <div class="col-12 col-md-4">
+      <label class="form-label" for="max_total_value">Valeur totale maximale ({{ bar.currency }})</label>
+      <input id="max_total_value" class="form-control" type="number" inputmode="decimal" min="0" max="10000000000" step="0.0001" name="max_total_value" required value="{{ policy.max_total_value }}">
+    </div>
+    <div class="col-12">
+      <p class="text-secondary small">Par défaut, tous les plafonds sont à zéro : l'administrateur ne peut approuver que les inventaires sans écart, à l'exception du premier inventaire qui exige toujours le propriétaire. Les écarts sont valorisés au coût du stock, pas au prix de vente.</p>
+      <button class="btn btn-primary" type="submit">Enregistrer les plafonds</button>
+    </div>
+  </form>
+</div>
+{% endblock %}
