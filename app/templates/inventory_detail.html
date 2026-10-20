@@ -46,16 +46,16 @@
         <thead><tr><th>Produit</th><th>Dernier inventaire</th><th>Achats</th><th>Stock théorique</th><th>Stock machine</th><th>Stock physique réel</th><th>Qté vendue</th><th>Montant ventes</th><th>Écart machine</th><th>Note</th></tr></thead>
         <tbody>
         {% for line in inventory.lines %}
-          <tr class="inventory-line" data-theoretical="{{ line.theoretical_quantity }}" data-machine="{{ line.machine_quantity }}" data-price="{{ line.sale_price }}">
+          <tr class="inventory-line" data-theoretical="{{ line.theoretical_quantity|inventory_qty }}" data-machine="{{ line.machine_quantity|inventory_qty }}" data-price="{{ line.sale_price }}">
             <td><strong>{{ line.product_name }}</strong><small class="d-block text-secondary">{{ line.sku }} · {{ line.unit }} · {{ "{:,.0f}".format(line.sale_price|float) }} {{ bar.currency }}</small></td>
-            <td>{{ line.opening_quantity }}</td>
-            <td class="text-primary fw-semibold">+{{ line.purchase_quantity }}</td>
-            <td><strong>{{ line.theoretical_quantity }}</strong></td>
-            <td><span class="inventory-machine">{{ line.machine_quantity }}</span></td>
-            <td><input class="form-control inventory-count-input" aria-label="Stock physique {{ line.product_name }}" name="quantity_{{ line.product_id }}" type="number" min="0" step="0.000001" value="{{ line.physical_quantity if line.physical_quantity is not none else '' }}" placeholder="0"></td>
-            <td><strong class="inventory-sold">{{ line.sold_quantity if line.sold_quantity is not none else '—' }}</strong></td>
+            <td>{{ line.opening_quantity|inventory_qty }}</td>
+            <td class="text-primary fw-semibold">+{{ line.purchase_quantity|inventory_qty }}</td>
+            <td><strong>{{ line.theoretical_quantity|inventory_qty }}</strong></td>
+            <td><span class="inventory-machine">{{ line.machine_quantity|inventory_qty }}</span></td>
+            <td><input class="form-control inventory-count-input" aria-label="Stock physique {{ line.product_name }}" name="quantity_{{ line.product_id }}" type="number" min="0" step="0.000001" value="{{ line.physical_quantity|inventory_qty if line.physical_quantity is not none else '' }}" placeholder="0"></td>
+            <td><strong class="inventory-sold">{{ line.sold_quantity|inventory_qty if line.sold_quantity is not none else '—' }}</strong></td>
             <td><strong class="inventory-sales">{% if line.theoretical_sales_amount is not none %}{{ "{:,.0f}".format(line.theoretical_sales_amount|float) }}{% else %}—{% endif %}</strong></td>
-            <td><span class="inventory-gap {% if line.difference_quantity is not none and line.difference_quantity|float < 0 %}text-danger{% elif line.difference_quantity is not none and line.difference_quantity|float > 0 %}text-warning{% endif %}">{{ line.difference_quantity if line.difference_quantity is not none else '—' }}</span></td>
+            <td><span class="inventory-gap {% if line.difference_quantity is not none and line.difference_quantity|float < 0 %}text-danger{% elif line.difference_quantity is not none and line.difference_quantity|float > 0 %}text-warning{% endif %}">{{ line.difference_quantity|inventory_qty if line.difference_quantity is not none else '—' }}</span></td>
             <td><input class="form-control form-control-sm" name="note_{{ line.product_id }}" maxlength="500" value="{{ line.note or '' }}" placeholder="Casse, perte, offert..."></td>
           </tr>
         {% endfor %}
@@ -83,7 +83,7 @@
 <section class="panel-card mt-4 inventory-table-card">
   <div class="panel-header"><div><p class="eyebrow mb-1">Résultat figé</p><h2>Détail des produits</h2></div></div>
   <div class="table-responsive"><table class="table inventory-table align-middle mb-0"><thead><tr><th>Produit</th><th>Dernier inventaire</th><th>Achats</th><th>Théorique</th><th>Machine</th><th>Physique</th><th>Vendue</th><th>Ventes</th><th>Écart</th><th>Note</th></tr></thead><tbody>
-  {% for line in inventory.lines %}<tr><td><strong>{{ line.product_name }}</strong><small class="d-block text-secondary">{{ line.unit }}</small></td><td>{{ line.opening_quantity }}</td><td>{{ line.purchase_quantity }}</td><td>{{ line.theoretical_quantity }}</td><td>{{ line.machine_quantity }}</td><td><strong>{{ line.physical_quantity if line.physical_quantity is not none else '—' }}</strong></td><td>{{ line.sold_quantity if line.sold_quantity is not none else '—' }}</td><td>{% if line.theoretical_sales_amount is not none %}{{ "{:,.0f}".format(line.theoretical_sales_amount|float) }} {{ bar.currency }}{% else %}—{% endif %}</td><td>{{ line.difference_quantity if line.difference_quantity is not none else '—' }}</td><td>{{ line.note or '—' }}</td></tr>{% endfor %}
+  {% for line in inventory.lines %}<tr><td><strong>{{ line.product_name }}</strong><small class="d-block text-secondary">{{ line.unit }}</small></td><td>{{ line.opening_quantity|inventory_qty }}</td><td>{{ line.purchase_quantity|inventory_qty }}</td><td>{{ line.theoretical_quantity|inventory_qty }}</td><td>{{ line.machine_quantity|inventory_qty }}</td><td><strong>{{ line.physical_quantity|inventory_qty if line.physical_quantity is not none else '—' }}</strong></td><td>{{ line.sold_quantity|inventory_qty if line.sold_quantity is not none else '—' }}</td><td>{% if line.theoretical_sales_amount is not none %}{{ "{:,.0f}".format(line.theoretical_sales_amount|float) }} {{ bar.currency }}{% else %}—{% endif %}</td><td>{{ line.difference_quantity|inventory_qty if line.difference_quantity is not none else '—' }}</td><td>{{ line.note or '—' }}</td></tr>{% endfor %}
   </tbody></table></div>
 </section>
 {% endif %}

@@ -68,6 +68,7 @@ def create_app(config_name: str | None = None, test_config: dict[str, Any] | Non
     app.register_blueprint(pwa_bp)
     _register_template_context(app)
     app.jinja_env.finalize = _template_finalize
+    app.jinja_env.filters["inventory_qty"] = _inventory_quantity_display
     _register_error_handlers(app)
     _register_cli(app)
     return app
@@ -85,6 +86,25 @@ def _template_finalize(value):
             return str(value)
         return format(value.normalize(), "f")
     return value
+
+
+def _inventory_quantity_display(value):
+    """Presentation-only formatting of V2 quantity strings from API dictionaries.
+
+    Keep full non-zero precision while stripping database scale zero-padding.
+    Do not use float, which could round an actual stock difference.
+    """
+    if value is None:
+        return "—"
+    try:
+        number = Decimal(str(value))
+        if not number.is_finite():
+            return str(value)
+        if number == 0:
+            return "0"
+        return format(number.normalize(), "f")
+    except (ValueError, ArithmeticError):
+        return str(value)
 
 
 def _configure_logging(app: Flask) -> None:

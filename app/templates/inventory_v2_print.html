@@ -3,11 +3,11 @@
 <title>Rapport Inventaire V2 {{ report.reference }}</title>
 <style>
 @page{size:A4 portrait;margin:12mm}
-body{font:12px/1.4 Arial,sans-serif;color:#172033;margin:24px}
+body{font:11px/1.4 Arial,sans-serif;color:#172033;margin:24px;overflow-wrap:anywhere}
 h1{font-size:22px;margin:0 0 8px}h2{font-size:16px;margin:20px 0 8px}
 p{margin:5px 0}.muted{color:#555}.totals{display:flex;gap:15px;flex-wrap:wrap;margin:14px 0}
 .totals>div{border:1px solid #ddd;padding:9px 12px}
-table{border-collapse:collapse;width:100%;margin:12px 0}
+table{border-collapse:collapse;width:100%;table-layout:fixed;margin:12px 0}
 th,td{border:1px solid #ccc;text-align:left;padding:6px;vertical-align:top;overflow-wrap:anywhere}
 th{background:#eef2f5}tr{break-inside:avoid}small{display:block;color:#666}
 .note{border:1px solid #aaa;padding:8px;margin-top:12px}
@@ -21,17 +21,17 @@ th{background:#eef2f5}tr{break-inside:avoid}small{display:block;color:#666}
 <div class="totals">
   <div>Produits comptés : <strong>{{ report.counted_count }}/{{ report.product_count }}</strong></div>
   <div>Corrections : <strong>{{ report.approved_discrepancy_count if report.approved_discrepancy_count is not none else "Non approuvées" }}</strong></div>
-  <div>Valeur absolue des corrections : <strong>{{ report.approved_absolute_value if report.approved_absolute_value is not none else "—" }} {{ bar.currency }}</strong></div>
+  <div>Valeur absolue des corrections : <strong>{{ report.approved_absolute_value|inventory_qty if report.approved_absolute_value is not none else "—" }} {{ bar.currency }}</strong></div>
 </div>
 <p class="note"><strong>Document de stock exclusivement.</strong> Les différences sont évaluées au coût d'acquisition et ne constituent pas un manquant de caisse. Aucun mouvement financier n'est réalisé.</p>
 <h2>État des produits</h2>
 <table><thead><tr><th>Produit</th><th>Machine ouverture</th><th>Physique compté</th><th>Correction approuvée</th><th>Valeur {{ bar.currency }}</th><th>Observation</th></tr></thead>
 <tbody>{% for item in report.lines %}
 <tr><td>{{ item.product_name }}<small>{{ item.sku }}</small></td>
-<td>{{ item.start_machine_quantity }}</td>
-<td>{{ item.counted_quantity if item.counted_quantity is not none else "—" }}</td>
-<td>{{ item.approved_delta if item.approved_delta is not none else "—" }}</td>
-<td>{{ item.approved_value if item.approved_value is not none else "—" }}</td>
+<td>{{ item.start_machine_quantity|inventory_qty }}</td>
+<td>{{ item.counted_quantity|inventory_qty if item.counted_quantity is not none else "—" }}</td>
+<td>{{ item.approved_delta|inventory_qty if item.approved_delta is not none else "—" }}</td>
+<td>{{ item.approved_value|inventory_qty if item.approved_value is not none else "—" }}</td>
 <td>{{ item.note or "—" }}</td></tr>
 {% endfor %}</tbody></table>
 <h2>Traçabilité</h2>

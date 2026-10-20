@@ -147,10 +147,18 @@ def _work(app, operation, *, ready=None, release=None):
                     "Timed out releasing first InnoDB transaction"
                 )
             fn = operation["kind"]
-            if fn == "sale":
+            if fn in {"sale", "multi_sale"}:
+                lines = [{"product_id": product_id,
+                          "quantity": operation.get("first_quantity", 2)}]
+                if fn == "multi_sale":
+                    lines.append({
+                        "product_id": operation["second_product_id"],
+                        "quantity": operation.get("second_quantity", 3),
+                    })
+                    if operation.get("reverse_lines"):
+                        lines.reverse()
                 order = order_service.create(
-                    owner, bar_id, "CI-ORDER-" + uuid4().hex[:16],
-                    [{"product_id": product_id, "quantity": 2}],
+                    owner, bar_id, "CI-ORDER-" + uuid4().hex[:16], lines,
                 )
                 order_service.confirm(owner, bar_id, order.id)
             elif fn == "suborder_delivery":
@@ -177,7 +185,7 @@ def _work(app, operation, *, ready=None, release=None):
                     returned_product_id=product_id,
                     replacement_product_id=operation["replacement_id"],
                     returned_quantity=1,
-                    replacement_quantity=1,
+                    replacement_quantity=operation.get("replacement_quantity", 1),
                     returned_disposition="RESTOCK" if fn == "exchange_restock" else "LOSS",
                     reason="CI échange sans facture pendant inventaire",
                     settlement_method="CASH",
@@ -199,6 +207,7 @@ def _work(app, operation, *, ready=None, release=None):
 def _interleave(app, ids, first_kind, second_kind, extra=None):
     gates = {
         "sale": "orders.deliver",
+        "multi_sale": "orders.deliver",
         "approval": "inventory.approve",
         "suborder_delivery": "orders.deliver",
         "cashier_addition": "orders.deliver",
@@ -612,4 +621,150 @@ def test_broken_beer_standalone_exchange_avoids_restock_and_collects_once(mysql_
             CashMovement.cash_session_id == cash.id,
             CashMovement.manual_kind == "EXCHANGE",
         )) == 1
+        db.session.rollback()
+
+
+def _prepare_second_product(app, ids):
+    """Second SKU in the same bar; initial stock is committed before races."""
+    _, bar_id, product_id, _ = ids
+    with app.app_context():
+        owner = db.session.get(User, ids[0])
+        source = db.session.get(Product, product_id)
+        another = Product(
+            bar_id=bar_id, category_id=source.category_id,
+            sku="CI-MULTI-" + uuid4().hex[:8],
+            name="CI Second Bottle", base_unit="bottle",
+            sale_price=125, valuation_unit_cost=50,
+        )
+        db.session.add(another)
+        db.session.flush()
+        stock_service.move(owner, bar_id, another.id, "INITIAL", 5,
+                           "Other physical shelf")
+        db.session.commit()
+        other_id = another.id
+        db.session.remove()
+        return other_id
+
+
+@pytest.mark.parametrize("first,reverse", [
+    ("multi_sale", False), ("approval", False),
+    ("multi_sale", True), ("approval", True),
+])
+def test_multi_product_sale_and_inventory_approval_are_serialized(mysql_app, scenario, first, reverse):
+    """Two SKUs and reversed product order must not lose movement or deadlock."""
+    extra = {
+        "second_product_id": _prepare_second_product(mysql_app, scenario),
+        "second_quantity": 3, "reverse_lines": reverse,
+    }
+    opposite = "approval" if first == "multi_sale" else "multi_sale"
+    _interleave(mysql_app, scenario, first, opposite, extra)
+    _verify_operational(mysql_app, scenario, expected_stock=7, movements={
+        "INITIAL": 1, "SALE": 1, "INVENTORY_ADJUSTMENT": 1,
+    })
+    with mysql_app.app_context():
+        other_id = extra["second_product_id"]
+        other = db.session.scalar(select(StockBalance).where(
+            StockBalance.bar_id == scenario[1],
+            StockBalance.product_id == other_id,
+        ))
+        other_moves = db.session.scalars(select(StockMovement).where(
+            StockMovement.bar_id == scenario[1],
+            StockMovement.product_id == other_id,
+        )).all()
+        assert other.quantity == Decimal("2")
+        assert other.version == len(other_moves) == 2
+        assert sum((mv.quantity_delta for mv in other_moves), Decimal("0")) == other.quantity
+        assert sum(mv.movement_type == "SALE" for mv in other_moves) == 1
+        db.session.rollback()
+
+
+def _interleave_rejected(app, ids, first, second, extra):
+    """One operation must be rejected and fully rolled back; approval succeeds."""
+    gates = {"approval": "inventory.approve",
+             "multi_sale": "orders.deliver",
+             "exchange_restock": "payments.record"}
+    ready, release, started = Event(), Event(), Event()
+
+    def first_job():
+        return _work(app, {"ids": ids, "kind": first,
+                           "permission": gates[first], **extra},
+                     ready=ready, release=release)
+
+    def second_job():
+        started.set()
+        return _work(app, {"ids": ids, "kind": second,
+                           "permission": gates[second],
+                           "read_before_lock": True, **extra})
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        a = pool.submit(first_job)
+        assert ready.wait(10)
+        b = pool.submit(second_job)
+        try:
+            assert started.wait(10)
+            sleep(0.3)
+            assert not b.done(), "A stock transaction bypassed the bar lock"
+        finally:
+            release.set()
+        if first == "approval":
+            assert a.result(timeout=20) == "ok"
+            with pytest.raises(ValueError, match="INSUFFICIENT_STOCK"):
+                b.result(timeout=20)
+        else:
+            with pytest.raises(ValueError, match="INSUFFICIENT_STOCK"):
+                a.result(timeout=20)
+            assert b.result(timeout=20) == "ok"
+
+
+@pytest.mark.parametrize("first", ["multi_sale", "approval"])
+def test_insufficient_multi_product_sale_rolls_back_entire_transaction(mysql_app, scenario, first):
+    """No partial decrement of SKU1 when SKU2 is short, even during approval."""
+    second_id = _prepare_second_product(mysql_app, scenario)
+    options = {"second_product_id": second_id, "second_quantity": 6}
+    other = "approval" if first == "multi_sale" else "multi_sale"
+    _interleave_rejected(mysql_app, scenario, first, other, options)
+    _verify_operational(mysql_app, scenario, expected_stock=9, movements={
+        "INITIAL": 1, "SALE": 0, "INVENTORY_ADJUSTMENT": 1,
+    })
+    with mysql_app.app_context():
+        other_balance = db.session.scalar(select(StockBalance).where(
+            StockBalance.bar_id == scenario[1],
+            StockBalance.product_id == second_id,
+        ))
+        other_moves = db.session.scalars(select(StockMovement).where(
+            StockMovement.bar_id == scenario[1], StockMovement.product_id == second_id,
+        )).all()
+        assert other_balance.quantity == Decimal("5")
+        assert other_balance.version == len(other_moves) == 1
+        assert all(mv.movement_type == "INITIAL" for mv in other_moves)
+        db.session.rollback()
+
+
+@pytest.mark.parametrize("first", ["exchange_restock", "approval"])
+def test_insufficient_beer_exchange_rolls_back_return_and_payment(mysql_app, scenario, first):
+    """Failed replacement must not replenish the old beer or collect cash."""
+    extra = _prepare_standalone_exchange(mysql_app, scenario)
+    extra["replacement_quantity"] = 6
+    second = "approval" if first == "exchange_restock" else "exchange_restock"
+    _interleave_rejected(mysql_app, scenario, first, second, extra)
+    _verify_operational(mysql_app, scenario, expected_stock=9, movements={
+        "INITIAL": 1, "RETURN": 0, "INVENTORY_ADJUSTMENT": 1,
+    })
+    with mysql_app.app_context():
+        bar_id = scenario[1]
+        replacement_balance = db.session.scalar(select(StockBalance).where(
+            StockBalance.bar_id == bar_id,
+            StockBalance.product_id == extra["replacement_id"],
+        ))
+        cash = db.session.get(CashSession, extra["cash_session_id"])
+        assert replacement_balance.quantity == Decimal("5")
+        assert cash_service.expected(cash) == Decimal("1000")
+        assert db.session.scalar(select(func.count()).select_from(CashMovement).where(
+            CashMovement.bar_id == bar_id,
+            CashMovement.cash_session_id == cash.id,
+            CashMovement.manual_kind == "EXCHANGE",
+        )) == 0
+        assert db.session.scalar(select(func.count()).select_from(AuditLog).where(
+            AuditLog.bar_id == bar_id, AuditLog.action == "exchanges.record",
+        )) == 0
         db.session.rollback()
