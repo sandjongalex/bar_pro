@@ -43,8 +43,7 @@ def test_inventory_v2_pages_fit_mobile_tablet_and_desktop(env, tmp_path):
     )
     # Cover the actual new-inventory form and legacy inventory counting page,
     # which were not part of the previous responsive test.
-    from app.models import Product
-    source_product = db.session.get(Product, 1)
+    source_product = env[4]
     legacy = inventory_service.create(
         owner, bar.id, "V1-MOBILE-VIEW",
         [source_product.id], "Contrôle affichage sans sortie de stock",
