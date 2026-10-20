@@ -38,7 +38,7 @@ def _limit(value, maximum, *, places):
 
 
 def _reason(value):
-    if not isinstance(value, str) or not value.strip() or len(value.strip()) > 430:
+    if not isinstance(value, str) or not value.strip() or len(value.strip()) > 400:
         raise ValueError("INVENTORY_REASON_REQUIRED")
     return value.strip()
 
