@@ -9,7 +9,10 @@
     <h1>{{ inventory.reference }}</h1>
     <p>Caissière responsable : <strong>{{ inventory.cashier_name }}</strong>. Les ventes continuent normalement pendant le comptage.</p>
   </div>
-  <span class="inventory-status inventory-status-draft">Brouillon — non validé</span>
+  <div class="d-flex align-items-center gap-2 flex-wrap">
+    <span class="inventory-status inventory-status-{{ 'posted' if approval.status == 'POSTED' else 'draft' }}">{{ {'DRAFT':'Comptage en cours','SUBMITTED':'En contrôle · saisie verrouillée','RECOUNT':'Recomptage demandé','POSTED':'Approuvé'}.get(approval.status,approval.status) }}</span>
+    <a class="btn btn-sm btn-outline-primary" href="{{ url_for('inventories.v2_report',bar_id=bar_id,inventory_id=inventory.id) }}">Voir le rapport</a>
+  </div>
 </section>
 
 {% for category, message in get_flashed_messages(with_categories=true) %}
