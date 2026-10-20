@@ -11,6 +11,7 @@ from app.customer_models import CustomerLedgerEntry
 from app.extensions import db
 from app.inventory_period_models import InventoryLineSnapshot, InventoryPeriodSnapshot
 from app.inventory_assignment_models import InventoryCashierAssignment
+from app.inventory_count_models import InventoryLineCountState
 from app.shift_models import EmployeeShift
 from app.shift_service import get_active_shift_for_user
 from app.models import (
@@ -349,6 +350,16 @@ class InventoryService:
 
     def count(self, actor, bar_id, inventory_id, quantities, notes=None):
         inv = self.get(actor, bar_id, inventory_id, for_count=True)
+        attribution = db.session.scalar(
+            select(InventoryCashierAssignment).where(
+                InventoryCashierAssignment.bar_id == bar_id,
+                InventoryCashierAssignment.inventory_id == inv.id,
+            )
+        )
+        if attribution is not None and self._is_cashier(actor, bar_id):
+            active = get_active_shift_for_user(actor.id, bar_id)
+            if not active or active.id != attribution.cashier_shift_id:
+                raise PermissionError("INVENTORY_SHIFT_CLOSED")
         if not isinstance(quantities, dict) or not quantities:
             raise ValueError("COUNT_REQUIRED")
         notes = notes or {}
@@ -374,8 +385,8 @@ class InventoryService:
             product_id = product_identifier(key)
             if product_id not in lines or product_id in values:
                 raise ValueError("INVALID_COUNT_PRODUCT")
-            value = number(raw, 6)
-            if value < 0:
+            value = None if raw is None and attribution is not None else number(raw, 6)
+            if value is not None and value < 0:
                 raise ValueError("INVALID_COUNT")
             values[product_id] = value
 
@@ -384,15 +395,40 @@ class InventoryService:
             snap = snapshots.get(line.id)
             if not snap:
                 raise ValueError("INVENTORY_PERIOD_DATA_MISSING")
+            previous_quantity = line.counted_quantity
             line.counted_quantity = value
-            sold = Decimal(snap.theoretical_quantity) - value
-            snap.theoretical_sold_quantity = sold
-            snap.theoretical_sales_amount = _money(sold * Decimal(snap.sale_price_snapshot))
+            if value is None:
+                snap.theoretical_sold_quantity = ZERO
+                snap.theoretical_sales_amount = ZERO
+            else:
+                sold = Decimal(snap.theoretical_quantity) - value
+                snap.theoretical_sold_quantity = sold
+                snap.theoretical_sales_amount = _money(sold * Decimal(snap.sale_price_snapshot))
             if str(product_id) in notes:
                 text = str(notes[str(product_id)] or "").strip()
                 if len(text) > 500:
                     raise ValueError("NOTE_TOO_LONG")
                 snap.note = text or None
+            if attribution is not None:
+                state = db.session.scalar(
+                    select(InventoryLineCountState).where(
+                        InventoryLineCountState.bar_id == bar_id,
+                        InventoryLineCountState.inventory_line_id == line.id,
+                    ).with_for_update()
+                )
+                if state is None:
+                    db.session.add(InventoryLineCountState(
+                        bar_id=bar_id,
+                        inventory_line_id=line.id,
+                        counted_by_id=actor.id,
+                        counted_at=utcnow() if value is not None else None,
+                        revision=1,
+                    ))
+                else:
+                    state.counted_by_id = actor.id
+                    if previous_quantity != value:
+                        state.counted_at = utcnow() if value is not None else None
+                    state.revision += 1
 
         inv.counted_at = utcnow()
         period = db.session.scalar(
@@ -409,6 +445,104 @@ class InventoryService:
                 )
             )
         return inv
+
+    def count_v2_entries(self, actor, bar_id, inventory_id, entries):
+        """Save only explicitly supplied V2 rows with optimistic revisions.
+
+        Empty cases AND units means uncounted, never a measured zero.
+        A literal numeric 0 means a measured zero.
+        """
+        inv = self.get(actor, bar_id, inventory_id, for_count=True)
+        attribution = db.session.scalar(
+            select(InventoryCashierAssignment).where(
+                InventoryCashierAssignment.bar_id == bar_id,
+                InventoryCashierAssignment.inventory_id == inv.id,
+            )
+        )
+        if attribution is None:
+            raise ValueError("INVENTORY_V2_REQUIRED")
+        if self._is_cashier(actor, bar_id):
+            active = get_active_shift_for_user(actor.id, bar_id)
+            if not active or active.id != attribution.cashier_shift_id:
+                raise PermissionError("INVENTORY_SHIFT_CLOSED")
+        if not isinstance(entries, list) or not entries or len(entries) > 500:
+            raise ValueError("COUNT_REQUIRED")
+        records = {
+            line.product_id: (line, product)
+            for line, product in db.session.execute(
+                select(InventoryLine, Product)
+                .join(Product, (Product.id == InventoryLine.product_id)
+                      & (Product.bar_id == InventoryLine.bar_id))
+                .where(InventoryLine.bar_id == bar_id, InventoryLine.inventory_id == inv.id)
+                .with_for_update()
+            )
+        }
+        snapshots = {
+            item.inventory_line_id: item
+            for item in db.session.scalars(
+                select(InventoryLineSnapshot).where(
+                    InventoryLineSnapshot.bar_id == bar_id,
+                    InventoryLineSnapshot.inventory_line_id.in_(
+                        [line.id for line, _ in records.values()] or [-1]
+                    ),
+                )
+            )
+        }
+        quantities = {}
+        notes = {}
+        seen_product_ids = set()
+        for entry in entries:
+            if not isinstance(entry, dict):
+                raise ValueError("INVALID_COUNT")
+            product_id = product_identifier(entry.get("product_id"))
+            if product_id not in records or product_id in seen_product_ids:
+                raise ValueError("INVALID_COUNT_PRODUCT")
+            seen_product_ids.add(product_id)
+            line, product = records[product_id]
+            old_state = db.session.scalar(
+                select(InventoryLineCountState).where(
+                    InventoryLineCountState.bar_id == bar_id,
+                    InventoryLineCountState.inventory_line_id == line.id,
+                ).with_for_update()
+            )
+            revision = entry.get("revision")
+            if (isinstance(revision, bool) or not isinstance(revision, (int, str))
+                    or not str(revision).isascii() or not str(revision).isdigit()
+                    or int(revision) != (old_state.revision if old_state else 0)):
+                raise ValueError("INVENTORY_COUNT_CONFLICT")
+            raw_cases = entry.get("cases")
+            raw_units = entry.get("units")
+            has_cases = raw_cases is not None and str(raw_cases).strip() != ""
+            has_units = raw_units is not None and str(raw_units).strip() != ""
+            if not has_cases and not has_units:
+                quantity = None
+            else:
+                cases = 0
+                if has_cases:
+                    if (isinstance(raw_cases, bool) or not isinstance(raw_cases, (int, str))
+                            or not str(raw_cases).isascii() or not str(raw_cases).isdigit()
+                            or not product.units_per_case or product.units_per_case <= 1):
+                        raise ValueError("INVALID_COUNT")
+                    cases = int(raw_cases)
+                units = number(raw_units, 6) if has_units else ZERO
+                if units < 0:
+                    raise ValueError("INVALID_COUNT")
+                quantity = number(units + Decimal(cases) * Decimal(product.units_per_case or 1), 6)
+            note = entry.get("note", "")
+            if not isinstance(note, str) or len(note.strip()) > 500:
+                raise ValueError("NOTE_TOO_LONG")
+            snapshot = snapshots.get(line.id)
+            if snapshot is None:
+                raise ValueError("INVENTORY_PERIOD_DATA_MISSING")
+            if quantity == line.counted_quantity and note.strip() == (snapshot.note or ""):
+                # Reposting a form or saving the same row must not rewrite
+                # the physical count timestamp or increase its revision.
+                continue
+            quantities[str(product_id)] = quantity
+            notes[str(product_id)] = note
+        if not quantities:
+            return inv
+        return self.count(actor, bar_id, inventory_id, quantities, notes)
 
     def _financial_snapshot(self, inv, period, theoretical_sales):
         start_at = period.period_start_at

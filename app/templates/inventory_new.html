@@ -35,6 +35,20 @@
             <label class="form-label" for="reference">Référence</label>
             <input class="form-control form-control-lg" id="reference" name="reference" maxlength="64" value="{{ defaults.reference }}" required>
           </div>
+          {% if nav_role(bar_id) == 'CASHIER' %}
+          <div class="col-12"><div class="alert alert-info mb-0">Votre nouvel inventaire V2 sera automatiquement affecté à votre session de travail en cours. Vous pourrez compter les produits sans les valider.</div></div>
+          {% else %}
+          <div class="col-12">
+            <label class="form-label" for="cashier_shift_id">Caissière en service — inventaire V2</label>
+            <select class="form-select form-select-lg" name="cashier_shift_id" id="cashier_shift_id">
+              <option value="">Parcours historique V1 (sans affectation)</option>
+              {% for shift, user in cashier_shifts %}
+              <option value="{{ shift.id }}" {% if request.form.get('cashier_shift_id') == shift.id|string %}selected{% endif %}>{{ user.display_name }} — session {{ shift.id }}</option>
+              {% endfor %}
+            </select>
+            <div class="form-text">Sélectionnez une caissière présente pour démarrer le comptage V2. Le parcours V1 reste disponible pendant la transition.</div>
+          </div>
+          {% endif %}
           <div class="col-12">
             <label class="form-label" for="reason">Note générale</label>
             <textarea class="form-control" id="reason" name="reason" maxlength="500" rows="3" required>{{ defaults.reason }}</textarea>
