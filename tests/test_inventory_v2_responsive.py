@@ -5,11 +5,9 @@ from pathlib import Path
 import pytest
 
 from test_inventory_v2_approval import make_count
-from test_inventory_v2_reporting import test_posted_report_uses_actual_adjustment_movement_snapshot_not_live_stock
 from test_workflows import env
 from app.inventory_reconciliation import inventory_live_reconciliation
 from app.inventory_v2_reports import inventory_v2_report
-from app.extensions import db
 
 
 @pytest.mark.parametrize("value,expected", [
@@ -47,7 +45,7 @@ def test_report_quantity_formatter_is_not_a_data_mutation(env):
     data = inventory_v2_report(env[1], env[2].id, inv.id)
     raw = data["lines"][0]["counted_quantity"]
     assert Decimal(raw) == Decimal("9")
-    assert raw == "9"
+    assert raw == "9.000000"  # API retains the exact stored scale; UI strips padding
     assert env[0].jinja_env.from_string('{{ v|inventory_qty }}').render(v="9.000000") == "9"
 
 
