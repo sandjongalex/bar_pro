@@ -38,7 +38,7 @@ def _limit(value, maximum, *, places):
 
 
 def _reason(value):
-    if not isinstance(value, str) or not value.strip() or len(value.strip()) > 500:
+    if not isinstance(value, str) or not value.strip() or len(value.strip()) > 430:
         raise ValueError("INVENTORY_REASON_REQUIRED")
     return value.strip()
 
@@ -228,6 +228,8 @@ def submit(actor, bar_id, inventory_id):
     if inv.status != "DRAFT" or review and review.status not in {"RECOUNT"}:
         raise ValueError("INVENTORY_REVIEW_STATE")
     if inventory_service._is_cashier(actor, bar_id):
+        if actor.id != assigned.cashier_user_id:
+            raise LookupError("NOT_FOUND")
         from app.shift_service import get_active_shift_for_user
         shift = get_active_shift_for_user(actor.id, bar_id)
         if not shift or shift.id != assigned.cashier_shift_id or assigned.cashier_user_id != actor.id:
