@@ -137,7 +137,10 @@ def test_api_and_print_use_v2_report_without_v1_cash_reconciliation(env):
     web = f"/bars/{env[2].id}/inventories/{inventory.id}"
     report_page = client.get(web + "/v2-report")
     assert report_page.status_code == 200
-    assert "Caisse" not in report_page.text.split('class="inventory-table', 1)[-1]
+    # Global navigation legitimately includes a "Caisse" link; the V2 report
+    # itself must not publish the legacy V1 cash-reconciliation section.
+    assert "Rapprochement caisse" not in report_page.text
+    assert "Caisse nette machine" not in report_page.text
     assert "Rapport de stock" in report_page.text
     printed = client.get(web + "/print", follow_redirects=True)
     assert printed.status_code == 200
