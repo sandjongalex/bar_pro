@@ -376,6 +376,14 @@ class InventoryService:
                 InventoryCashierAssignment.inventory_id == inv.id,
             )
         )
+        if attribution is not None:
+            from app.inventory_approval_models import InventoryApproval
+            review = db.session.scalar(select(InventoryApproval).where(
+                InventoryApproval.bar_id == bar_id,
+                InventoryApproval.inventory_id == inv.id,
+            ))
+            if review and review.status != "RECOUNT":
+                raise ValueError("INVENTORY_SUBMITTED_LOCKED")
         if attribution is not None and self._is_cashier(actor, bar_id):
             active = get_active_shift_for_user(actor.id, bar_id)
             if not active or active.id != attribution.cashier_shift_id:
