@@ -151,7 +151,7 @@ def payload(inv):
         "id": str(inv.id),
         "reference": inv.reference,
         "v2_assigned": cashier_assignment is not None,
-        "financial_metrics_legacy_only": cashier_assignment is not None,
+        "financial_metrics_available": cashier_assignment is None,  # V1 only; V2 has a separate stock report
         "cashier_user_id": str(cashier_assignment.cashier_user_id) if cashier_assignment else None,
         "cashier_shift_id": str(cashier_assignment.cashier_shift_id) if cashier_assignment else None,
         "cashier_name": cashier_assignment.cashier_name_snapshot if cashier_assignment else None,
