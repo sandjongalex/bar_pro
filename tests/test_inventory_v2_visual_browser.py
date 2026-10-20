@@ -139,6 +139,27 @@ def test_inventory_v2_pages_fit_mobile_tablet_and_desktop(env, tmp_path):
                         input_box = count_input.bounding_box()
                         assert input_box and input_box["x"] >= -1
                         assert input_box["x"] + input_box["width"] <= width + 1
+                        # Compact redesign: important count fields visible,
+                        # calculations expandable and action bar not overlaying cards.
+                        toggle = page.locator(".inventory-details-toggle").first
+                        assert toggle.is_visible()
+                        first_card = page.locator(".inventory-table tbody tr").first
+                        assert first_card.locator('td[data-label="Stock machine"]').is_visible()
+                        assert first_card.locator('td[data-label="Écart machine"]').is_visible()
+                        assert not first_card.locator('td[data-label="Achats"]').is_visible()
+                        assert toggle.get_attribute("aria-expanded") == "false"
+                        assert page.locator(".inventory-actions").evaluate(
+                            "(el) => getComputedStyle(el).position === 'static'"
+                        )
+                        box_before = first_card.bounding_box()
+                        assert box_before and box_before["height"] < (410 if width <= 390 else 345)
+                        toggle.click()
+                        assert toggle.get_attribute("aria-expanded") == "true"
+                        assert first_card.locator('td[data-label="Achats"]').is_visible()
+                        assert first_card.locator('td[data-label="Montant ventes"]').is_visible()
+                        toggle.click()
+                        assert toggle.get_attribute("aria-expanded") == "false"
+                        assert not first_card.locator('td[data-label="Achats"]').is_visible()
 
                     if width <= 390:
                         report_path = f"/bars/{bar.id}/inventories/{inv.id}/v2-report"

@@ -149,3 +149,125 @@
   .inventory-hero { padding:14px;gap:12px; }
   .inventory-start-button { display:block;width:100%; }
 }
+
+
+/* Compact stock-count cards: essential values at a glance, optional
+   explanatory fields on demand. Desktop table and business JS are unchanged. */
+.inventory-details-toggle { display:none; }
+.inventory-item-title {min-width:0; overflow-wrap:anywhere;}
+.inventory-item-heading {display:flex;align-items:center;justify-content:space-between;gap:12px;min-width:0;}
+@media(max-width:1199px) {
+  .inventory-table-card .inventory-table tbody {
+    gap:8px;
+    padding:10px;
+  }
+  .inventory-table-card .inventory-table tbody tr {
+    grid-template-columns:repeat(2,minmax(0,1fr));
+    gap:2px 12px;
+    padding:12px 14px;
+    border-radius:13px;
+    box-shadow:0 2px 9px rgba(30,48,65,.035);
+  }
+  .inventory-table-card .inventory-table tbody td {
+    padding:4px 2px;
+    line-height:1.35;
+    font-size:.89rem;
+  }
+  .inventory-table-card .inventory-table tbody td:before {
+    font-size:.67rem;
+    margin-bottom:2px;
+    letter-spacing:.035em;
+  }
+  .inventory-table-card .inventory-table tbody td:first-child {
+    grid-column:1/-1;
+    padding-bottom:7px;
+    margin-bottom:3px;
+  }
+  .inventory-item-heading {width:100%;}
+  .inventory-item-title strong {font-size:.99rem;color:#17231f;}
+  .inventory-item-title small {font-size:.73rem;line-height:1.25;margin-top:2px;}
+  .inventory-details-toggle {
+    display:inline-flex;
+    align-items:center;
+    gap:5px;
+    padding:5px 9px;
+    font-size:.75rem;
+    flex:0 0 auto;
+    white-space:nowrap;
+    min-height:34px;
+  }
+  /* Always visible: machine baseline, the physical input, stock delta, note. */
+  .inventory-table-card .inventory-table tbody tr td:nth-child(5) {order:1;}
+  .inventory-table-card .inventory-table tbody tr td:nth-child(6) {order:2;}
+  .inventory-table-card .inventory-table tbody tr td:nth-child(9) {
+    order:3;
+    grid-column:1/-1;
+    display:flex;
+    align-items:center;
+    gap:8px;
+    background:#f8fafc;
+    border-radius:8px;
+    padding:5px 9px;
+    margin-top:2px;
+  }
+  .inventory-table-card .inventory-table tbody tr td:nth-child(9):before {
+    display:inline;
+    margin:0;
+  }
+  .inventory-table-card .inventory-table tbody tr td:nth-child(10) {
+    order:4;
+    grid-column:1/-1;
+    padding:4px 2px 0;
+  }
+  .inventory-table-card .inventory-table tbody tr td:nth-child(2),
+  .inventory-table-card .inventory-table tbody tr td:nth-child(3),
+  .inventory-table-card .inventory-table tbody tr td:nth-child(4),
+  .inventory-table-card .inventory-table tbody tr td:nth-child(7),
+  .inventory-table-card .inventory-table tbody tr td:nth-child(8) {
+    display:none;
+    order:5;
+  }
+  .inventory-table-card .inventory-table tbody tr.inventory-details-open td:nth-child(2),
+  .inventory-table-card .inventory-table tbody tr.inventory-details-open td:nth-child(3),
+  .inventory-table-card .inventory-table tbody tr.inventory-details-open td:nth-child(4),
+  .inventory-table-card .inventory-table tbody tr.inventory-details-open td:nth-child(7),
+  .inventory-table-card .inventory-table tbody tr.inventory-details-open td:nth-child(8) {
+    display:block;
+  }
+  .inventory-table-card .inventory-table tbody tr td:nth-child(6) .inventory-count-input {
+    min-height:44px;
+    border-width:2px;
+    font-size:1.04rem;
+    font-weight:800;
+    background:#f4fcf8;
+    padding:7px 10px;
+  }
+  .inventory-table-card .inventory-table tbody td:nth-child(9) .inventory-gap {font-size:1rem;}
+  .inventory-table-card .inventory-table tbody td:nth-child(10) .form-control {min-height:38px;}
+  /* Avoid the sticky toolbar covering the next card on tablet portrait. */
+  .inventory-actions {
+    position:static;
+    bottom:auto;
+    margin-top:14px!important;
+    border-radius:12px;
+    padding:12px;
+    flex-wrap:wrap;
+  }
+  .inventory-actions > div:last-child {
+    justify-content:flex-end;
+    min-width:0;
+  }
+}
+@media(max-width:420px) {
+  .inventory-table-card .inventory-table tbody tr {
+    grid-template-columns:repeat(2,minmax(0,1fr));
+    gap:2px 8px;
+    padding:10px;
+  }
+  .inventory-table-card .inventory-table tbody tr td:first-child,
+  .inventory-table-card .inventory-table tbody tr td:last-child {
+    grid-column:1/-1;
+  }
+  .inventory-table-card .inventory-table tbody tr td:nth-child(9) {grid-column:1/-1;}
+  .inventory-table-card .inventory-table tbody td {font-size:.84rem;}
+}
