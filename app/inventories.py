@@ -12,6 +12,10 @@ from sqlalchemy.exc import IntegrityError
 from app.auth import api_required
 from app.extensions import db
 from app.inventory_period_models import InventoryLineSnapshot, InventoryPeriodSnapshot
+from app.inventory_assignment_models import InventoryCashierAssignment
+from app.inventory_count_models import InventoryLineCountState
+from app.shift_models import EmployeeShift
+from app.models import StaffAssignment, User
 from app.inventory_services import inventory_service
 from app.models import Bar, Inventory, InventoryLine, Product
 from app.permissions import permissions
@@ -26,12 +30,18 @@ def _message(code):
         "INVALID_END_DATE": "La date de fin d'inventaire est invalide ou située dans le futur.",
         "INVENTORY_PERIOD_OVERLAP": "La période chevauche le dernier inventaire validé.",
         "INVALID_INVENTORY": "Aucun produit actif n'est disponible pour cet inventaire.",
-        "COUNT_REQUIRED": "Renseignez le stock physique de tous les produits avant de valider.",
+        "COUNT_REQUIRED": "Renseignez les quantités des produits à enregistrer.",
+        "INVENTORY_COUNT_CONFLICT": "Une autre saisie a modifié ce produit. Actualisez la page avant de réessayer.",
+        "INVENTORY_V2_REQUIRED": "Cette opération est réservée aux inventaires V2.",
+        "INVENTORY_SHIFT_CLOSED": "La session de la caissière affectée est terminée.",
         "INVALID_COUNT": "Une quantité physique est invalide.",
         "INVALID_COUNT_PRODUCT": "Un produit du comptage est invalide.",
         "INVENTORY_STALE": "Le stock machine a changé depuis le début de l'inventaire. Annulez ce brouillon et recommencez pour éviter un mauvais ajustement.",
         "INVENTORY_IMMUTABLE": "Cet inventaire est déjà terminé et ne peut plus être modifié.",
         "INVENTORY_PERIOD_DATA_MISSING": "Les données de période de cet inventaire sont incomplètes.",
+        "INVENTORY_V2_PENDING_APPROVAL": "Inventaire affecté à une caissière : la validation V2 sera disponible après activation du circuit d'approbation.",
+        "INVALID_CASHIER_SHIFT": "Session de caissière invalide.",
+        "CASHIER_SHIFT_NOT_FOUND": "Aucune session de caissière active ne correspond à cette sélection.",
         "NOTE_TOO_LONG": "Une note dépasse 500 caractères.",
         "NOT_FOUND": "Inventaire ou produit introuvable.",
         "FORBIDDEN": "Vous n'êtes pas autorisé à gérer cet inventaire.",
@@ -44,6 +54,12 @@ def _decimal(value):
 
 
 def payload(inv):
+    cashier_assignment = db.session.scalar(
+        select(InventoryCashierAssignment).where(
+            InventoryCashierAssignment.bar_id == inv.bar_id,
+            InventoryCashierAssignment.inventory_id == inv.id,
+        )
+    )
     period = db.session.scalar(
         select(InventoryPeriodSnapshot).where(
             InventoryPeriodSnapshot.bar_id == inv.bar_id,
@@ -57,6 +73,15 @@ def payload(inv):
         .order_by(product_order_expression(Product.name), Product.name, Product.id)
     ).all()
     line_ids = [line.id for line, _ in rows]
+    count_states = {
+        state.inventory_line_id: state
+        for state in db.session.scalars(
+            select(InventoryLineCountState).where(
+                InventoryLineCountState.bar_id == inv.bar_id,
+                InventoryLineCountState.inventory_line_id.in_(line_ids or [-1]),
+            )
+        )
+    }
     snapshots = {
         item.inventory_line_id: item
         for item in db.session.scalars(
@@ -70,6 +95,7 @@ def payload(inv):
     lines = []
     complete = True
     for line, product in rows:
+        count_state = count_states.get(line.id)
         snap = snapshots.get(line.id)
         counted = line.counted_quantity
         complete = complete and counted is not None
@@ -77,6 +103,11 @@ def payload(inv):
         sold = _decimal(snap.theoretical_sold_quantity) if snap and counted is not None else None
         sales_amount = _decimal(snap.theoretical_sales_amount) if snap and counted is not None else None
         difference = _decimal(counted) - _decimal(line.expected_quantity_snapshot) if counted is not None else None
+        case_size = product.units_per_case if product.units_per_case and product.units_per_case > 1 else None
+        counted_cases = (int(Decimal(counted) // case_size)
+                         if counted is not None and case_size else None)
+        counted_units = (Decimal(counted) - counted_cases * case_size
+                         if counted is not None and case_size else counted)
         lines.append(
             {
                 "line_id": str(line.id),
@@ -84,6 +115,11 @@ def payload(inv):
                 "product_name": product.name,
                 "sku": product.sku,
                 "unit": product.base_unit,
+                "units_per_case": product.units_per_case if product.units_per_case and product.units_per_case > 1 else None,
+                "counted_cases": str(counted_cases) if counted_cases is not None else None,
+                "counted_units": str(counted_units) if counted_units is not None else None,
+                "count_revision": count_state.revision if count_state else 0,
+                "last_counted_at": count_state.counted_at.isoformat() if count_state and count_state.counted_at else None,
                 "sale_price": str(snap.sale_price_snapshot if snap else product.sale_price),
                 "opening_quantity": str(snap.opening_quantity if snap else line.expected_quantity_snapshot),
                 "purchase_quantity": str(snap.purchase_quantity if snap else 0),
@@ -101,6 +137,10 @@ def payload(inv):
     return {
         "id": str(inv.id),
         "reference": inv.reference,
+        "v2_assigned": cashier_assignment is not None,
+        "cashier_user_id": str(cashier_assignment.cashier_user_id) if cashier_assignment else None,
+        "cashier_shift_id": str(cashier_assignment.cashier_shift_id) if cashier_assignment else None,
+        "cashier_name": cashier_assignment.cashier_name_snapshot if cashier_assignment else None,
         "reason": inv.reason,
         "status": inv.status,
         "counted_at": inv.counted_at.isoformat() if inv.counted_at else None,
@@ -138,7 +178,14 @@ def result(inv, status=200):
 def listing(bar_id):
     permissions.require(current_user, "inventory.read", bar_id)
     bar = db.session.get(Bar, bar_id)
-    rows = Inventory.query.filter_by(bar_id=bar_id).order_by(Inventory.created_at.desc(), Inventory.id.desc()).paginate(
+    query = Inventory.query.filter_by(bar_id=bar_id)
+    if inventory_service._is_cashier(current_user, bar_id):
+        query = query.join(
+            InventoryCashierAssignment,
+            (InventoryCashierAssignment.bar_id == Inventory.bar_id)
+            & (InventoryCashierAssignment.inventory_id == Inventory.id),
+        ).filter(InventoryCashierAssignment.cashier_user_id == current_user.id)
+    rows = query.order_by(Inventory.created_at.desc(), Inventory.id.desc()).paginate(
         page=request.args.get("page", 1, type=int), per_page=20, error_out=False
     )
     period_by_inventory = {
@@ -157,13 +204,14 @@ def listing(bar_id):
         bar_id=bar_id,
         period_by_inventory=period_by_inventory,
         can_adjust=permissions.evaluate(current_user, "inventory.adjust", bar_id).allowed,
+        can_create=permissions.evaluate(current_user, "inventory.create", bar_id).allowed,
     )
 
 
 @inventories_bp.route("/new", methods=["GET", "POST"])
 @login_required
 def new(bar_id):
-    permissions.require(current_user, "inventory.adjust", bar_id)
+    permissions.require(current_user, "inventory.create", bar_id)
     bar = db.session.get(Bar, bar_id)
     if not bar:
         raise LookupError("NOT_FOUND")
@@ -197,6 +245,7 @@ def new(bar_id):
                 None,
                 defaults["reason"],
                 defaults["period_end"],
+                request.form.get("cashier_shift_id") or None,
             )
             db.session.commit()
             flash("Inventaire créé. Comptez maintenant les bouteilles réellement présentes.", "success")
@@ -205,8 +254,23 @@ def new(bar_id):
             db.session.rollback()
             flash("Référence déjà utilisée." if isinstance(exc, IntegrityError) else _message(exc), "danger")
 
+    cashier_shifts = db.session.execute(
+        select(EmployeeShift, User)
+        .join(StaffAssignment,
+              (StaffAssignment.bar_id == EmployeeShift.bar_id)
+              & (StaffAssignment.id == EmployeeShift.staff_assignment_id))
+        .join(User, User.id == StaffAssignment.user_id)
+        .where(EmployeeShift.bar_id == bar_id,
+               EmployeeShift.status == "OPEN",
+               EmployeeShift.role_snapshot == "CASHIER",
+               StaffAssignment.role == "CASHIER",
+               StaffAssignment.ended_at.is_(None),
+               User.is_active.is_(True))
+        .order_by(EmployeeShift.started_at, EmployeeShift.id)
+    ).all()
     return render_template(
         "inventory_new.html",
+        cashier_shifts=cashier_shifts,
         bar=bar,
         bar_id=bar_id,
         defaults=defaults,
@@ -221,9 +285,26 @@ def detail(bar_id, inventory_id):
     inv = inventory_service.get(current_user, bar_id, inventory_id)
     bar = db.session.get(Bar, bar_id)
     can_adjust = permissions.evaluate(current_user, "inventory.adjust", bar_id).allowed
+    can_count = permissions.evaluate(current_user, "inventory.count", bar_id).allowed
+
+    if request.method == "GET" and inv.status == "DRAFT" and db.session.scalar(
+        select(InventoryCashierAssignment.id).where(
+            InventoryCashierAssignment.bar_id == bar_id,
+            InventoryCashierAssignment.inventory_id == inv.id,
+        )
+    ) is not None:
+        return redirect(url_for("inventories.v2_count", bar_id=bar_id, inventory_id=inv.id))
 
     if request.method == "POST":
         action = request.form.get("action")
+        if db.session.scalar(
+            select(InventoryCashierAssignment.id).where(
+                InventoryCashierAssignment.bar_id == bar_id,
+                InventoryCashierAssignment.inventory_id == inv.id,
+            )
+        ) is not None and action in {"counts", "post"}:
+            flash("Utilisez le comptage V2 sécurisé et sa sauvegarde progressive.", "warning")
+            return redirect(url_for("inventories.v2_count", bar_id=bar_id, inventory_id=inv.id))
         try:
             if action in {"counts", "post"}:
                 quantities = {
@@ -260,6 +341,82 @@ def detail(bar_id, inventory_id):
         bar=bar,
         bar_id=bar_id,
         can_adjust=can_adjust,
+        can_count=can_count,
+    )
+
+
+@inventories_bp.route("/<int:inventory_id>/v2-count", methods=["GET", "POST"])
+@login_required
+def v2_count(bar_id, inventory_id):
+    inv = inventory_service.get(current_user, bar_id, inventory_id)
+    assigned = db.session.scalar(
+        select(InventoryCashierAssignment.id).where(
+            InventoryCashierAssignment.bar_id == bar_id,
+            InventoryCashierAssignment.inventory_id == inv.id,
+        )
+    )
+    if assigned is None:
+        raise LookupError("NOT_FOUND")
+    if inv.status != "DRAFT":
+        return redirect(url_for("inventories.detail", bar_id=bar_id, inventory_id=inv.id))
+    permissions.require(current_user, "inventory.count", bar_id)
+    if request.method == "POST":
+        is_json = request.is_json
+        if is_json:
+            value = request.get_json(silent=True)
+            entries = value.get("entries") if isinstance(value, dict) else None
+        else:
+            # The normal HTML form remains usable if JavaScript is disabled.
+            product_ids = [
+                line.product_id for line in db.session.scalars(
+                    select(InventoryLine).where(
+                        InventoryLine.bar_id == bar_id,
+                        InventoryLine.inventory_id == inv.id,
+                    )
+                )
+            ]
+            entries = [
+                {
+                    "product_id": pid,
+                    "cases": request.form.get(f"cases_{pid}", ""),
+                    "units": request.form.get(f"units_{pid}", ""),
+                    "note": request.form.get(f"note_{pid}", ""),
+                    "revision": request.form.get(f"revision_{pid}", "0"),
+                }
+                for pid in product_ids
+            ]
+        try:
+            inventory_service.count_v2_entries(current_user, bar_id, inv.id, entries)
+            db.session.commit()
+            data = payload(inv)
+            if is_json:
+                return jsonify(success=True, data={
+                    "complete": data["complete"],
+                    "counted": sum(line["physical_quantity"] is not None for line in data["lines"]),
+                    "total": len(data["lines"]),
+                    "lines": [
+                        {"product_id": line["product_id"],
+                         "physical_quantity": line["physical_quantity"],
+                         "count_revision": line["count_revision"]}
+                        for line in data["lines"]
+                    ],
+                }), 200
+            flash("Comptage enregistré. Les quantités non saisies restent non comptées.", "success")
+        except (PermissionError, LookupError, ValueError, TypeError, IntegrityError) as exc:
+            db.session.rollback()
+            if is_json:
+                message = _message(exc)
+                status = 409 if str(exc) == "INVENTORY_COUNT_CONFLICT" else (
+                    403 if isinstance(exc, PermissionError) else 422
+                )
+                return jsonify(success=False, error={"code": str(exc), "message": message}), status
+            flash(_message(exc), "danger")
+        return redirect(url_for("inventories.v2_count", bar_id=bar_id, inventory_id=inv.id))
+    return render_template(
+        "inventory_count_v2.html",
+        inventory=payload(inv),
+        bar=db.session.get(Bar, bar_id),
+        bar_id=bar_id,
     )
 
 
@@ -278,7 +435,14 @@ def printable(bar_id, inventory_id):
 @api_required
 def api_list(bar_id):
     permissions.require(request.api_user, "inventory.read", bar_id)
-    rows = Inventory.query.filter_by(bar_id=bar_id).order_by(Inventory.created_at.desc(), Inventory.id.desc()).paginate(
+    query = Inventory.query.filter_by(bar_id=bar_id)
+    if inventory_service._is_cashier(request.api_user, bar_id):
+        query = query.join(
+            InventoryCashierAssignment,
+            (InventoryCashierAssignment.bar_id == Inventory.bar_id)
+            & (InventoryCashierAssignment.inventory_id == Inventory.id),
+        ).filter(InventoryCashierAssignment.cashier_user_id == request.api_user.id)
+    rows = query.order_by(Inventory.created_at.desc(), Inventory.id.desc()).paginate(
         page=request.args.get("page", 1, type=int), per_page=20, error_out=False
     )
     return jsonify(success=True, data=[payload(inv) for inv in rows.items], meta={"page": rows.page, "pages": rows.pages, "total": rows.total})
@@ -302,6 +466,7 @@ def create(bar_id):
             value.get("product_ids"),
             value.get("reason", "Inventaire physique"),
             value.get("period_end"),
+            value.get("cashier_shift_id"),
         ),
         201,
     )
@@ -311,13 +476,23 @@ def create(bar_id):
 @api_required
 def counts(bar_id, inventory_id):
     value = body()
+    inv = inventory_service.get(request.api_user, bar_id, inventory_id)
+    v2 = db.session.scalar(
+        select(InventoryCashierAssignment.id).where(
+            InventoryCashierAssignment.bar_id == bar_id,
+            InventoryCashierAssignment.inventory_id == inv.id,
+        )
+    ) is not None
+    if v2:
+        # V2 clients must supply the per-line revision; legacy raw quantities
+        # would bypass the optimistic conflict guard.
+        return result(inventory_service.count_v2_entries(
+            request.api_user, bar_id, inventory_id, value.get("entries"),
+        ))
     return result(
         inventory_service.count(
-            request.api_user,
-            bar_id,
-            inventory_id,
-            value.get("quantities"),
-            value.get("notes"),
+            request.api_user, bar_id, inventory_id,
+            value.get("quantities"), value.get("notes"),
         )
     )
 

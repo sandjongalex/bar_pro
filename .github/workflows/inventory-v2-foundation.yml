@@ -1,0 +1,51 @@
+name: Inventory V2 foundation checks
+
+on:
+  push:
+    branches:
+      - feature/inventory-v2-foundation
+      - feature/inventory-v2-counting
+  pull_request:
+    branches:
+      - main
+      - feature/inventory-v2-foundation
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  test-foundations:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout feature branch
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install application and tests
+        run: python -m pip install -r requirements.txt
+      - name: Generate physical schema documentation
+        run: python scripts/schema_document.py
+      - name: Run inventory V2 and legacy regressions
+        env:
+          SECRET_KEY: test-only-workflow-value
+        run: python -m pytest tests/test_inventory_v2_foundation.py tests/test_inventory_v2_counting.py tests/test_inventories.py tests/test_schema.py -q
+      - name: Run complete regression suite
+        env:
+          SECRET_KEY: test-only-workflow-value
+        run: python -m pytest -q
+      - name: Commit generated schema on the development branch only
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/feature/inventory-v2-foundation' || github.ref == 'refs/heads/feature/inventory-v2-counting')
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/DATA_MODEL.md
+          if ! git diff --cached --quiet; then
+            git commit -m "docs(schema): update inventory V2 generated schema [skip ci]"
+            git push origin HEAD:${GITHUB_REF#refs/heads/}
+          fi

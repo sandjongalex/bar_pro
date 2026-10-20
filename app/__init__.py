@@ -58,6 +58,8 @@ def create_app(config_name: str | None = None, test_config: dict[str, Any] | Non
     from app import inventory_period_models  # noqa: F401 - inventory period reconciliation metadata
     from app import order_suborder_models  # noqa: F401 - cashier sub-orders and validation metadata
     from app import shift_models  # noqa: F401 - employee attendance/on-duty metadata
+    from app import inventory_assignment_models  # noqa: F401 - optional V2 cashier attribution metadata
+    from app import inventory_count_models  # noqa: F401 - V2 physical count line metadata
     from app import change_voucher_models  # noqa: F401 - customer change-voucher liability metadata
     from app import saas_governance_models  # noqa: F401 - administrative statuses
     _register_blueprints(app)

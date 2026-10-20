@@ -4,7 +4,7 @@ Ce fichier est généré par [`scripts/schema_document.py`](../scripts/schema_do
 Ne pas l'éditer librement : [`tests/test_schema.py`](../tests/test_schema.py) compare exactement
 son contenu à `scripts.schema_document.render()`.
 
-Révision Alembic terminale observée : `ba5a5a1f0001`. Le dictionnaire décrit les tables,
+Révision Alembic terminale observée : `c1d2e3f4a5b6`. Le dictionnaire décrit les tables,
 colonnes, clés, contraintes, index et relations dérivables de `app.models`.
 Les types sont compilés pour MySQL et SQLite quand ils diffèrent. Une compilation SQL ou
 un test SQLite ne constitue pas une validation sur serveur MySQL.
@@ -39,6 +39,7 @@ un test SQLite ne constitue pas une validation sur serveur MySQL.
 | `b2c3d4e5f6a7` | `a1b2c3d4e5f6` | `b2c3d4e5f6a7_payment_amounts.py` | payment tender amounts |
 | `b8c9d0e1f2a3` | `a7b8c9d0e1f2` | `b8c9d0e1f2a3_order_suborders.py` | Add persistent cashier sub-orders awaiting server validation. |
 | `ba5a5a1f0001` | `d1e2f3a4b5c6` | `ba5a5a1f0001_saas_governance.py` | Independent bar and owner administrative governance (no data backfill). |
+| `c1d2e3f4a5b6` | `ba5a5a1f0001` | `c1d2e3f4a5b6_inventory_cashier_assignments.py` | Add optional cashier-to-shift attribution for V2 inventories.  Legacy inventory documents remain unchanged; only new V2 inventories get assignment rows. No payment, sales or stock records are rewritten. |
 | `c3d4e5f6a7b8` | `b2c3d4e5f6a7` | `c3d4e5f6a7b8_integrity.py` | Reconcile tender and tenant source integrity without rewriting history. |
 | `c9d0e1f2a3b4` | `b8c9d0e1f2a3` | `c9d0e1f2a3b4_employee_shifts.py` | Add employee attendance and on-duty shifts. |
 | `d0e1f2a3b4c5` | `c9d0e1f2a3b4` | `d0e1f2a3b4c5_change_vouchers.py` | Add customer change vouchers and settlement journal.  Revision ID: d0e1f2a3b4c5 Revises: c9d0e1f2a3b4 |
@@ -135,6 +136,11 @@ erDiagram
     bars ||--o{ idempotency_records : "bar_id"
     bars ||--o{ inventories : "bar_id"
     users ||--o{ inventories : "created_by_id"
+    users ||--o{ inventory_cashier_assignments : "assigned_by_id"
+    bars ||--o{ inventory_cashier_assignments : "bar_id"
+    employee_shifts ||--o{ inventory_cashier_assignments : "bar_id, cashier_shift_id"
+    inventories ||--o{ inventory_cashier_assignments : "bar_id, inventory_id"
+    users ||--o{ inventory_cashier_assignments : "cashier_user_id"
     bars ||--o{ inventory_line_snapshots : "bar_id"
     inventory_lines ||--o{ inventory_line_snapshots : "bar_id, inventory_line_id"
     bars ||--o{ inventory_lines : "bar_id"
@@ -310,6 +316,11 @@ erDiagram
 | `idempotency_records` | `—` | `bar_id` | `bars.id` | `RESTRICT` |
 | `inventories` | `—` | `bar_id` | `bars.id` | `RESTRICT` |
 | `inventories` | `—` | `created_by_id` | `users.id` | `RESTRICT` |
+| `inventory_cashier_assignments` | `—` | `assigned_by_id` | `users.id` | `RESTRICT` |
+| `inventory_cashier_assignments` | `—` | `bar_id` | `bars.id` | `RESTRICT` |
+| `inventory_cashier_assignments` | `—` | `bar_id, cashier_shift_id` | `employee_shifts.bar_id, employee_shifts.id` | `RESTRICT` |
+| `inventory_cashier_assignments` | `—` | `bar_id, inventory_id` | `inventories.bar_id, inventories.id` | `RESTRICT` |
+| `inventory_cashier_assignments` | `—` | `cashier_user_id` | `users.id` | `RESTRICT` |
 | `inventory_line_snapshots` | `—` | `bar_id` | `bars.id` | `RESTRICT` |
 | `inventory_line_snapshots` | `—` | `bar_id, inventory_line_id` | `inventory_lines.bar_id, inventory_lines.id` | `RESTRICT` |
 | `inventory_lines` | `—` | `bar_id` | `bars.id` | `RESTRICT` |
@@ -941,6 +952,34 @@ erDiagram
 - UNIQUE `uq_inventories_reference` : `bar_id, reference`.
 - INDEX `ix_inventories_bar_created` : `bar_id, created_at, id`.
 - INDEX `ix_inventories_bar_id` : `bar_id`.
+
+### `inventory_cashier_assignments`
+
+| Colonne | Type | NULL | PK | Default ORM | Default serveur | Calcul |
+| --- | --- | --- | --- | --- | --- | --- |
+| `id` | MySQL `BIGINT` / SQLite `INTEGER` | non | oui | — | — | — |
+| `inventory_id` | MySQL `BIGINT` / SQLite `INTEGER` | non | non | — | — | — |
+| `cashier_shift_id` | MySQL `BIGINT` / SQLite `INTEGER` | non | non | — | — | — |
+| `cashier_user_id` | MySQL `BIGINT` / SQLite `INTEGER` | non | non | — | — | — |
+| `cashier_name_snapshot` | VARCHAR(120) | non | non | — | — | — |
+| `assigned_by_id` | MySQL `BIGINT` / SQLite `INTEGER` | non | non | — | — | — |
+| `assigned_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | non | non | utcnow | — | — |
+| `bar_id` | MySQL `BIGINT` / SQLite `INTEGER` | non | non | — | — | — |
+| `created_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | non | non | utcnow | — | — |
+| `updated_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | non | non | utcnow | — | — |
+
+- PK : `id`.
+- FK `—` : `assigned_by_id` → `users.id` ; ON DELETE `RESTRICT`.
+- FK `—` : `bar_id` → `bars.id` ; ON DELETE `RESTRICT`.
+- FK `—` : `bar_id, cashier_shift_id` → `employee_shifts.bar_id, employee_shifts.id` ; ON DELETE `RESTRICT`.
+- FK `—` : `bar_id, inventory_id` → `inventories.bar_id, inventories.id` ; ON DELETE `RESTRICT`.
+- FK `—` : `cashier_user_id` → `users.id` ; ON DELETE `RESTRICT`.
+- UNIQUE `uq_inventory_cashier_assignments_bar_id_id` : `bar_id, id`.
+- UNIQUE `uq_inventory_cashier_one_inventory` : `bar_id, inventory_id`.
+- INDEX `ix_inventory_cashier_assignments_bar_created` : `bar_id, created_at, id`.
+- INDEX `ix_inventory_cashier_assignments_bar_id` : `bar_id`.
+- INDEX `ix_inventory_cashier_shift` : `bar_id, cashier_shift_id, inventory_id`.
+- INDEX `ix_inventory_cashier_user` : `bar_id, cashier_user_id, inventory_id`.
 
 ### `inventory_line_snapshots`
 
