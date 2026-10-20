@@ -395,6 +395,7 @@ class InventoryService:
             snap = snapshots.get(line.id)
             if not snap:
                 raise ValueError("INVENTORY_PERIOD_DATA_MISSING")
+            previous_quantity = line.counted_quantity
             line.counted_quantity = value
             if value is None:
                 snap.theoretical_sold_quantity = ZERO
@@ -425,7 +426,8 @@ class InventoryService:
                     ))
                 else:
                     state.counted_by_id = actor.id
-                    state.counted_at = utcnow() if value is not None else None
+                    if previous_quantity != value:
+                        state.counted_at = utcnow() if value is not None else None
                     state.revision += 1
 
         inv.counted_at = utcnow()
@@ -475,14 +477,27 @@ class InventoryService:
                 .with_for_update()
             )
         }
+        snapshots = {
+            item.inventory_line_id: item
+            for item in db.session.scalars(
+                select(InventoryLineSnapshot).where(
+                    InventoryLineSnapshot.bar_id == bar_id,
+                    InventoryLineSnapshot.inventory_line_id.in_(
+                        [line.id for line, _ in records.values()] or [-1]
+                    ),
+                )
+            )
+        }
         quantities = {}
         notes = {}
+        seen_product_ids = set()
         for entry in entries:
             if not isinstance(entry, dict):
                 raise ValueError("INVALID_COUNT")
             product_id = product_identifier(entry.get("product_id"))
-            if product_id not in records or product_id in quantities:
+            if product_id not in records or product_id in seen_product_ids:
                 raise ValueError("INVALID_COUNT_PRODUCT")
+            seen_product_ids.add(product_id)
             line, product = records[product_id]
             old_state = db.session.scalar(
                 select(InventoryLineCountState).where(
@@ -513,11 +528,20 @@ class InventoryService:
                 if units < 0:
                     raise ValueError("INVALID_COUNT")
                 quantity = number(units + Decimal(cases) * Decimal(product.units_per_case or 1), 6)
-            quantities[str(product_id)] = quantity
             note = entry.get("note", "")
             if not isinstance(note, str) or len(note.strip()) > 500:
                 raise ValueError("NOTE_TOO_LONG")
+            snapshot = snapshots.get(line.id)
+            if snapshot is None:
+                raise ValueError("INVENTORY_PERIOD_DATA_MISSING")
+            if quantity == line.counted_quantity and note.strip() == (snapshot.note or ""):
+                # Reposting a form or saving the same row must not rewrite
+                # the physical count timestamp or increase its revision.
+                continue
+            quantities[str(product_id)] = quantity
             notes[str(product_id)] = note
+        if not quantities:
+            return inv
         return self.count(actor, bar_id, inventory_id, quantities, notes)
 
     def _financial_snapshot(self, inv, period, theoretical_sales):
