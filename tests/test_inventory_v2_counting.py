@@ -145,7 +145,10 @@ def test_web_count_page_autosave_and_csrf(env):
     count_page = client.get(path + "/v2-count")
     assert count_page.status_code == 200
     assert "Non compté" in count_page.text
-    assert "0" not in re.search(r'name="units_%d"[^>]*>' % env[4].id, count_page.text).group(0).split("value=")[-1] if False else True
+    assert re.search(
+        rf'name="units_{env[4].id}"[^>]*value=""',
+        count_page.text,
+    ) is not None
     csrf = re.search(r'name="csrf_token" value="([^"]+)"', count_page.text).group(1)
     bad = client.post(path + "/v2-count", json={
         "entries": [{"product_id": env[4].id, "units": "0", "revision": 0}]
