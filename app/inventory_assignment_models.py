@@ -19,6 +19,7 @@ class InventoryCashierAssignment(Tenant, db.Model):
     cashier_name_snapshot = db.Column(db.String(120), nullable=False)
     assigned_by_id = db.Column(ID, db.ForeignKey("users.id", ondelete="RESTRICT"), nullable=False)
     assigned_at = db.Column(datetime_type(fsp=6), nullable=False, default=utcnow)
+    movement_checkpoint_id = db.Column(ID)  # null for inventories created before V2 live reconciliation
 
     __table_args__ = tenant_args(
         "inventory_cashier_assignments",

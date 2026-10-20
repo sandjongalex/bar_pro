@@ -17,6 +17,7 @@ from app.inventory_count_models import InventoryLineCountState
 from app.shift_models import EmployeeShift
 from app.models import StaffAssignment, User
 from app.inventory_services import inventory_service
+from app.inventory_reconciliation import inventory_live_reconciliation
 from app.models import Bar, Inventory, InventoryLine, Product
 from app.permissions import permissions
 from app.product_display_order import product_order_expression
@@ -415,9 +416,24 @@ def v2_count(bar_id, inventory_id):
     return render_template(
         "inventory_count_v2.html",
         inventory=payload(inv),
+        reconciliation=inventory_live_reconciliation(inv),
         bar=db.session.get(Bar, bar_id),
         bar_id=bar_id,
     )
+
+
+@inventories_bp.get("/<int:inventory_id>/v2-reconciliation")
+@login_required
+def v2_reconciliation(bar_id, inventory_id):
+    inv = inventory_service.get(current_user, bar_id, inventory_id)
+    return jsonify(success=True, data=inventory_live_reconciliation(inv), meta={})
+
+
+@api_inventories_bp.get("/<int:inventory_id>/reconciliation")
+@api_required
+def api_reconciliation(bar_id, inventory_id):
+    inv = inventory_service.get(request.api_user, bar_id, inventory_id)
+    return jsonify(success=True, data=inventory_live_reconciliation(inv), meta={})
 
 
 @inventories_bp.get("/<int:inventory_id>/print")

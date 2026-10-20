@@ -105,7 +105,14 @@ jobs:
           import os
           engine = create_engine(os.environ["SQLALCHEMY_DATABASE_URI"])
           with engine.connect() as conn:
-              assert conn.execute(text("SELECT version_num FROM alembic_version")).scalar() == "ba5a5a1f0001"
+              # Compare to the repository's current Alembic head, including
+              # later, additive inventory migrations.
+              from alembic.config import Config
+              from alembic.script import ScriptDirectory
+              alembic_config = Config()
+              alembic_config.set_main_option("script_location", "migrations")
+              expected_head = ScriptDirectory.from_config(alembic_config).get_current_head()
+              assert conn.execute(text("SELECT version_num FROM alembic_version")).scalar() == expected_head
               names = set(inspect(conn).get_table_names())
               assert {"bar_governance", "owner_governance", "orders", "subscriptions"} <= names
               assert conn.execute(text("SELECT COUNT(*) FROM bar_governance")).scalar() == 0

@@ -11,6 +11,71 @@
   var csrf = form.querySelector('input[name="csrf_token"]').value;
   var url = form.getAttribute("data-count-url");
 
+  var previewRoot = document.querySelector(".inv2-reconcile");
+  var refreshBtn = document.getElementById("inv2-reconcile-refresh");
+  var previewMessages = {
+    "RECONCILED": "Conforme",
+    "NOT_COUNTED": "Non compté",
+    "DIFFERENCE": "Écart à vérifier",
+    "LEDGER_MISMATCH": "Journal incohérent",
+    "REFERENCE_MISSING": "Référence absente",
+    "COUNT_CHECKPOINT_MISSING": "Recomptage nécessaire",
+    "INVALID_CHECKPOINT": "Point de comptage invalide",
+    "NEGATIVE_PROJECTION": "Comptage à vérifier"
+  };
+  var previewTimer = null;
+
+  function setText(node, selector, value) {
+    var target = node.querySelector(selector);
+    if (target) target.textContent = value === null || value === undefined ? "—" : String(value);
+  }
+
+  function refreshPreview() {
+    if (!previewRoot) return;
+    if (refreshBtn) refreshBtn.disabled = true;
+    var message = document.getElementById("inv2-reconcile-message");
+    window.fetch(previewRoot.getAttribute("data-preview-url"), {
+      method: "GET",
+      credentials: "same-origin",
+      cache: "no-store",
+      headers: { "Accept": "application/json" }
+    }).then(function (response) {
+      if (!response.ok) throw new Error("Impossible de charger les mouvements");
+      return response.json();
+    }).then(function (data) {
+      if (!data.success || !data.data) throw new Error("Réponse de rapprochement invalide");
+      data.data.lines.forEach(function (line) {
+        var node = previewRoot.querySelector('[data-reconcile-product="' + line.product_id + '"]');
+        if (!node) return;
+        node.setAttribute("data-reconcile-state", line.status);
+        setText(node, "[data-reconcile-status]", previewMessages[line.status] || line.status);
+        setText(node, "[data-reconcile-machine]", line.current_machine + " " + line.base_unit);
+        setText(node, "[data-reconcile-projected]", line.projected_physical_now);
+        setText(node, "[data-reconcile-difference]", line.difference_now);
+        setText(node, "[data-reconcile-opening]", line.opening_stock);
+        setText(node, "[data-reconcile-at-count]", line.expected_at_count);
+        setText(node, "[data-reconcile-after]", line.delta_after_count);
+        setText(node, "[data-reconcile-breakdown]", line.movement_breakdown.map(function (movement) {
+          return movement.type + " (" + movement.quantity_delta + ")";
+        }).join(", ") || "Aucun");
+      });
+      if (message) message.textContent = data.data.requires_review
+        ? data.data.requires_review + " produit(s) à contrôler avant approbation. Les données restent indicatives."
+        : "Mouvements actualisés. Les quantités physiques doivent toujours être confirmées sur place.";
+    }).catch(function (error) {
+      if (message) message.textContent = error.message + " — Réessayez.";
+    }).then(function () {
+      if (refreshBtn) refreshBtn.disabled = false;
+    });
+  }
+
+  function schedulePreview() {
+    if (previewTimer) window.clearTimeout(previewTimer);
+    previewTimer = window.setTimeout(refreshPreview, 650);
+  }
+
+  if (refreshBtn) refreshBtn.addEventListener("click", refreshPreview);
+
   function status(row, kind, message) {
     row.setAttribute("data-state", kind);
     row.querySelector("[data-status]").textContent = message;
@@ -84,6 +149,7 @@
         status(row, "saved", saved.physical_quantity === null ? "Non compté · enregistré" : "Enregistré");
       }
       globalState.textContent = "Dernier comptage sauvegardé.";
+      schedulePreview();
     }).catch(function (error) {
       row._inv2Dirty = true;
       if (error.conflict) row._inv2Blocked = true;

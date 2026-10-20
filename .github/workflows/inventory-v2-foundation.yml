@@ -5,6 +5,7 @@ on:
     branches:
       - feature/inventory-v2-foundation
       - feature/inventory-v2-counting
+      - feature/inventory-v2-live-reconciliation
   pull_request:
     branches:
       - main
@@ -34,18 +35,24 @@ jobs:
       - name: Run inventory V2 and legacy regressions
         env:
           SECRET_KEY: test-only-workflow-value
-        run: python -m pytest tests/test_inventory_v2_foundation.py tests/test_inventory_v2_counting.py tests/test_inventories.py tests/test_schema.py -q
+        run: python -m pytest tests/test_inventory_v2_reconciliation.py tests/test_inventory_v2_foundation.py tests/test_inventory_v2_counting.py tests/test_inventories.py tests/test_schema.py -q
       - name: Run complete regression suite
         env:
           SECRET_KEY: test-only-workflow-value
         run: python -m pytest -q
-      - name: Commit generated schema on the development branch only
-        if: github.event_name == 'push' && (github.ref == 'refs/heads/feature/inventory-v2-foundation' || github.ref == 'refs/heads/feature/inventory-v2-counting')
+      - name: Commit generated schema on the inventory V2 development branch only
+        if: >-
+          (github.event_name == 'push' && github.ref_name == 'feature/inventory-v2-live-reconciliation') ||
+          (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.head_ref == 'feature/inventory-v2-live-reconciliation')
         run: |
+          TARGET_BRANCH=feature/inventory-v2-live-reconciliation
+          git fetch --no-tags origin "+refs/heads/$TARGET_BRANCH:refs/remotes/origin/$TARGET_BRANCH"
+          git checkout -B "$TARGET_BRANCH" "origin/$TARGET_BRANCH"
+          python scripts/schema_document.py
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add docs/DATA_MODEL.md
           if ! git diff --cached --quiet; then
             git commit -m "docs(schema): update inventory V2 generated schema [skip ci]"
-            git push origin HEAD:${GITHUB_REF#refs/heads/}
+            git push origin "HEAD:refs/heads/$TARGET_BRANCH"
           fi

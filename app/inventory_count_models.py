@@ -13,6 +13,7 @@ class InventoryLineCountState(Tenant, db.Model):
     counted_at = db.Column(datetime_type(fsp=6))
     counted_by_id = db.Column(ID, db.ForeignKey("users.id", ondelete="RESTRICT"), nullable=False)
     revision = db.Column(ID, nullable=False, default=1)
+    movement_checkpoint_id = db.Column(ID)  # immutable for a physical count unless quantity changes
 
     __table_args__ = tenant_args(
         "inventory_line_count_states",
