@@ -60,6 +60,10 @@ def test_cashier_navigation_only_surfaces_operational_destinations(env):
     assert "Retours" in page.text
     assert "Historique" in page.text
     assert "Session / clôture" in page.text
+    assert '<span class="nav-link-text">Mes inventaires</span>' in page.text
+    assert f'/bars/{bar.id}/inventories' in page.text
+    assert "Stock</span>" not in page.text  # no owner stock management menu
+    assert 'Démarrer mon inventaire' not in page.text  # drawer unopened
     assert "Dettes fournisseurs" not in page.text
     assert '<span class="nav-link-text">Équipe</span>' not in page.text
 
@@ -213,3 +217,58 @@ def test_owner_purchase_context_links_related_windows(env):
     assert '>Achats</a>' in page.text
     assert '>Fournisseurs</a>' in page.text
     assert '>Dettes</a>' in page.text
+
+
+def test_cashier_can_start_inventory_from_own_session(env):
+    """An on-duty cashier sees the entry points and creates only a V2 shift inventory."""
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    from app.inventory_assignment_models import InventoryCashierAssignment
+    from app.models import Inventory
+    from app.shift_service import get_active_shift_for_user
+
+    app, _, bar, _, _, _, _, _ = env
+    cashier = _cashier(bar)
+    client = app.test_client()
+    assert _login(client, cashier.email).status_code == 302
+
+    session_page = client.get(f"/bars/{bar.id}/cashier-session")
+    assert session_page.status_code == 200
+    assert "Mes inventaires" in session_page.text
+
+    list_page = client.get(f"/bars/{bar.id}/inventories")
+    assert list_page.status_code == 200
+    assert "Nouvel inventaire" in list_page.text
+
+    form = client.get(f"/bars/{bar.id}/inventories/new")
+    assert form.status_code == 200
+    assert "automatiquement affecté à votre session" in form.text
+
+    reference = "CASHIER-MY-SHIFT"
+    response = client.post(
+        f"/bars/{bar.id}/inventories/new",
+        data={
+            "csrf_token": _csrf_from(form),
+            "reference": reference,
+            "period_end": datetime.now(ZoneInfo(bar.timezone)).date().isoformat(),
+            "reason": "Comptage du service caissière",
+        },
+        follow_redirects=False,
+    )
+    assert response.status_code == 302
+    inventory = db.session.query(Inventory).filter_by(
+        bar_id=bar.id, reference=reference
+    ).one()
+    shift = get_active_shift_for_user(cashier.id, bar.id)
+    assignment = db.session.query(InventoryCashierAssignment).filter_by(
+        bar_id=bar.id, inventory_id=inventory.id
+    ).one()
+    assert shift is not None
+    assert assignment.cashier_user_id == cashier.id
+    assert assignment.cashier_shift_id == shift.id
+
+    count_page = client.get(f"/bars/{bar.id}/inventories/{inventory.id}", follow_redirects=True)
+    assert count_page.status_code == 200
+    assert "Rapprochement financier" in count_page.text
+    assert "Mes inventaires" in count_page.text
