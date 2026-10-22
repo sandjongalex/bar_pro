@@ -190,7 +190,7 @@ def add_expense(actor, bar_id, inventory_id, *, category_id, amount, description
     return expense
 
 
-def request_debt(actor, bar_id, inventory_id, *, customer_id, order_id, amount, reason):
+def request_debt(actor, bar_id, inventory_id, *, customer_id, order_id, amount, reason, nonce=None):
     inv = _check(actor, bar_id, inventory_id, write=True)
     customer = db.session.scalar(select(Customer).where(
         Customer.bar_id == bar_id, Customer.id == customer_id,
@@ -206,7 +206,16 @@ def request_debt(actor, bar_id, inventory_id, *, customer_id, order_id, amount, 
         ))
         if order is None or (order.customer_id is not None and order.customer_id != customer.id):
             raise ValueError("INVENTORY_DEBT_ORDER_INVALID")
+    nonce = nonce or secrets.token_hex(12)
+    if not (8 <= len(nonce) <= 48 and nonce.isalnum()):
+        raise ValueError("INVALID_REQUEST")
+    if db.session.scalar(select(InventoryDebtRequest.id).where(
+        InventoryDebtRequest.bar_id == bar_id,
+        InventoryDebtRequest.request_nonce == nonce,
+    )) is not None:
+        raise ValueError("INVENTORY_DEBT_DUPLICATE")
     request = InventoryDebtRequest(
+        request_nonce=nonce,
         bar_id=bar_id, inventory_id=inv.id, customer_id=customer.id,
         order_id=order_id, amount=number(amount, positive=True),
         reason=required_text(reason, 500), requested_by_id=actor.id,
