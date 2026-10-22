@@ -46,6 +46,10 @@ Deux parcours distincts :
    manquant de caisse. Elle ne modifie pas non plus le chiffre d'affaires
    théorique de l'inventaire.
 
+Les demandes utilisent une clé unique par formulaire pour résister aux doubles envois
+sur tablette. Le rapport imprimable contient le relevé physique et l'historique
+des décisions.
+
 Les demandes en attente empêchent l'approbation définitive de l'inventaire;
 une décision est obligatoire. L'approbation stock V1/V2 n'est pas autorisée
 à réécrire ou effacer les dettes.
