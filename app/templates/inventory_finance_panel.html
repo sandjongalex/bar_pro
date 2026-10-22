@@ -93,6 +93,7 @@
       <form method="post" action="{{ url_for('inventories_finance.act',bar_id=bar_id,inventory_id=inventory.id if inventory is defined else report.inventory_id) }}" class="inv-finance-form mt-3">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="action" value="debt_request">
+        <input type="hidden" name="nonce" value="{{ finance_debt_nonce }}">
         <div><label class="form-label">Client</label><select class="form-select" name="customer_id" required>{% for customer in finance.customers %}<option value="{{ customer.id }}">{{ customer.display_name }}</option>{% endfor %}</select></div>
         <div><label class="form-label">Montant à justifier (FCFA)</label><input class="form-control" name="amount" type="number" min="1" step="1" required></div>
         <div><label class="form-label">Facture éventuelle</label><select class="form-select" name="order_id"><option value="">Aucune facture (dette manuelle hors caisse)</option>{% for order in finance.orders %}<option value="{{ order.id }}">{{ order.reference }} · {{ '{:,.0f}'.format(order.total_amount|float) }} {{ bar.currency }}</option>{% endfor %}</select></div>
