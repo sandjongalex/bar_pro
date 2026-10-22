@@ -47,6 +47,7 @@ def act(bar_id, inventory_id):
                 order_id=request.form.get("order_id", ""),
                 amount=request.form.get("amount", ""),
                 reason=request.form.get("reason", ""),
+                nonce=request.form.get("nonce", ""),
             )
             message = "Dette signalée : confirmation du propriétaire requise."
         elif action in ("approve_debt", "reject_debt"):
