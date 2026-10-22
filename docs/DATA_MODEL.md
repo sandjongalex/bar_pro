@@ -4,7 +4,7 @@ Ce fichier est généré par [`scripts/schema_document.py`](../scripts/schema_do
 Ne pas l'éditer librement : [`tests/test_schema.py`](../tests/test_schema.py) compare exactement
 son contenu à `scripts.schema_document.render()`.
 
-Révision Alembic terminale observée : `f4a5b6c7d8e9`. Le dictionnaire décrit les tables,
+Révision Alembic terminale observée : `b5c6d7e8f901`. Le dictionnaire décrit les tables,
 colonnes, clés, contraintes, index et relations dérivables de `app.models`.
 Les types sont compilés pour MySQL et SQLite quand ils diffèrent. Une compilation SQL ou
 un test SQLite ne constitue pas une validation sur serveur MySQL.
@@ -37,6 +37,7 @@ un test SQLite ne constitue pas une validation sur serveur MySQL.
 | `a1b2c3d4e5f6` | `9e4f5a6b7c8d` | `a1b2c3d4e5f6_order_lifecycle.py` | order confirmation and service lifecycle |
 | `a7b8c9d0e1f2` | `f6a7b8c9d0e1` | `a7b8c9d0e1f2_reconcile_inventory_purchase_schema.py` | Reconcile purchase extensions and inventory-period snapshots after f6.  This migration repairs an earlier revision-id collision: two independent files used revision ``e5f6a7b8c9d0``.  Production databases may therefore have either set of schema changes while reporting the same Alembic ancestry.  The upgrade below is intentionally idempotent and creates whichever pieces are missing. |
 | `b2c3d4e5f6a7` | `a1b2c3d4e5f6` | `b2c3d4e5f6a7_payment_amounts.py` | payment tender amounts |
+| `b5c6d7e8f901` | `f4a5b6c7d8e9` | `b5c6d7e8f901_inventory_finance.py` | Inventory-linked cash count and pending customer debt review.  Revision ID: b5c6d7e8f901 Revises: f4a5b6c7d8e9 |
 | `b8c9d0e1f2a3` | `a7b8c9d0e1f2` | `b8c9d0e1f2a3_order_suborders.py` | Add persistent cashier sub-orders awaiting server validation. |
 | `ba5a5a1f0001` | `d1e2f3a4b5c6` | `ba5a5a1f0001_saas_governance.py` | Independent bar and owner administrative governance (no data backfill). |
 | `c1d2e3f4a5b6` | `ba5a5a1f0001` | `c1d2e3f4a5b6_inventory_cashier_assignments.py` | Add optional cashier-to-shift attribution for V2 inventories.  Legacy inventory documents remain unchanged; only new V2 inventories get assignment rows. No payment, sales or stock records are rewritten. |
@@ -146,10 +147,21 @@ erDiagram
     users ||--o{ inventory_approvals : "decided_by_id"
     users ||--o{ inventory_approvals : "submitted_by_id"
     users ||--o{ inventory_cashier_assignments : "assigned_by_id"
+    bars ||--o{ inventory_cash_reconciliations : "bar_id"
+    cash_sessions ||--o{ inventory_cash_reconciliations : "bar_id, cash_session_id"
+    inventories ||--o{ inventory_cash_reconciliations : "bar_id, inventory_id"
+    users ||--o{ inventory_cash_reconciliations : "counted_by_id"
     bars ||--o{ inventory_cashier_assignments : "bar_id"
     employee_shifts ||--o{ inventory_cashier_assignments : "bar_id, cashier_shift_id"
     inventories ||--o{ inventory_cashier_assignments : "bar_id, inventory_id"
     users ||--o{ inventory_cashier_assignments : "cashier_user_id"
+    bars ||--o{ inventory_debt_requests : "bar_id"
+    customers ||--o{ inventory_debt_requests : "bar_id, customer_id"
+    inventories ||--o{ inventory_debt_requests : "bar_id, inventory_id"
+    customer_ledger_entries ||--o{ inventory_debt_requests : "bar_id, ledger_entry_id"
+    orders ||--o{ inventory_debt_requests : "bar_id, order_id"
+    users ||--o{ inventory_debt_requests : "decided_by_id"
+    users ||--o{ inventory_debt_requests : "requested_by_id"
     bars ||--o{ inventory_line_count_states : "bar_id"
     inventory_lines ||--o{ inventory_line_count_states : "bar_id, inventory_line_id"
     users ||--o{ inventory_line_count_states : "counted_by_id"
@@ -334,11 +346,22 @@ erDiagram
 | `inventory_approvals` | `—` | `bar_id, inventory_id` | `inventories.bar_id, inventories.id` | `RESTRICT` |
 | `inventory_approvals` | `—` | `decided_by_id` | `users.id` | `RESTRICT` |
 | `inventory_approvals` | `—` | `submitted_by_id` | `users.id` | `RESTRICT` |
+| `inventory_cash_reconciliations` | `—` | `bar_id` | `bars.id` | `RESTRICT` |
+| `inventory_cash_reconciliations` | `—` | `bar_id, cash_session_id` | `cash_sessions.bar_id, cash_sessions.id` | `RESTRICT` |
+| `inventory_cash_reconciliations` | `—` | `bar_id, inventory_id` | `inventories.bar_id, inventories.id` | `RESTRICT` |
+| `inventory_cash_reconciliations` | `—` | `counted_by_id` | `users.id` | `RESTRICT` |
 | `inventory_cashier_assignments` | `—` | `assigned_by_id` | `users.id` | `RESTRICT` |
 | `inventory_cashier_assignments` | `—` | `bar_id` | `bars.id` | `RESTRICT` |
 | `inventory_cashier_assignments` | `—` | `bar_id, cashier_shift_id` | `employee_shifts.bar_id, employee_shifts.id` | `RESTRICT` |
 | `inventory_cashier_assignments` | `—` | `bar_id, inventory_id` | `inventories.bar_id, inventories.id` | `RESTRICT` |
 | `inventory_cashier_assignments` | `—` | `cashier_user_id` | `users.id` | `RESTRICT` |
+| `inventory_debt_requests` | `—` | `bar_id` | `bars.id` | `RESTRICT` |
+| `inventory_debt_requests` | `—` | `bar_id, customer_id` | `customers.bar_id, customers.id` | `RESTRICT` |
+| `inventory_debt_requests` | `—` | `bar_id, inventory_id` | `inventories.bar_id, inventories.id` | `RESTRICT` |
+| `inventory_debt_requests` | `—` | `bar_id, ledger_entry_id` | `customer_ledger_entries.bar_id, customer_ledger_entries.id` | `RESTRICT` |
+| `inventory_debt_requests` | `—` | `bar_id, order_id` | `orders.bar_id, orders.id` | `RESTRICT` |
+| `inventory_debt_requests` | `—` | `decided_by_id` | `users.id` | `RESTRICT` |
+| `inventory_debt_requests` | `—` | `requested_by_id` | `users.id` | `RESTRICT` |
 | `inventory_line_count_states` | `—` | `bar_id` | `bars.id` | `RESTRICT` |
 | `inventory_line_count_states` | `—` | `bar_id, inventory_line_id` | `inventory_lines.bar_id, inventory_lines.id` | `RESTRICT` |
 | `inventory_line_count_states` | `—` | `counted_by_id` | `users.id` | `RESTRICT` |
@@ -1019,6 +1042,37 @@ erDiagram
 - INDEX `ix_inventory_approvals_bar_id` : `bar_id`.
 - INDEX `ix_inventory_approvals_status` : `bar_id, status, submitted_at`.
 
+
+### `inventory_cash_reconciliations`
+
+| Colonne | Type | NULL | PK | Default ORM | Default serveur | Calcul |
+| --- | --- | --- | --- | --- | --- | --- |
+| `id` | MySQL `BIGINT` / SQLite `INTEGER` | non | oui | — | — | — |
+| `inventory_id` | MySQL `BIGINT` / SQLite `INTEGER` | non | non | — | — | — |
+| `cash_session_id` | MySQL `BIGINT` / SQLite `INTEGER` | non | non | — | — | — |
+| `counted_amount` | NUMERIC(19, 4) | non | non | — | — | — |
+| `expected_amount` | NUMERIC(19, 4) | non | non | — | — | — |
+| `opening_amount` | NUMERIC(19, 4) | non | non | — | — | — |
+| `difference_amount` | NUMERIC(19, 4) | non | non | — | — | — |
+| `reason` | VARCHAR(500) | oui | non | — | — | — |
+| `counted_by_id` | MySQL `BIGINT` / SQLite `INTEGER` | non | non | — | — | — |
+| `counted_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | non | non | utcnow | — | — |
+| `bar_id` | MySQL `BIGINT` / SQLite `INTEGER` | non | non | — | — | — |
+| `created_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | non | non | utcnow | — | — |
+| `updated_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | non | non | utcnow | — | — |
+
+- PK : `id`.
+- CHECK `ck_inventory_cash_check_nonnegative` : `counted_amount >= 0 AND opening_amount >= 0`.
+- FK `—` : `bar_id` → `bars.id` ; ON DELETE `RESTRICT`.
+- FK `—` : `bar_id, cash_session_id` → `cash_sessions.bar_id, cash_sessions.id` ; ON DELETE `RESTRICT`.
+- FK `—` : `bar_id, inventory_id` → `inventories.bar_id, inventories.id` ; ON DELETE `RESTRICT`.
+- FK `—` : `counted_by_id` → `users.id` ; ON DELETE `RESTRICT`.
+- UNIQUE `uq_inventory_cash_check` : `bar_id, inventory_id`.
+- UNIQUE `uq_inventory_cash_reconciliations_bar_id_id` : `bar_id, id`.
+- INDEX `ix_inventory_cash_check_session` : `bar_id, cash_session_id`.
+- INDEX `ix_inventory_cash_reconciliations_bar_created` : `bar_id, created_at, id`.
+- INDEX `ix_inventory_cash_reconciliations_bar_id` : `bar_id`.
+
 ### `inventory_cashier_assignments`
 
 | Colonne | Type | NULL | PK | Default ORM | Default serveur | Calcul |
@@ -1047,6 +1101,44 @@ erDiagram
 - INDEX `ix_inventory_cashier_assignments_bar_id` : `bar_id`.
 - INDEX `ix_inventory_cashier_shift` : `bar_id, cashier_shift_id, inventory_id`.
 - INDEX `ix_inventory_cashier_user` : `bar_id, cashier_user_id, inventory_id`.
+
+
+### `inventory_debt_requests`
+
+| Colonne | Type | NULL | PK | Default ORM | Default serveur | Calcul |
+| --- | --- | --- | --- | --- | --- | --- |
+| `id` | MySQL `BIGINT` / SQLite `INTEGER` | non | oui | — | — | — |
+| `inventory_id` | MySQL `BIGINT` / SQLite `INTEGER` | non | non | — | — | — |
+| `customer_id` | MySQL `BIGINT` / SQLite `INTEGER` | non | non | — | — | — |
+| `order_id` | MySQL `BIGINT` / SQLite `INTEGER` | oui | non | — | — | — |
+| `amount` | NUMERIC(19, 4) | non | non | — | — | — |
+| `request_nonce` | VARCHAR(48) | non | non | — | — | — |
+| `reason` | VARCHAR(500) | non | non | — | — | — |
+| `status` | VARCHAR(16) | non | non | 'PENDING' | — | — |
+| `ledger_entry_id` | MySQL `BIGINT` / SQLite `INTEGER` | oui | non | — | — | — |
+| `requested_by_id` | MySQL `BIGINT` / SQLite `INTEGER` | non | non | — | — | — |
+| `requested_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | non | non | utcnow | — | — |
+| `decided_by_id` | MySQL `BIGINT` / SQLite `INTEGER` | oui | non | — | — | — |
+| `decided_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | oui | non | — | — | — |
+| `decision_reason` | VARCHAR(500) | oui | non | — | — | — |
+| `bar_id` | MySQL `BIGINT` / SQLite `INTEGER` | non | non | — | — | — |
+| `created_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | non | non | utcnow | — | — |
+| `updated_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | non | non | utcnow | — | — |
+
+- PK : `id`.
+- CHECK `ck_inventory_debt_request_values` : `amount > 0 AND status IN ('PENDING','APPROVED','REJECTED')`.
+- FK `—` : `bar_id` → `bars.id` ; ON DELETE `RESTRICT`.
+- FK `—` : `bar_id, customer_id` → `customers.bar_id, customers.id` ; ON DELETE `RESTRICT`.
+- FK `—` : `bar_id, inventory_id` → `inventories.bar_id, inventories.id` ; ON DELETE `RESTRICT`.
+- FK `—` : `bar_id, ledger_entry_id` → `customer_ledger_entries.bar_id, customer_ledger_entries.id` ; ON DELETE `RESTRICT`.
+- FK `—` : `bar_id, order_id` → `orders.bar_id, orders.id` ; ON DELETE `RESTRICT`.
+- FK `—` : `decided_by_id` → `users.id` ; ON DELETE `RESTRICT`.
+- FK `—` : `requested_by_id` → `users.id` ; ON DELETE `RESTRICT`.
+- UNIQUE `uq_inventory_debt_request_nonce` : `bar_id, request_nonce`.
+- UNIQUE `uq_inventory_debt_requests_bar_id_id` : `bar_id, id`.
+- INDEX `ix_inventory_debt_requests_bar_created` : `bar_id, created_at, id`.
+- INDEX `ix_inventory_debt_requests_bar_id` : `bar_id`.
+- INDEX `ix_inventory_debt_requests_inventory` : `bar_id, inventory_id, status`.
 
 ### `inventory_line_count_states`
 
