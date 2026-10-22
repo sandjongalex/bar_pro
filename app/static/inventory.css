@@ -271,3 +271,40 @@
   .inventory-table-card .inventory-table tbody tr td:nth-child(9) {grid-column:1/-1;}
   .inventory-table-card .inventory-table tbody td {font-size:.84rem;}
 }
+
+
+/* Embedded inventory cash/debt review; no horizontal document overflow. */
+.inv-finance { min-width:0; max-width:100%; overflow-wrap:anywhere; box-sizing:border-box; }
+.inv-finance h2 { font-size:1.35rem; }
+.inv-finance-grid { display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px; }
+.inv-finance-metric { background:#f7f9fc;border:1px solid #e0e7f0;border-radius:12px;padding:14px;min-width:0; }
+.inv-finance-metric span,.inv-finance-metric small { display:block;color:#526177;font-size:.8rem;line-height:1.4;overflow-wrap:anywhere; }
+.inv-finance-metric strong { display:block;font-size:1.32rem;font-weight:750;margin:7px 0;font-variant-numeric:tabular-nums;overflow-wrap:anywhere; }
+.inv-finance-negative { background:#fff5f4;border-color:#ffd4cf; }
+.inv-finance-negative strong { color:#a02020; }
+.inv-finance-positive { background:#f0faf5;border-color:#bee6d1; }
+.inv-finance-positive strong { color:#126e43; }
+.inv-finance-actions { display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px; }
+.inv-finance-action { min-width:0; background:var(--bs-body-bg,#fff);border:1px solid #dbe3eb;border-radius:12px;padding:12px;align-self:start; }
+.inv-finance-action summary { cursor:pointer;overflow-wrap:anywhere; }
+.inv-finance-action summary:focus-visible { outline:2px solid #3180d1;outline-offset:4px; }
+.inv-finance-action:has(form[name="cash_form"]) { grid-column:1/-1; }
+.inv-finance-form { display:grid;grid-template-columns:repeat(2,minmax(0,1fr));align-items:end;gap:12px; }
+.inv-finance-form>div { min-width:0; }
+.inv-finance-form input,.inv-finance-form select { min-width:0;max-width:100%; }
+.inv-finance-form>.btn { justify-self:start;white-space:normal; }
+.inv-finance-request { display:flex;justify-content:space-between;gap:14px;align-items:flex-start;padding:12px 0;border-bottom:1px solid #e2e7ee;min-width:0; }
+.inv-finance-request>div { min-width:0; }
+.inv-finance-request form { min-width:0;max-width:100%; }
+.inv-finance-requests .form-control { width:175px;max-width:100%; }
+@media(max-width:768px) {
+  .inv-finance-actions,.inv-finance-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .inv-finance-form { grid-template-columns:minmax(0,1fr); }
+  .inv-finance-request { flex-wrap:wrap; }
+}
+@media(max-width:520px) {
+  .inv-finance-actions,.inv-finance-grid { grid-template-columns:minmax(0,1fr); }
+  .inv-finance-metric { padding:12px; }
+  .inv-finance-form>.btn { width:100%; }
+  .inv-finance-requests .form-control { width:100%; }
+}
