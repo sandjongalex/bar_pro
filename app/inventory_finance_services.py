@@ -7,6 +7,8 @@ from decimal import Decimal
 from sqlalchemy import select
 
 from app.audit import record
+from app.inventory_assignment_models import InventoryCashierAssignment
+from app.shift_service import get_active_shift_for_user
 from app.cash_services import cash_service
 from app.customer_services import customer_service
 from app.expense_services import expense_service
@@ -14,7 +16,7 @@ from app.extensions import db
 from app.inventory_finance_models import InventoryCashReconciliation, InventoryDebtRequest
 from app.inventory_services import inventory_service
 from app.models import (
-    AuditLog, CashSession, Customer, ExpenseCategory, Order, User, utcnow,
+    CashSession, Customer, ExpenseCategory, Order, User, utcnow,
 )
 from app.permissions import permissions
 from app.validation import number, required_text
@@ -25,6 +27,15 @@ def _check(actor, bar_id, inventory_id, *, write=False):
     inv = inventory_service.get(actor, bar_id, inventory_id, for_count=write)
     if write and inv.status != "DRAFT":
         raise ValueError("INVENTORY_IMMUTABLE")
+    if write and inventory_service._is_cashier(actor, bar_id):
+        assignment = db.session.scalar(select(InventoryCashierAssignment).where(
+            InventoryCashierAssignment.bar_id == bar_id,
+            InventoryCashierAssignment.inventory_id == inv.id,
+            InventoryCashierAssignment.cashier_user_id == actor.id,
+        ))
+        active = get_active_shift_for_user(actor.id, bar_id)
+        if assignment is None or active is None or active.id != assignment.cashier_shift_id:
+            raise PermissionError("INVENTORY_SHIFT_CLOSED")
     return inv
 
 
@@ -56,12 +67,13 @@ def view(actor, bar_id, inventory_id):
     inv = _check(actor, bar_id, inventory_id)
     saved = _saved(bar_id, inv.id)
     live_session = _active_cash(bar_id) if inv.status == "DRAFT" else None
-    current = live_session or (
-        db.session.scalar(select(CashSession).where(
-            CashSession.bar_id == bar_id, CashSession.id == saved.cash_session_id,
-        )) if saved else None
-    )
-    live_expected = cash_service.expected(current) if current and current.status == "OPEN" else None
+    saved_session = db.session.scalar(select(CashSession).where(
+        CashSession.bar_id == bar_id, CashSession.id == saved.cash_session_id,
+    )) if saved else None
+    # A closed historic count must always show its original session identity.
+    current = saved_session or live_session
+    live_expected = (cash_service.expected(live_session)
+                     if live_session and live_session.status == "OPEN" else None)
     rows = db.session.execute(
         select(InventoryDebtRequest, Customer)
         .join(Customer, (Customer.id == InventoryDebtRequest.customer_id)
@@ -97,11 +109,15 @@ def view(actor, bar_id, inventory_id):
         "can_decide_debts": can_decide,
         "saved": saved,
         "session": current,
-        "session_open": current is not None and current.status == "OPEN",
+        "session_open": live_session is not None and (
+            saved is None or live_session.id == saved.cash_session_id),
         "live_expected": live_expected,
-        "changed_since_count": saved is not None and live_expected is not None
-            and (current.id != saved.cash_session_id
-                 or Decimal(live_expected) != Decimal(saved.expected_amount)),
+        "changed_since_count": saved is not None and (
+            live_session is not None and (
+                live_session.id != saved.cash_session_id
+                or Decimal(live_expected) != Decimal(saved.expected_amount)
+            )
+        ),
         "categories": list(db.session.scalars(select(ExpenseCategory).where(
             ExpenseCategory.bar_id == bar_id, ExpenseCategory.is_active.is_(True),
         ).order_by(ExpenseCategory.name)).all()),
