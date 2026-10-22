@@ -61,6 +61,7 @@ def create_app(config_name: str | None = None, test_config: dict[str, Any] | Non
     from app import inventory_assignment_models  # noqa: F401 - optional V2 cashier attribution metadata
     from app import inventory_count_models  # noqa: F401 - V2 physical count line metadata
     from app import inventory_approval_models  # noqa: F401 - inventory V2 review and ceilings
+    from app import inventory_finance_models  # noqa: F401 - physical cash counts and debt review
     from app import change_voucher_models  # noqa: F401 - customer change-voucher liability metadata
     from app import saas_governance_models  # noqa: F401 - administrative statuses
     _register_blueprints(app)
