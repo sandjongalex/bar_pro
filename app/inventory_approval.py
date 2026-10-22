@@ -265,6 +265,8 @@ def decide(actor, bar_id, inventory_id, *, decision, reason):
         return review
     if decision != "approve":
         raise ValueError("INVALID_ACTION")
+    from app.inventory_finance_services import assert_no_pending_debts
+    assert_no_pending_debts(bar_id, inv.id)
     summary, total = _ready(inv)
     bar = db.session.get(Bar, bar_id)
     if actor.category != "OWNER" or bar.owner_id != actor.id:
