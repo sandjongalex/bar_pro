@@ -51,6 +51,7 @@ def upgrade():
         sa.Column("customer_id", ident, nullable=False),
         sa.Column("order_id", ident),
         sa.Column("amount", money, nullable=False),
+        sa.Column("request_nonce", sa.String(48), nullable=False),
         sa.Column("reason", sa.String(500), nullable=False),
         sa.Column("status", sa.String(16), nullable=False),
         sa.Column("ledger_entry_id", ident),
@@ -69,6 +70,7 @@ def upgrade():
         sa.ForeignKeyConstraint(["requested_by_id"], ["users.id"], ondelete="RESTRICT"),
         sa.ForeignKeyConstraint(["decided_by_id"], ["users.id"], ondelete="RESTRICT"),
         sa.UniqueConstraint("bar_id", "id", name="uq_inventory_debt_requests_bar_id_id"),
+        sa.UniqueConstraint("bar_id", "request_nonce", name="uq_inventory_debt_request_nonce"),
         sa.CheckConstraint("amount > 0 AND status IN ('PENDING','APPROVED','REJECTED')", name="ck_inventory_debt_request_values"),
     )
     op.create_index("ix_inventory_debt_requests_bar_created", "inventory_debt_requests", ["bar_id", "created_at", "id"])
