@@ -254,7 +254,7 @@ def decide_debt(actor, bar_id, inventory_id, request_id, *, decision, reason):
         else:
             entry = customer_service.record_manual_debt(
                 actor, bar_id, req.customer_id, reference, req.amount,
-                f"Inventaire {inv.reference} : {req.reason} / {note}",
+                f"Inventaire {inv.reference} : {req.reason[:220]} / {note[:180]}",
             )
         db.session.flush()
         req.ledger_entry_id = entry.id
