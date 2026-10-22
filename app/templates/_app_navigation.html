@@ -40,6 +40,11 @@
       <a class="nav-link {% if endpoint.startswith('cashier_history_web.') %}active{% endif %}" href="{{ url_for('cashier_history_web.history', bar_id=nav_bar_id) }}">
         <span class="nav-icon">H</span><span class="nav-link-text">Historique</span>
       </a>
+      {% if nav_can('inventory.read', nav_bar_id) %}
+      <a class="nav-link {% if endpoint.startswith('inventories.') or endpoint.startswith('inventories_finance.') %}active{% endif %}" href="{{ url_for('inventories.listing', bar_id=nav_bar_id) }}">
+        <span class="nav-icon">▦</span><span class="nav-link-text">Mes inventaires</span>
+      </a>
+      {% endif %}
       <a class="nav-link {% if endpoint.startswith('cashier_web.') %}active{% endif %}" href="{{ url_for('cashier_web.session', bar_id=nav_bar_id) }}">
         <span class="nav-icon">■</span><span class="nav-link-text">Session / clôture</span>
       </a>
