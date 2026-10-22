@@ -15,6 +15,9 @@
   <div class="cashier-dashboard-actions">
     <a class="btn btn-primary" href="{{ url_for('checkout_web.checkout', bar_id=bar.id) }}">Ouvrir la caisse</a>
     <a class="btn btn-outline-primary" href="{{ url_for('expenses_web.manage', bar_id=bar.id) }}">Dépenses</a>
+    {% if nav_can('inventory.read', bar.id) %}
+    <a class="btn btn-light border" href="{{ url_for('inventories.listing', bar_id=bar.id) }}">Mes inventaires</a>
+    {% endif %}
     <a class="btn btn-light border" href="{{ url_for('shifts_web.manage', bar_id=bar.id) }}">Personnel en service</a>
   </div>
 </section>

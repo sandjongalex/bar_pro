@@ -9,8 +9,25 @@
     <h1>{% if session %}Caisse ouverte{% elif closed_session %}Caisse clôturée{% else %}Ouvrir ma caisse{% endif %}</h1>
     <p>{% if session %}Contrôlez la caisse attendue, comptez les espèces réellement présentes puis clôturez votre service.{% elif closed_session %}La clôture est enregistrée. Le récapitulatif ci-dessous reste la référence de ce service.{% else %}Saisissez le fonds de caisse disponible au début du service avant de traiter une commande.{% endif %}</p>
   </div>
-  {% if session %}<a class="btn btn-primary" href="{{ url_for('checkout_web.checkout', bar_id=bar.id) }}">Voir les commandes →</a>{% endif %}
+  <div class="d-flex flex-wrap gap-2">
+    {% if session %}<a class="btn btn-primary" href="{{ url_for('checkout_web.checkout', bar_id=bar.id) }}">Voir les commandes →</a>{% endif %}
+    {% if nav_role(bar.id) == 'CASHIER' and nav_can('inventory.read', bar.id) %}
+    <a class="btn btn-outline-primary" href="{{ url_for('inventories.listing', bar_id=bar.id) }}">Mes inventaires</a>
+    {% endif %}
+  </div>
 </section>
+
+{% if session and nav_role(bar.id) == 'CASHIER' and nav_can('inventory.create', bar.id) %}
+<section class="panel-card p-3 p-md-4 mt-3" aria-label="Inventaire du service">
+  <div class="d-flex flex-column flex-sm-row align-items-sm-center justify-content-between gap-3">
+    <div>
+      <h2 class="h5 mb-1">Inventaire de mon service</h2>
+      <p class="mb-0 text-secondary small">Comptez les boissons pendant votre service et soumettez le résultat au propriétaire. Vous ne pouvez pas valider seule les écarts de stock.</p>
+    </div>
+    <a class="btn btn-primary flex-shrink-0" href="{{ url_for('inventories.new', bar_id=bar.id) }}">Démarrer mon inventaire</a>
+  </div>
+</section>
+{% endif %}
 
 {% with messages = get_flashed_messages(with_categories=true) %}
   {% for category, message in messages %}<div class="alert alert-{{ category }} mt-3" role="alert">{{ message }}</div>{% endfor %}

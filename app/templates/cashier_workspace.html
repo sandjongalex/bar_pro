@@ -43,6 +43,9 @@
     <button class="btn btn-primary" id="openQuickSale" type="button">＋ Vente comptoir</button>
     <a class="btn btn-outline-primary" href="{{ url_for('cashier_handovers_web.manage', bar_id=bar.id) }}">Remises</a>
     <a class="btn btn-light border" href="{{ url_for('cashier_returns_web.manage', bar_id=bar.id) }}">Retours</a>
+    {% if nav_can('inventory.read', bar.id) %}
+    <a class="btn btn-light border" href="{{ url_for('inventories.listing', bar_id=bar.id) }}">Inventaires</a>
+    {% endif %}
     <a class="btn btn-light border" href="{{ url_for('cashier_web.session', bar_id=bar.id) }}">Clôture</a>
   </div>
 </section>
