@@ -29,5 +29,6 @@ body{font-family:Arial,sans-serif;color:#111;margin:28px;font-size:12px}h1{margi
 <div><span>Écart caisse</span><strong class="{% if inventory.cash_shortage_amount|float > 0 %}danger{% endif %}">{% if inventory.cash_shortage_amount|float > 0 %}-{{ "{:,.0f}".format(inventory.cash_shortage_amount|float) }}{% else %}+{{ "{:,.0f}".format(inventory.cash_surplus_amount|float) }}{% endif %} {{ bar.currency }}</strong></div>
 </div>
 {% endif %}
+{% include "inventory_finance_print.html" %}
 <div class="note"><strong>Note générale :</strong> {{ inventory.reason }}</div>
 </body></html>
