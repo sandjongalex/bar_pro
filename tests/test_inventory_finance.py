@@ -181,3 +181,79 @@ def test_html_inventory_views_show_financial_panel_and_csrf(env):
     assert "Ajouter une dépense oubliée" in response.text
     assert "Signaler une dette oubliée" in response.text
     assert "Rapprochement financier" in response.text
+
+
+def test_duplicate_debt_request_fails_closed(env):
+    inv = setup_inventory(env)
+    cust = customer(env)
+    args = dict(customer_id=cust.id, order_id=None,
+                amount="350", reason="Dette oubliée",
+                nonce="sameFormNonce1234")
+    request_debt(env[1], env[2].id, inv.id, **args)
+    db.session.commit()
+    with pytest.raises(ValueError, match="INVENTORY_DEBT_DUPLICATE"):
+        request_debt(env[1], env[2].id, inv.id, **args)
+    db.session.rollback()
+    assert db.session.query(InventoryDebtRequest).count() == 1
+
+
+def test_assigned_cashier_can_report_debt_but_owner_must_decide(env):
+    from test_inventory_v2_approval import make_count
+    cashier, inv = make_count(env, reference="FINANCE-V2-CASHIER",
+                              quantity="10")
+    client_record = customer(env)
+    debt = request_debt(cashier, env[2].id, inv.id,
+                        customer_id=client_record.id, order_id=None,
+                        amount="450", reason="Client doit régler demain")
+    db.session.commit()
+    with pytest.raises(PermissionError):
+        decide_debt(cashier, env[2].id, inv.id, debt.id,
+                    decision="approve", reason="Non autorisé")
+    db.session.rollback()
+    assert debt.status == "PENDING"
+    decide_debt(env[1], env[2].id, inv.id, debt.id,
+                decision="reject", reason="Le client a payé entre-temps")
+    db.session.commit()
+    assert debt.status == "REJECTED"
+    assert customer_service.manual_debt_balance(env[2].id, client_record.id) == 0
+    assert balance(env) == 10
+
+
+def test_cashier_debt_permission_scope_is_tied_to_own_inventory(env):
+    from test_inventory_v2_approval import make_count
+    cashier, first = make_count(env, reference="FINANCE-V2-SCOPE")
+    other = setup_inventory(env, reference="FINANCE-OTHER")
+    client_record = customer(env)
+    with pytest.raises(LookupError, match="NOT_FOUND"):
+        request_debt(cashier, env[2].id, other.id,
+                     customer_id=client_record.id, order_id=None,
+                     amount="30", reason="Pas mon inventaire")
+    db.session.rollback()
+
+
+def test_owner_can_enter_cash_count_via_inventory_page(env):
+    inv = setup_inventory(env)
+    drawer(env)
+    client = env[0].test_client()
+    import re
+    response = client.get("/login")
+    token = re.search(r'name=["\\']csrf_token["\\']\\s+value=["\\']([^"\\']+)["\\']',
+                      response.text)
+    assert token
+    assert client.post("/login", data={
+        "email": env[1].email, "password": "test-password",
+        "csrf_token": token.group(1),
+    }).status_code == 302
+    form = client.get(f"/bars/{env[2].id}/inventories/{inv.id}")
+    assert form.status_code == 200
+    csrf = re.search(r'name=["\\']csrf_token["\\']\\s+value=["\\']([^"\\']+)["\\']', form.text).group(1)
+    result = client.post(
+        f"/bars/{env[2].id}/inventories/{inv.id}/finance",
+        data={"csrf_token": csrf, "action": "count_cash",
+              "counted_amount": "900", "reason": "100 FCFA manquants"},
+    )
+    assert result.status_code == 302
+    assert db.session.scalar(select(InventoryCashReconciliation.counted_amount)) == 900
+    html = client.get(f"/bars/{env[2].id}/inventories/{inv.id}").text
+    assert "Manquant de caisse" in html
+    assert "100" in html
