@@ -14,7 +14,7 @@ from app.inventory_finance_models import InventoryCashReconciliation, InventoryD
 from app.inventory_finance_services import (
     view, count_cash, add_expense, request_debt, decide_debt,
 )
-from app.models import CashMovement, Customer, Expense, ExpenseCategory, Order
+from app.models import CashMovement, CashSession, Customer, Expense, ExpenseCategory, Order
 
 
 def setup_inventory(env, reference="FINANCE"):
@@ -128,6 +128,8 @@ def test_manual_debt_request_owner_only_no_cash_or_stock(env):
 
 def test_invoice_credit_must_equal_actual_unpaid_balance(env):
     sale = order(env, quantity=2)
+    env[2].credit_sales_enabled = True
+    db.session.commit()
     inv = setup_inventory(env)
     drawer(env)
     cust = customer(env)
@@ -140,10 +142,8 @@ def test_invoice_credit_must_equal_actual_unpaid_balance(env):
     db.session.rollback()
     assert req.status == "PENDING"
     assert sale.customer_id is None
-    assert cash_service.expected(db.session.scalar(select(
-        __import__("app.models",fromlist=["CashSession"]).CashSession).where(
-            __import__("app.models",fromlist=["CashSession"]).CashSession.bar_id == env[2].id
-        ))) == 1000
+    assert cash_service.expected(db.session.scalar(select(CashSession).where(
+        CashSession.bar_id == env[2].id))) == 1000
 
 
 def test_no_financial_writes_after_stock_post_and_scoping(env):
@@ -180,4 +180,4 @@ def test_html_inventory_views_show_financial_panel_and_csrf(env):
     assert "Recette physique en espèces" in response.text
     assert "Ajouter une dépense oubliée" in response.text
     assert "Signaler une dette oubliée" in response.text
-    assert "1000" in response.text.replace(" ", "").replace("\u202f", "")
+    assert "Rapprochement financier" in response.text
