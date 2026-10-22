@@ -9,6 +9,7 @@ on:
       - feature/inventory-v2-approval
       - feature/inventory-v2-reporting
       - feature/inventory-v2-hardening-responsive
+      - feature/inventory-financial-reconciliation
   pull_request:
     branches:
       - main
@@ -40,7 +41,7 @@ jobs:
       - name: Run inventory V2 and legacy regressions
         env:
           SECRET_KEY: test-only-workflow-value
-        run: python -m pytest tests/test_inventory_v2_responsive.py tests/test_inventory_v2_reporting.py tests/test_inventory_v2_approval.py tests/test_inventory_v2_reconciliation.py tests/test_inventory_v2_foundation.py tests/test_inventory_v2_counting.py tests/test_inventories.py tests/test_schema.py -q
+        run: python -m pytest tests/test_inventory_finance.py tests/test_inventory_v2_responsive.py tests/test_inventory_v2_reporting.py tests/test_inventory_v2_approval.py tests/test_inventory_v2_reconciliation.py tests/test_inventory_v2_foundation.py tests/test_inventory_v2_counting.py tests/test_inventories.py tests/test_schema.py -q
       - name: Run complete regression suite
         env:
           SECRET_KEY: test-only-workflow-value
