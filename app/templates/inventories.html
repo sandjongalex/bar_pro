@@ -4,7 +4,7 @@
 {% block content %}
 <section class="inventory-hero">
   <div>
-    <a class="bar-back" href="{{ url_for('bars.web_detail', bar_id=bar.id) }}">← Retour à {{ bar.name }}</a>
+    <a class="bar-back" href="{{ url_for('cashier_web.session', bar_id=bar.id) if nav_role(bar_id) == 'CASHIER' else url_for('bars.web_detail', bar_id=bar.id) }}">← {{ 'Ma session de caisse' if nav_role(bar_id) == 'CASHIER' else 'Retour à ' ~ bar.name }}</a>
     <p class="eyebrow mt-3 mb-2">Contrôle physique</p>
     <h1>Inventaires</h1>
     <p>Retrouvez les comptages en cours, les demandes de recomptage et les rapports de stock validés. Les rapprochements financiers historiques V1 sont présentés séparément des inventaires V2.</p>
