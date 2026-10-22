@@ -29,6 +29,7 @@ from app.change_vouchers_web import bp as change_vouchers_web_bp
 from app.customers_web import bp as customers_web_bp
 from app.expenses_web import bp as expenses_web_bp
 from app.inventories import api_inventories_bp, inventories_bp
+from app.inventory_finance_web import bp as inventories_finance_bp
 from app.live_orders_web import bp as live_orders_web_bp
 from app.order_edit_web import bp as order_edit_web_bp
 from app.unpaid_orders_web import bp as unpaid_orders_web_bp
@@ -61,6 +62,7 @@ def create_app(config_name: str | None = None, test_config: dict[str, Any] | Non
     from app import inventory_assignment_models  # noqa: F401 - optional V2 cashier attribution metadata
     from app import inventory_count_models  # noqa: F401 - V2 physical count line metadata
     from app import inventory_approval_models  # noqa: F401 - inventory V2 review and ceilings
+    from app import inventory_finance_models  # noqa: F401 - physical cash counts and debt review
     from app import change_voucher_models  # noqa: F401 - customer change-voucher liability metadata
     from app import saas_governance_models  # noqa: F401 - administrative statuses
     _register_blueprints(app)
@@ -170,6 +172,7 @@ def _register_blueprints(app: Flask) -> None:
     app.register_blueprint(purchases_bp)
     app.register_blueprint(supplier_payments_bp)
     app.register_blueprint(inventories_bp)
+    app.register_blueprint(inventories_finance_bp)
     app.register_blueprint(api_inventories_bp)
     app.register_blueprint(live_orders_web_bp)
     app.register_blueprint(order_edit_web_bp)

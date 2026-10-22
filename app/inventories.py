@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+import secrets
 from decimal import Decimal
 from zoneinfo import ZoneInfo
 
@@ -20,6 +21,7 @@ from app.inventory_services import inventory_service
 from app.inventory_reconciliation import inventory_live_reconciliation
 from app.inventory_approval import evaluation, policy_data, update_policy, submit, decide
 from app.inventory_v2_reports import inventory_v2_report
+from app.inventory_finance_services import view as finance_view, count_cash, add_expense, request_debt, decide_debt
 from app.inventory_approval_models import InventoryApproval
 from app.models import Bar, Inventory, InventoryLine, Product
 from app.permissions import permissions
@@ -52,6 +54,15 @@ def _message(code):
         "INVENTORY_COUNT_INCOMPLETE": "Tous les produits doivent être comptés avant soumission.",
         "INVENTORY_JUSTIFICATION_REQUIRED": "Justifiez chaque écart physique avant soumission.",
         "INVENTORY_REVIEW_STATE": "Cet inventaire ne se trouve pas dans un état autorisant cette action.",
+        "INVENTORY_FINANCE_DEBTS_PENDING": "Traitez les demandes de dette avant validation.",
+        "INVENTORY_CASH_SESSION_REQUIRED": "Aucune session de caisse ouverte.",
+        "INVENTORY_DEBT_DUPLICATE": "Cette demande de dette a déjà été envoyée.",
+        "INVENTORY_CASH_REASON_REQUIRED": "Justifiez la différence de caisse.",
+        "INVENTORY_CASH_SESSION_MISMATCH": "La session de caisse a changé.",
+        "INVENTORY_DEBT_ALREADY_DECIDED": "Demande déjà traitée.",
+        "INVENTORY_DEBT_ORDER_INVALID": "Facture invalide ou mauvais client.",
+        "INVENTORY_DEBT_AMOUNT_MISMATCH": "Dette différente du solde réel de la facture.",
+        "INVENTORY_EXPENSE_ALREADY_RECORDED": "Dépense déjà enregistrée.",
         "INVENTORY_OWNER_APPROVAL_REQUIRED": "Les plafonds sont dépassés ou il s’agit du premier inventaire : approbation du propriétaire obligatoire.",
         "INVENTORY_SELF_APPROVAL": "La caissière ne peut pas valider son propre inventaire.",
         "INVENTORY_REASON_REQUIRED": "Une justification obligatoire ne doit pas dépasser 400 caractères.",
@@ -370,6 +381,9 @@ def detail(bar_id, inventory_id):
     return render_template(
         "inventory_detail.html",
         inventory=payload(inv),
+        finance=finance_view(current_user, bar_id, inv.id),
+        finance_expense_nonce=secrets.token_hex(12),
+        finance_debt_nonce=secrets.token_hex(12),
         bar=bar,
         bar_id=bar_id,
         can_adjust=can_adjust,
@@ -451,6 +465,9 @@ def v2_count(bar_id, inventory_id):
     return render_template(
         "inventory_count_v2.html",
         inventory=payload(inv),
+        finance=finance_view(current_user, bar_id, inv.id),
+        finance_expense_nonce=secrets.token_hex(12),
+        finance_debt_nonce=secrets.token_hex(12),
         reconciliation=inventory_live_reconciliation(inv),
         approval=evaluation(current_user, bar_id, inv.id),
         can_submit=permissions.evaluate(current_user, "inventory.submit", bar_id).allowed,
@@ -574,7 +591,10 @@ def v2_report(bar_id, inventory_id):
     data = inventory_v2_report(current_user, bar_id, inventory_id)
     bar = db.session.get(Bar, bar_id)
     template = "inventory_v2_print.html" if request.args.get("print") == "1" else "inventory_v2_report.html"
-    return render_template(template, report=data, bar=bar, bar_id=bar_id)
+    return render_template(template, report=data, bar=bar, bar_id=bar_id,
+                           finance=finance_view(current_user, bar_id, inventory_id),
+                           finance_expense_nonce=secrets.token_hex(12),
+                           finance_debt_nonce=secrets.token_hex(12))
 
 
 @api_inventories_bp.get("/<int:inventory_id>/report")
@@ -597,6 +617,7 @@ def printable(bar_id, inventory_id):
     return render_template(
         "inventory_print.html",
         inventory=payload(inventory_service.get(current_user, bar_id, inventory_id)),
+        finance=finance_view(current_user, bar_id, inventory_id),
         bar=bar,
     )
 

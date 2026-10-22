@@ -1,0 +1,137 @@
+{# Inventory cash and debts: read-only after stock posting; V1 and V2 share
+   the same server-authorized actions but never write inventory stock. #}
+<section id="finance-inventory" class="panel-card inv-finance mt-4 p-3 p-md-4" aria-labelledby="inv-finance-title">
+  <div class="d-flex align-items-start justify-content-between gap-3 flex-wrap mb-3">
+    <div>
+      <p class="eyebrow mb-1">Clôture du service</p>
+      <h2 id="inv-finance-title" class="h4 mb-1">Rapprochement financier</h2>
+      <p class="text-secondary mb-0">Saisissez les espèces réellement présentes, corrigez les dépenses oubliées et signalez les dettes. Aucun ajustement de stock ici.</p>
+    </div>
+    {% if finance.pending_debts %}
+      <span class="badge text-bg-warning">{{ finance.pending_debts }} dette(s) en attente</span>
+    {% elif finance.saved %}
+      <span class="badge text-bg-success">Espèces comptées</span>
+    {% else %}
+      <span class="badge text-bg-secondary">Recette non saisie</span>
+    {% endif %}
+  </div>
+
+  {% if finance.session %}
+    <div class="inv-finance-grid">
+      <div class="inv-finance-metric">
+        <span>Session de caisse</span>
+        <strong>{{ finance.session.reference }}</strong>
+        <small>Fonds initial : {{ '{:,.0f}'.format(finance.session.opening_amount|float) }} {{ bar.currency }}</small>
+      </div>
+      <div class="inv-finance-metric">
+        <span>Espèces attendues (journal de caisse)</span>
+        <strong>{{ '{:,.0f}'.format((finance.saved.expected_amount if finance.saved else finance.live_expected)|float) }} {{ bar.currency }}</strong>
+        <small>Fonds initial + encaissements espèces − sorties, remboursements et dépenses en espèces enregistrés</small>
+      </div>
+      <div class="inv-finance-metric">
+        <span>Espèces physiques comptées</span>
+        <strong>{% if finance.saved %}{{ '{:,.0f}'.format(finance.saved.counted_amount|float) }} {{ bar.currency }}{% else %}Non saisies{% endif %}</strong>
+        <small>Billets et pièces présents dans le tiroir, fonds inclus</small>
+      </div>
+      <div class="inv-finance-metric {% if finance.saved and finance.saved.difference_amount < 0 %}inv-finance-negative{% elif finance.saved and finance.saved.difference_amount > 0 %}inv-finance-positive{% endif %}">
+        <span>{% if finance.saved and finance.saved.difference_amount < 0 %}Manquant de caisse{% elif finance.saved and finance.saved.difference_amount > 0 %}Surplus de caisse{% else %}Écart réel de caisse{% endif %}</span>
+        <strong>{% if finance.saved %}{{ '{:,.0f}'.format(finance.saved.difference_amount|abs|float) }} {{ bar.currency }}{% else %}À déterminer{% endif %}</strong>
+        <small>Comptage physique moins solde du tiroir dans BAR_PRO</small>
+      </div>
+    </div>
+    {% if finance.changed_since_count %}
+      <div class="alert alert-warning mt-3 mb-2">De nouveaux mouvements de caisse ont été enregistrés depuis ce comptage (ou la session a changé). Recomptez les espèces et actualisez le relevé avant de clôturer.</div>
+    {% endif %}
+    {% if finance.saved %}
+      <p class="text-secondary small mt-2 mb-0">Relevé enregistré. {% if finance.saved.reason %}Motif : {{ finance.saved.reason }}.{% endif %} Il n'a pas clôturé automatiquement la session de caisse.</p>
+    {% endif %}
+  {% else %}
+    <div class="alert alert-info">Aucune session de caisse ouverte pour cet inventaire. La saisie de recette et les dépenses en espèces seront disponibles après ouverture d'une session. Les dettes peuvent toujours être signalées.</div>
+  {% endif %}
+
+  {% if finance.is_editable %}
+  <div class="inv-finance-actions mt-3">
+    {% if finance.session_open %}
+    <details class="inv-finance-action" open>
+      <summary><strong>Recette physique en espèces</strong></summary>
+      <form method="post" action="{{ url_for('inventories_finance.act',bar_id=bar_id,inventory_id=inventory.id if inventory is defined else report.inventory_id) }}" class="inv-finance-form mt-3">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="action" value="count_cash">
+        <div>
+          <label class="form-label">Espèces comptées ({{ bar.currency }}), fonds de caisse compris</label>
+          <input class="form-control" name="counted_amount" type="number" step="1" min="0" required value="{{ finance.saved.counted_amount|inventory_qty if finance.saved else '' }}" placeholder="Ex. 125000">
+        </div>
+        <div>
+          <label class="form-label">Justification en cas de différence</label>
+          <input class="form-control" name="reason" maxlength="500" value="{{ finance.saved.reason or '' if finance.saved else '' }}" placeholder="Manquant, monnaie, erreur de comptage…">
+        </div>
+        <button class="btn btn-primary" type="submit">Enregistrer la recette physique</button>
+      </form>
+    </details>
+    {% endif %}
+    <details class="inv-finance-action">
+      <summary><strong>Ajouter une dépense oubliée</strong></summary>
+      {% if finance.categories %}
+      <form method="post" action="{{ url_for('inventories_finance.act',bar_id=bar_id,inventory_id=inventory.id if inventory is defined else report.inventory_id) }}" class="inv-finance-form mt-3">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="action" value="expense">
+        <input type="hidden" name="nonce" value="{{ finance_expense_nonce }}">
+        <div><label class="form-label">Catégorie</label><select class="form-select" name="category_id" required>{% for category in finance.categories %}<option value="{{ category.id }}">{{ category.name }}</option>{% endfor %}</select></div>
+        <div><label class="form-label">Montant ({{ bar.currency }})</label><input class="form-control" name="amount" type="number" min="1" step="1" required></div>
+        <div><label class="form-label">Mode de règlement</label><select class="form-select" name="method"><option value="CASH">Espèces (sortie réelle du tiroir)</option><option value="MOBILE_MONEY">Mobile Money</option><option value="BANK_TRANSFER">Virement</option><option value="CARD">Carte</option></select></div>
+        <div><label class="form-label">Motif</label><input class="form-control" name="description" maxlength="400" required placeholder="Ex. Achat de glaçons oublié"></div>
+        <button class="btn btn-outline-primary" type="submit">Enregistrer cette dépense</button>
+      </form>
+      <p class="small text-secondary mt-2">La dépense n'est inscrite qu'une fois dans le journal général ; seuls les règlements en espèces diminuent le tiroir.</p>
+      {% else %}
+        <p class="mt-2">Aucune catégorie de dépenses active. Le propriétaire doit en créer une dans la gestion des dépenses.</p>
+      {% endif %}
+    </details>
+    <details class="inv-finance-action">
+      <summary><strong>Signaler une dette oubliée</strong></summary>
+      {% if finance.customers %}
+      <form method="post" action="{{ url_for('inventories_finance.act',bar_id=bar_id,inventory_id=inventory.id if inventory is defined else report.inventory_id) }}" class="inv-finance-form mt-3">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="action" value="debt_request">
+        <input type="hidden" name="nonce" value="{{ finance_debt_nonce }}">
+        <div><label class="form-label">Client</label><select class="form-select" name="customer_id" required>{% for customer in finance.customers %}<option value="{{ customer.id }}">{{ customer.display_name }}</option>{% endfor %}</select></div>
+        <div><label class="form-label">Montant à justifier ({{ bar.currency }})</label><input class="form-control" name="amount" type="number" min="1" step="1" required></div>
+        <div><label class="form-label">Facture éventuelle</label><select class="form-select" name="order_id"><option value="">Aucune facture (dette manuelle hors caisse)</option>{% for order in finance.orders %}<option value="{{ order.id }}">{{ order.reference }} · {{ '{:,.0f}'.format(order.total_amount|float) }} {{ bar.currency }}</option>{% endfor %}</select></div>
+        <div><label class="form-label">Explication</label><input class="form-control" name="reason" maxlength="500" required placeholder="Ex. Client parti à crédit"></div>
+        <button class="btn btn-outline-primary" type="submit">Soumettre au propriétaire</button>
+      </form>
+      <p class="text-secondary small mt-2">Une demande n'est pas encore une dette comptabilisée. Une dette sans facture n'est jamais déduite automatiquement de la recette attendue.</p>
+      {% else %}
+        <p class="mt-2">Créez d'abord la fiche du client dans la gestion des clients.</p>
+      {% endif %}
+    </details>
+  </div>
+  {% endif %}
+
+  {% if finance.debt_requests %}
+  <h3 class="h6 mt-4">Demandes de dettes de cet inventaire</h3>
+  <div class="inv-finance-requests">
+    {% for item in finance.debt_requests %}
+    <div class="inv-finance-request">
+      <div>
+        <strong>{{ item.customer }} — {{ '{:,.0f}'.format(item.amount|float) }} {{ bar.currency }}</strong>
+        <small class="d-block text-secondary">{{ item.kind }} · {{ item.requested_by }} · {{ item.reason }}</small>
+      </div>
+      <div class="d-flex align-items-center gap-2 flex-wrap">
+        <span class="badge {% if item.status == 'PENDING' %}text-bg-warning{% elif item.status == 'APPROVED' %}text-bg-success{% else %}text-bg-secondary{% endif %}">{{ {'PENDING':'En attente','APPROVED':'Approuvée','REJECTED':'Rejetée'}.get(item.status,item.status) }}</span>
+        {% if item.status == 'PENDING' and finance.can_decide_debts %}
+          <form method="post" action="{{ url_for('inventories_finance.act',bar_id=bar_id,inventory_id=inventory.id if inventory is defined else report.inventory_id) }}" class="d-flex flex-wrap gap-2">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="request_id" value="{{ item.id }}">
+            <input class="form-control form-control-sm" name="reason" maxlength="500" required placeholder="Motif de décision" aria-label="Motif décision dette {{ item.customer }}">
+            <button class="btn btn-sm btn-success" type="submit" name="action" value="approve_debt">Approuver</button>
+            <button class="btn btn-sm btn-outline-danger" type="submit" name="action" value="reject_debt">Refuser</button>
+          </form>
+        {% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+  <p class="small text-secondary mt-3 mb-0">Le manquant réel provient exclusivement du tiroir et de sa session de caisse. Les ventes théoriques calculées depuis les bouteilles sont un indicateur distinct ; elles ne sont jamais ajoutées une deuxième fois à la caisse. Les dettes manuelles sont hors caisse, et les dettes de facture doivent correspondre au solde encore impayé.</p>
+</section>

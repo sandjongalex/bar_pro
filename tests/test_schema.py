@@ -22,7 +22,7 @@ def test_initial_migration_creates_every_model_table(tmp_path):
     with app.app_context():
         actual = set(inspect(db.engine).get_table_names())
         assert set(db.metadata.tables).issubset(actual)
-        assert len(db.metadata.tables) == 51  # includes V2 cashier, count and approval metadata
+        assert len(db.metadata.tables) == 53  # includes inventory cash reconciliation and debt requests
 
 
 def test_initial_downgrade_refuses_destructive_data_loss(tmp_path):

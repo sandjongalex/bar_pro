@@ -19,15 +19,16 @@ body{font-family:Arial,sans-serif;color:#111;margin:28px;font-size:12px}h1{margi
 </tbody>
 </table>
 {% if inventory.status == 'POSTED' %}
-<h2>Rapprochement caisse</h2>
+<h2>Rapprochement caisse — estimation V1 sur stocks et écritures</h2>
 <div class="summary">
 <div><span>Ventes théoriques</span><strong>{{ "{:,.0f}".format(inventory.theoretical_sales_amount|float) }} {{ bar.currency }}</strong></div>
 <div><span>Crédits validés</span><strong>{{ "{:,.0f}".format(inventory.credit_sales_amount|float) }} {{ bar.currency }}</strong></div>
 <div><span>Dépenses validées</span><strong>{{ "{:,.0f}".format(inventory.expenses_amount|float) }} {{ bar.currency }}</strong></div>
-<div><span>Attendu en caisse</span><strong>{{ "{:,.0f}".format(inventory.expected_cash_amount|float) }} {{ bar.currency }}</strong></div>
+<div><span>Attendu théorique stock</span><strong>{{ "{:,.0f}".format(inventory.expected_cash_amount|float) }} {{ bar.currency }}</strong></div>
 <div><span>Caisse nette machine</span><strong>{{ "{:,.0f}".format(inventory.recorded_net_amount|float) }} {{ bar.currency }}</strong></div>
-<div><span>Écart caisse</span><strong class="{% if inventory.cash_shortage_amount|float > 0 %}danger{% endif %}">{% if inventory.cash_shortage_amount|float > 0 %}-{{ "{:,.0f}".format(inventory.cash_shortage_amount|float) }}{% else %}+{{ "{:,.0f}".format(inventory.cash_surplus_amount|float) }}{% endif %} {{ bar.currency }}</strong></div>
+<div><span>Écart théorique</span><strong class="{% if inventory.cash_shortage_amount|float > 0 %}danger{% endif %}">{% if inventory.cash_shortage_amount|float > 0 %}-{{ "{:,.0f}".format(inventory.cash_shortage_amount|float) }}{% else %}+{{ "{:,.0f}".format(inventory.cash_surplus_amount|float) }}{% endif %} {{ bar.currency }}</strong></div>
 </div>
 {% endif %}
+{% include "inventory_finance_print.html" %}
 <div class="note"><strong>Note générale :</strong> {{ inventory.reason }}</div>
 </body></html>

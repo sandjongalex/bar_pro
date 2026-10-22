@@ -89,6 +89,8 @@
 </section>
 {% endif %}
 
+{% include 'inventory_finance_panel.html' %}
+
 {% if inventory.v2_assigned and inventory.status == 'POSTED' %}
 <section class="panel-card mt-4 p-4">
   <h2>Inventaire V2 validé</h2>
@@ -97,18 +99,18 @@
 {% endif %}
 {% if inventory.status == 'POSTED' and not inventory.v2_assigned %}
 <section class="panel-card mt-4 inventory-reconciliation">
-  <div class="panel-header"><div><p class="eyebrow mb-1">Clôture</p><h2>Rapprochement des ventes et de la caisse</h2></div></div>
+  <div class="panel-header"><div><p class="eyebrow mb-1">Clôture</p><h2>Rapprochement théorique V1 — stock et écritures</h2></div></div>
   <div class="inventory-finance-grid">
     <article><span>Ventes théoriques</span><strong>{{ "{:,.0f}".format(inventory.theoretical_sales_amount|float) }} {{ bar.currency }}</strong><small>Calculées à partir du stock physique</small></article>
     <article><span>Crédits validés</span><strong>− {{ "{:,.0f}".format(inventory.credit_sales_amount|float) }} {{ bar.currency }}</strong><small>Ventes financées sur compte client</small></article>
     <article><span>Dépenses validées</span><strong>− {{ "{:,.0f}".format(inventory.expenses_amount|float) }} {{ bar.currency }}</strong><small>Dépenses nettes de la période</small></article>
-    <article class="inventory-finance-primary"><span>Montant attendu en caisse</span><strong>{{ "{:,.0f}".format(inventory.expected_cash_amount|float) }} {{ bar.currency }}</strong><small>Ventes théoriques − crédits − dépenses</small></article>
+    <article class="inventory-finance-primary"><span>Attendu théorique d’après les bouteilles</span><strong>{{ "{:,.0f}".format(inventory.expected_cash_amount|float) }} {{ bar.currency }}</strong><small>Ventes théoriques − crédits − dépenses</small></article>
     <article><span>Caisse nette machine</span><strong>{{ "{:,.0f}".format(inventory.recorded_net_amount|float) }} {{ bar.currency }}</strong><small>Encaissements enregistrés − remboursements − dépenses</small></article>
-    {% if inventory.cash_shortage_amount|float > 0 %}<article class="inventory-finance-danger"><span>Manquant de caisse</span><strong>{{ "{:,.0f}".format(inventory.cash_shortage_amount|float) }} {{ bar.currency }}</strong><small>Montant attendu supérieur à la caisse machine</small></article>
-    {% elif inventory.cash_surplus_amount|float > 0 %}<article class="inventory-finance-warning"><span>Surplus de caisse</span><strong>{{ "{:,.0f}".format(inventory.cash_surplus_amount|float) }} {{ bar.currency }}</strong><small>Caisse machine supérieure au montant attendu</small></article>
-    {% else %}<article class="inventory-finance-ok"><span>Écart de caisse</span><strong>0 {{ bar.currency }}</strong><small>Aucun écart théorique détecté</small></article>{% endif %}
+    {% if inventory.cash_shortage_amount|float > 0 %}<article class="inventory-finance-danger"><span>Écart théorique défavorable</span><strong>{{ "{:,.0f}".format(inventory.cash_shortage_amount|float) }} {{ bar.currency }}</strong><small>Montant attendu supérieur à la caisse machine</small></article>
+    {% elif inventory.cash_surplus_amount|float > 0 %}<article class="inventory-finance-warning"><span>Écart théorique favorable</span><strong>{{ "{:,.0f}".format(inventory.cash_surplus_amount|float) }} {{ bar.currency }}</strong><small>Caisse machine supérieure au montant attendu</small></article>
+    {% else %}<article class="inventory-finance-ok"><span>Écart théorique</span><strong>0 {{ bar.currency }}</strong><small>Aucun écart théorique détecté</small></article>{% endif %}
   </div>
-  <div class="inventory-footnote">Ce rapprochement est un indicateur opérationnel basé sur les stocks, ventes, crédits, remboursements et dépenses enregistrés dans l'application. Il ne remplace pas une clôture comptable légale.</div>
+  <div class="inventory-footnote">Ce rapprochement est un indicateur opérationnel basé sur les stocks, ventes, crédits, remboursements et dépenses enregistrés dans l'application. Il ne remplace pas une clôture comptable légale ni le relevé physique de caisse ci-dessus.</div>
 </section>
 {% endif %}
 

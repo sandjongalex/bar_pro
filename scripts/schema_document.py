@@ -24,6 +24,7 @@ from app import shift_models  # noqa: F401
 from app import inventory_assignment_models  # noqa: F401
 from app import inventory_count_models  # noqa: F401
 from app import inventory_approval_models  # noqa: F401
+from app import inventory_finance_models  # noqa: F401
 from app import change_voucher_models  # noqa: F401
 from app import saas_governance_models  # noqa: F401
 
