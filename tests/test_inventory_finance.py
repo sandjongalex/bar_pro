@@ -257,3 +257,28 @@ def test_owner_can_enter_cash_count_via_inventory_page(env):
     html = client.get(f"/bars/{env[2].id}/inventories/{inv.id}").text
     assert "Manquant de caisse" in html
     assert "100" in html
+
+
+def test_v2_owner_approval_requires_review_of_pending_debt(env):
+    from test_inventory_v2_approval import make_count
+    from app.inventory_approval import submit, decide
+    cashier, inv = make_count(env, reference="FINANCE-V2-APPROVAL", quantity="10")
+    cust = customer(env)
+    req = request_debt(cashier, env[2].id, inv.id,
+                       customer_id=cust.id, order_id=None,
+                       amount="500", reason="Service client")
+    submit(cashier, env[2].id, inv.id)
+    db.session.commit()
+    with pytest.raises(ValueError, match="INVENTORY_FINANCE_DEBTS_PENDING"):
+        decide(env[1], env[2].id, inv.id,
+               decision="approve", reason="Tout est compté")
+    db.session.rollback()
+    decide_debt(env[1], env[2].id, inv.id, req.id,
+                decision="reject", reason="Montant non justifié")
+    db.session.commit()
+    decision = decide(env[1], env[2].id, inv.id,
+                      decision="approve", reason="Dette écartée, stock conforme")
+    db.session.commit()
+    assert decision.status == "POSTED"
+    assert req.status == "REJECTED"
+    assert balance(env) == 10
