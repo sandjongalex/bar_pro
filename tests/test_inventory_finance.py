@@ -246,9 +246,10 @@ def test_owner_can_enter_cash_count_via_inventory_page(env):
     form = client.get(f"/bars/{env[2].id}/inventories/{inv.id}")
     assert form.status_code == 200
     csrf = re.search(r'name=["\']csrf_token["\']\s+value=["\']([^"\']+)["\']', form.text)
+    assert csrf is not None
     result = client.post(
         f"/bars/{env[2].id}/inventories/{inv.id}/finance",
-        data={"csrf_token": csrf, "action": "count_cash",
+        data={"csrf_token": csrf.group(1), "action": "count_cash",
               "counted_amount": "900", "reason": "100 FCFA manquants"},
     )
     assert result.status_code == 302
