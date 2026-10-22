@@ -650,6 +650,8 @@ class InventoryService:
 
     def post(self, actor, bar_id, inventory_id):
         inv = self.get(actor, bar_id, inventory_id, write=True)
+        from app.inventory_finance_services import assert_no_pending_debts
+        assert_no_pending_debts(bar_id, inv.id)
         # Fail closed: V2 assignments must wait for the approval workflow.
         if db.session.scalar(
             select(InventoryCashierAssignment.id).where(
