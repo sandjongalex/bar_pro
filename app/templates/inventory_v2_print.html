@@ -24,6 +24,7 @@ th{background:#eef2f5}tr{break-inside:avoid}small{display:block;color:#666}
   <div>Valeur absolue des corrections : <strong>{{ report.approved_absolute_value|inventory_qty if report.approved_absolute_value is not none else "—" }} {{ bar.currency }}</strong></div>
 </div>
 <p class="note"><strong>Document de stock exclusivement.</strong> Les différences sont évaluées au coût d'acquisition et ne constituent pas un manquant de caisse. Aucun mouvement financier n'est réalisé.</p>
+{% include "inventory_finance_print.html" %}
 <h2>État des produits</h2>
 <table><thead><tr><th>Produit</th><th>Machine ouverture</th><th>Physique compté</th><th>Correction approuvée</th><th>Valeur {{ bar.currency }}</th><th>Observation</th></tr></thead>
 <tbody>{% for item in report.lines %}
