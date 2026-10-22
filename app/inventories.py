@@ -589,7 +589,8 @@ def v2_report(bar_id, inventory_id):
     bar = db.session.get(Bar, bar_id)
     template = "inventory_v2_print.html" if request.args.get("print") == "1" else "inventory_v2_report.html"
     return render_template(template, report=data, bar=bar, bar_id=bar_id,
-                           finance=finance_view(current_user, bar_id, inventory_id))
+                           finance=finance_view(current_user, bar_id, inventory_id),
+                           finance_expense_nonce=secrets.token_hex(12))
 
 
 @api_inventories_bp.get("/<int:inventory_id>/report")
