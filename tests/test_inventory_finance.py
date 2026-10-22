@@ -237,7 +237,7 @@ def test_owner_can_enter_cash_count_via_inventory_page(env):
     client = env[0].test_client()
     import re
     response = client.get("/login")
-    token = re.search(r"""name=["\u0027]csrf_token["\u0027]\\s+value=["\u0027]([^"\u0027]+)["\u0027]""",
+    token = re.search(r"""name=["']csrf_token["']\s+value=["']([^"']+)["']""",
                       response.text)
     assert token
     assert client.post("/login", data={
@@ -246,7 +246,7 @@ def test_owner_can_enter_cash_count_via_inventory_page(env):
     }).status_code == 302
     form = client.get(f"/bars/{env[2].id}/inventories/{inv.id}")
     assert form.status_code == 200
-    csrf = re.search(r"""name=["\u0027]csrf_token["\u0027]\\s+value=["\u0027]([^"\u0027]+)["\u0027]""", form.text).group(1)
+    csrf = re.search(r"""name=["']csrf_token["']\s+value=["']([^"']+)["']""", form.text).group(1)
     result = client.post(
         f"/bars/{env[2].id}/inventories/{inv.id}/finance",
         data={"csrf_token": csrf, "action": "count_cash",
