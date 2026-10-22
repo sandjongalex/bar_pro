@@ -29,6 +29,7 @@ from app.change_vouchers_web import bp as change_vouchers_web_bp
 from app.customers_web import bp as customers_web_bp
 from app.expenses_web import bp as expenses_web_bp
 from app.inventories import api_inventories_bp, inventories_bp
+from app.inventory_finance_web import bp as inventories_finance_bp
 from app.live_orders_web import bp as live_orders_web_bp
 from app.order_edit_web import bp as order_edit_web_bp
 from app.unpaid_orders_web import bp as unpaid_orders_web_bp
@@ -171,6 +172,7 @@ def _register_blueprints(app: Flask) -> None:
     app.register_blueprint(purchases_bp)
     app.register_blueprint(supplier_payments_bp)
     app.register_blueprint(inventories_bp)
+    app.register_blueprint(inventories_finance_bp)
     app.register_blueprint(api_inventories_bp)
     app.register_blueprint(live_orders_web_bp)
     app.register_blueprint(order_edit_web_bp)
