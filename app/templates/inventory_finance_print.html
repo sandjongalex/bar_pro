@@ -1,0 +1,25 @@
+<h2>Relevé physique de caisse</h2>
+{% if finance.saved %}
+<p><strong>Session :</strong> {{ finance.session.reference if finance.session else finance.saved.cash_session_id }} ·
+   <strong>Fonds initial :</strong> {{ '{:,.0f}'.format(finance.saved.opening_amount|float) }} {{ bar.currency }}</p>
+<div class="summary">
+  <div><span>Espèces attendues (journal)</span><strong>{{ '{:,.0f}'.format(finance.saved.expected_amount|float) }} {{ bar.currency }}</strong></div>
+  <div><span>Espèces comptées</span><strong>{{ '{:,.0f}'.format(finance.saved.counted_amount|float) }} {{ bar.currency }}</strong></div>
+  <div><span>{% if finance.saved.difference_amount < 0 %}Manquant réel{% elif finance.saved.difference_amount > 0 %}Surplus réel{% else %}Écart réel{% endif %}</span>
+    <strong>{{ '{:,.0f}'.format(finance.saved.difference_amount|abs|float) }} {{ bar.currency }}</strong></div>
+</div>
+<p><strong>Date du relevé :</strong> {{ finance.saved.counted_at }} UTC ·
+   <strong>Motif :</strong> {{ finance.saved.reason or 'Aucun écart' }}</p>
+{% else %}
+<p>Espèces non comptées : le manque ou surplus réel n'a pas été déterminé pour cet inventaire.</p>
+{% endif %}
+{% if finance.debt_requests %}
+<h2>Demandes de dettes</h2>
+{% for item in finance.debt_requests %}
+<p>{{ item.customer }} · {{ item.kind }} · {{ '{:,.0f}'.format(item.amount|float) }} {{ bar.currency }} ·
+   {{ {'PENDING':'En attente','APPROVED':'Approuvée','REJECTED':'Rejetée'}.get(item.status,item.status) }} · {{ item.reason }}</p>
+{% endfor %}
+{% endif %}
+<p class="note">Les montants calculés depuis le stock sont des indicateurs distincts.
+  Les dettes manuelles hors facture ne diminuent pas la recette attendue.
+  Ce relevé ne clôture pas automatiquement la session de caisse.</p>
