@@ -89,6 +89,8 @@
 </section>
 {% endif %}
 
+{% include 'inventory_finance_panel.html' %}
+
 {% if inventory.v2_assigned and inventory.status == 'POSTED' %}
 <section class="panel-card mt-4 p-4">
   <h2>Inventaire V2 validé</h2>
