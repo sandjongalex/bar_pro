@@ -30,6 +30,8 @@ def upgrade():
         sa.Column("reason", sa.String(500)),
         sa.Column("counted_by_id", ident, nullable=False),
         sa.Column("counted_at", dt, nullable=False),
+        sa.Column("created_at", dt, nullable=False),
+        sa.Column("updated_at", dt, nullable=False),
         sa.ForeignKeyConstraint(["bar_id"], ["bars.id"], ondelete="RESTRICT"),
         sa.ForeignKeyConstraint(["bar_id", "inventory_id"], ["inventories.bar_id", "inventories.id"], ondelete="RESTRICT"),
         sa.ForeignKeyConstraint(["bar_id", "cash_session_id"], ["cash_sessions.bar_id", "cash_sessions.id"], ondelete="RESTRICT"),
@@ -38,6 +40,7 @@ def upgrade():
         sa.UniqueConstraint("bar_id", "inventory_id", name="uq_inventory_cash_check"),
         sa.CheckConstraint("counted_amount >= 0 AND opening_amount >= 0", name="ck_inventory_cash_check_nonnegative"),
     )
+    op.create_index("ix_inventory_cash_reconciliations_bar_created", "inventory_cash_reconciliations", ["bar_id", "created_at", "id"])
     op.create_index("ix_inventory_cash_check_session", "inventory_cash_reconciliations", ["bar_id", "cash_session_id"])
     op.create_index("ix_inventory_cash_reconciliations_bar_id", "inventory_cash_reconciliations", ["bar_id"])
     op.create_table(
@@ -56,6 +59,8 @@ def upgrade():
         sa.Column("decided_by_id", ident),
         sa.Column("decided_at", dt),
         sa.Column("decision_reason", sa.String(500)),
+        sa.Column("created_at", dt, nullable=False),
+        sa.Column("updated_at", dt, nullable=False),
         sa.ForeignKeyConstraint(["bar_id"], ["bars.id"], ondelete="RESTRICT"),
         sa.ForeignKeyConstraint(["bar_id", "inventory_id"], ["inventories.bar_id", "inventories.id"], ondelete="RESTRICT"),
         sa.ForeignKeyConstraint(["bar_id", "customer_id"], ["customers.bar_id", "customers.id"], ondelete="RESTRICT"),
@@ -66,6 +71,7 @@ def upgrade():
         sa.UniqueConstraint("bar_id", "id", name="uq_inventory_debt_requests_bar_id_id"),
         sa.CheckConstraint("amount > 0 AND status IN ('PENDING','APPROVED','REJECTED')", name="ck_inventory_debt_request_values"),
     )
+    op.create_index("ix_inventory_debt_requests_bar_created", "inventory_debt_requests", ["bar_id", "created_at", "id"])
     op.create_index("ix_inventory_debt_requests_inventory", "inventory_debt_requests", ["bar_id", "inventory_id", "status"])
     op.create_index("ix_inventory_debt_requests_bar_id", "inventory_debt_requests", ["bar_id"])
 
@@ -75,9 +81,11 @@ def downgrade():
     for name in ("inventory_debt_requests", "inventory_cash_reconciliations"):
         if bind.execute(sa.text("SELECT 1 FROM " + name + " LIMIT 1")).first():
             raise RuntimeError("Inventory finance data exists: destructive downgrade refused")
+    op.drop_index("ix_inventory_debt_requests_bar_created", table_name="inventory_debt_requests")
     op.drop_index("ix_inventory_debt_requests_inventory", table_name="inventory_debt_requests")
     op.drop_index("ix_inventory_debt_requests_bar_id", table_name="inventory_debt_requests")
     op.drop_table("inventory_debt_requests")
+    op.drop_index("ix_inventory_cash_reconciliations_bar_created", table_name="inventory_cash_reconciliations")
     op.drop_index("ix_inventory_cash_check_session", table_name="inventory_cash_reconciliations")
     op.drop_index("ix_inventory_cash_reconciliations_bar_id", table_name="inventory_cash_reconciliations")
     op.drop_table("inventory_cash_reconciliations")
