@@ -1042,7 +1042,6 @@ erDiagram
 - INDEX `ix_inventory_approvals_bar_id` : `bar_id`.
 - INDEX `ix_inventory_approvals_status` : `bar_id, status, submitted_at`.
 
-
 ### `inventory_cash_reconciliations`
 
 | Colonne | Type | NULL | PK | Default ORM | Default serveur | Calcul |
@@ -1101,7 +1100,6 @@ erDiagram
 - INDEX `ix_inventory_cashier_assignments_bar_id` : `bar_id`.
 - INDEX `ix_inventory_cashier_shift` : `bar_id, cashier_shift_id, inventory_id`.
 - INDEX `ix_inventory_cashier_user` : `bar_id, cashier_user_id, inventory_id`.
-
 
 ### `inventory_debt_requests`
 
