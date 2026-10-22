@@ -617,6 +617,7 @@ def printable(bar_id, inventory_id):
     return render_template(
         "inventory_print.html",
         inventory=payload(inventory_service.get(current_user, bar_id, inventory_id)),
+        finance=finance_view(current_user, bar_id, inventory_id),
         bar=bar,
     )
 
