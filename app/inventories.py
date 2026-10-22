@@ -56,6 +56,7 @@ def _message(code):
         "INVENTORY_REVIEW_STATE": "Cet inventaire ne se trouve pas dans un état autorisant cette action.",
         "INVENTORY_FINANCE_DEBTS_PENDING": "Traitez les demandes de dette avant validation.",
         "INVENTORY_CASH_SESSION_REQUIRED": "Aucune session de caisse ouverte.",
+        "INVENTORY_DEBT_DUPLICATE": "Cette demande de dette a déjà été envoyée.",
         "INVENTORY_CASH_REASON_REQUIRED": "Justifiez la différence de caisse.",
         "INVENTORY_CASH_SESSION_MISMATCH": "La session de caisse a changé.",
         "INVENTORY_DEBT_ALREADY_DECIDED": "Demande déjà traitée.",
@@ -382,6 +383,7 @@ def detail(bar_id, inventory_id):
         inventory=payload(inv),
         finance=finance_view(current_user, bar_id, inv.id),
         finance_expense_nonce=secrets.token_hex(12),
+        finance_debt_nonce=secrets.token_hex(12),
         bar=bar,
         bar_id=bar_id,
         can_adjust=can_adjust,
@@ -465,6 +467,7 @@ def v2_count(bar_id, inventory_id):
         inventory=payload(inv),
         finance=finance_view(current_user, bar_id, inv.id),
         finance_expense_nonce=secrets.token_hex(12),
+        finance_debt_nonce=secrets.token_hex(12),
         reconciliation=inventory_live_reconciliation(inv),
         approval=evaluation(current_user, bar_id, inv.id),
         can_submit=permissions.evaluate(current_user, "inventory.submit", bar_id).allowed,
@@ -590,7 +593,8 @@ def v2_report(bar_id, inventory_id):
     template = "inventory_v2_print.html" if request.args.get("print") == "1" else "inventory_v2_report.html"
     return render_template(template, report=data, bar=bar, bar_id=bar_id,
                            finance=finance_view(current_user, bar_id, inventory_id),
-                           finance_expense_nonce=secrets.token_hex(12))
+                           finance_expense_nonce=secrets.token_hex(12),
+                           finance_debt_nonce=secrets.token_hex(12))
 
 
 @api_inventories_bp.get("/<int:inventory_id>/report")
