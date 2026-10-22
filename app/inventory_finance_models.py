@@ -47,6 +47,7 @@ class InventoryDebtRequest(Tenant, db.Model):
     customer_id = db.Column(ID, nullable=False)
     order_id = db.Column(ID)
     amount = db.Column(MONEY, nullable=False)
+    request_nonce = db.Column(db.String(48), nullable=False)
     reason = db.Column(db.String(500), nullable=False)
     status = db.Column(db.String(16), nullable=False, default="PENDING")
     ledger_entry_id = db.Column(ID)
@@ -74,6 +75,7 @@ class InventoryDebtRequest(Tenant, db.Model):
             ["customer_ledger_entries.bar_id", "customer_ledger_entries.id"],
             ondelete="RESTRICT",
         ),
+        UniqueConstraint("bar_id", "request_nonce", name="uq_inventory_debt_request_nonce"),
         CheckConstraint(
             "amount > 0 AND status IN ('PENDING','APPROVED','REJECTED')",
             name="ck_inventory_debt_request_values",
