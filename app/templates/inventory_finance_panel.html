@@ -120,8 +120,7 @@
       <div class="d-flex align-items-center gap-2 flex-wrap">
         <span class="badge {% if item.status == 'PENDING' %}text-bg-warning{% elif item.status == 'APPROVED' %}text-bg-success{% else %}text-bg-secondary{% endif %}">{{ {'PENDING':'En attente','APPROVED':'Approuvée','REJECTED':'Rejetée'}.get(item.status,item.status) }}</span>
         {% if item.status == 'PENDING' and finance.can_decide_debts %}
-          <form method="post" action="{{ url_for('inventories_finance.act',bar_id=bar_id,inventory_id=inventory.id if inventory is defined else report.inventory_id) }}" class="d-flex flex-wrap gap-2">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <form method="post" action="{{ url_for('inventories_finance.act',bar_id=bar_id,inventory_id=inventory.id if inventory is defined else report.inventory_id) }}" class="d-flex flex-wrap gap-2 inv-finance-decision-form">\n            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <input type="hidden" name="request_id" value="{{ item.id }}">
             <input class="form-control form-control-sm" name="reason" maxlength="500" required placeholder="Motif de décision" aria-label="Motif décision dette {{ item.customer }}">
             <button class="btn btn-sm btn-success" type="submit" name="action" value="approve_debt">Approuver</button>
@@ -135,3 +134,5 @@
   {% endif %}
   <p class="small text-secondary mt-3 mb-0">Le manquant réel provient exclusivement du tiroir et de sa session de caisse. Les ventes théoriques calculées depuis les bouteilles sont un indicateur distinct ; elles ne sont jamais ajoutées une deuxième fois à la caisse. Les dettes manuelles sont hors caisse, et les dettes de facture doivent correspondre au solde encore impayé.</p>
 </section>
+
+<script defer src="{{ url_for('static', filename='inventory_finance_async.js') }}"></script>
