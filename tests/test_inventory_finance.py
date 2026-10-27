@@ -282,3 +282,67 @@ def test_v2_owner_approval_requires_review_of_pending_debt(env):
     assert decision.status == "POSTED"
     assert req.status == "REJECTED"
     assert balance(env) == 10
+
+
+def test_ajax_expense_updates_only_finance_and_prevents_duplicate(env):
+    """The JSON fragment leaves the inventory count form untouched."""
+    import re
+    inv = setup_inventory(env, reference="AJAX-EXPENSE")
+    drawer(env)
+    category = ExpenseCategory(bar_id=env[2].id, name="Frais test")
+    db.session.add(category)
+    db.session.commit()
+    client = env[0].test_client()
+    html = client.get("/login").text
+    csrf = re.search(r'name=["\\']csrf_token["\\']\\s+value=["\\']([^"\\']+)["\\']', html)
+    assert csrf
+    assert client.post("/login", data={"email": env[1].email,
+        "password": "test-password", "csrf_token": csrf.group(1)}).status_code == 302
+    url = f"/bars/{env[2].id}/inventories/{inv.id}"
+    page = client.get(url)
+    assert page.status_code == 200
+    assert "inventory_finance_async.js" in page.text
+    token = re.search(r'name=["\\']csrf_token["\\']\\s+value=["\\']([^"\\']+)["\\']', page.text)
+    form = {"csrf_token": token.group(1), "action": "expense",
+            "category_id": str(category.id), "amount": "100",
+            "description": "Glace oubliée", "method": "CASH",
+            "nonce": "ajaxExpenseKey0123"}
+    result = client.post(url + "/finance", data=form,
+                         headers={"X-Requested-With": "XMLHttpRequest",
+                                  "Accept": "application/json"})
+    assert result.status_code == 200, result.text
+    assert result.json["success"] is True
+    assert 'id="finance-inventory"' in result.json["html"]
+    assert "id=\"inventoryForm\"" not in result.json["html"]
+    assert db.session.query(Expense).count() == 1
+    duplicate = client.post(url + "/finance", data=form,
+                            headers={"X-Requested-With": "XMLHttpRequest",
+                                     "Accept": "application/json"})
+    assert duplicate.status_code == 400
+    assert duplicate.json["success"] is False
+    assert db.session.query(Expense).count() == 1
+
+
+def test_ajax_debt_preserves_stock_and_returns_new_finance_fragment(env):
+    import re
+    inv = setup_inventory(env, reference="AJAX-DEBT")
+    cust = customer(env)
+    client = env[0].test_client()
+    html = client.get("/login").text
+    csrf = re.search(r'name=["\\']csrf_token["\\']\\s+value=["\\']([^"\\']+)["\\']', html)
+    assert client.post("/login", data={"email": env[1].email,
+        "password": "test-password", "csrf_token": csrf.group(1)}).status_code == 302
+    url = f"/bars/{env[2].id}/inventories/{inv.id}"
+    token = re.search(r'name=["\\']csrf_token["\\']\\s+value=["\\']([^"\\']+)["\\']',
+                      client.get(url).text)
+    result = client.post(url + "/finance", data={
+        "csrf_token": token.group(1), "action": "debt_request",
+        "customer_id": str(cust.id), "order_id": "", "amount": "350",
+        "reason": "Dette oubliée", "nonce": "ajaxDebtKey0123456",
+    }, headers={"X-Requested-With": "XMLHttpRequest",
+                "Accept": "application/json"})
+    assert result.status_code == 200, result.text
+    assert "Dette" in result.json["message"]
+    assert "350" in result.json["html"]
+    assert balance(env) == 10
+    assert db.session.query(InventoryDebtRequest).count() == 1
