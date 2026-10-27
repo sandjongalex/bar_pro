@@ -72,7 +72,6 @@
   </div>
 </section>
 
-{% include 'inventory_finance_panel.html' %}
 
 <section class="panel-card mt-4 p-3 p-md-4 inv2-approval" aria-labelledby="inv2-approval-title">
   <h2 id="inv2-approval-title">Validation du comptage</h2>
@@ -159,6 +158,8 @@
   </div>
 </form>
 {% endif %}
+
+{% include 'inventory_finance_panel.html' %}
 
 <p class="inv2-footer">Ce rapprochement est indicatif : il ne certifie pas l'instant réel de la sortie physique d'une boisson. Le contrôle et l'approbation s'effectuent selon les plafonds définis par le propriétaire. Ne pas utiliser ce brouillon comme clôture définitive.</p>
 <script defer src="{{ url_for('static',filename='inventory_count_v2.js') }}"></script>
