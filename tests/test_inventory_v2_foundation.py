@@ -161,3 +161,57 @@ def test_cashier_api_read_is_scoped_to_own_inventory(env):
     assert result.json["data"][0]["cashier_user_id"] == str(cashier_a.id)
     assert client.get(f"{base}/{other.id}", headers=headers).status_code == 404
     assert client.post(f"{base}/{other.id}/post", headers=headers).status_code == 403
+
+
+def test_owner_can_attribute_v2_inventory_without_cashier_shift(env):
+    cashier, staff, shift = on_duty_cashier(env, "offline")
+    end_shift(env[1], env[2].id, staff.id)
+    db.session.commit()
+    inventory = inventory_service.create(
+        env[1], env[2].id, "V2-OFFLINE", [env[4].id],
+        "Contrôle du propriétaire", cashier_user_id=str(cashier.id),
+    )
+    db.session.commit()
+    linked = db.session.scalar(select(InventoryCashierAssignment).where(
+        InventoryCashierAssignment.inventory_id == inventory.id,
+    ))
+    assert linked.cashier_shift_id is None
+    assert linked.cashier_user_id == cashier.id
+    assert linked.cashier_name_snapshot == cashier.display_name
+    inventory_service.count_v2_entries(env[1], env[2].id, inventory.id, [{
+        "product_id": env[4].id, "units": "8", "cases": "",
+        "note": "", "revision": 0,
+    }])
+    db.session.commit()
+    assert balance(env) == Decimal(10)
+
+
+def test_owner_manual_cashier_name_without_user(env):
+    inventory = inventory_service.create(
+        env[1], env[2].id, "V2-NAME", [env[4].id],
+        "Comptage attribution manuelle", cashier_name="Nancy",
+    )
+    db.session.commit()
+    linked = db.session.scalar(select(InventoryCashierAssignment).where(
+        InventoryCashierAssignment.inventory_id == inventory.id,
+    ))
+    assert linked.cashier_name_snapshot == "Nancy"
+    assert linked.cashier_shift_id is None
+    assert linked.cashier_user_id is None
+    assert inventory_service.get(env[1], env[2].id, inventory.id).id == inventory.id
+    assert balance(env) == Decimal(10)
+
+
+def test_owner_manual_cashier_rejects_invalid_selection(env):
+    with pytest.raises(ValueError, match="INVALID_CASHIER_NAME"):
+        inventory_service.create(env[1], env[2].id, "BAD-NAME", [env[4].id],
+                                 cashier_name="N")
+    db.session.rollback()
+    with pytest.raises(LookupError):
+        inventory_service.create(env[1], env[2].id, "BAD-USER", [env[4].id],
+                                 cashier_user_id=999999)
+    db.session.rollback()
+    with pytest.raises(ValueError, match="INVALID_CASHIER_SHIFT"):
+        inventory_service.create(env[1], env[2].id, "BAD-DOUBLE", [env[4].id],
+                                 cashier_user_id=999999, cashier_name="Nancy")
+    db.session.rollback()
