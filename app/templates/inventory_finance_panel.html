@@ -16,6 +16,59 @@
     {% endif %}
   </div>
 
+  {% if finance.period_breakdown %}
+  {% set breakdown = finance.period_breakdown %}
+  <div class="alert alert-info" role="note">
+    <strong>Contrôle de la période de l'inventaire</strong>
+    <div class="small">Du {{ breakdown.start_at.strftime('%d/%m/%Y %H:%M') if breakdown.start_at else 'début des écritures' }}
+      au {{ breakdown.end_at.strftime('%d/%m/%Y %H:%M') }} (horodatage du serveur, UTC).</div>
+    <div class="small mt-1">Les montants ci-dessous proviennent des écritures enregistrées pendant cette période ; ils ne constituent pas une dette personnelle.</div>
+  </div>
+  <div class="inv-finance-grid mb-3">
+    <div class="inv-finance-metric">
+      <span>Dépenses en espèces, nettes</span>
+      <strong>{{ '{:,.0f}'.format(breakdown.cash_expenses|float) }} {{ bar.currency }}</strong>
+      <small>Déduites uniquement si elles ont été réellement payées depuis la caisse</small>
+    </div>
+    <div class="inv-finance-metric">
+      <span>Dépenses hors espèces, nettes</span>
+      <strong>{{ '{:,.0f}'.format((breakdown.expenses_by_method.MOBILE_MONEY + breakdown.expenses_by_method.CARD + breakdown.expenses_by_method.BANK_TRANSFER)|float) }} {{ bar.currency }}</strong>
+      <small>Mobile Money, carte et virement : pas de sortie du tiroir</small>
+    </div>
+    <div class="inv-finance-metric">
+      <span>Crédits clients liés aux ventes</span>
+      <strong>{{ '{:,.0f}'.format(breakdown.linked_credit|float) }} {{ bar.currency }}</strong>
+      <small>Écritures datées de la période, à rapprocher des factures sans double déduction</small>
+    </div>
+    <div class="inv-finance-metric">
+      <span>Dettes clients manuelles nettes</span>
+      <strong>{{ '{:,.0f}'.format(breakdown.manual_credit|float) }} {{ bar.currency }}</strong>
+      <small>Hors facture : ne réduisent jamais automatiquement les espèces attendues</small>
+    </div>
+    <div class="inv-finance-metric">
+      <span>Encaissements espèces nets</span>
+      <strong>{{ '{:,.0f}'.format(breakdown.cash_receipts|float) }} {{ bar.currency }}</strong>
+      <small>Paiements en espèces moins remboursements en espèces</small>
+    </div>
+    <div class="inv-finance-metric">
+      <span>Encaissements hors espèces nets</span>
+      <strong>{{ '{:,.0f}'.format(((breakdown.payments_by_method.MOBILE_MONEY + breakdown.payments_by_method.CARD + breakdown.payments_by_method.BANK_TRANSFER) - (breakdown.refunds_by_method.MOBILE_MONEY + breakdown.refunds_by_method.CARD + breakdown.refunds_by_method.BANK_TRANSFER))|float) }} {{ bar.currency }}</strong>
+      <small>Exclus de la recette physique du tiroir</small>
+    </div>
+  </div>
+  {% if finance.cashier_name %}
+  <div class="alert alert-warning" role="note">
+    <strong>Inventaire associé à {{ finance.cashier_name }}.</strong>
+    La session de caisse du bar n'est pas techniquement liée de manière certaine à cette caissière.
+    {% if not finance.cashier_shift_linked %}L'attribution a été faite sans session de travail.{% endif %}
+    Tout manquant reste un <strong>écart à vérifier</strong>, jamais une dette du personnel automatique.
+  </div>
+  {% endif %}
+  {% if breakdown.pending_debts %}
+  <div class="alert alert-warning">Des demandes de dettes clients sont encore en attente. Aucun manquant ne doit être attribué au personnel avant leur vérification.</div>
+  {% endif %}
+  {% endif %}
+
   {% if finance.session %}
     <div class="inv-finance-grid">
       <div class="inv-finance-metric">
