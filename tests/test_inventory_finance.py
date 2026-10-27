@@ -370,3 +370,45 @@ def test_finance_panel_warns_that_inventory_does_not_create_staff_debt(env):
     assert page.status_code == 200
     assert "Contrôle de la période" in page.text
     assert "Dettes clients manuelles nettes" in page.text
+
+
+def test_inventory_v2_physical_count_precedes_finance_panel(env):
+    from test_inventory_v2_approval import make_count
+    cashier, inv = make_count(env, reference="V2-STOCK-PRIORITY", quantity="10")
+    client = env[0].test_client()
+    import re
+    page = client.get("/login")
+    token = re.search(r'name=["\\']csrf_token["\\']\\s+value=["\\']([^"\\']+)["\\']', page.text)
+    assert token
+    assert client.post("/login", data={
+        "email": env[1].email, "password": "test-password",
+        "csrf_token": token.group(1),
+    }).status_code == 302
+    response = client.get(f"/bars/{env[2].id}/inventories/{inv.id}/v2-count")
+    assert response.status_code == 200
+    assert 'id="inv2-form"' in response.text
+    assert 'id="finance-inventory"' in response.text
+    assert response.text.index('id="inv2-form"') < response.text.index('id="finance-inventory"')
+
+
+def test_inventory_finance_missing_cash_session_returns_specific_json_error(env):
+    inv = setup_inventory(env, reference="NO-SESSION-JSON")
+    client = env[0].test_client()
+    import re
+    page = client.get("/login")
+    token = re.search(r'name=["\\']csrf_token["\\']\\s+value=["\\']([^"\\']+)["\\']', page.text)
+    assert token
+    assert client.post("/login", data={
+        "email": env[1].email, "password": "test-password",
+        "csrf_token": token.group(1),
+    }).status_code == 302
+    url = f"/bars/{env[2].id}/inventories/{inv.id}"
+    page = client.get(url)
+    csrf = re.search(r'name=["\\']csrf_token["\\']\\s+value=["\\']([^"\\']+)["\\']', page.text)
+    result = client.post(url + "/finance", data={
+        "csrf_token": csrf.group(1), "action": "count_cash",
+        "counted_amount": "100", "reason": "Vérification",
+    }, headers={"Accept": "application/json"})
+    assert result.status_code == 400
+    assert result.json["success"] is False
+    assert "session de caisse" in result.json["message"].lower()
