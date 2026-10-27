@@ -1,5 +1,5 @@
 """POST-only inventory financial reconciliation actions."""
-from flask import Blueprint, flash, redirect, request, url_for
+from flask import Blueprint, flash, jsonify, redirect, request, url_for
 from flask_login import current_user, login_required
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -24,6 +24,7 @@ bp = Blueprint(
 def act(bar_id, inventory_id):
     inv = inventory_service.get(current_user, bar_id, inventory_id)
     action = (request.form.get("action") or "").strip()
+    error_message = None
     try:
         if action == "count_cash":
             count_cash(current_user, bar_id, inventory_id,
@@ -61,10 +62,17 @@ def act(bar_id, inventory_id):
         else:
             raise ValueError("INVALID_ACTION")
         db.session.commit()
-        flash(message, "success")
+        if not request.accept_mimetypes.best == "application/json":
+            flash(message, "success")
     except (PermissionError, LookupError, ValueError, TypeError, IntegrityError) as exc:
         db.session.rollback()
-        flash(_message(exc), "danger")
+        error_message = _message(exc)
+        if request.accept_mimetypes.best != "application/json":
+            flash(error_message, "danger")
+
+    if request.accept_mimetypes.best == "application/json":
+        return jsonify({"success": error_message is None,
+                        "message": error_message or message}), (400 if error_message else 200)
 
     v2 = db.session.scalar(select(InventoryCashierAssignment.id).where(
         InventoryCashierAssignment.bar_id == bar_id,
