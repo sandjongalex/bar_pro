@@ -46,7 +46,8 @@ def _message(code):
         "INVENTORY_IMMUTABLE": "Cet inventaire est déjà terminé et ne peut plus être modifié.",
         "INVENTORY_PERIOD_DATA_MISSING": "Les données de période de cet inventaire sont incomplètes.",
         "INVENTORY_V2_PENDING_APPROVAL": "Inventaire affecté à une caissière : la validation V2 sera disponible après activation du circuit d'approbation.",
-        "INVALID_CASHIER_SHIFT": "Session de caissière invalide.",
+        "INVALID_CASHIER_SHIFT": "Sélection de caissière invalide.",
+        "INVALID_CASHIER_NAME": "Indiquez un nom de caissière de 2 à 120 caractères.",
         "CASHIER_SHIFT_NOT_FOUND": "Aucune session de caissière active ne correspond à cette sélection.",
         "NOTE_TOO_LONG": "Une note dépasse 500 caractères.",
         "INVENTORY_SUBMITTED_LOCKED": "Ce comptage a été soumis. Demandez un recomptage pour le modifier.",
@@ -288,6 +289,8 @@ def new(bar_id):
                 defaults["reason"],
                 defaults["period_end"],
                 request.form.get("cashier_shift_id") or None,
+                cashier_user_id=request.form.get("cashier_user_id") or None,
+                cashier_name=request.form.get("cashier_name") or None,
             )
             db.session.commit()
             flash("Inventaire créé. Comptez maintenant les bouteilles réellement présentes.", "success")
@@ -310,9 +313,19 @@ def new(bar_id):
                User.is_active.is_(True))
         .order_by(EmployeeShift.started_at, EmployeeShift.id)
     ).all()
+    cashier_staff = db.session.execute(
+        select(StaffAssignment, User)
+        .join(User, User.id == StaffAssignment.user_id)
+        .where(StaffAssignment.bar_id == bar_id,
+               StaffAssignment.role == "CASHIER",
+               StaffAssignment.ended_at.is_(None),
+               User.is_active.is_(True))
+        .order_by(User.display_name, User.id)
+    ).all()
     return render_template(
         "inventory_new.html",
         cashier_shifts=cashier_shifts,
+        cashier_staff=cashier_staff,
         bar=bar,
         bar_id=bar_id,
         defaults=defaults,
