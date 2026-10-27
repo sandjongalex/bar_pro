@@ -22,7 +22,7 @@
     <strong>Contrôle de la période de l'inventaire</strong>
     <div class="small">Du {{ breakdown.start_at.strftime('%d/%m/%Y %H:%M') if breakdown.start_at else 'début des écritures' }}
       au {{ breakdown.end_at.strftime('%d/%m/%Y %H:%M') }} (horodatage du serveur, UTC).</div>
-    <div class="small mt-1">Les montants ci-dessous proviennent des écritures enregistrées pendant cette période ; ils ne constituent pas une dette personnelle.</div>
+    <div class="small mt-1">Les montants ci-dessous proviennent des écritures datées de cette période ; ils ne constituent pas une dette personnelle. Une dépense ou dette oubliée saisie après la fin de cette période figure dans son journal, mais n'est pas automatiquement reclassée dans cette période. Contrôlez sa date et sa justification avant toute conclusion.</div>
   </div>
   <div class="inv-finance-grid mb-3">
     <div class="inv-finance-metric">
