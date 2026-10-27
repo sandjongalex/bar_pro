@@ -1,5 +1,19 @@
 {% extends 'layout.html' %}
-{% block title %}Nouvel inventaire · {{ bar.name }} · Bar Manager Pro{% endblock %}
+{% block title %}Nouvel inventaire · {{ bar.name }} · Bar Manager Pro<script>
+(function () {
+  var fields = ["cashier_user_id", "cashier_name", "cashier_shift_id"].map(function (id) {
+    return document.getElementById(id);
+  });
+  fields.forEach(function (field) {
+    if (!field) return;
+    field.addEventListener(field.tagName === "INPUT" ? "input" : "change", function () {
+      if (!field.value.trim()) return;
+      fields.forEach(function (other) { if (other !== field) other.value = ""; });
+    });
+  });
+}());
+</script>
+{% endblock %}
 {% block header %}Nouvel inventaire · {{ bar.name }}{% endblock %}
 {% block content %}
 <section class="inventory-hero inventory-new-hero">
@@ -39,14 +53,24 @@
           <div class="col-12"><div class="alert alert-info mb-0">Votre nouvel inventaire V2 sera automatiquement affecté à votre session de travail en cours. Vous pourrez compter les produits sans les valider.</div></div>
           {% else %}
           <div class="col-12">
-            <label class="form-label" for="cashier_shift_id">Caissière en service — inventaire V2</label>
-            <select class="form-select form-select-lg" name="cashier_shift_id" id="cashier_shift_id">
-              <option value="">Parcours historique V1 (sans affectation)</option>
+            <label class="form-label" for="cashier_user_id">Caissière concernée — inventaire V2</label>
+            <select class="form-select form-select-lg" name="cashier_user_id" id="cashier_user_id">
+              <option value="">Choisir une caissière enregistrée (facultatif)</option>
+              {% for assignment, user in cashier_staff %}
+              <option value="{{ user.id }}" {% if request.form.get('cashier_user_id') == user.id|string %}selected{% endif %}>{{ user.display_name }} — même sans session active</option>
+              {% endfor %}
+            </select>
+            <label class="form-label mt-3" for="cashier_name">Ou saisir son nom manuellement</label>
+            <input class="form-control" id="cashier_name" name="cashier_name" maxlength="120" minlength="2"
+                   value="{{ request.form.get('cashier_name','') }}" placeholder="Ex. Nancy">
+            <label class="form-label mt-3" for="cashier_shift_id">Ou utiliser une session ouverte</label>
+            <select class="form-select" name="cashier_shift_id" id="cashier_shift_id">
+              <option value="">Aucune session sélectionnée</option>
               {% for shift, user in cashier_shifts %}
               <option value="{{ shift.id }}" {% if request.form.get('cashier_shift_id') == shift.id|string %}selected{% endif %}>{{ user.display_name }} — session {{ shift.id }}</option>
               {% endfor %}
             </select>
-            <div class="form-text">Sélectionnez une caissière présente pour démarrer le comptage V2. Le parcours V1 reste disponible pendant la transition.</div>
+            <div class="form-text">Choisissez une seule méthode : compte de caissière, nom manuel ou session ouverte. Sans sélection, le parcours historique V1 reste disponible. Le responsable peut effectuer le comptage même si la caissière n'utilise pas encore BAR_PRO.</div>
           </div>
           {% endif %}
           <div class="col-12">
