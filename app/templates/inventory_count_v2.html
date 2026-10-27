@@ -31,11 +31,89 @@
   Les casiers complets sont convertis automatiquement en unités. Aucun comptage ne modifie le stock ou les ventes à cette étape.
 </div>
 
+<section class="inv2-reconcile" aria-labelledby="inv2-reconcile-title" data-preview-url="{{ url_for('inventories.v2_reconciliation',bar_id=bar_id,inventory_id=inventory.id) }}">
+  <div class="inv2-reconcile-head">
+    <div>
+      <p class="eyebrow">Mouvements en cours</p>
+      <h2 id="inv2-reconcile-title">Rapprochement du stock</h2>
+      <p>Les ventes, achats, retours et pertes enregistrés dans BAR_PRO sont rapprochés avec le comptage, produit par produit. Aucun stock n'est ajusté.</p>
+    </div>
+    <button id="inv2-reconcile-refresh" class="btn btn-outline-primary" type="button">Actualiser les mouvements</button>
+  </div>
+  <div id="inv2-reconcile-message" class="inv2-reconcile-tip" role="status">
+    Aperçu indicatif : les boissons physiquement sorties mais pas encore enregistrées doivent être vérifiées. Les écarts nécessitent un contrôle humain avant validation.
+  </div>
+  {% if not reconciliation.baseline_available %}
+  <div class="alert alert-warning" role="alert">Cet inventaire a été créé avant l'activation du suivi des mouvements en cours. Son point de départ n'est pas fiable : démarrez un nouvel inventaire V2 pour bénéficier du rapprochement.</div>
+  {% endif %}
+  <div class="inv2-reconcile-list">
+  {% for movement in reconciliation.lines %}
+    <article class="inv2-reconcile-item" data-reconcile-product="{{ movement.product_id }}">
+      <div class="inv2-reconcile-line">
+        <strong>{{ movement.product_name }}</strong>
+        <span data-reconcile-status class="inv2-reconcile-status">{{ {"RECONCILED":"Conforme", "NOT_COUNTED":"Non compté", "DIFFERENCE":"Écart à vérifier", "LEDGER_MISMATCH":"Journal incohérent", "REFERENCE_MISSING":"Référence absente", "COUNT_CHECKPOINT_MISSING":"Recomptage nécessaire", "INVALID_CHECKPOINT":"Point de comptage invalide", "NEGATIVE_PROJECTION":"Comptage à vérifier"}.get(movement.status,movement.status) }}</span>
+      </div>
+      <div class="inv2-reconcile-values">
+        <div><span>Machine actuelle</span><strong data-reconcile-machine>{{ movement.current_machine|inventory_qty }} {{ movement.base_unit }}</strong></div>
+        <div><span>Physique projeté</span><strong data-reconcile-projected>{{ movement.projected_physical_now|inventory_qty }}</strong></div>
+        <div><span>Écart estimé</span><strong data-reconcile-difference>{{ movement.difference_now|inventory_qty }}</strong></div>
+      </div>
+      <details>
+        <summary>Afficher le détail des mouvements</summary>
+        <div class="inv2-movement-details">
+          <p>Référence machine au début : <strong data-reconcile-opening>{{ movement.opening_stock|inventory_qty }}</strong></p>
+          <p>Machine attendue au comptage : <strong data-reconcile-at-count>{{ movement.expected_at_count|inventory_qty }}</strong></p>
+          <p>Mouvements depuis le comptage : <strong data-reconcile-after>{{ movement.delta_after_count|inventory_qty }}</strong></p>
+          <p>Mouvements journalisés : <span data-reconcile-breakdown>{% for part in movement.movement_breakdown %}{{ part.type }} ({{ part.quantity_delta|inventory_qty }}){% if not loop.last %}, {% endif %}{% else %}Aucun{% endfor %}</span></p>
+        </div>
+      </details>
+    </article>
+  {% endfor %}
+  </div>
+</section>
+
+{% include 'inventory_finance_panel.html' %}
+
+<section class="panel-card mt-4 p-3 p-md-4 inv2-approval" aria-labelledby="inv2-approval-title">
+  <h2 id="inv2-approval-title">Validation du comptage</h2>
+  <p>Le comptage doit être terminé et les écarts justifiés avant soumission. La validation est indépendante des encaissements et dettes clients.</p>
+  <div class="inv2-summary">
+    <div><span>État du dossier</span><strong>{{ {"DRAFT":"Brouillon", "SUBMITTED":"En contrôle", "RECOUNT":"Recomptage demandé", "POSTED":"Validé"}.get(approval.status, approval.status) }}</strong></div>
+    <div><span>Valeur absolue des écarts</span><strong>{{ approval.total_absolute_value|inventory_qty }} {{ bar.currency }}</strong></div>
+    <div><span>Approbateur requis</span><strong>{% if approval.owner_required %}Propriétaire{% else %}Administrateur ou propriétaire{% endif %}</strong></div>
+  </div>
+  {% if approval.error %}<div class="alert alert-warning">Élément à corriger avant validation : {{ approval.error }}</div>{% endif %}
+  {% if approval.status in ('DRAFT','RECOUNT') and can_submit %}
+  <form method="post" action="{{ url_for('inventories.v2_submit',bar_id=bar_id,inventory_id=inventory.id) }}" class="mt-3">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <button class="btn btn-success" type="submit">Soumettre le comptage au responsable</button>
+    <span class="text-secondary small ms-2">Vérifiez que toutes les saisies ont bien été enregistrées.</span>
+  </form>
+  {% endif %}
+  {% if approval.status == 'SUBMITTED' %}
+    <p class="alert alert-info">Les quantités sont figées pendant le contrôle. Le responsable peut demander un recomptage, sans ajustement du stock.</p>
+    {% if approval.can_approve %}
+    <form method="post" action="{{ url_for('inventories.v2_decision',bar_id=bar_id,inventory_id=inventory.id) }}" class="mt-3">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <label for="inv2-decision-reason" class="form-label">Motif et résultat du contrôle (obligatoire)</label>
+      <textarea id="inv2-decision-reason" class="form-control" name="reason" rows="2" required maxlength="400" placeholder="Vérification des bouteilles manquantes, retours, casse, etc."></textarea>
+      <div class="d-flex gap-2 flex-wrap mt-2">
+        <button class="btn btn-outline-primary" type="submit" name="decision" value="recount">Demander un recomptage</button>
+        <button class="btn btn-success" type="submit" name="decision" value="approve" {% if approval.error or (approval.owner_required and not approval.is_owner) %}disabled{% endif %}>Approuver et ajuster le stock</button>
+      </div>
+    </form>
+    {% endif %}
+  {% endif %}
+  {% if approval.is_owner %}
+  <p class="mt-3 mb-0"><a href="{{ url_for('inventories.v2_policy',bar_id=bar_id) }}">Configurer les plafonds d'approbation de ce bar →</a></p>
+  {% endif %}
+  <p class="text-secondary small mt-2">La caisse, les paiements et les dettes ne sont pas modifiés par cette validation.</p>
+</section>
+
 {% if approval.status in ('DRAFT','RECOUNT') %}
 <form id="inv2-form" class="inv2-form" method="post" action="{{ url_for('inventories.v2_count',bar_id=bar_id,inventory_id=inventory.id) }}"
       data-count-url="{{ url_for('inventories.v2_count',bar_id=bar_id,inventory_id=inventory.id) }}">
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-  <h2 class="h4 mb-3" id="inv2-entry-title">Saisir le stock physique</h2>
   <div class="inv2-items">
   {% for line in inventory.lines %}
     <article class="inv2-product" data-product-id="{{ line.product_id }}">
@@ -81,86 +159,6 @@
   </div>
 </form>
 {% endif %}
-
-<section class="inv2-reconcile" aria-labelledby="inv2-reconcile-title" data-preview-url="{{ url_for('inventories.v2_reconciliation',bar_id=bar_id,inventory_id=inventory.id) }}">
-  <div class="inv2-reconcile-head">
-    <div>
-      <p class="eyebrow">Mouvements en cours</p>
-      <h2 id="inv2-reconcile-title">Rapprochement du stock</h2>
-      <p>Les ventes, achats, retours et pertes enregistrés dans BAR_PRO sont rapprochés avec le comptage, produit par produit. Aucun stock n'est ajusté.</p>
-    </div>
-    <button id="inv2-reconcile-refresh" class="btn btn-outline-primary" type="button">Actualiser les mouvements</button>
-  </div>
-  <div id="inv2-reconcile-message" class="inv2-reconcile-tip" role="status">
-    Aperçu indicatif : les boissons physiquement sorties mais pas encore enregistrées doivent être vérifiées. Les écarts nécessitent un contrôle humain avant validation.
-  </div>
-  {% if not reconciliation.baseline_available %}
-  <div class="alert alert-warning" role="alert">Cet inventaire a été créé avant l'activation du suivi des mouvements en cours. Son point de départ n'est pas fiable : démarrez un nouvel inventaire V2 pour bénéficier du rapprochement.</div>
-  {% endif %}
-  <div class="inv2-reconcile-list">
-  {% for movement in reconciliation.lines %}
-    <article class="inv2-reconcile-item" data-reconcile-product="{{ movement.product_id }}">
-      <div class="inv2-reconcile-line">
-        <strong>{{ movement.product_name }}</strong>
-        <span data-reconcile-status class="inv2-reconcile-status">{{ {"RECONCILED":"Conforme", "NOT_COUNTED":"Non compté", "DIFFERENCE":"Écart à vérifier", "LEDGER_MISMATCH":"Journal incohérent", "REFERENCE_MISSING":"Référence absente", "COUNT_CHECKPOINT_MISSING":"Recomptage nécessaire", "INVALID_CHECKPOINT":"Point de comptage invalide", "NEGATIVE_PROJECTION":"Comptage à vérifier"}.get(movement.status,movement.status) }}</span>
-      </div>
-      <div class="inv2-reconcile-values">
-        <div><span>Machine actuelle</span><strong data-reconcile-machine>{{ movement.current_machine|inventory_qty }} {{ movement.base_unit }}</strong></div>
-        <div><span>Physique projeté</span><strong data-reconcile-projected>{{ movement.projected_physical_now|inventory_qty }}</strong></div>
-        <div><span>Écart estimé</span><strong data-reconcile-difference>{{ movement.difference_now|inventory_qty }}</strong></div>
-      </div>
-      <details>
-        <summary>Afficher le détail des mouvements</summary>
-        <div class="inv2-movement-details">
-          <p>Référence machine au début : <strong data-reconcile-opening>{{ movement.opening_stock|inventory_qty }}</strong></p>
-          <p>Machine attendue au comptage : <strong data-reconcile-at-count>{{ movement.expected_at_count|inventory_qty }}</strong></p>
-          <p>Mouvements depuis le comptage : <strong data-reconcile-after>{{ movement.delta_after_count|inventory_qty }}</strong></p>
-          <p>Mouvements journalisés : <span data-reconcile-breakdown>{% for part in movement.movement_breakdown %}{{ part.type }} ({{ part.quantity_delta|inventory_qty }}){% if not loop.last %}, {% endif %}{% else %}Aucun{% endfor %}</span></p>
-        </div>
-      </details>
-    </article>
-  {% endfor %}
-  </div>
-</section>
-
-
-<section class="panel-card mt-4 p-3 p-md-4 inv2-approval" aria-labelledby="inv2-approval-title">
-  <h2 id="inv2-approval-title">Validation du comptage</h2>
-  <p>Le comptage doit être terminé et les écarts justifiés avant soumission. La validation est indépendante des encaissements et dettes clients.</p>
-  <div class="inv2-summary">
-    <div><span>État du dossier</span><strong>{{ {"DRAFT":"Brouillon", "SUBMITTED":"En contrôle", "RECOUNT":"Recomptage demandé", "POSTED":"Validé"}.get(approval.status, approval.status) }}</strong></div>
-    <div><span>Valeur absolue des écarts</span><strong>{{ approval.total_absolute_value|inventory_qty }} {{ bar.currency }}</strong></div>
-    <div><span>Approbateur requis</span><strong>{% if approval.owner_required %}Propriétaire{% else %}Administrateur ou propriétaire{% endif %}</strong></div>
-  </div>
-  {% if approval.error %}<div class="alert alert-warning">Élément à corriger avant validation : {{ approval.error }}</div>{% endif %}
-  {% if approval.status in ('DRAFT','RECOUNT') and can_submit %}
-  <form method="post" action="{{ url_for('inventories.v2_submit',bar_id=bar_id,inventory_id=inventory.id) }}" class="mt-3">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <button class="btn btn-success" type="submit">Soumettre le comptage au responsable</button>
-    <span class="text-secondary small ms-2">Vérifiez que toutes les saisies ont bien été enregistrées.</span>
-  </form>
-  {% endif %}
-  {% if approval.status == 'SUBMITTED' %}
-    <p class="alert alert-info">Les quantités sont figées pendant le contrôle. Le responsable peut demander un recomptage, sans ajustement du stock.</p>
-    {% if approval.can_approve %}
-    <form method="post" action="{{ url_for('inventories.v2_decision',bar_id=bar_id,inventory_id=inventory.id) }}" class="mt-3">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <label for="inv2-decision-reason" class="form-label">Motif et résultat du contrôle (obligatoire)</label>
-      <textarea id="inv2-decision-reason" class="form-control" name="reason" rows="2" required maxlength="400" placeholder="Vérification des bouteilles manquantes, retours, casse, etc."></textarea>
-      <div class="d-flex gap-2 flex-wrap mt-2">
-        <button class="btn btn-outline-primary" type="submit" name="decision" value="recount">Demander un recomptage</button>
-        <button class="btn btn-success" type="submit" name="decision" value="approve" {% if approval.error or (approval.owner_required and not approval.is_owner) %}disabled{% endif %}>Approuver et ajuster le stock</button>
-      </div>
-    </form>
-    {% endif %}
-  {% endif %}
-  {% if approval.is_owner %}
-  <p class="mt-3 mb-0"><a href="{{ url_for('inventories.v2_policy',bar_id=bar_id) }}">Configurer les plafonds d'approbation de ce bar →</a></p>
-  {% endif %}
-  <p class="text-secondary small mt-2">La caisse, les paiements et les dettes ne sont pas modifiés par cette validation.</p>
-</section>
-
-{% include 'inventory_finance_panel.html' %}
 
 <p class="inv2-footer">Ce rapprochement est indicatif : il ne certifie pas l'instant réel de la sortie physique d'une boisson. Le contrôle et l'approbation s'effectuent selon les plafonds définis par le propriétaire. Ne pas utiliser ce brouillon comme clôture définitive.</p>
 <script defer src="{{ url_for('static',filename='inventory_count_v2.js') }}"></script>

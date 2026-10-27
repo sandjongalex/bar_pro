@@ -16,59 +16,6 @@
     {% endif %}
   </div>
 
-  {% if finance.period_breakdown %}
-  {% set breakdown = finance.period_breakdown %}
-  <div class="alert alert-info" role="note">
-    <strong>Contrôle de la période de l'inventaire</strong>
-    <div class="small">Du {{ breakdown.start_at.strftime('%d/%m/%Y %H:%M') if breakdown.start_at else 'début des écritures' }}
-      au {{ breakdown.end_at.strftime('%d/%m/%Y %H:%M') }} (horodatage du serveur, UTC).</div>
-    <div class="small mt-1">Les montants ci-dessous proviennent des écritures datées de cette période ; ils ne constituent pas une dette personnelle. Une dépense ou dette oubliée saisie après la fin de cette période figure dans son journal, mais n'est pas automatiquement reclassée dans cette période. Contrôlez sa date et sa justification avant toute conclusion.</div>
-  </div>
-  <div class="inv-finance-grid mb-3">
-    <div class="inv-finance-metric">
-      <span>Dépenses en espèces, nettes</span>
-      <strong>{{ '{:,.0f}'.format(breakdown.cash_expenses|float) }} {{ bar.currency }}</strong>
-      <small>Déduites uniquement si elles ont été réellement payées depuis la caisse</small>
-    </div>
-    <div class="inv-finance-metric">
-      <span>Dépenses hors espèces, nettes</span>
-      <strong>{{ '{:,.0f}'.format((breakdown.expenses_by_method.MOBILE_MONEY + breakdown.expenses_by_method.CARD + breakdown.expenses_by_method.BANK_TRANSFER)|float) }} {{ bar.currency }}</strong>
-      <small>Mobile Money, carte et virement : pas de sortie du tiroir</small>
-    </div>
-    <div class="inv-finance-metric">
-      <span>Crédits clients liés aux ventes</span>
-      <strong>{{ '{:,.0f}'.format(breakdown.linked_credit|float) }} {{ bar.currency }}</strong>
-      <small>Écritures datées de la période, à rapprocher des factures sans double déduction</small>
-    </div>
-    <div class="inv-finance-metric">
-      <span>Dettes clients manuelles nettes</span>
-      <strong>{{ '{:,.0f}'.format(breakdown.manual_credit|float) }} {{ bar.currency }}</strong>
-      <small>Hors facture : ne réduisent jamais automatiquement les espèces attendues</small>
-    </div>
-    <div class="inv-finance-metric">
-      <span>Encaissements espèces nets</span>
-      <strong>{{ '{:,.0f}'.format(breakdown.cash_receipts|float) }} {{ bar.currency }}</strong>
-      <small>Paiements en espèces moins remboursements en espèces</small>
-    </div>
-    <div class="inv-finance-metric">
-      <span>Encaissements hors espèces nets</span>
-      <strong>{{ '{:,.0f}'.format(((breakdown.payments_by_method.MOBILE_MONEY + breakdown.payments_by_method.CARD + breakdown.payments_by_method.BANK_TRANSFER) - (breakdown.refunds_by_method.MOBILE_MONEY + breakdown.refunds_by_method.CARD + breakdown.refunds_by_method.BANK_TRANSFER))|float) }} {{ bar.currency }}</strong>
-      <small>Exclus de la recette physique du tiroir</small>
-    </div>
-  </div>
-  {% if finance.cashier_name %}
-  <div class="alert alert-warning" role="note">
-    <strong>Inventaire associé à {{ finance.cashier_name }}.</strong>
-    La session de caisse du bar n'est pas techniquement liée de manière certaine à cette caissière.
-    {% if not finance.cashier_shift_linked %}L'attribution a été faite sans session de travail.{% endif %}
-    Tout manquant reste un <strong>écart à vérifier</strong>, jamais une dette du personnel automatique.
-  </div>
-  {% endif %}
-  {% if breakdown.pending_debts %}
-  <div class="alert alert-warning">Des demandes de dettes clients sont encore en attente. Aucun manquant ne doit être attribué au personnel avant leur vérification.</div>
-  {% endif %}
-  {% endif %}
-
   {% if finance.session %}
     <div class="inv-finance-grid">
       <div class="inv-finance-metric">
@@ -99,7 +46,7 @@
       <p class="text-secondary small mt-2 mb-0">Relevé enregistré. {% if finance.saved.reason %}Motif : {{ finance.saved.reason }}.{% endif %} Il n'a pas clôturé automatiquement la session de caisse.</p>
     {% endif %}
   {% else %}
-    <div class="alert alert-info">Aucune session de caisse ouverte : la recette physique et les dépenses en espèces nécessitent une session active. Vous pouvez déclarer une dépense Mobile Money, carte ou virement et signaler des dettes. Cela n'empêche pas le comptage du stock physique.</div>
+    <div class="alert alert-info">Aucune session de caisse ouverte pour cet inventaire. La saisie de recette et les dépenses en espèces seront disponibles après ouverture d'une session. Les dettes peuvent toujours être signalées.</div>
   {% endif %}
 
   {% if finance.is_editable %}
@@ -173,7 +120,8 @@
       <div class="d-flex align-items-center gap-2 flex-wrap">
         <span class="badge {% if item.status == 'PENDING' %}text-bg-warning{% elif item.status == 'APPROVED' %}text-bg-success{% else %}text-bg-secondary{% endif %}">{{ {'PENDING':'En attente','APPROVED':'Approuvée','REJECTED':'Rejetée'}.get(item.status,item.status) }}</span>
         {% if item.status == 'PENDING' and finance.can_decide_debts %}
-          <form method="post" action="{{ url_for('inventories_finance.act',bar_id=bar_id,inventory_id=inventory.id if inventory is defined else report.inventory_id) }}" class="d-flex flex-wrap gap-2 inv-finance-decision-form">\n            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <form method="post" action="{{ url_for('inventories_finance.act',bar_id=bar_id,inventory_id=inventory.id if inventory is defined else report.inventory_id) }}" class="d-flex flex-wrap gap-2">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <input type="hidden" name="request_id" value="{{ item.id }}">
             <input class="form-control form-control-sm" name="reason" maxlength="500" required placeholder="Motif de décision" aria-label="Motif décision dette {{ item.customer }}">
             <button class="btn btn-sm btn-success" type="submit" name="action" value="approve_debt">Approuver</button>
@@ -187,5 +135,3 @@
   {% endif %}
   <p class="small text-secondary mt-3 mb-0">Le manquant réel provient exclusivement du tiroir et de sa session de caisse. Les ventes théoriques calculées depuis les bouteilles sont un indicateur distinct ; elles ne sont jamais ajoutées une deuxième fois à la caisse. Les dettes manuelles sont hors caisse, et les dettes de facture doivent correspondre au solde encore impayé.</p>
 </section>
-
-<script defer src="{{ url_for('static', filename='inventory_finance_async.js',v='20261027-fix') }}"></script>

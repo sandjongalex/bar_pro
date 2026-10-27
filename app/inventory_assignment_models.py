@@ -14,8 +14,8 @@ class InventoryCashierAssignment(Tenant, db.Model):
 
     id = db.Column(ID, primary_key=True)
     inventory_id = db.Column(ID, nullable=False)
-    cashier_shift_id = db.Column(ID, nullable=True)
-    cashier_user_id = db.Column(ID, db.ForeignKey("users.id", ondelete="RESTRICT"), nullable=True)
+    cashier_shift_id = db.Column(ID, nullable=False)
+    cashier_user_id = db.Column(ID, db.ForeignKey("users.id", ondelete="RESTRICT"), nullable=False)
     cashier_name_snapshot = db.Column(db.String(120), nullable=False)
     assigned_by_id = db.Column(ID, db.ForeignKey("users.id", ondelete="RESTRICT"), nullable=False)
     assigned_at = db.Column(datetime_type(fsp=6), nullable=False, default=utcnow)
