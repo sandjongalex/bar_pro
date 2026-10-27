@@ -282,3 +282,40 @@ def test_v2_owner_approval_requires_review_of_pending_debt(env):
     assert decision.status == "POSTED"
     assert req.status == "REJECTED"
     assert balance(env) == 10
+
+
+def test_finance_ajax_does_not_redirect_or_reset_inventory(env):
+    """JSON finance writes leave the inventory counting page in place."""
+    import re
+    inv = setup_inventory(env, reference="FINANCE-AJAX")
+    drawer(env)
+    client = env[0].test_client()
+    page = client.get("/login")
+    csrf = re.search(r'name=["\\']csrf_token["\\']\\s+value=["\\']([^"\\']+)["\\']', page.text)
+    assert csrf
+    login = client.post("/login", data={
+        "email": env[1].email, "password": "test-password",
+        "csrf_token": csrf.group(1),
+    })
+    assert login.status_code == 302
+    url = f"/bars/{env[2].id}/inventories/{inv.id}"
+    page = client.get(url)
+    assert "inventory_finance_async.js" in page.text
+    token = re.search(r'name=["\\']csrf_token["\\']\\s+value=["\\']([^"\\']+)["\\']', page.text)
+    response = client.post(url + "/finance", data={
+        "csrf_token": token.group(1), "action": "count_cash",
+        "counted_amount": "900", "reason": "Test comptage AJAX",
+    }, headers={"Accept": "application/json"})
+    assert response.status_code == 200
+    assert response.is_json
+    assert response.json["success"] is True
+    assert response.headers.get("Location") is None
+    assert db.session.scalar(select(InventoryCashReconciliation.counted_amount)) == 900
+    failed = client.post(url + "/finance", data={
+        "csrf_token": token.group(1), "action": "count_cash",
+        "counted_amount": "800", "reason": "",
+    }, headers={"Accept": "application/json"})
+    assert failed.status_code == 400
+    assert failed.json["success"] is False
+    assert db.session.scalar(select(InventoryCashReconciliation.counted_amount)) == 900
+
