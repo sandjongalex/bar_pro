@@ -1,5 +1,7 @@
 """POST-only inventory financial reconciliation actions."""
-from flask import Blueprint, flash, redirect, request, url_for
+import secrets
+
+from flask import Blueprint, flash, jsonify, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -7,9 +9,10 @@ from sqlalchemy.exc import IntegrityError
 from app.extensions import db
 from app.inventory_assignment_models import InventoryCashierAssignment
 from app.inventory_finance_services import (
-    count_cash, add_expense, request_debt, decide_debt,
+    count_cash, add_expense, request_debt, decide_debt, view as finance_view,
 )
 from app.inventory_services import inventory_service
+from app.models import Bar
 from app.inventories import _message
 
 
@@ -24,6 +27,7 @@ bp = Blueprint(
 def act(bar_id, inventory_id):
     inv = inventory_service.get(current_user, bar_id, inventory_id)
     action = (request.form.get("action") or "").strip()
+    asynchronous = request.headers.get("X-Requested-With") == "XMLHttpRequest"
     try:
         if action == "count_cash":
             count_cash(current_user, bar_id, inventory_id,
@@ -61,10 +65,26 @@ def act(bar_id, inventory_id):
         else:
             raise ValueError("INVALID_ACTION")
         db.session.commit()
+        if asynchronous:
+            # Only return the finance fragment. Re-rendering the whole inventory
+            # would discard unsaved physical counts and V2 row revisions.
+            markup = render_template(
+                "inventory_finance_panel.html",
+                finance=finance_view(current_user, bar_id, inventory_id),
+                finance_expense_nonce=secrets.token_hex(12),
+                finance_debt_nonce=secrets.token_hex(12),
+                inventory=inv,
+                bar=db.session.get(Bar, bar_id),
+                bar_id=bar_id,
+            )
+            return jsonify(success=True, message=message, html=markup)
         flash(message, "success")
     except (PermissionError, LookupError, ValueError, TypeError, IntegrityError) as exc:
         db.session.rollback()
-        flash(_message(exc), "danger")
+        message = _message(exc)
+        if asynchronous:
+            return jsonify(success=False, message=message, code=str(exc)), 400
+        flash(message, "danger")
 
     v2 = db.session.scalar(select(InventoryCashierAssignment.id).where(
         InventoryCashierAssignment.bar_id == bar_id,
