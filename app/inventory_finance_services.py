@@ -8,6 +8,8 @@ from sqlalchemy import select
 
 from app.audit import record
 from app.inventory_assignment_models import InventoryCashierAssignment
+from app.inventory_period_models import InventoryPeriodSnapshot
+from app.customer_models import CustomerLedgerEntry
 from app.shift_service import get_active_shift_for_user
 from app.cash_services import cash_service
 from app.customer_services import customer_service
@@ -16,7 +18,7 @@ from app.extensions import db
 from app.inventory_finance_models import InventoryCashReconciliation, InventoryDebtRequest
 from app.inventory_services import inventory_service
 from app.models import (
-    CashSession, Customer, ExpenseCategory, Order, User, utcnow,
+    CashSession, Customer, Expense, ExpenseCategory, Order, Payment, Refund, User, utcnow,
 )
 from app.permissions import permissions
 from app.validation import number, required_text
@@ -63,9 +65,82 @@ def pending_count(bar_id, inventory_id):
     ))))
 
 
+def period_financial_breakdown(bar_id, inventory_id):
+    """Auditable period overview, separate from drawer and stock discrepancy.
+
+    Count each expense once by payment method; manual debt is a customer
+    receivable, never an automatic cash deduction. Amounts are informational
+    and MUST NOT be used to infer personal responsibility.
+    """
+    period = db.session.scalar(select(InventoryPeriodSnapshot).where(
+        InventoryPeriodSnapshot.bar_id == bar_id,
+        InventoryPeriodSnapshot.inventory_id == inventory_id,
+    ))
+    if period is None:
+        return None
+    start_at, end_at = period.period_start_at, period.period_end_at
+
+    def in_period(column):
+        conditions = [column <= end_at]
+        if start_at is not None:
+            conditions.append(column > start_at)
+        return conditions
+
+    expenses = {"CASH": Decimal("0"), "MOBILE_MONEY": Decimal("0"),
+                "BANK_TRANSFER": Decimal("0"), "CARD": Decimal("0")}
+    for entry in db.session.scalars(select(Expense).where(
+        Expense.bar_id == bar_id, *in_period(Expense.incurred_at),
+    )):
+        sign = 1 if entry.entry_kind == "EXPENSE" else -1
+        expenses[entry.method] = expenses.get(entry.method, Decimal("0")) + sign * Decimal(entry.amount)
+
+    payments = {"CASH": Decimal("0"), "MOBILE_MONEY": Decimal("0"),
+                "BANK_TRANSFER": Decimal("0"), "CARD": Decimal("0")}
+    for entry in db.session.scalars(select(Payment).where(
+        Payment.bar_id == bar_id, *in_period(Payment.received_at),
+    )):
+        payments[entry.method] = payments.get(entry.method, Decimal("0")) + Decimal(entry.amount_applied)
+
+    refunds = {"CASH": Decimal("0"), "MOBILE_MONEY": Decimal("0"),
+               "BANK_TRANSFER": Decimal("0"), "CARD": Decimal("0")}
+    for entry in db.session.scalars(select(Refund).where(
+        Refund.bar_id == bar_id, *in_period(Refund.refunded_at),
+    )):
+        refunds[entry.method] = refunds.get(entry.method, Decimal("0")) + Decimal(entry.amount)
+
+    linked_credit = Decimal("0")
+    manual_credit = Decimal("0")
+    for entry in db.session.scalars(select(CustomerLedgerEntry).where(
+        CustomerLedgerEntry.bar_id == bar_id,
+        CustomerLedgerEntry.entry_kind.in_(("CREDIT_SALE", "REVERSAL", "ADJUSTMENT")),
+        *in_period(CustomerLedgerEntry.occurred_at),
+    )):
+        if entry.order_id is not None and entry.entry_kind in ("CREDIT_SALE", "REVERSAL"):
+            linked_credit += Decimal(entry.amount_delta)
+        elif entry.order_id is None and entry.entry_kind == "ADJUSTMENT":
+            manual_credit += Decimal(entry.amount_delta)
+
+    return {
+        "start_at": start_at, "end_at": end_at,
+        "expenses_by_method": expenses,
+        "payments_by_method": payments,
+        "refunds_by_method": refunds,
+        "linked_credit": linked_credit,
+        "manual_credit": manual_credit,
+        "cash_expenses": expenses["CASH"],
+        "cash_receipts": payments["CASH"] - refunds["CASH"],
+        "pending_debts": pending_count(bar_id, inventory_id),
+    }
+
+
 def view(actor, bar_id, inventory_id):
     inv = _check(actor, bar_id, inventory_id)
     saved = _saved(bar_id, inv.id)
+    assignment = db.session.scalar(select(InventoryCashierAssignment).where(
+        InventoryCashierAssignment.bar_id == bar_id,
+        InventoryCashierAssignment.inventory_id == inv.id,
+    ))
+    period_breakdown = period_financial_breakdown(bar_id, inv.id)
     live_session = _active_cash(bar_id) if inv.status == "DRAFT" else None
     saved_session = db.session.scalar(select(CashSession).where(
         CashSession.bar_id == bar_id, CashSession.id == saved.cash_session_id,
@@ -106,6 +181,10 @@ def view(actor, bar_id, inventory_id):
     ).allowed
     return {
         "is_editable": can_edit,
+        "period_breakdown": period_breakdown,
+        "cashier_name": assignment.cashier_name_snapshot if assignment else None,
+        "cashier_shift_linked": bool(assignment and assignment.cashier_shift_id),
+        "cash_session_is_cashier_verified": False,
         "can_decide_debts": can_decide,
         "saved": saved,
         "session": current,
