@@ -33,8 +33,16 @@
       credentials: "same-origin",
       headers: { "Accept": "application/json", "X-Requested-With": "XMLHttpRequest" }
     }).then(function (response) {
+      var type = response.headers.get("content-type") || "";
+      if (type.indexOf("application/json") === -1) {
+        throw new Error(response.redirected || response.status === 401
+          ? "Votre session a expiré. Reconnectez-vous puis vérifiez l'opération avant de la saisir à nouveau."
+          : "Le serveur n'a pas renvoyé de confirmation. Vérifiez votre connexion et l'historique avant de réessayer.");
+      }
       return response.json().then(function (body) {
-        if (!response.ok || !body.success) throw new Error(body.message || "Enregistrement impossible");
+        if (!response.ok || !body.success) {
+          throw new Error(body.message || "La saisie a été refusée. Vérifiez les droits, la session de caisse et les montants.");
+        }
         return body;
       });
     }).then(function (body) {
