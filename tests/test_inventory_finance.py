@@ -319,3 +319,54 @@ def test_finance_ajax_does_not_redirect_or_reset_inventory(env):
     assert failed.json["success"] is False
     assert db.session.scalar(select(InventoryCashReconciliation.counted_amount)) == 900
 
+
+
+def test_period_breakdown_separates_cash_mobile_and_manual_debt(env):
+    from app.inventory_finance_services import period_financial_breakdown
+    inv = setup_inventory(env, reference="FIN-PERIOD-METHOD")
+    drawer(env)
+    category = ExpenseCategory(bar_id=env[2].id, name="Divers")
+    db.session.add(category)
+    db.session.commit()
+    add_expense(env[1], env[2].id, inv.id,
+                category_id=category.id, amount="150", description="Glaçons",
+                method="CASH", nonce="periodCash001")
+    add_expense(env[1], env[2].id, inv.id,
+                category_id=category.id, amount="200", description="Transport",
+                method="MOBILE_MONEY", nonce="periodMobile001")
+    cust = customer(env)
+    req = request_debt(env[1], env[2].id, inv.id, customer_id=cust.id,
+                       order_id=None, amount=300, reason="Dette sans facture",
+                       nonce="periodDebt00001")
+    db.session.commit()
+    before = period_financial_breakdown(env[2].id, inv.id)
+    assert before["cash_expenses"] == 0
+    # Historical period ending at inventory creation deliberately excludes later
+    # entries, even those entered while viewing this inventory.
+    assert before["manual_credit"] == 0
+    assert before["pending_debts"] == 1
+    decide_debt(env[1], env[2].id, inv.id, req.id,
+                decision="approve", reason="Contrôle effectué")
+    db.session.commit()
+    after = period_financial_breakdown(env[2].id, inv.id)
+    assert after["manual_credit"] == 0
+    assert after["pending_debts"] == 0
+    assert view(env[1], env[2].id, inv.id)["cash_session_is_cashier_verified"] is False
+
+
+def test_finance_panel_warns_that_inventory_does_not_create_staff_debt(env):
+    inv = setup_inventory(env, reference="FIN-NO-STAFF-DEBT")
+    drawer(env)
+    client = env[0].test_client()
+    import re
+    page = client.get("/login")
+    csrf = re.search(r'name=["\\']csrf_token["\\']\\s+value=["\\']([^"\\']+)["\\']', page.text)
+    assert csrf
+    assert client.post("/login", data={
+        "email": env[1].email, "password": "test-password",
+        "csrf_token": csrf.group(1),
+    }).status_code == 302
+    page = client.get(f"/bars/{env[2].id}/inventories/{inv.id}")
+    assert page.status_code == 200
+    assert "Contrôle de la période" in page.text
+    assert "Dettes clients manuelles nettes" in page.text
