@@ -65,9 +65,19 @@ def act(bar_id, inventory_id):
         else:
             raise ValueError("INVALID_ACTION")
         db.session.commit()
+        if not asynchronous:
+            flash(message, "success")
+    except (PermissionError, LookupError, ValueError, TypeError, IntegrityError) as exc:
+        db.session.rollback()
+        message = _message(exc)
         if asynchronous:
-            # Only return the finance fragment. Re-rendering the whole inventory
-            # would discard unsaved physical counts and V2 row revisions.
+            return jsonify(success=False, message=message, code=str(exc)), 400
+        flash(message, "danger")
+
+    if asynchronous:
+        # Persisted operations are already committed; a rendering failure must
+        # never be reported as a failed write (which could trigger a duplicate).
+        try:
             markup = render_template(
                 "inventory_finance_panel.html",
                 finance=finance_view(current_user, bar_id, inventory_id),
@@ -77,14 +87,12 @@ def act(bar_id, inventory_id):
                 bar=db.session.get(Bar, bar_id),
                 bar_id=bar_id,
             )
-            return jsonify(success=True, message=message, html=markup)
-        flash(message, "success")
-    except (PermissionError, LookupError, ValueError, TypeError, IntegrityError) as exc:
-        db.session.rollback()
-        message = _message(exc)
-        if asynchronous:
-            return jsonify(success=False, message=message, code=str(exc)), 400
-        flash(message, "danger")
+        except Exception:
+            # The user can keep counting; a later page visit refreshes finance.
+            from flask import current_app
+            current_app.logger.exception("Inventory finance fragment rendering failed")
+            markup = None
+        return jsonify(success=True, message=message, html=markup)
 
     v2 = db.session.scalar(select(InventoryCashierAssignment.id).where(
         InventoryCashierAssignment.bar_id == bar_id,
