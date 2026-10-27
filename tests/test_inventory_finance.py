@@ -294,7 +294,7 @@ def test_ajax_expense_updates_only_finance_and_prevents_duplicate(env):
     db.session.commit()
     client = env[0].test_client()
     html = client.get("/login").text
-    csrf = re.search(r'name=["\\']csrf_token["\\']\\s+value=["\\']([^"\\']+)["\\']', html)
+    csrf = re.search(r"name=['\"]csrf_token['\"]\s+value=['\"]([^'\"]+)['\"]", html)
     assert csrf
     assert client.post("/login", data={"email": env[1].email,
         "password": "test-password", "csrf_token": csrf.group(1)}).status_code == 302
@@ -302,7 +302,7 @@ def test_ajax_expense_updates_only_finance_and_prevents_duplicate(env):
     page = client.get(url)
     assert page.status_code == 200
     assert "inventory_finance_async.js" in page.text
-    token = re.search(r'name=["\\']csrf_token["\\']\\s+value=["\\']([^"\\']+)["\\']', page.text)
+    token = re.search(r"name=['\"]csrf_token['\"]\s+value=['\"]([^'\"]+)['\"]", page.text)
     form = {"csrf_token": token.group(1), "action": "expense",
             "category_id": str(category.id), "amount": "100",
             "description": "Glace oubliée", "method": "CASH",
@@ -329,11 +329,11 @@ def test_ajax_debt_preserves_stock_and_returns_new_finance_fragment(env):
     cust = customer(env)
     client = env[0].test_client()
     html = client.get("/login").text
-    csrf = re.search(r'name=["\\']csrf_token["\\']\\s+value=["\\']([^"\\']+)["\\']', html)
+    csrf = re.search(r"name=['\"]csrf_token['\"]\s+value=['\"]([^'\"]+)['\"]", html)
     assert client.post("/login", data={"email": env[1].email,
         "password": "test-password", "csrf_token": csrf.group(1)}).status_code == 302
     url = f"/bars/{env[2].id}/inventories/{inv.id}"
-    token = re.search(r'name=["\\']csrf_token["\\']\\s+value=["\\']([^"\\']+)["\\']',
+    token = re.search(r"name=['\"]csrf_token['\"]\s+value=['\"]([^'\"]+)['\"]",
                       client.get(url).text)
     result = client.post(url + "/finance", data={
         "csrf_token": token.group(1), "action": "debt_request",
