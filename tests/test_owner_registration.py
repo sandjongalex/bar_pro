@@ -90,6 +90,22 @@ def test_public_signup_requires_validation_and_trial_starts_only_on_approval(tmp
         assert permissions.evaluate(owner, "reports.read", bar_id).allowed
 
 
+    # The now-approved owner can authenticate with the password chosen privately.
+    assert client.post("/logout").status_code == 302
+    assert client.post("/login", data={
+        "email": "owner@example.invalid", "password": "Asecurepass-12345"
+    }).status_code == 302
+    # Tenant web writes are denied once the free trial has expired.
+    assert client.post(f"/bars/{bar_id}/orders/new", data={}).status_code == 403
+
+
+def test_public_registration_rejects_missing_csrf(tmp_path):
+    app = _app(tmp_path, csrf=True)
+    client = app.test_client()
+    assert client.post("/register-owner", data=_form()).status_code == 400
+
+
+
 def test_reject_and_invalid_registration_do_not_activate_owner(tmp_path):
     app = _app(tmp_path)
     client = app.test_client()
