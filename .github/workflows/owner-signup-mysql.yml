@@ -55,3 +55,6 @@ jobs:
         run: python -c "from app import create_app; from app.saas_governance import trial_expired; print('Imports OK')"
       - name: Tester l'inscription et les 15 jours sur MySQL
         run: python -m pytest -v tests/test_owner_registration_mysql.py
+      - name: Vérification complémentaire du parcours propriétaire
+        if: always()
+        run: python -m pytest -v tests/test_owner_registration.py
