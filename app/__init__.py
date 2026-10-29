@@ -217,6 +217,9 @@ def _register_blueprints(app: Flask) -> None:
                 abort(400)
 
         bar_id = (request.view_args or {}).get("bar_id")
+        # Platform approval operates on a pending bar and is authorized separately.
+        if request.endpoint == "owner_signup.review":
+            return None
         if not request.path.startswith("/api/") and bar_id is not None and current_user.is_authenticated:
             context = None
             if current_user.category == "EMPLOYEE":
