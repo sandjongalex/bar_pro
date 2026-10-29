@@ -23,6 +23,10 @@ class SubscriptionService:
   payment=SubscriptionPayment(bar_id=bar_id,subscription_id=item.id,reference=reference,amount=amount,currency=item.currency,entry_kind="PAYMENT",provider_code="MANUAL",provider_transaction_id=reference,paid_at=utcnow(),recorded_by_id=actor.id)
   db.session.add(payment);db.session.flush()
   if paid+amount==item.price_amount_snapshot:
+   # End the free trial before activating a paid subscription (one ACTIVE per bar).
+   for previous in db.session.scalars(select(Subscription).where(Subscription.bar_id==bar_id,Subscription.status=="ACTIVE",Subscription.id!=item.id).with_for_update()):
+    if previous.plan_code_snapshot!="BARPRO_TRIAL_14D" and previous.ends_at>utcnow().replace(tzinfo=None): raise ValueError("ACTIVE_SUBSCRIPTION_EXISTS")
+    previous.status="EXPIRED";previous.expired_at=utcnow()
    item.status="ACTIVE";item.activated_at=item.activated_at or utcnow();record(actor,bar_id,"subscriptions.activate","subscriptions",item.id,reference)
   record(actor,bar_id,"subscriptions.payment","subscription_payments",payment.id,reference);return item
  def cancel(self,actor,bar_id,subscription_id,reason):
