@@ -35,7 +35,7 @@ def _form(email="owner@example.invalid", phone="+237 699 555 001"):
         "display_name": "Propriétaire Test", "email": email,
         "phone": phone, "password": "Asecurepass-12345",
         "password_confirm": "Asecurepass-12345", "bar_name": "BAR TEST",
-        "address": "Yaoundé", "accept_terms": "1",
+        "address": "Yaoundé", "confirm_authority": "1",
     }
 
 
