@@ -19,14 +19,13 @@
       <table class="table align-middle mb-0">
         <thead><tr><th>Bar</th><th>Propriétaire</th><th>Contact</th><th>Début de l'essai</th><th>Échéance</th></tr></thead>
         <tbody>
-        {% for bar in registrations %}
-        {% set trial = (bar.id) %}
+        {% for bar, trial in registrations %}
         <tr>
           <td><strong>{{ bar.name }}</strong><small class="d-block text-secondary">{{ bar.address or 'Adresse non précisée' }}</small></td>
           <td>{{ bar.owner.display_name }}</td>
           <td><span class="d-block">{{ bar.owner.email }}</span><small>{{ bar.phone or '—' }}</small></td>
-          <td>{{ bar.created_at.strftime('%d/%m/%Y') }}</td>
-          <td>Essai de 15 jours à partir de l'inscription</td>
+          <td>{{ trial.starts_at.strftime('%d/%m/%Y %H:%M') }} UTC</td>
+          <td>{{ trial.ends_at.strftime('%d/%m/%Y %H:%M') }} UTC</td>
         </tr>
         {% endfor %}
         </tbody>
