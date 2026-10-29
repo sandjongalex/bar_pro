@@ -7,7 +7,7 @@ automated and must not be represented as verified.
 from datetime import timedelta
 import re
 
-from flask import Blueprint, abort, redirect, render_template, request, session, url_for
+from flask import Blueprint, abort, current_app, redirect, render_template, request, session, url_for
 from flask_login import current_user, login_required, login_user
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -84,6 +84,8 @@ def _trial_plan():
 @bp.route("/register-owner", methods=["GET", "POST"])
 @limiter.limit("3 per hour", methods=["POST"])
 def register():
+    if not current_app.config.get("OWNER_SELF_SIGNUP_ENABLED", False):
+        abort(404)
     if current_user.is_authenticated:
         return redirect(url_for("web.dashboard"))
     if request.method == "GET":
