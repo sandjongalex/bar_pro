@@ -13,7 +13,7 @@ class SubscriptionService:
   permissions.require(actor,"subscriptions.manage",bar_id)
   bar=db.session.get(Bar,bar_id); plan=db.session.get(Plan,plan_id)
   if not bar or not plan or not plan.is_active: raise LookupError("NOT_FOUND")
-  if plan.code=="BARPRO_TRIAL_14D": raise ValueError("TRIAL_NOT_PURCHASABLE")
+  if plan.code=="BARPRO_TRIAL_15D": raise ValueError("TRIAL_NOT_PURCHASABLE")
   start=utcnow(); item=Subscription(bar_id=bar_id,plan_id=plan.id,reference=reference,status="PENDING",plan_code_snapshot=plan.code,plan_name_snapshot=plan.name,price_amount_snapshot=plan.price_amount,duration_days_snapshot=plan.duration_days,currency=plan.currency,starts_at=start,ends_at=start+timedelta(days=plan.duration_days),created_by_id=actor.id)
   db.session.add(item);db.session.flush();record(actor,bar_id,"subscriptions.create","subscriptions",item.id,reference);return item
  def pay(self,actor,bar_id,subscription_id,reference,amount):
@@ -26,7 +26,7 @@ class SubscriptionService:
   if paid+amount==item.price_amount_snapshot:
    # End the free trial before activating a paid subscription (one ACTIVE per bar).
    for previous in db.session.scalars(select(Subscription).where(Subscription.bar_id==bar_id,Subscription.status=="ACTIVE",Subscription.id!=item.id).with_for_update()):
-    if previous.plan_code_snapshot!="BARPRO_TRIAL_14D" and previous.ends_at>utcnow().replace(tzinfo=None): raise ValueError("ACTIVE_SUBSCRIPTION_EXISTS")
+    if previous.plan_code_snapshot!="BARPRO_TRIAL_15D" and previous.ends_at>utcnow().replace(tzinfo=None): raise ValueError("ACTIVE_SUBSCRIPTION_EXISTS")
     previous.status="EXPIRED";previous.expired_at=utcnow()
    item.status="ACTIVE";item.activated_at=item.activated_at or utcnow();record(actor,bar_id,"subscriptions.activate","subscriptions",item.id,reference)
   record(actor,bar_id,"subscriptions.payment","subscription_payments",payment.id,reference);return item
