@@ -61,16 +61,23 @@ def _trial_plan():
     """One shared plan for all first bars; never expose it to manual checkout."""
     plan = db.session.scalar(select(Plan).where(Plan.code == TRIAL_CODE))
     if plan is None:
-        plan = Plan(
-            code=TRIAL_CODE,
-            name="Essai gratuit de 15 jours",
-            price_amount=0,
-            currency="XAF",
-            duration_days=TRIAL_DAYS,
-            is_active=True,
-        )
-        db.session.add(plan)
-        db.session.flush()
+        try:
+            # The unique code handles concurrent first-time registrations.
+            with db.session.begin_nested():
+                plan = Plan(
+                    code=TRIAL_CODE,
+                    name="Essai gratuit de 15 jours",
+                    price_amount=0,
+                    currency="XAF",
+                    duration_days=TRIAL_DAYS,
+                    is_active=True,
+                )
+                db.session.add(plan)
+                db.session.flush()
+        except IntegrityError:
+            plan = db.session.scalar(select(Plan).where(Plan.code == TRIAL_CODE))
+            if plan is None:
+                raise
     return plan
 
 
@@ -153,8 +160,9 @@ def registered():
 def registrations_list():
     if current_user.category != "SUPER_ADMIN":
         abort(403)
-    registrations = list(db.session.scalars(
-        select(Bar).join(Subscription, Subscription.bar_id == Bar.id)
+    registrations = list(db.session.execute(
+        select(Bar, Subscription)
+        .join(Subscription, Subscription.bar_id == Bar.id)
         .where(Subscription.plan_code_snapshot == TRIAL_CODE)
         .order_by(Bar.created_at.desc()).limit(200)
     ))
