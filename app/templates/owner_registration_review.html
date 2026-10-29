@@ -1,49 +1,40 @@
 {% extends 'layout.html' %}
 {% block title %}Inscriptions propriétaires · BAR_PRO{% endblock %}
-{% block header %}Demandes d'inscription{% endblock %}
+{% block header %}Propriétaires inscrits{% endblock %}
 {% block content %}
 <section class="dashboard-hero">
-  <div><p class="eyebrow mb-2">Administration de la plateforme</p>
-  <h1>Propriétaires en attente</h1>
-  <p>Vérifiez réellement les coordonnées avant toute approbation. Les comptes sont inactifs et les bars bloqués avant validation.</p></div>
-</section>
-{% if not requests %}
-  <div class="alert alert-info mt-4">Aucune demande en attente.</div>
-{% endif %}
-<div class="row g-3 mt-2">
-{% for bar in requests %}
-  <div class="col-12 col-xl-6">
-    <section class="panel-card p-4 h-100">
-      <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
-        <div><h2 class="h5 fw-bold">{{ bar.name }}</h2>
-        <p class="text-secondary mb-0">{{ bar.address or "Adresse non renseignée" }}</p></div>
-        <span class="badge text-bg-warning">En attente</span>
-      </div>
-      <dl class="row mb-3">
-        <dt class="col-sm-4">Propriétaire</dt><dd class="col-sm-8">{{ bar.owner.display_name }}</dd>
-        <dt class="col-sm-4">E-mail</dt><dd class="col-sm-8">{{ bar.owner.email }}</dd>
-        <dt class="col-sm-4">Téléphone</dt><dd class="col-sm-8">{{ bar.phone }}</dd>
-      </dl>
-      <form method="post" action="{{ url_for('owner_signup.review', bar_id=bar.id, action='approve') }}">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <div class="form-check mb-2">
-          <input class="form-check-input" type="checkbox" name="email_checked" value="1" id="email-{{ bar.id }}" required>
-          <label class="form-check-label" for="email-{{ bar.id }}">J'ai vérifié personnellement l'adresse e-mail.</label>
-        </div>
-        <div class="form-check mb-3">
-          <input class="form-check-input" type="checkbox" name="phone_checked" value="1" id="phone-{{ bar.id }}" required>
-          <label class="form-check-label" for="phone-{{ bar.id }}">J'ai vérifié personnellement le numéro de téléphone.</label>
-        </div>
-        <button class="btn btn-success w-100" type="submit">Approuver et activer 14 jours d'essai</button>
-      </form>
-      <form method="post" action="{{ url_for('owner_signup.review', bar_id=bar.id, action='reject') }}" class="mt-3">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <label class="form-label" for="reason-{{ bar.id }}">Motif de refus</label>
-        <input class="form-control mb-2" id="reason-{{ bar.id }}" name="reason" maxlength="500" required>
-        <button class="btn btn-outline-danger w-100" type="submit">Refuser la demande</button>
-      </form>
-    </section>
+  <div>
+    <p class="eyebrow mb-2">Super administration</p>
+    <h1>Inscriptions autonomes</h1>
+    <p>Les premiers bars sont activés immédiatement pour 15 jours d'essai. La plateforme conserve le droit de suspendre un compte ou un bar après contrôle.</p>
   </div>
-{% endfor %}
-</div>
+</section>
+<section class="panel-card mt-4">
+  <div class="panel-header">
+    <div><p class="eyebrow mb-1">Suivi commercial</p><h2>Dernières inscriptions</h2></div>
+    <span class="hero-badge">{{ registrations|length }}</span>
+  </div>
+  {% if registrations %}
+    <div class="table-responsive">
+      <table class="table align-middle mb-0">
+        <thead><tr><th>Bar</th><th>Propriétaire</th><th>Contact</th><th>Début de l'essai</th><th>Échéance</th></tr></thead>
+        <tbody>
+        {% for bar in registrations %}
+        {% set trial = (bar.id) %}
+        <tr>
+          <td><strong>{{ bar.name }}</strong><small class="d-block text-secondary">{{ bar.address or 'Adresse non précisée' }}</small></td>
+          <td>{{ bar.owner.display_name }}</td>
+          <td><span class="d-block">{{ bar.owner.email }}</span><small>{{ bar.phone or '—' }}</small></td>
+          <td>{{ bar.created_at.strftime('%d/%m/%Y') }}</td>
+          <td>Essai de 15 jours à partir de l'inscription</td>
+        </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <div class="alert alert-info m-3">Aucune inscription autonome pour le moment.</div>
+  {% endif %}
+</section>
+<p class="text-secondary small mt-3">Les coordonnées ne sont pas certifiées par un code OTP. Un contrôle de sécurité indépendant reste possible.</p>
 {% endblock %}
