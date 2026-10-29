@@ -152,8 +152,41 @@ def dashboard():
             .limit(20)
         )
     )
+    owner_trial = None
+    if current_user.category == "OWNER" and active_bar is not None:
+        from app.models import Subscription, utcnow
+        from app.owner_signup_web import TRIAL_CODE
+
+        trial = db.session.scalar(
+            select(Subscription)
+            .where(
+                Subscription.bar_id == active_bar.id,
+                Subscription.plan_code_snapshot == TRIAL_CODE,
+            )
+            .order_by(Subscription.id.desc())
+            .limit(1)
+        )
+        if trial is not None:
+            now = utcnow().replace(tzinfo=None)
+            paid = db.session.scalar(
+                select(Subscription.id).where(
+                    Subscription.bar_id == active_bar.id,
+                    Subscription.plan_code_snapshot != TRIAL_CODE,
+                    Subscription.status == "ACTIVE",
+                    Subscription.starts_at <= now,
+                    Subscription.ends_at > now,
+                ).limit(1)
+            )
+            owner_trial = {
+                "paid": paid is not None,
+                "expired": trial.status != "ACTIVE" or trial.ends_at <= now,
+                "ends_at": trial.ends_at,
+                "remaining_days": max(0, int(((trial.ends_at - now).total_seconds() + 86399) // 86400)),
+            }
+
     return render_template(
         "dashboard.html",
+        owner_trial=owner_trial,
         bars=bars,
         reportable_bars=reportable_bars,
         active_bar=active_bar,
