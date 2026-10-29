@@ -177,3 +177,16 @@ def test_invalid_duplicate_and_csrf_protections(tmp_path):
         "/register-owner", data={**_form(), "csrf_token": token}
     )
     assert response.status_code == 302
+
+
+def test_signup_is_blocked_when_disabled_and_login_hides_cta(tmp_path):
+    app = _app(tmp_path / "disabled")
+    app.config["OWNER_SELF_SIGNUP_ENABLED"] = False
+    client = app.test_client()
+    assert client.get("/register-owner").status_code == 404
+    assert client.post("/register-owner", data=_form()).status_code == 404
+    login = client.get("/login")
+    assert login.status_code == 200
+    assert "Créer un compte propriétaire" not in login.get_data(as_text=True)
+    with app.app_context():
+        assert db.session.scalar(select(User).where(User.email == "owner@example.invalid")) is None

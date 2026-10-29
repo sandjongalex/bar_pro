@@ -1,5 +1,22 @@
 # BAR_PRO — inscription propriétaire et essai automatique de 15 jours
 
+## Déploiement de production — inscription désactivée par défaut
+
+L'inscription autonome `GET/POST /register-owner` est volontairement
+**désactivée en configuration production**, tant que le contrôle obligatoire
+des coordonnées (e-mail et téléphone) et les protections anti-abus ne sont
+pas en place. `OWNER_SELF_SIGNUP_ENABLED` vaut `0` par défaut en production ;
+les deux méthodes répondent 404 et le lien est masqué sur la page de connexion.
+
+Cette mesure permet de déployer les améliorations de code sans ouvrir
+immédiatement une inscription publique non vérifiée. Dans les environnements
+de développement et de tests, l'inscription reste activée pour les essais.
+Une fois l'onboarding sécurisé et validé, l'activation est explicite via
+`OWNER_SELF_SIGNUP_ENABLED=1` dans la configuration privée du serveur,
+suivie d'un rechargement de l'application.
+
+Les comptes et établissements existants conservent leurs accès.
+
 ## Principe
 
 À la création d'un compte, **le premier bar est opérationnel immédiatement**.
