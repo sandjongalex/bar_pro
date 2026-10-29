@@ -4,7 +4,7 @@ from sqlalchemy import select
 
 from app.audit import record
 from app.extensions import db
-from app.models import AuditLog, Bar, User, utcnow
+from app.models import AuditLog, Bar, Subscription, User, utcnow
 from app.saas_governance_models import ADMIN_STATES, BarGovernance, OwnerGovernance
 
 
@@ -23,7 +23,38 @@ def owner_enabled(user):
     if user.category != "OWNER":
         return True
     state = db.session.get(OwnerGovernance, user.id)
-    return state is None or state.status != "SUSPENDED"
+    return state is None or state.status == "APPROVED"
+
+
+def trial_expired(bar_id):
+    """Enforce read-only at the permission boundary, not only in the UI.
+
+    Legacy bars without a platform-issued trial remain unchanged.
+    A current paid subscription overrides a previous expired trial.
+    """
+    trial_end = db.session.scalar(
+        select(Subscription.ends_at)
+        .where(Subscription.bar_id == bar_id,
+               Subscription.plan_code_snapshot == "BARPRO_TRIAL_14D",
+               Subscription.status.in_(("ACTIVE", "EXPIRED")))
+        .order_by(Subscription.ends_at.desc())
+        .limit(1)
+    )
+    if trial_end is None:
+        return False
+    now = utcnow().replace(tzinfo=None)
+    if trial_end > now:
+        return False
+    paid = db.session.scalar(
+        select(Subscription.id).where(
+            Subscription.bar_id == bar_id,
+            Subscription.status == "ACTIVE",
+            Subscription.plan_code_snapshot != "BARPRO_TRIAL_14D",
+            Subscription.starts_at <= now,
+            Subscription.ends_at > now,
+        ).limit(1)
+    )
+    return paid is None
 
 
 def _validate_reason(reason):
