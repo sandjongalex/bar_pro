@@ -35,7 +35,7 @@ def trial_expired(bar_id):
     trial = db.session.execute(
         select(Subscription.ends_at, Subscription.status)
         .where(Subscription.bar_id == bar_id,
-               Subscription.plan_code_snapshot == "BARPRO_TRIAL_14D",
+               Subscription.plan_code_snapshot == "BARPRO_TRIAL_15D",
                Subscription.status.in_(("ACTIVE", "EXPIRED", "CANCELLED")))
         .order_by(Subscription.ends_at.desc())
         .limit(1)
@@ -49,7 +49,7 @@ def trial_expired(bar_id):
         select(Subscription.id).where(
             Subscription.bar_id == bar_id,
             Subscription.status == "ACTIVE",
-            Subscription.plan_code_snapshot != "BARPRO_TRIAL_14D",
+            Subscription.plan_code_snapshot != "BARPRO_TRIAL_15D",
             Subscription.starts_at <= now,
             Subscription.ends_at > now,
         ).limit(1)
