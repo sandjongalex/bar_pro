@@ -217,9 +217,6 @@ def _register_blueprints(app: Flask) -> None:
                 abort(400)
 
         bar_id = (request.view_args or {}).get("bar_id")
-        # Platform approval operates on a pending bar and is authorized separately.
-        if request.endpoint == "owner_signup.review":
-            return None
         if not request.path.startswith("/api/") and bar_id is not None and current_user.is_authenticated:
             context = None
             if current_user.category == "EMPLOYEE":
@@ -240,7 +237,7 @@ def _register_blueprints(app: Flask) -> None:
 
             level = suspension_level(bar_id)
             if trial_expired(bar_id) and request.method not in {"GET", "HEAD", "OPTIONS"}:
-                abort(403, "Essai expiré : consultation seule.")
+                abort(403, "Essai gratuit de 15 jours terminé : abonnement nécessaire. Consultation seule.")
             support = request.endpoint == "saas_governance_web.bar_support"
             action = "bars.support.read" if support else "bars.read"
             if not permissions.evaluate(current_user, action, bar_id).allowed:
