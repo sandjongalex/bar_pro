@@ -15,6 +15,11 @@ on:
 permissions:
   contents: read
 
+# A new commit replaces any still-running obsolete validation on this branch.
+concurrency:
+  group: owner-signup-mysql-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   signup-mysql:
     runs-on: ubuntu-latest
@@ -46,5 +51,7 @@ jobs:
           python-version: "3.12"
       - name: Installer les dépendances
         run: python -m pip install -r requirements.txt
+      - name: Vérifier les imports et règles de l'essai
+        run: python -c "from app import create_app; from app.saas_governance import trial_expired; print('Imports OK')"
       - name: Tester l'inscription et les 15 jours sur MySQL
         run: python -m pytest -v tests/test_owner_registration_mysql.py
