@@ -32,18 +32,18 @@ def trial_expired(bar_id):
     Legacy bars without a platform-issued trial remain unchanged.
     A current paid subscription overrides a previous expired trial.
     """
-    trial_end = db.session.scalar(
-        select(Subscription.ends_at)
+    trial = db.session.execute(
+        select(Subscription.ends_at, Subscription.status)
         .where(Subscription.bar_id == bar_id,
                Subscription.plan_code_snapshot == "BARPRO_TRIAL_14D",
                Subscription.status.in_(("ACTIVE", "EXPIRED", "CANCELLED")))
         .order_by(Subscription.ends_at.desc())
         .limit(1)
-    )
-    if trial_end is None:
+    ).first()
+    if trial is None:
         return False
     now = utcnow().replace(tzinfo=None)
-    if trial_end > now:
+    if trial.status != "CANCELLED" and trial.ends_at > now:
         return False
     paid = db.session.scalar(
         select(Subscription.id).where(
