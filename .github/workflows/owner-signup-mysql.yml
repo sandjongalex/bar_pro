@@ -59,3 +59,11 @@ jobs:
       - name: Vérification complémentaire du parcours propriétaire
         if: always()
         run: python -m pytest -v tests/test_owner_registration.py
+      - name: Tests de non-régression SaaS, permissions et accès par rôle
+        run: >-
+          python -m pytest -q
+          tests/test_saas_v1_foundation.py
+          tests/test_owner_multibar_tenant_regression.py
+          tests/test_employee_tenant_auth.py
+          tests/test_role_landing.py
+          tests/test_auth.py
