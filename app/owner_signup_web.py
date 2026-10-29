@@ -1,14 +1,14 @@
-"""Public owner registration and supervised onboarding for BAR_PRO.
+"""Public self-service onboarding: first bar usable immediately for a 15-day trial.
 
-No ownership, staff or commercial privileges are granted before platform approval.
-E-mail and phone checks are performed manually by the platform during this first
-release; no SMS/email delivery provider is assumed.
+Approval is not a prerequisite for the trial. Subscription/tenant permissions
+enforce read-only mode after the trial ends. Contact verification is not yet
+automated and must not be represented as verified.
 """
 from datetime import timedelta
 import re
 
-from flask import Blueprint, abort, redirect, render_template, request, url_for
-from flask_login import current_user, login_required
+from flask import Blueprint, abort, redirect, render_template, request, session, url_for
+from flask_login import current_user, login_required, login_user
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
@@ -19,8 +19,8 @@ from app.models import Bar, Plan, Subscription, User, utcnow
 from app.saas_governance_models import BarGovernance, OwnerGovernance
 
 bp = Blueprint("owner_signup", __name__)
-
-TRIAL_CODE = "BARPRO_TRIAL_14D"
+TRIAL_CODE = "BARPRO_TRIAL_15D"
+TRIAL_DAYS = 15
 
 
 def _normalize_phone(value):
@@ -57,6 +57,23 @@ def _check_signup(form):
     return name, email, password, bar_name, address, phone
 
 
+def _trial_plan():
+    """One shared plan for all first bars; never expose it to manual checkout."""
+    plan = db.session.scalar(select(Plan).where(Plan.code == TRIAL_CODE))
+    if plan is None:
+        plan = Plan(
+            code=TRIAL_CODE,
+            name="Essai gratuit de 15 jours",
+            price_amount=0,
+            currency="XAF",
+            duration_days=TRIAL_DAYS,
+            is_active=True,
+        )
+        db.session.add(plan)
+        db.session.flush()
+    return plan
+
+
 @bp.route("/register-owner", methods=["GET", "POST"])
 @limiter.limit("3 per hour", methods=["POST"])
 def register():
@@ -72,121 +89,106 @@ def register():
         if db.session.scalar(select(User.id).where(User.email == email)):
             raise ValueError("Cette adresse e-mail est déjà enregistrée.")
 
-        owner = User(email=email, display_name=name, category="OWNER", is_active=False)
+        now = utcnow()
+        owner = User(email=email, display_name=name, category="OWNER", is_active=True)
         owner.set_password(password)
         db.session.add(owner)
         db.session.flush()
 
         bar = Bar(
             owner_id=owner.id, name=bar_name, address=address or None,
-            phone=phone, timezone="Africa/Douala", currency="XAF"
+            phone=phone, timezone="Africa/Douala", currency="XAF", status="ACTIVE",
         )
         db.session.add(bar)
         db.session.flush()
-        now = utcnow()
+        # Approval is immediate for registration; the Super Admin retains
+        # the power to suspend a suspicious account or bar afterwards.
         db.session.add(OwnerGovernance(
-            owner_id=owner.id, status="PENDING", reason="Inscription publique à vérifier",
-            changed_by_id=owner.id, changed_at=now
+            owner_id=owner.id, status="APPROVED",
+            reason="Inscription autonome avec essai immédiat de 15 jours",
+            changed_by_id=owner.id, changed_at=now,
         ))
         db.session.add(BarGovernance(
-            bar_id=bar.id, status="PENDING", suspension_level=0,
-            reason="En attente de vérification et validation de l'établissement",
-            changed_by_id=owner.id, changed_at=now
+            bar_id=bar.id, status="APPROVED", suspension_level=0,
+            reason="Premier établissement activé en essai gratuit",
+            changed_by_id=owner.id, changed_at=now,
         ))
+        plan = _trial_plan()
+        subscription = Subscription(
+            bar_id=bar.id, plan_id=plan.id,
+            reference=f"TRIAL-15D-{bar.id}", status="ACTIVE",
+            plan_code_snapshot=plan.code, plan_name_snapshot=plan.name,
+            price_amount_snapshot=0, duration_days_snapshot=TRIAL_DAYS,
+            currency="XAF", starts_at=now, ends_at=now + timedelta(days=TRIAL_DAYS),
+            activated_at=now, created_by_id=owner.id,
+        )
+        db.session.add(subscription)
         seed_default_catalog(bar.id)
         record(owner, bar.id, "owners.self_register", "bars", bar.id,
-               "Demande publique en attente d'approbation")
+               "Inscription et premier essai activés immédiatement",
+               changes={"trial_days": TRIAL_DAYS})
         db.session.commit()
-        return redirect(url_for("owner_signup.registered"))
+
+        # Start using the bar straight away, without a second login form.
+        login_user(owner)
+        session["credentials_version"] = owner.credentials_version
+        return redirect(url_for("web.dashboard", bar_id=bar.id))
     except ValueError as exc:
         db.session.rollback()
         error = str(exc)
     except IntegrityError:
         db.session.rollback()
-        error = "Ce compte existe déjà. Utilisez une autre adresse e-mail."
+        error = "Inscription impossible pour le moment. Vérifiez les informations ou réessayez."
     return render_template("owner_registration.html", error=error, values=values), 400
 
 
 @bp.get("/register-owner/sent")
 def registered():
-    return render_template("owner_registration_sent.html")
+    """Compatibility link for earlier drafts: no approval stage remains."""
+    return redirect(url_for("auth.web_login"))
 
 
-def _super_admin_only():
-    if not current_user.is_authenticated or current_user.category != "SUPER_ADMIN":
+@bp.get("/platform/owner-registrations")
+@login_required
+def registrations_list():
+    if current_user.category != "SUPER_ADMIN":
         abort(403)
+    registrations = list(db.session.scalars(
+        select(Bar).join(Subscription, Subscription.bar_id == Bar.id)
+        .where(Subscription.plan_code_snapshot == TRIAL_CODE)
+        .order_by(Bar.created_at.desc()).limit(200)
+    ))
+    return render_template("owner_registration_review.html", registrations=registrations)
 
 
 @bp.get("/platform/owner-requests")
 @login_required
-def requests_list():
-    _super_admin_only()
-    requests = list(db.session.scalars(
-        select(Bar)
-        .join(BarGovernance, BarGovernance.bar_id == Bar.id)
-        .where(BarGovernance.status == "PENDING")
-        .order_by(Bar.created_at.asc())
-    ))
-    return render_template("owner_registration_review.html", requests=requests)
+def legacy_registrations_url():
+    return redirect(url_for("owner_signup.registrations_list"))
 
 
-@bp.post("/platform/owner-requests/<int:bar_id>/<action>")
+@bp.get("/bars/<int:bar_id>/subscription")
 @login_required
-def review(bar_id, action):
-    _super_admin_only()
-    if action not in {"approve", "reject"}:
+def subscription_status(bar_id):
+    if current_user.category != "OWNER":
+        abort(403)
+    bar = db.session.get(Bar, bar_id)
+    if bar is None or bar.owner_id != current_user.id:
         abort(404)
-    bar = db.session.scalar(select(Bar).where(Bar.id == bar_id).with_for_update())
-    state = db.session.scalar(select(BarGovernance).where(BarGovernance.bar_id == bar_id).with_for_update())
-    owner = db.session.scalar(select(User).where(User.id == bar.owner_id).with_for_update()) if bar else None
-    owner_state = db.session.scalar(select(OwnerGovernance).where(OwnerGovernance.owner_id == owner.id).with_for_update()) if owner else None
-    if not bar or not owner or not state or not owner_state or state.status != "PENDING" or owner_state.status != "PENDING":
-        db.session.rollback()
-        abort(409, "La demande n'est plus en attente.")
-    if action == "approve" and (
-        request.form.get("email_checked") != "1" or request.form.get("phone_checked") != "1"
-    ):
-        db.session.rollback()
-        abort(400, "Vérifiez d'abord personnellement l'e-mail et le téléphone.")
-    now = utcnow()
-    approved = action == "approve"
-    status = "APPROVED" if approved else "REJECTED"
-    reason = "Coordonnées vérifiées manuellement par le Super Admin" if approved else (
-        (request.form.get("reason") or "").strip()[:500] or "Demande rejetée après examen"
+    subscriptions = list(db.session.scalars(
+        select(Subscription)
+        .where(Subscription.bar_id == bar_id)
+        .order_by(Subscription.created_at.desc())
+    ))
+    trial = next((item for item in subscriptions if item.plan_code_snapshot == TRIAL_CODE), None)
+    now = utcnow().replace(tzinfo=None)
+    current_paid = next((
+        item for item in subscriptions
+        if item.plan_code_snapshot != TRIAL_CODE
+        and item.status == "ACTIVE" and item.starts_at <= now < item.ends_at
+    ), None)
+    trial_end = trial.ends_at if trial else None
+    return render_template(
+        "owner_subscription_status.html", bar=bar, trial=trial,
+        current_paid=current_paid, trial_end=trial_end, now=now,
     )
-    state.status = status
-    state.reason = reason
-    state.changed_by_id = current_user.id
-    state.changed_at = now
-    owner_state.status = status
-    owner_state.reason = reason
-    owner_state.changed_by_id = current_user.id
-    owner_state.changed_at = now
-    owner.is_active = approved
-
-    if approved:
-        # First bar only. The trial begins on approval, never on sign-up.
-        other_bar = db.session.scalar(select(Bar.id).where(Bar.owner_id == owner.id, Bar.id != bar.id).limit(1))
-        if other_bar is None:
-            trial = db.session.scalar(select(Plan).where(Plan.code == TRIAL_CODE))
-            if trial is None:
-                trial = Plan(
-                    code=TRIAL_CODE, name="Essai gratuit de 14 jours",
-                    price_amount=0, currency="XAF", duration_days=14, is_active=True
-                )
-                db.session.add(trial)
-                db.session.flush()
-            db.session.add(Subscription(
-                bar_id=bar.id, plan_id=trial.id,
-                reference="TRIAL-14D-" + str(bar.id),
-                status="ACTIVE", plan_code_snapshot=trial.code,
-                plan_name_snapshot=trial.name, price_amount_snapshot=0,
-                duration_days_snapshot=14, currency="XAF",
-                starts_at=now, ends_at=now + timedelta(days=14),
-                activated_at=now, created_by_id=current_user.id
-            ))
-    record(current_user, bar.id,
-           "owners.registration.approve" if approved else "owners.registration.reject",
-           "bars", bar.id, reason)
-    db.session.commit()
-    return redirect(url_for("owner_signup.requests_list"))
