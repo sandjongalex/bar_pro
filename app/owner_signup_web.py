@@ -7,7 +7,7 @@ release; no SMS/email delivery provider is assumed.
 from datetime import timedelta
 import re
 
-from flask import Blueprint, abort, current_app, redirect, render_template, request, url_for
+from flask import Blueprint, abort, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -52,8 +52,8 @@ def _check_signup(form):
         raise ValueError("Le nom du bar est obligatoire (160 caractères maximum).")
     if len(address) > 500:
         raise ValueError("L'adresse est trop longue.")
-    if form.get("accept_terms") != "1":
-        raise ValueError("Vous devez accepter les conditions d'utilisation.")
+    if form.get("confirm_authority") != "1":
+        raise ValueError("Confirmez être autorisé à gérer cet établissement.")
     return name, email, password, bar_name, address, phone
 
 
