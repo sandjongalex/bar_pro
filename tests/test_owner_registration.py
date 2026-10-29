@@ -16,6 +16,7 @@ from app.subscription_services import subscription_service
 
 
 def _app(tmp_path, csrf=False):
+    tmp_path.mkdir(parents=True, exist_ok=True)
     app = create_app("testing", {
         "SECRET_KEY": "test-secret-for-owner-signup",
         "SQLALCHEMY_DATABASE_URI": f"sqlite:///{tmp_path / 'signup.sqlite'}",
