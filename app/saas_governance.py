@@ -36,7 +36,7 @@ def trial_expired(bar_id):
         select(Subscription.ends_at)
         .where(Subscription.bar_id == bar_id,
                Subscription.plan_code_snapshot == "BARPRO_TRIAL_14D",
-               Subscription.status.in_(("ACTIVE", "EXPIRED")))
+               Subscription.status.in_(("ACTIVE", "EXPIRED", "CANCELLED")))
         .order_by(Subscription.ends_at.desc())
         .limit(1)
     )
