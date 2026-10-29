@@ -59,7 +59,9 @@
           <button class="btn btn-primary btn-lg w-100 mt-2" type="submit">Se connecter</button>
         </form>
 
-        <p class="login-footer mb-0">Accès réservé aux utilisateurs autorisés.</p>
+        <p class="mt-4 text-center mb-2">Vous êtes propriétaire d’un bar ?</p>
+        <a class="btn btn-outline-primary w-100" href="{{ url_for('owner_signup.register') }}">Créer un compte propriétaire</a>
+        <p class="login-footer mt-3 mb-0">Accès réservé aux utilisateurs autorisés.</p>
       </div>
     </section>
   </main>

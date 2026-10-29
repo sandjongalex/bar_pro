@@ -13,6 +13,7 @@ class SubscriptionService:
   permissions.require(actor,"subscriptions.manage",bar_id)
   bar=db.session.get(Bar,bar_id); plan=db.session.get(Plan,plan_id)
   if not bar or not plan or not plan.is_active: raise LookupError("NOT_FOUND")
+  if plan.code=="BARPRO_TRIAL_15D": raise ValueError("TRIAL_NOT_PURCHASABLE")
   start=utcnow(); item=Subscription(bar_id=bar_id,plan_id=plan.id,reference=reference,status="PENDING",plan_code_snapshot=plan.code,plan_name_snapshot=plan.name,price_amount_snapshot=plan.price_amount,duration_days_snapshot=plan.duration_days,currency=plan.currency,starts_at=start,ends_at=start+timedelta(days=plan.duration_days),created_by_id=actor.id)
   db.session.add(item);db.session.flush();record(actor,bar_id,"subscriptions.create","subscriptions",item.id,reference);return item
  def pay(self,actor,bar_id,subscription_id,reference,amount):
@@ -23,7 +24,18 @@ class SubscriptionService:
   payment=SubscriptionPayment(bar_id=bar_id,subscription_id=item.id,reference=reference,amount=amount,currency=item.currency,entry_kind="PAYMENT",provider_code="MANUAL",provider_transaction_id=reference,paid_at=utcnow(),recorded_by_id=actor.id)
   db.session.add(payment);db.session.flush()
   if paid+amount==item.price_amount_snapshot:
-   item.status="ACTIVE";item.activated_at=item.activated_at or utcnow();record(actor,bar_id,"subscriptions.activate","subscriptions",item.id,reference)
+   # End the free trial before activating a paid subscription (one ACTIVE per bar).
+   for previous in db.session.scalars(select(Subscription).where(Subscription.bar_id==bar_id,Subscription.status=="ACTIVE",Subscription.id!=item.id).with_for_update()):
+    if previous.plan_code_snapshot!="BARPRO_TRIAL_15D" and previous.ends_at>utcnow().replace(tzinfo=None): raise ValueError("ACTIVE_SUBSCRIPTION_EXISTS")
+    previous.status="EXPIRED";previous.expired_at=utcnow()
+   # Flush deactivation before activating another subscription (unique active bar).
+   db.session.flush()
+   activated_at = utcnow()
+   item.status="ACTIVE"
+   item.starts_at=activated_at
+   item.ends_at=activated_at+timedelta(days=item.duration_days_snapshot)
+   item.activated_at=activated_at
+   record(actor,bar_id,"subscriptions.activate","subscriptions",item.id,reference)
   record(actor,bar_id,"subscriptions.payment","subscription_payments",payment.id,reference);return item
  def cancel(self,actor,bar_id,subscription_id,reason):
   permissions.require(actor,"subscriptions.manage",bar_id); item=db.session.scalar(select(Subscription).where(Subscription.id==subscription_id,Subscription.bar_id==bar_id).with_for_update())

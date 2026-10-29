@@ -35,6 +35,7 @@ from app.order_edit_web import bp as order_edit_web_bp
 from app.unpaid_orders_web import bp as unpaid_orders_web_bp
 from app.orders import bp as orders_bp, web_bp as orders_web_bp
 from app.suborder_web import bp as suborders_web_bp
+from app.owner_signup_web import bp as owner_signup_bp
 from app.staff import bp as staff_web_bp
 from app.shifts_web import bp as shifts_web_bp
 from app.reports_web import bp as reports_web_bp
@@ -155,6 +156,7 @@ def _register_blueprints(app: Flask) -> None:
     app.register_blueprint(web_bp)
     app.register_blueprint(api_bp)
     app.register_blueprint(auth_bp)
+    app.register_blueprint(owner_signup_bp)
     app.register_blueprint(api_auth_bp)
     app.register_blueprint(bars_bp)
     app.register_blueprint(api_bars_bp)
@@ -207,7 +209,7 @@ def _register_blueprints(app: Flask) -> None:
         from app.employee_context import get_current_employee_context
         from app.models import Bar
         from app.permissions import permissions
-        from app.saas_governance import suspension_level
+        from app.saas_governance import suspension_level, trial_expired
         from app.shift_service import get_active_shift_for_assignment
 
         if request.path.startswith("/api/") and request.is_json:
@@ -234,6 +236,8 @@ def _register_blueprints(app: Flask) -> None:
                     abort(404)
 
             level = suspension_level(bar_id)
+            if trial_expired(bar_id) and request.method not in {"GET", "HEAD", "OPTIONS"}:
+                abort(403, "Essai gratuit de 15 jours terminé : abonnement nécessaire. Consultation seule.")
             support = request.endpoint == "saas_governance_web.bar_support"
             action = "bars.support.read" if support else "bars.read"
             if not permissions.evaluate(current_user, action, bar_id).allowed:

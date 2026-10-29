@@ -10,7 +10,7 @@ from app.employee_context import get_current_employee_context
 from app.extensions import db, limiter, login_manager
 from app.models import ApiToken, TokenRevocation, User, utcnow
 from app.permissions import permissions
-from app.saas_governance import owner_enabled, suspension_level
+from app.saas_governance import owner_enabled, suspension_level, trial_expired
 
 auth_bp=Blueprint("auth",__name__)
 api_auth_bp=Blueprint("api_auth",__name__,url_prefix="/api/v1/auth")
@@ -103,6 +103,8 @@ def api_required(view):
         except (jwt.PyJWTError,KeyError,ValueError,TypeError): return error("INVALID_ACCESS_TOKEN",401)
         if "bar_id" in kwargs and kwargs["bar_id"]!=request.api_bar_id: return error("NOT_FOUND",404)
         level = suspension_level(request.api_bar_id)
+        if trial_expired(request.api_bar_id) and request.method not in {"GET", "HEAD", "OPTIONS"} and request.endpoint not in {"subscriptions.create", "subscriptions.pay", "saas_governance_api.update_bar_governance", "saas_governance_api.update_owner_governance"}:
+            return error("TRIAL_EXPIRED_READ_ONLY", 403)
         governance_endpoints = {
             "saas_governance_api.update_bar_governance",
             "saas_governance_api.update_owner_governance",
