@@ -1,0 +1,33 @@
+{% extends 'layout.html' %}
+{% block title %}Mon abonnement · BAR_PRO{% endblock %}
+{% block header %}Mon abonnement{% endblock %}
+{% block content %}
+<section class="dashboard-hero">
+  <div>
+    <p class="eyebrow mb-2">Accès à BAR_PRO</p>
+    <h1>Abonnement · {{ bar.name }}</h1>
+    <p>Suivez les dates de votre essai gratuit et la situation de votre abonnement.</p>
+  </div>
+</section>
+<section class="panel-card mt-4 p-4">
+  {% if current_paid %}
+    <div class="alert alert-success" role="status"><strong>Abonnement actif.</strong>
+      Votre accès est maintenu jusqu'au {{ current_paid.ends_at.strftime('%d/%m/%Y à %Hh%M') }} (UTC).</div>
+    <p class="mb-0">Formule : {{ current_paid.plan_name_snapshot }}.</p>
+  {% elif trial %}
+    {% if trial.status == 'ACTIVE' and trial_end > now %}
+      <div class="alert alert-info" role="status"><strong>Essai gratuit actif.</strong>
+        Votre premier bar est opérationnel jusqu'au {{ trial_end.strftime('%d/%m/%Y à %Hh%M') }} (UTC).</div>
+      <p>Vous pouvez utiliser les fonctionnalités du bar pendant les 15 jours d'essai. Après cette échéance, un abonnement actif sera nécessaire pour les ventes, la caisse, les stocks et les autres écritures.</p>
+    {% else %}
+      <div class="alert alert-warning" role="status"><strong>Votre essai gratuit de 15 jours est terminé.</strong>
+        Le bar passe en consultation seule. Vos données sont conservées.</div>
+    {% endif %}
+    <p>Pour poursuivre ou reprendre les opérations, contactez l'administration de BAR_PRO afin de choisir une formule et faire valider votre paiement.</p>
+    <p class="text-secondary small mb-0">Le paiement est actuellement enregistré et confirmé manuellement par le Super Administrateur. Aucun paiement en ligne n'est prélevé automatiquement.</p>
+  {% else %}
+    <p>Aucun essai automatique n'est enregistré pour cet établissement. Contactez l'administration pour connaître votre formule.</p>
+  {% endif %}
+</section>
+<a class="btn btn-outline-primary mt-3" href="{{ url_for('web.dashboard', bar_id=bar.id) }}">Retour au tableau de bord</a>
+{% endblock %}
