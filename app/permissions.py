@@ -5,7 +5,7 @@ from sqlalchemy import select
 
 from app.extensions import db
 from app.models import Bar, StaffAssignment
-from app.saas_governance import owner_enabled, suspension_level
+from app.saas_governance import owner_enabled, suspension_level, bar_governance, trial_expired
 
 
 ROLE_ACTIONS = {
@@ -176,6 +176,11 @@ class PermissionService:
             return Decision(False, "FORBIDDEN")
         if role == "SUPER_ADMIN" and action in PLATFORM_COMMERCIAL_WRITES:
             return Decision(False, "PLATFORM_COMMERCE_FORBIDDEN")
+        governance = bar_governance(bar_id)
+        if governance and governance.status in {"PENDING", "DRAFT", "INCOMPLETE", "REJECTED"} and action not in {"bars.support.read", "bars.governance.manage"}:
+            return Decision(False, "BAR_PENDING_APPROVAL")
+        if action in WRITES and action not in {"subscriptions.manage", "bars.governance.manage"} and trial_expired(bar_id):
+            return Decision(False, "TRIAL_EXPIRED")
         level = suspension_level(bar_id)
         if level == 2 and action not in {"bars.support.read", "bars.governance.manage"}:
             return Decision(False, "BAR_ADMIN_LOCKED")
