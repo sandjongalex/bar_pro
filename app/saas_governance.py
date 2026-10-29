@@ -27,24 +27,13 @@ def owner_enabled(user):
 
 
 def trial_expired(bar_id):
-    """Enforce read-only at the permission boundary, not only in the UI.
+    """Return True when a bar requires payment before further writes.
 
-    Legacy bars without a platform-issued trial remain unchanged.
-    A current paid subscription overrides a previous expired trial.
+    For self-registered owners, the first bar gets exactly 15 days of trial.
+    Additional bars require a paid subscription from day one. Existing legacy
+    bars with no owner trial are unaffected.
     """
-    trial = db.session.execute(
-        select(Subscription.ends_at, Subscription.status)
-        .where(Subscription.bar_id == bar_id,
-               Subscription.plan_code_snapshot == "BARPRO_TRIAL_15D",
-               Subscription.status.in_(("ACTIVE", "EXPIRED", "CANCELLED")))
-        .order_by(Subscription.ends_at.desc())
-        .limit(1)
-    ).first()
-    if trial is None:
-        return False
     now = utcnow().replace(tzinfo=None)
-    if trial.status != "CANCELLED" and trial.ends_at > now:
-        return False
     paid = db.session.scalar(
         select(Subscription.id).where(
             Subscription.bar_id == bar_id,
@@ -54,7 +43,34 @@ def trial_expired(bar_id):
             Subscription.ends_at > now,
         ).limit(1)
     )
-    return paid is None
+    if paid is not None:
+        return False
+
+    trial = db.session.execute(
+        select(Subscription.ends_at, Subscription.status)
+        .where(
+            Subscription.bar_id == bar_id,
+            Subscription.plan_code_snapshot == "BARPRO_TRIAL_15D",
+        )
+        .order_by(Subscription.ends_at.desc())
+        .limit(1)
+    ).first()
+    if trial is not None:
+        return trial.status != "ACTIVE" or trial.ends_at <= now
+
+    bar = db.session.get(Bar, bar_id)
+    if bar is None:
+        return False
+    owner_has_trial = db.session.scalar(
+        select(Subscription.id)
+        .join(Bar, Bar.id == Subscription.bar_id)
+        .where(
+            Bar.owner_id == bar.owner_id,
+            Subscription.plan_code_snapshot == "BARPRO_TRIAL_15D",
+        )
+        .limit(1)
+    )
+    return owner_has_trial is not None
 
 
 def _validate_reason(reason):
