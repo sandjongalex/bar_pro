@@ -57,6 +57,8 @@ class BaseConfig:
         "INFO",
     ).upper()
 
+    OWNER_SELF_SIGNUP_ENABLED = os.getenv("OWNER_SELF_SIGNUP_ENABLED", "1") == "1"
+
     SESSION_COOKIE_HTTPONLY = True
     SESSION_COOKIE_SAMESITE = "Lax"
     WTF_CSRF_TIME_LIMIT = 3600
@@ -87,6 +89,8 @@ class TestingConfig(BaseConfig):
 
 
 class ProductionConfig(BaseConfig):
+    # Fail closed until owner email/SMS verification and abuse controls are operational.
+    OWNER_SELF_SIGNUP_ENABLED = os.getenv("OWNER_SELF_SIGNUP_ENABLED", "0") == "1"
     DEBUG = False
     ENVIRONMENT = "production"
     SESSION_COOKIE_SECURE = True
