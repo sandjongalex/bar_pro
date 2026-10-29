@@ -28,7 +28,14 @@ class SubscriptionService:
    for previous in db.session.scalars(select(Subscription).where(Subscription.bar_id==bar_id,Subscription.status=="ACTIVE",Subscription.id!=item.id).with_for_update()):
     if previous.plan_code_snapshot!="BARPRO_TRIAL_15D" and previous.ends_at>utcnow().replace(tzinfo=None): raise ValueError("ACTIVE_SUBSCRIPTION_EXISTS")
     previous.status="EXPIRED";previous.expired_at=utcnow()
-   item.status="ACTIVE";item.activated_at=item.activated_at or utcnow();record(actor,bar_id,"subscriptions.activate","subscriptions",item.id,reference)
+   # Flush deactivation before activating another subscription (unique active bar).
+   db.session.flush()
+   activated_at = utcnow()
+   item.status="ACTIVE"
+   item.starts_at=activated_at
+   item.ends_at=activated_at+timedelta(days=item.duration_days_snapshot)
+   item.activated_at=activated_at
+   record(actor,bar_id,"subscriptions.activate","subscriptions",item.id,reference)
   record(actor,bar_id,"subscriptions.payment","subscription_payments",payment.id,reference);return item
  def cancel(self,actor,bar_id,subscription_id,reason):
   permissions.require(actor,"subscriptions.manage",bar_id); item=db.session.scalar(select(Subscription).where(Subscription.id==subscription_id,Subscription.bar_id==bar_id).with_for_update())
