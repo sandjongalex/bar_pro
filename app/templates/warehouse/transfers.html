@@ -159,6 +159,25 @@
       <button class="btn btn-outline-secondary btn-sm" type="submit">Clôturer si toutes quantités soldées</button>
     </form>
     {% endif %}
+    <details class="border-top mt-3 pt-2">
+      <summary class="small fw-semibold">Journal des changements et litiges</summary>
+      <div class="table-responsive mt-2">
+        <table class="table table-sm">
+          <thead><tr><th>Date</th><th>Action</th><th>Quantité</th><th>Auteur</th><th>Motif / justificatif</th></tr></thead>
+          <tbody>
+            {% for event in events.get(transfer.id, []) %}
+            <tr>
+              <td>{{ event.occurred_at.strftime('%d/%m/%Y %H:%M') }}</td>
+              <td>{{ event.event_kind }}</td><td>{{ event.quantity }}</td>
+              <td>#{{ event.actor_id }}</td><td>{{ event.note }}</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="5" class="text-secondary">Aucun événement enregistré pour ce bon historique.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </details>
   </article>
   {% else %}
   <p class="text-secondary mb-0">Aucun bon de transfert pour cet établissement.</p>
