@@ -86,7 +86,7 @@
 <section class="panel-card mt-3 p-3 p-md-4">
   <h2 class="h5">Historique des transferts</h2>
   <div class="table-responsive"><table class="table"><thead><tr><th>Référence</th><th>État</th><th>Date d'expédition</th></tr></thead>
-  <tbody>{% for t in transfers %}<tr><td>{{ t.reference }}</td><td>{{ t.status }}</td><td>{{ t.dispatched_at.strftime('%d/%m/%Y %H:%M') }}</td></tr>
+  <tbody>{% for t in transfers %}<tr><td>{{ t.reference }}</td><td>{{ t.status }}</td><td>{{ t.dispatched_at.strftime('%d/%m/%Y %H:%M') if t.dispatched_at else 'Non expédié' }}</td></tr>
   {% else %}<tr><td colspan="3" class="text-secondary">Aucun transfert enregistré.</td></tr>{% endfor %}</tbody></table></div>
 </section>
 {% endif %}
