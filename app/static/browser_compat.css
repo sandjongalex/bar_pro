@@ -1,0 +1,76 @@
+/* Progressive enhancement: lightweight visuals on older devices. */
+.bp-browser-compat-notice[hidden] { display: none !important; }
+.bp-browser-compat-notice {
+  padding: 12px 16px; margin: 0;
+  color: #5d3d02; background: #fff0cd;
+  border-bottom: 1px solid #d6ac5c;
+  font-size: 14px; line-height: 1.5;
+}
+html.bp-compat-lite .panel-card,
+html.bp-compat-lite .cashier-order-card,
+html.bp-compat-lite .cash-sub-card,
+html.bp-compat-lite .invoice-card,
+html.bp-compat-lite .server-order-card,
+html.bp-compat-lite .login-card,
+html.bp-compat-limited .panel-card {
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+  box-shadow: none !important;
+}
+html.bp-compat-lite .bp-skeleton,
+html.bp-compat-lite .skeleton-shimmer,
+html.bp-compat-lite .global-mobile-bottom,
+html.bp-compat-lite .server-cart-dock,
+html.bp-compat-lite .server-order-card,
+html.bp-compat-lite .invoice-live-dot,
+html.bp-compat-limited .bp-skeleton {
+  animation: none !important; transition: none !important;
+}
+html.bp-compat-lite .content-area,
+html.bp-compat-lite .app-main,
+html.bp-compat-lite .cashier-main-grid,
+html.bp-compat-lite .cash-sub-grid,
+html.bp-compat-lite .invoice-grid,
+html.bp-compat-lite .server-orders-grid,
+html.bp-compat-lite .pos-layout,
+html.bp-compat-lite .unpaid-grid {
+  min-width: 0; max-width: 100%;
+}
+html.bp-compat-lite .table-responsive { max-width: 100%; overflow-x: auto; }
+html.bp-compat-lite .global-mobile-bottom a,
+html.bp-compat-lite .global-mobile-bottom button,
+html.bp-compat-lite .btn,
+html.bp-compat-lite input,
+html.bp-compat-lite select { min-height: 40px; }
+html.bp-compat-limited .app-nav,
+html.bp-compat-limited .nav-direct,
+html.bp-compat-limited .nav-group-links,
+html.bp-compat-limited .cashier-main-grid,
+html.bp-compat-limited .cash-sub-grid,
+html.bp-compat-limited .invoice-grid,
+html.bp-compat-limited .server-orders-grid,
+html.bp-compat-limited .unpaid-grid { display: block; }
+html.bp-compat-limited .app-nav a,
+html.bp-compat-limited .nav-direct a,
+html.bp-compat-limited .nav-group-links a { display: block; }
+html.bp-compat-limited .cashier-main-grid > *,
+html.bp-compat-limited .cash-sub-grid > *,
+html.bp-compat-limited .invoice-grid > *,
+html.bp-compat-limited .server-orders-grid > *,
+html.bp-compat-limited .unpaid-grid > * { margin-bottom: 12px; }
+html.bp-compat-lite .app-nav-drawer.bp-compat-drawer-open,
+html.bp-compat-limited .app-nav-drawer.bp-compat-drawer-open {
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  -webkit-transform: none !important;
+  transform: none !important;
+  position: fixed !important;
+  top: 0; left: 0; bottom: 0;
+  width: 88vw !important; max-width: 370px;
+  overflow-y: auto; z-index: 1080; background: #f8faf9;
+}
+@media (max-width: 767px) {
+  html.bp-compat-lite .global-mobile-bottom { bottom: 8px; left: 6px; right: 6px; }
+  html.bp-compat-lite .content-area { padding-bottom: 105px; }
+}
