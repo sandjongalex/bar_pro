@@ -129,6 +129,9 @@ class WarehouseService:
         """Internal paired ledger write: caller holds the bar row lock."""
         if delta == 0:
             return None
+        if (kind in {"TRANSFER_OUT", "TRANSIT_OUT", "PURCHASE_REVERSAL"} and delta >= 0
+                or kind in {"TRANSFER_IN", "TRANSIT_IN", "PURCHASE_IN", "OPENING"} and delta <= 0):
+            raise WarehouseError("INVALID_TRANSFER_DIRECTION")
         allowed_destination = {
             "TRANSFER_OUT": "MAIN",
             "TRANSFER_IN": "CASHIER",
