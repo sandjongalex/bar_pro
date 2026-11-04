@@ -15,6 +15,7 @@ WAREHOUSE_DELEGABLE = {
     "warehouse.requests.create": "Demander un approvisionnement",
     "warehouse.transfers.receive": "Recevoir un transfert à la caisse",
     "warehouse.purchases.manage": "Autorisation spéciale d'achats fournisseurs",
+    "warehouse.purchases.receive": "Confirmer la réception physique des achats",
 }
 
 # Only these actions are automatically available to the STOREKEEPER;
@@ -41,5 +42,6 @@ WAREHOUSE_WRITES = frozenset({
     "warehouse.main.inventory.count",
     "warehouse.discrepancies.resolve",
     "warehouse.purchases.manage",
+    "warehouse.purchases.receive",
     "warehouse.permissions.manage",
 })
