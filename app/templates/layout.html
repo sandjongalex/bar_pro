@@ -182,6 +182,8 @@
         {% endif %}
         {% if nav_bar_id and nav_can('inventory.read', nav_bar_id) %}
         <a class="{% if endpoint.startswith('stock.') or endpoint.startswith('inventories.') %}active{% endif %}" href="{{ url_for('stock.history', bar_id=nav_bar_id) }}"><span>▦</span><strong>Stock</strong></a>
+        {% elif nav_bar_id and nav_can('warehouse.main.read', nav_bar_id) %}
+        <a class="{% if endpoint.startswith('warehouse_web.') %}active{% endif %}" href="{{ url_for('warehouse_web.overview', bar_id=nav_bar_id) }}"><span>▦</span><strong>Magasin</strong></a>
         {% elif nav_bar_id and nav_can('catalog.read', nav_bar_id) %}
         <a class="{% if endpoint.startswith('catalog.') %}active{% endif %}" href="{{ url_for('catalog.web_list', bar_id=nav_bar_id) }}"><span>P</span><strong>Produits</strong></a>
         {% endif %}
