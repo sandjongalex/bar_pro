@@ -18,7 +18,7 @@ from app.models import Bar, CashSession, Product, Purchase, PurchaseLine, Suppli
 from app.permissions import permissions
 from app.product_display_order import product_order_expression
 from app.purchase_defaults import default_purchase_price
-from app.purchase_services import purchase_service, supplier_service
+from app.purchase_services import can_manage_purchase, purchase_service, supplier_service
 
 bp = Blueprint("purchases_web", __name__, url_prefix="/bars/<int:bar_id>/purchases")
 
@@ -326,7 +326,7 @@ def manage(bar_id):
     if not bar:
         raise LookupError("NOT_FOUND")
 
-    can_manage = permissions.evaluate(current_user, "purchases.manage", bar_id).allowed
+    can_manage = can_manage_purchase(current_user, bar_id)
     can_manage_suppliers = permissions.evaluate(current_user, "suppliers.manage", bar_id).allowed
 
     if request.method == "POST":
