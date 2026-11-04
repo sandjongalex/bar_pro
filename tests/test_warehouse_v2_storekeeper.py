@@ -83,7 +83,7 @@ def test_storekeeper_api_bearer_cannot_read_other_tenant_or_order(env):
     db.session.commit()
     client = env[0].test_client()
     headers = {"Authorization": "Bearer " + token}
-    assert client.get(f"/api/v1/bars/{env[3].id}/stock", headers=headers).status_code in (401, 403, 404)
+    assert client.get(f"/api/v1/bars/{env[3].id}/inventories", headers=headers).status_code in (401, 403, 404)
     assert not permissions.evaluate(keeper, "orders.read", env[2].id).allowed
 
 
@@ -155,7 +155,7 @@ def test_role_change_immediately_revokes_grants_and_old_jwt(env):
         WarehouseStaffGrant.staff_assignment_id == assignment.id
     ))
     assert env[0].test_client().get(
-        f"/api/v1/bars/{env[2].id}/stock",
+        f"/api/v1/bars/{env[2].id}/inventories",
         headers={"Authorization": "Bearer " + token},
     ).status_code == 401
     assign_staff(env[1], env[2].id, admin.id, "BAR_ADMIN")
