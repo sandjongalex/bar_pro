@@ -19,6 +19,18 @@ dt = mysql.DATETIME(fsp=6).with_variant(sa.DateTime(), "sqlite")
 
 def _staff_role_check(value):
     with op.batch_alter_table("staff_assignments") as batch:
+        if op.get_bind().dialect.name == "sqlite":
+            # Alembic's SQLite batch-copy otherwise tries to INSERT a value
+            # into the generated active_user_id column. Rebuild it as a
+            # generated column with *no* copied expression; SQLite recomputes
+            # its value for every preserved assignment automatically.
+            batch.drop_column("active_user_id")
+            batch.add_column(
+                sa.Column(
+                    "active_user_id", ident,
+                    sa.Computed("CASE WHEN ended_at IS NULL THEN user_id ELSE NULL END"),
+                )
+            )
         batch.drop_constraint("ck_staff_role", type_="check")
         batch.create_check_constraint("ck_staff_role", f"role IN ({value})")
 
