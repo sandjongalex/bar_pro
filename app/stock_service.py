@@ -31,6 +31,10 @@ class StockService:
             permissions.require(actor, "inventory.adjust", bar_id)
         elif movement_type in {"SALE", "RETURN"}:
             permissions.require(actor, "orders.edit", bar_id)
+        elif movement_type == "PURCHASE":
+            # Physical receipt may be confirmed by an explicitly authorized
+            # storekeeper; no supplier-finance permission is conferred.
+            permissions.require(actor, "warehouse.purchases.receive", bar_id)
         else:
             permissions.require(actor, "purchases.manage", bar_id)
         if not reason or not reason.strip():

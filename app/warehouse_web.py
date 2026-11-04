@@ -10,10 +10,12 @@ from sqlalchemy import select
 
 from app.customer_models import UserNotification
 from app.extensions import db
-from app.models import Bar, Product, StaffAssignment
+from app.models import Bar, Product, Purchase, PurchaseLine, StaffAssignment
 from app.permissions import permissions
 from app.warehouse_access import WAREHOUSE_DELEGABLE
 from app.warehouse_models import WarehouseAllocation, WarehouseTransfer, WarehouseTransferLine
+from app.warehouse_purchase_models import WarehousePurchaseReceiptLine
+from app.purchase_services import purchase_service
 from app.warehouse_permission_models import WarehouseStaffGrant
 from app.warehouse_permission_service import set_warehouse_grant
 from app.warehouse_service import warehouse_service
@@ -33,6 +35,7 @@ def overview(bar_id):
             "transfers.read",
             "notifications.read",
             "discrepancies.read",
+            "purchases.receive",
         )
     }
     if not any(checks.values()):
@@ -79,10 +82,38 @@ def overview(bar_id):
             UserNotification.read_at.is_(None),
         ).order_by(UserNotification.id.desc()).limit(30)
     )) if checks["notifications.read"] else []
+    # Only warehouse quantities, never payment amounts, are exposed here.
+    pending_purchases = []
+    pending_lines = {}
+    if checks["purchases.receive"]:
+        pending_purchases = list(db.session.scalars(
+            select(Purchase).where(Purchase.bar_id == bar_id, Purchase.status == "DRAFT")
+            .order_by(Purchase.id.desc()).limit(30)
+        ))
+        ids = [p.id for p in pending_purchases]
+        if ids:
+            for line in db.session.scalars(
+                select(PurchaseLine).where(PurchaseLine.bar_id == bar_id,
+                    PurchaseLine.purchase_id.in_(ids))
+                .order_by(PurchaseLine.purchase_id, PurchaseLine.line_no)
+            ):
+                pending_lines.setdefault(line.purchase_id, []).append(line)
+    recent_receipts = list(db.session.execute(
+        select(WarehousePurchaseReceiptLine, Purchase.reference, Product.name)
+        .join(PurchaseLine, (PurchaseLine.bar_id == WarehousePurchaseReceiptLine.bar_id)
+              & (PurchaseLine.id == WarehousePurchaseReceiptLine.purchase_line_id))
+        .join(Purchase, (Purchase.bar_id == PurchaseLine.bar_id)
+              & (Purchase.id == PurchaseLine.purchase_id))
+        .join(Product, (Product.bar_id == WarehousePurchaseReceiptLine.bar_id)
+              & (Product.id == WarehousePurchaseReceiptLine.product_id))
+        .where(WarehousePurchaseReceiptLine.bar_id == bar_id)
+        .order_by(WarehousePurchaseReceiptLine.id.desc()).limit(30)
+    ).all()) if checks["main.read"] else []
     return render_template(
         "warehouse/overview.html", bar=bar, allocation=allocation,
         checks=checks, rows=rows, transfers=transfers, disputes=disputes,
-        notifications=notifications,
+        notifications=notifications, pending_purchases=pending_purchases,
+        pending_lines=pending_lines, recent_receipts=recent_receipts,
     )
 
 
@@ -125,3 +156,17 @@ def grants(bar_id):
         "warehouse/grants.html", bar=bar, assignments=assignments,
         grants=grants, delegable=WAREHOUSE_DELEGABLE,
     )
+
+@bp.post("/purchases/<int:purchase_id>/receive")
+@login_required
+def receive_supplier_purchase(bar_id, purchase_id):
+    """Confirm physical supplier receipt without exposing payment records."""
+    permissions.require(current_user, "warehouse.purchases.receive", bar_id)
+    try:
+        purchase = purchase_service.receive(current_user, bar_id, purchase_id)
+        db.session.commit()
+        flash(f"Achat {purchase.reference} réceptionné au magasin principal.", "success")
+    except (PermissionError, LookupError, ValueError) as exc:
+        db.session.rollback()
+        flash(f"Réception refusée : {exc}", "danger")
+    return redirect(url_for("warehouse_web.overview", bar_id=bar_id))
