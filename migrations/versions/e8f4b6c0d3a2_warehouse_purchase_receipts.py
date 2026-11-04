@@ -105,6 +105,7 @@ def upgrade():
             name="ck_warehouse_purchase_receipt_reversal",
         ),
     )
+    op.create_index("ix_warehouse_purchase_receipt_lines_bar_id", "warehouse_purchase_receipt_lines", ["bar_id"])
     op.create_index("ix_warehouse_purchase_receipt_lines_bar_created", "warehouse_purchase_receipt_lines", ["bar_id", "created_at", "id"])
     op.create_index("ix_warehouse_purchase_main_receipts", "warehouse_purchase_receipt_lines", ["bar_id", "location_id", "received_at", "id"])
 
