@@ -25,6 +25,7 @@ PRESERVED_BAR_TABLES = frozenset(
         "product_categories",
         "products",
         "stock_balances",
+        "warehouse_locations",  # immutable per-bar physical configuration
         "bar_tables",
         "suppliers",
         "customers",
