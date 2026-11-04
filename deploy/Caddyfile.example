@@ -1,0 +1,7 @@
+# Contabo VPS. Replace bar.example.com with an actual DNS hostname.
+# Caddy provisions TLS and HTTP->HTTPS automatically.
+# Gunicorn MUST listen only on loopback 127.0.0.1:8000.
+bar.example.com {
+    encode zstd gzip
+    reverse_proxy 127.0.0.1:8000
+}

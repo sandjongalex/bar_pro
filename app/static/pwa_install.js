@@ -1,6 +1,8 @@
 /* Install affordance only. No sales, permissions or business data are changed. */
 (() => {
   'use strict';
+  // Legacy devices avoid unsupported PWA installation prompts.
+  if (window.BarProBrowserCompat && window.BarProBrowserCompat.mode !== 'modern') return;
   let deferredPrompt = null;
   const standalone = () =>
     window.matchMedia('(display-mode: standalone)').matches ||

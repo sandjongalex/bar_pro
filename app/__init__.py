@@ -6,7 +6,8 @@ from decimal import Decimal
 import logging
 from typing import Any
 
-from flask import Flask
+from flask import Flask, request
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 from app.config import get_config, validate_config, load_environment
 from app.extensions import csrf, db, limiter, login_manager, migrate
@@ -53,6 +54,7 @@ def create_app(config_name: str | None = None, test_config: dict[str, Any] | Non
         app.config.update(test_config)
 
     validate_config(app.config)
+    _configure_transport(app)
     _configure_logging(app)
     _init_extensions(app)
     from app import models  # noqa: F401 - registers core metadata for Flask-Migrate
@@ -112,6 +114,25 @@ def _inventory_quantity_display(value):
         return format(number.normalize(), "f")
     except (ValueError, ArithmeticError):
         return str(value)
+
+
+def _configure_transport(app: Flask) -> None:
+    """Add optional trusted scheme handling and HTTPS-only HSTS headers.
+
+    TLS termination and HTTP->HTTPS redirects belong to the hosting proxy.
+    Do not enable ProxyFix unless the WSGI port is private and the proxy
+    overwrites X-Forwarded-Proto.
+    """
+    hops = int(app.config["TRUSTED_PROXY_PROTO_HOPS"])
+    if hops:
+        app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=hops)
+
+    @app.after_request
+    def secure_transport_headers(response):
+        seconds = int(app.config["HSTS_MAX_AGE"])
+        if seconds and request.is_secure:
+            response.headers.setdefault("Strict-Transport-Security", f"max-age={seconds}")
+        return response
 
 
 def _configure_logging(app: Flask) -> None:

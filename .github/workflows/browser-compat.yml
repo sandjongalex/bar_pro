@@ -1,0 +1,44 @@
+name: Portable HTTPS and browser compatibility
+on:
+  pull_request:
+    paths:
+      - 'app/config.py'
+      - 'app/__init__.py'
+      - 'app/templates/layout.html'
+      - 'app/templates/login.html'
+      - 'app/templates/owner_registration.html'
+      - 'app/templates/owner_registration_sent.html'
+      - 'app/static/browser_compat.*'
+      - 'app/static/pwa_install.js'
+      - 'tests/browser_compat.test.cjs'
+      - 'tests/test_transport_browser_compat.py'
+      - '.github/workflows/browser-compat.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'app/config.py'
+      - 'app/__init__.py'
+      - 'app/templates/layout.html'
+      - 'app/templates/login.html'
+      - 'app/templates/owner_registration.html'
+      - 'app/templates/owner_registration_sent.html'
+      - 'app/static/browser_compat.*'
+      - 'tests/browser_compat.test.cjs'
+      - 'tests/test_transport_browser_compat.py'
+      - '.github/workflows/browser-compat.yml'
+jobs:
+  compatibility:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: python -m pip install -r requirements.txt
+      - run: python -m compileall -q app
+      - run: node --check app/static/browser_compat.js
+      - run: node --test tests/browser_compat.test.cjs tests/barpro_async.test.cjs
+      - run: python -m pytest -q tests/test_transport_browser_compat.py tests/test_config.py tests/test_auth.py tests/test_async_ui_foundation.py
