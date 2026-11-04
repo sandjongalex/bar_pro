@@ -1,0 +1,78 @@
+name: Warehouse V2 foundation checks
+
+on:
+  push:
+    branches:
+      - feature/warehouse-v2-foundation
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  sqlite-and-regressions:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Dependencies
+        run: python -m pip install -r requirements.txt
+      - name: Generate exact physical schema dictionary
+        run: python scripts/schema_document.py
+      - name: Test warehouse foundation and legacy stock
+        env:
+          SECRET_KEY: warehouse-v2-test-secret
+        run: |
+          python -m pytest -q tests/test_warehouse_v2_foundation.py -k 'not mysql'
+          python -m pytest -q tests/test_schema.py tests/test_stock_valuation.py tests/test_workflows.py tests/test_inventory_v2_foundation.py tests/test_order_suborder_service.py
+      - name: Complete application regression suite
+        env:
+          SECRET_KEY: warehouse-v2-test-secret
+        run: python -m pytest -q
+      - name: Commit generated schema only to warehouse feature branch
+        if: github.event_name == 'push' && github.ref_name == 'feature/warehouse-v2-foundation'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/DATA_MODEL.md
+          if ! git diff --cached --quiet; then
+            git commit -m "docs(schema): regenerate warehouse V2 dictionary [skip ci]"
+            git push origin HEAD:refs/heads/feature/warehouse-v2-foundation
+          fi
+
+  mysql-migration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: warehouse-ephemeral-ci-only
+          MYSQL_DATABASE: barpro_warehouse_v2_ci
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -pwarehouse-ephemeral-ci-only"
+          --health-interval=10s --health-timeout=5s --health-retries=12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Dependencies
+        run: python -m pip install -r requirements.txt
+      - name: Execute actual MySQL migrations and inspect warehouse constraints
+        env:
+          SECRET_KEY: warehouse-v2-test-secret
+          WAREHOUSE_MYSQL_TEST_URI: mysql+pymysql://root:warehouse-ephemeral-ci-only@127.0.0.1:3306/barpro_warehouse_v2_ci?charset=utf8mb4
+        run: python -m pytest -q tests/test_warehouse_v2_foundation.py -k mysql
