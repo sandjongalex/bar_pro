@@ -330,3 +330,24 @@ def test_transfer_internal_api_json_create_prepare_ship_and_receive(env):
     assert warehouse_service.totals(bar_id)[pid] == {
         "MAIN": 4, "CASHIER": 6, "TRANSIT": 0, "TOTAL": 10,
     }
+
+
+def test_internal_movement_gateway_forbids_reverse_or_fake_credit(env):
+    owner, bar_id, pid = _live(env)
+    locations = warehouse_service.ensure_locations(bar_id)
+    before = warehouse_service.totals(bar_id)[pid].copy()
+    for kind, where, delta in (
+        ("TRANSFER_IN", locations["MAIN"].id, Decimal("1")),
+        ("TRANSFER_OUT", locations["CASHIER"].id, Decimal("-1")),
+        ("TRANSFER_OUT", locations["MAIN"].id, Decimal("1")),
+        ("TRANSIT_IN", None, Decimal("-1")),
+        ("PURCHASE_IN", locations["CASHIER"].id, Decimal("1")),
+    ):
+        with pytest.raises(WarehouseError, match="INVALID_TRANSFER_DIRECTION"):
+            warehouse_service._move(
+                actor=owner, bar_id=bar_id, product_id=pid, location_id=where,
+                kind=kind, delta=delta, cost=Decimal("40"),
+                reason="Ne doit jamais modifier les magasins",
+            )
+    db.session.rollback()
+    assert warehouse_service.totals(bar_id)[pid] == before
