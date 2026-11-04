@@ -85,7 +85,7 @@ def tenant_args(name, *extra):
 
 class StaffAssignment(Tenant, db.Model):
     __tablename__="staff_assignments"; id=db.Column(ID, primary_key=True); user_id=db.Column(ID, db.ForeignKey("users.id", ondelete="RESTRICT"), nullable=False, index=True); role=db.Column(db.String(16), nullable=False); started_at=db.Column(datetime_type(fsp=6), nullable=False); ended_at=db.Column(datetime_type(fsp=6)); active_user_id=db.Column(ID, Computed("CASE WHEN ended_at IS NULL THEN user_id ELSE NULL END")); user=db.relationship("User")
-    __table_args__=tenant_args("staff_assignments", UniqueConstraint("active_user_id", name="uq_staff_assignments_active_user"), CheckConstraint("role IN ('BAR_ADMIN','CASHIER','SERVER')", name="ck_staff_role"), CheckConstraint("ended_at IS NULL OR ended_at >= started_at", name="ck_staff_dates"), Index("ix_staff_bar_role_ended", "bar_id","role","ended_at","id"))
+    __table_args__=tenant_args("staff_assignments", UniqueConstraint("active_user_id", name="uq_staff_assignments_active_user"), CheckConstraint("role IN ('BAR_ADMIN','CASHIER','SERVER','STOREKEEPER')", name="ck_staff_role"), CheckConstraint("ended_at IS NULL OR ended_at >= started_at", name="ck_staff_dates"), Index("ix_staff_bar_role_ended", "bar_id","role","ended_at","id"))
 
 class ProductCategory(Tenant, db.Model):
     __tablename__="product_categories"; id=db.Column(ID, primary_key=True); name=db.Column(db.String(100), nullable=False); is_active=db.Column(db.Boolean, nullable=False, default=True)
