@@ -325,18 +325,28 @@ class WarehouseService:
             item["TOTAL"] = item["MAIN"] + item["CASHIER"] + item["TRANSIT"]
         return data
 
-    def dispatch(self, actor, bar_id, reference, quantities):
-        """Compatibility facade: all new dispatches use the audited V2 voucher."""
+    def dispatch(self, actor, bar_id, reference, quantities, *, recipient_user_id=None):
+        """Compatibility facade: audited voucher for the original dispatch API.
+
+        Older callers supplied no recipient. Assign those vouchers to the owner
+        (never the shipping storekeeper) until an explicit cashier is supplied.
+        The new transfer UI requires a selected cashier for storekeeper requests.
+        """
         from app.warehouse_transfer_service import warehouse_transfer_service
-        # Reject before preparing anything when the two stores are not LIVE.
         permissions.require(actor, "warehouse.transfers.dispatch", bar_id)
-        self._bar(bar_id)
+        bar = self._bar(bar_id)
         self._live(bar_id)
         voucher = warehouse_transfer_service.create_request(
-            actor, bar_id, reference, quantities, recipient_user_id=actor.id,
+            actor, bar_id, reference, quantities,
+            recipient_user_id=recipient_user_id or bar.owner_id,
         )
         warehouse_transfer_service.prepare(actor, bar_id, voucher.id, quantities)
-        return warehouse_transfer_service.ship(actor, bar_id, voucher.id)
+        shipped = warehouse_transfer_service.ship(actor, bar_id, voucher.id)
+        # Preserve the historical audit code consumed by existing integrations.
+        record(actor, bar_id, "warehouse.transfer.dispatch",
+               "warehouse_transfers", shipped.id,
+               f"Expédition MAIN vers TRANSIT : {shipped.reference}")
+        return shipped
 
     def receive(self, actor, bar_id, transfer_id, received_quantities, idempotency_key):
         """Compatibility facade; receipt and idempotency now have one owner."""
