@@ -68,6 +68,7 @@ def create_app(config_name: str | None = None, test_config: dict[str, Any] | Non
     from app import change_voucher_models  # noqa: F401 - customer change-voucher liability metadata
     from app import saas_governance_models  # noqa: F401 - administrative statuses
     from app import warehouse_models  # noqa: F401 - additive two-location and transit metadata
+    from app import warehouse_purchase_models  # noqa: F401 - MAIN-only supplier receipt evidence
     from app import warehouse_permission_models  # noqa: F401 - warehouse manager delegation
     _register_blueprints(app)
     from app.pwa import bp as pwa_bp
