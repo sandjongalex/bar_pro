@@ -19,6 +19,7 @@ ROLE_LABELS = {
     "BAR_ADMIN": "Administrateur du bar",
     "CASHIER": "Caissier / Caissière",
     "SERVER": "Serveur / Serveuse",
+    "STOREKEEPER": "Magasinier",
 }
 
 
@@ -171,6 +172,7 @@ def manage(bar_id):
         "BAR_ADMIN": sum(1 for item in active_assignments if item.role == "BAR_ADMIN"),
         "CASHIER": sum(1 for item in active_assignments if item.role == "CASHIER"),
         "SERVER": sum(1 for item in active_assignments if item.role == "SERVER"),
+        "STOREKEEPER": sum(1 for item in active_assignments if item.role == "STOREKEEPER"),
     }
 
     return render_template(
