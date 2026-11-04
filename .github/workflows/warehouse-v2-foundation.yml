@@ -39,7 +39,7 @@ jobs:
           SECRET_KEY: warehouse-v2-test-secret
         run: python -m pytest -q
       - name: Commit generated schema only to warehouse feature branch
-        if: github.event_name == 'push' && github.ref_name == 'feature/warehouse-v2-foundation'
+        if: always() && github.event_name == 'push' && github.ref_name == 'feature/warehouse-v2-foundation'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
