@@ -12,6 +12,7 @@ WAREHOUSE_DELEGABLE = {
     "warehouse.transfers.read": "Consulter les transferts",
     "warehouse.main.inventory.count": "Compter le stock principal",
     "warehouse.discrepancies.read": "Consulter les écarts de transferts",
+    "warehouse.discrepancies.resolve": "Valider les livraisons tardives et pertes de transit",
     "warehouse.requests.create": "Demander un approvisionnement",
     "warehouse.transfers.receive": "Recevoir un transfert à la caisse",
     "warehouse.purchases.manage": "Autorisation spéciale d'achats fournisseurs",
