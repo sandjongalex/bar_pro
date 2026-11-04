@@ -36,7 +36,10 @@ def register_error_handlers(app: Flask) -> None:
     def csrf_error(error):
         # Never retry a rejected business POST: its result must be verified first.
         db.session.rollback()
-        if request.path == "/login" or not current_user.is_authenticated:
+        if request.path == "/login" or (
+            not current_user.is_authenticated
+            and (request.path.startswith("/bars/") or request.path == "/logout")
+        ):
             from app.auth import _web_unauthorized_response
             return _web_unauthorized_response(expired=True)
         message = (
