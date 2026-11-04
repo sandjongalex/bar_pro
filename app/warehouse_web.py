@@ -174,12 +174,12 @@ def receive_supplier_purchase(bar_id, purchase_id):
     return redirect(url_for("warehouse_web.overview", bar_id=bar_id))
 
 
-def _form_transfer_quantities(bar_id, *, prefix="qty_"):
+def _form_transfer_quantities(bar_id, *, prefix="qty_", include_zero=False):
     """Only selected positive values; the service validates IDs/units/limits."""
     quantities = {}
     for product in db.session.scalars(select(Product).where(Product.bar_id == bar_id)):
         raw = (request.form.get(f"{prefix}{product.id}") or "").strip()
-        if raw and raw not in {"0", "0.0"}:
+        if raw and (include_zero or raw not in {"0", "0.0"}):
             unit = request.form.get(f"unit_{product.id}", "BOTTLE")
             quantities[product.id] = {"quantity": raw, "unit": unit}
     return quantities
@@ -262,7 +262,7 @@ def transfer_form_action(bar_id, transfer_id, action):
         if action == "prepare":
             result = transfer_service.prepare(
                 current_user, bar_id, transfer_id,
-                _form_transfer_quantities(bar_id),
+                _form_transfer_quantities(bar_id, include_zero=True),
             )
         elif action == "ship":
             result = transfer_service.ship(current_user, bar_id, transfer_id)
