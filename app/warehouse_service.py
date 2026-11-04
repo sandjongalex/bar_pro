@@ -352,6 +352,12 @@ class WarehouseService:
             self._move(actor=actor, bar_id=bar_id, product_id=product_id,
                        location_id=None, kind="TRANSIT_IN", delta=quantity,
                        cost=cost, transfer_line_id=line.id, reason=f"Transit {reference}")
+        db.session.flush()
+        record(
+            actor, bar_id, "warehouse.transfer.dispatch",
+            "warehouse_transfers", transfer.id,
+            f"Expédition MAIN vers TRANSIT : {reference}",
+        )
         return transfer
 
     def receive(self, actor, bar_id, transfer_id, received_quantities, idempotency_key):
