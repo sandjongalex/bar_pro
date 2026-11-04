@@ -28,6 +28,7 @@ from app import inventory_finance_models  # noqa: F401
 from app import change_voucher_models  # noqa: F401
 from app import saas_governance_models  # noqa: F401
 from app import warehouse_models  # noqa: F401
+from app import warehouse_permission_models  # noqa: F401
 
 
 ROOT = Path(__file__).resolve().parents[1]
