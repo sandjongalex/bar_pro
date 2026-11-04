@@ -3,6 +3,7 @@
 PROMPT 2 does not make requests, dispatch or inventory mutation public.
 """
 from decimal import Decimal
+from secrets import token_urlsafe
 
 from flask import Blueprint, abort, flash, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
@@ -10,15 +11,16 @@ from sqlalchemy import select
 
 from app.customer_models import UserNotification
 from app.extensions import db
-from app.models import Bar, Product, Purchase, PurchaseLine, StaffAssignment
+from app.models import Bar, Product, Purchase, PurchaseLine, StaffAssignment, User
 from app.permissions import permissions
 from app.warehouse_access import WAREHOUSE_DELEGABLE
-from app.warehouse_models import WarehouseAllocation, WarehouseTransfer, WarehouseTransferLine
+from app.warehouse_models import WarehouseAllocation, WarehouseTransfer, WarehouseTransferLine, WarehouseTransferEvent
 from app.warehouse_purchase_models import WarehousePurchaseReceiptLine
 from app.purchase_services import purchase_service
 from app.warehouse_permission_models import WarehouseStaffGrant
 from app.warehouse_permission_service import set_warehouse_grant
 from app.warehouse_service import warehouse_service
+from app.warehouse_transfer_service import warehouse_transfer_service as transfer_service
 
 bp = Blueprint("warehouse_web", __name__, url_prefix="/bars/<int:bar_id>/warehouse")
 
@@ -170,3 +172,123 @@ def receive_supplier_purchase(bar_id, purchase_id):
         db.session.rollback()
         flash(f"Réception refusée : {exc}", "danger")
     return redirect(url_for("warehouse_web.overview", bar_id=bar_id))
+
+
+def _form_transfer_quantities(bar_id, *, prefix="qty_"):
+    """Only selected positive values; the service validates IDs/units/limits."""
+    quantities = {}
+    for product in db.session.scalars(select(Product).where(Product.bar_id == bar_id)):
+        raw = (request.form.get(f"{prefix}{product.id}") or "").strip()
+        if raw and raw not in {"0", "0.0"}:
+            unit = request.form.get(f"unit_{product.id}", "BOTTLE")
+            quantities[product.id] = {"quantity": raw, "unit": unit}
+    return quantities
+
+
+@bp.get("/transfers/manage")
+@login_required
+def manage_transfers(bar_id):
+    permissions.require(current_user, "warehouse.transfers.read", bar_id)
+    bar = db.session.get(Bar, bar_id)
+    if bar is None:
+        abort(404)
+    allocation = db.session.scalar(select(WarehouseAllocation).where(
+        WarehouseAllocation.bar_id == bar_id,
+    ))
+    rights = {
+        action: permissions.evaluate(current_user, f"warehouse.{action}", bar_id).allowed
+        for action in ("requests.create", "requests.prepare", "transfers.dispatch",
+                       "transfers.receive", "discrepancies.resolve")
+    }
+    products = list(db.session.scalars(select(Product).where(
+        Product.bar_id == bar_id, Product.is_active.is_(True),
+    ).order_by(Product.name)))
+    vouchers = list(db.session.scalars(select(WarehouseTransfer).where(
+        WarehouseTransfer.bar_id == bar_id,
+    ).order_by(WarehouseTransfer.id.desc()).limit(40)))
+    lines = {}
+    if vouchers:
+        for line in db.session.scalars(select(WarehouseTransferLine).where(
+            WarehouseTransferLine.bar_id == bar_id,
+            WarehouseTransferLine.transfer_id.in_([v.id for v in vouchers]),
+        ).order_by(WarehouseTransferLine.id)):
+            lines.setdefault(line.transfer_id, []).append(line)
+    names = {p.id: p.name for p in products}
+    cashiers = list(db.session.execute(select(User.id, User.display_name)
+        .join(StaffAssignment, StaffAssignment.user_id == User.id)
+        .where(StaffAssignment.bar_id == bar_id,
+               StaffAssignment.role == "CASHIER",
+               StaffAssignment.ended_at.is_(None),
+               User.is_active.is_(True))
+        .order_by(User.display_name)).all())
+    return render_template(
+        "warehouse/transfers.html", bar=bar, allocation=allocation,
+        rights=rights, products=products, vouchers=vouchers,
+        lines=lines, names=names, cashiers=cashiers,
+        request_key=token_urlsafe(16),
+    )
+
+
+@bp.post("/transfers/new")
+@login_required
+def new_transfer_form(bar_id):
+    try:
+        quantities = _form_transfer_quantities(bar_id)
+        transfer_service.create_request(
+            current_user, bar_id,
+            request.form.get("reference", ""),
+            quantities,
+            request.form.get("recipient_user_id") or None,
+        )
+        db.session.commit()
+        flash("Bon de réapprovisionnement créé.", "success")
+    except (ValueError, PermissionError, LookupError, TypeError) as exc:
+        db.session.rollback()
+        flash(f"Demande refusée : {exc}", "danger")
+    return redirect(url_for("warehouse_web.manage_transfers", bar_id=bar_id))
+
+
+@bp.post("/transfers/<int:transfer_id>/form/<string:action>")
+@login_required
+def transfer_form_action(bar_id, transfer_id, action):
+    try:
+        if action == "prepare":
+            result = transfer_service.prepare(
+                current_user, bar_id, transfer_id,
+                _form_transfer_quantities(bar_id),
+            )
+        elif action == "ship":
+            result = transfer_service.ship(current_user, bar_id, transfer_id)
+        elif action == "receive":
+            received = _form_transfer_quantities(bar_id)
+            # Use exact bottle quantities unless a unit override was submitted.
+            result = transfer_service.receive(
+                current_user, bar_id, transfer_id,
+                {pid: value["quantity"] for pid, value in received.items()},
+                request.form.get("idempotency_key"),
+            )
+        elif action == "dispute":
+            disputed = _form_transfer_quantities(bar_id)
+            result = transfer_service.report_dispute(
+                current_user, bar_id, transfer_id,
+                {pid: value["quantity"] for pid, value in disputed.items()},
+                request.form.get("note", ""),
+            )
+        elif action == "resolve":
+            result = transfer_service.resolve_dispute(
+                current_user, bar_id, transfer_id,
+                request.form.get("product_id"), request.form.get("quantity"),
+                request.form.get("outcome"), request.form.get("note", ""),
+            )
+        elif action == "close":
+            result = transfer_service.close(
+                current_user, bar_id, transfer_id, request.form.get("note", ""),
+            )
+        else:
+            abort(404)
+        db.session.commit()
+        flash("Opération de transfert enregistrée.", "success")
+    except (ValueError, PermissionError, LookupError, TypeError) as exc:
+        db.session.rollback()
+        flash(f"Opération refusée : {exc}", "danger")
+    return redirect(url_for("warehouse_web.manage_transfers", bar_id=bar_id))
