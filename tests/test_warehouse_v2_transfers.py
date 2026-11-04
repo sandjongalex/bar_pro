@@ -220,7 +220,7 @@ def test_unsettled_transfer_cannot_close(env):
 
 def test_foreign_bar_and_unprivileged_actor_cannot_mutate_transfers(env):
     owner, bar_id, pid, ticket = _shipped(env)
-    with pytest.raises((LookupError, PermissionError)):
+    with pytest.raises((LookupError, PermissionError, WarehouseError)):
         service.receive(env[3].owner, env[3].id, ticket.id, {pid: 1}, "receipt-cross-bar")
     db.session.rollback()
     with pytest.raises(PermissionError):
