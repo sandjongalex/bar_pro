@@ -15,6 +15,9 @@
     </div>
   </div>
 </section>
+{% if nav_can('warehouse.permissions.manage', bar.id) %}
+<div class="mt-3"><a class="btn btn-outline-primary" href="{{ url_for('warehouse_web.grants', bar_id=bar.id) }}">Gérer les permissions de magasin</a></div>
+{% endif %}
 
 {% with messages = get_flashed_messages(with_categories=true) %}
   {% if messages %}
