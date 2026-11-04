@@ -42,6 +42,46 @@
 </section>
 {% endif %}
 
+{% if checks['purchases.receive'] %}
+<section class="panel-card mt-3 p-3 p-md-4">
+  <h2 class="h5">Achats fournisseurs à réceptionner dans MAIN</h2>
+  <p class="small text-secondary">Réception physique uniquement ; les prix, règlements et dettes restent réservés à la gestion des achats.</p>
+  <div class="table-responsive"><table class="table align-middle">
+    <thead><tr><th>Achat</th><th>Marchandises annoncées</th><th>Action</th></tr></thead>
+    <tbody>
+      {% for purchase in pending_purchases %}
+      <tr>
+        <td>{{ purchase.reference }}</td>
+        <td>{% for line in pending_lines.get(purchase.id, []) %}{{ line.product_name_snapshot }} : {{ line.quantity }} {{ line.unit_snapshot }}{% if not loop.last %}, {% endif %}{% endfor %}</td>
+        <td>
+          <form method="post" action="{{ url_for('warehouse_web.receive_supplier_purchase', bar_id=bar.id, purchase_id=purchase.id) }}" onsubmit="return confirm('Confirmer que toutes ces marchandises sont physiquement reçues au magasin principal ?');">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn btn-primary btn-sm">Confirmer la réception MAIN</button>
+          </form>
+        </td>
+      </tr>
+      {% else %}<tr><td colspan="3" class="text-secondary">Aucun achat en attente de réception.</td></tr>{% endfor %}
+    </tbody>
+  </table></div>
+</section>
+{% endif %}
+
+{% if checks['main.read'] %}
+<section class="panel-card mt-3 p-3 p-md-4">
+  <h2 class="h5">Dernières réceptions au magasin principal</h2>
+  <p class="small text-secondary">Avant activation des deux magasins, ces réceptions sont comptabilisées dans le stock historique commun, puis incluses dans la répartition physique initiale. Aucun achat ne crédite directement CASHIER.</p>
+  <div class="table-responsive"><table class="table align-middle">
+    <thead><tr><th>Achat</th><th>Produit</th><th>Quantité</th><th>Suivi</th></tr></thead>
+    <tbody>
+    {% for receipt, reference, product_name in recent_receipts %}
+      <tr><td>{{ reference }}</td><td>{{ product_name }}</td><td>{{ receipt.quantity }}</td>
+      <td>{% if receipt.reversed_at %}Annulée (historique conservé){% elif receipt.mode == 'LIVE' %}Comptabilisée dans MAIN{% else %}MAIN déclaré · en attente de répartition{% endif %}</td></tr>
+    {% else %}<tr><td colspan="4" class="text-secondary">Aucune réception enregistrée.</td></tr>{% endfor %}
+    </tbody>
+  </table></div>
+</section>
+{% endif %}
+
 {% if checks['transfers.read'] %}
 <section class="panel-card mt-3 p-3 p-md-4">
   <h2 class="h5">Historique des transferts</h2>
