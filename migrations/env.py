@@ -74,7 +74,7 @@ def run_migrations_offline():
 # Suppressing the Alembic "remove_index" suggestion is correct *only* for
 # indexes that correspond exactly to a reflected FK's constrained columns.
 # Other database indexes must remain visible to autogenerate.
-_MYSQL_AUTO_FK_INDEX_NAME = re.compile(r"bar_id_[2-9][0-9]*\\Z")
+_MYSQL_AUTO_FK_INDEX_NAME = re.compile(r"bar_id_(?:[2-9]|[1-9][0-9]+)")
 
 
 def is_mysql_implicit_foreign_key_index(index, name):
