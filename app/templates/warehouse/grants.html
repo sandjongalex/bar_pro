@@ -1,0 +1,37 @@
+{% extends 'layout.html' %}
+{% block title %}Autorisations magasin · {{ bar.name }}{% endblock %}
+{% block header %}Autorisations magasin{% endblock %}
+{% block content %}
+<section class="panel-card p-3 p-md-4">
+  <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap">
+    <div><h1 class="h4">Délégations du propriétaire</h1><p class="text-secondary">Chaque droit est indépendant. Le gérant ne reçoit aucun droit de magasin automatiquement.</p></div>
+    <a href="{{ url_for('warehouse_web.overview', bar_id=bar.id) }}" class="btn btn-outline-primary">Retour au magasin</a>
+  </div>
+  {% for assignment in assignments %}
+  <section class="mt-4">
+    <h2 class="h5">{{ assignment.user.display_name }} <small class="text-secondary">({{ 'Gérant' if assignment.role == 'BAR_ADMIN' else 'Magasinier' }})</small></h2>
+    <div class="table-responsive"><table class="table table-sm align-middle">
+      <thead><tr><th>Permission</th><th>État</th><th>Décision</th></tr></thead><tbody>
+      {% for action, label in delegable.items() %}
+        {% if assignment.role == 'BAR_ADMIN' or action == 'warehouse.purchases.manage' %}
+        {% set active = (assignment.id, action) in grants %}
+        <tr>
+          <td>{{ label }}</td>
+          <td>{{ 'Accordée' if active else 'Non accordée' }}</td>
+          <td>
+            <form method="post">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="assignment_id" value="{{ assignment.id }}">
+              <input type="hidden" name="action" value="{{ action }}">
+              <input type="hidden" name="enabled" value="{{ '0' if active else '1' }}">
+              <button type="submit" class="btn btn-sm {{ 'btn-outline-danger' if active else 'btn-outline-success' }}">{{ 'Retirer' if active else 'Autoriser' }}</button>
+            </form>
+          </td>
+        </tr>
+        {% endif %}
+      {% endfor %}
+      </tbody></table></div>
+  </section>
+  {% else %}<p class="text-secondary">Aucun gérant ou magasinier actif dans ce bar.</p>{% endfor %}
+</section>
+{% endblock %}

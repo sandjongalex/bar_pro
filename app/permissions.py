@@ -6,6 +6,7 @@ from sqlalchemy import select
 from app.extensions import db
 from app.models import Bar, StaffAssignment
 from app.saas_governance import owner_enabled, suspension_level, bar_governance, trial_expired
+from app.warehouse_access import WAREHOUSE_DELEGABLE, WAREHOUSE_WRITES, STOREKEEPER_DEFAULT
 
 
 ROLE_ACTIONS = {
@@ -25,10 +26,10 @@ ROLE_ACTIONS = {
     "expenses.record": {"SUPER_ADMIN", "OWNER", "BAR_ADMIN", "CASHIER"},
     "expenses.manage": {"SUPER_ADMIN", "OWNER", "BAR_ADMIN"},
     "cash.operate": {"SUPER_ADMIN", "OWNER", "BAR_ADMIN", "CASHIER"},
-    "auth.self.read": {"SUPER_ADMIN", "OWNER", "BAR_ADMIN", "CASHIER", "SERVER"},
-    "bars.read": {"SUPER_ADMIN", "OWNER", "BAR_ADMIN", "CASHIER", "SERVER"},
-    "bars.support.read": {"SUPER_ADMIN", "OWNER", "BAR_ADMIN", "CASHIER", "SERVER"},
-    "notifications.acknowledge": {"SUPER_ADMIN", "OWNER", "BAR_ADMIN", "CASHIER", "SERVER"},
+    "auth.self.read": {"SUPER_ADMIN", "OWNER", "BAR_ADMIN", "CASHIER", "SERVER", "STOREKEEPER"},
+    "bars.read": {"SUPER_ADMIN", "OWNER", "BAR_ADMIN", "CASHIER", "SERVER", "STOREKEEPER"},
+    "bars.support.read": {"SUPER_ADMIN", "OWNER", "BAR_ADMIN", "CASHIER", "SERVER", "STOREKEEPER"},
+    "notifications.acknowledge": {"SUPER_ADMIN", "OWNER", "BAR_ADMIN", "CASHIER", "SERVER", "STOREKEEPER"},
     "bars.governance.manage": {"SUPER_ADMIN"},
     "shifts.manage": {"SUPER_ADMIN", "OWNER", "CASHIER"},
     "bars.update_settings": {"SUPER_ADMIN", "OWNER"},
@@ -37,7 +38,7 @@ ROLE_ACTIONS = {
     "staff.manage": {"SUPER_ADMIN", "OWNER"},
     "staff.read": {"SUPER_ADMIN", "OWNER", "BAR_ADMIN"},
     "shifts.read": {"SUPER_ADMIN", "OWNER", "CASHIER"},
-    "catalog.read": {"SUPER_ADMIN", "OWNER", "BAR_ADMIN", "CASHIER", "SERVER"},
+    "catalog.read": {"SUPER_ADMIN", "OWNER", "BAR_ADMIN", "CASHIER", "SERVER", "STOREKEEPER"},
     "customers.read": {"SUPER_ADMIN", "OWNER", "BAR_ADMIN", "CASHIER"},
     "customers.manage": {"SUPER_ADMIN", "OWNER", "BAR_ADMIN", "CASHIER"},
     "customer_credit.manage": {"SUPER_ADMIN", "OWNER", "BAR_ADMIN", "CASHIER"},
@@ -58,6 +59,25 @@ ROLE_ACTIONS = {
     "bars.reactivate": {"SUPER_ADMIN"},
     "bars.suspend": {"SUPER_ADMIN"},
 }
+
+# Warehouse actions are deliberately distinct from order, purchase, and cash
+# permissions. BAR_ADMIN gets each delegated right only after owner approval.
+ROLE_ACTIONS.update({
+    "warehouse.main.read": {"OWNER", "BAR_ADMIN", "STOREKEEPER", "SUPER_ADMIN"},
+    "warehouse.cashier.needs.read": {"OWNER", "BAR_ADMIN", "STOREKEEPER", "CASHIER", "SUPER_ADMIN"},
+    "warehouse.requests.read": {"OWNER", "BAR_ADMIN", "STOREKEEPER", "SUPER_ADMIN"},
+    "warehouse.notifications.read": {"OWNER", "BAR_ADMIN", "STOREKEEPER", "SUPER_ADMIN"},
+    "warehouse.requests.create": {"OWNER", "BAR_ADMIN", "CASHIER"},
+    "warehouse.requests.prepare": {"OWNER", "BAR_ADMIN", "STOREKEEPER"},
+    "warehouse.transfers.dispatch": {"OWNER", "BAR_ADMIN", "STOREKEEPER"},
+    "warehouse.transfers.read": {"OWNER", "BAR_ADMIN", "STOREKEEPER", "CASHIER", "SUPER_ADMIN"},
+    "warehouse.transfers.receive": {"OWNER", "BAR_ADMIN", "CASHIER"},
+    "warehouse.main.inventory.count": {"OWNER", "BAR_ADMIN", "STOREKEEPER"},
+    "warehouse.discrepancies.read": {"OWNER", "BAR_ADMIN", "STOREKEEPER", "SUPER_ADMIN"},
+    "warehouse.discrepancies.resolve": {"OWNER"},
+    "warehouse.purchases.manage": {"OWNER", "BAR_ADMIN", "STOREKEEPER"},
+    "warehouse.permissions.manage": {"OWNER"},
+})
 
 WRITES = {
     "refunds.record",
@@ -95,6 +115,7 @@ WRITES.add("subscriptions.manage")
 WRITES.add("bars.governance.manage")
 WRITES.add("shifts.manage")
 WRITES.add("notifications.acknowledge")
+WRITES.update(WAREHOUSE_WRITES)
 
 # The platform can govern tenants but must not alter their commercial data.
 PLATFORM_COMMERCIAL_WRITES = WRITES - {
@@ -128,6 +149,11 @@ SHIFT_GATED_ACTIONS = {
     "cash.operate",
     "expenses.read",
     "expenses.record",
+    # Cashier warehouse operations have the same shift authorization as sales.
+    "warehouse.requests.create",
+    "warehouse.transfers.receive",
+    "warehouse.cashier.needs.read",
+    "warehouse.transfers.read",
 }
 
 
@@ -174,6 +200,31 @@ class PermissionService:
             return Decision(False, "BAR_SUSPENDED")
         if role not in ROLE_ACTIONS[action]:
             return Decision(False, "FORBIDDEN")
+        if role == "BAR_ADMIN" and action in WAREHOUSE_DELEGABLE:
+            from app.warehouse_permission_models import WarehouseStaffGrant
+            enabled = db.session.scalar(
+                select(WarehouseStaffGrant.id).where(
+                    WarehouseStaffGrant.bar_id == bar_id,
+                    WarehouseStaffGrant.staff_assignment_id == assignment.id,
+                    WarehouseStaffGrant.action == action,
+                    WarehouseStaffGrant.enabled.is_(True),
+                )
+            )
+            if enabled is None:
+                return Decision(False, "WAREHOUSE_OWNER_GRANT_REQUIRED")
+        if role == "STOREKEEPER":
+            if action.startswith("warehouse.") and action not in STOREKEEPER_DEFAULT:
+                from app.warehouse_permission_models import WarehouseStaffGrant
+                enabled = db.session.scalar(
+                    select(WarehouseStaffGrant.id).where(
+                        WarehouseStaffGrant.bar_id == bar_id,
+                        WarehouseStaffGrant.staff_assignment_id == assignment.id,
+                        WarehouseStaffGrant.action == action,
+                        WarehouseStaffGrant.enabled.is_(True),
+                    )
+                )
+                if enabled is None:
+                    return Decision(False, "WAREHOUSE_OWNER_GRANT_REQUIRED")
         if role == "SUPER_ADMIN" and action in PLATFORM_COMMERCIAL_WRITES:
             return Decision(False, "PLATFORM_COMMERCE_FORBIDDEN")
         governance = bar_governance(bar_id)

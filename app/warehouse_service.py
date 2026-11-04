@@ -310,7 +310,7 @@ class WarehouseService:
 
     def dispatch(self, actor, bar_id, reference, quantities):
         """Internal engine only: no route calls this until the complete cutover."""
-        permissions.require(actor, "purchases.manage", bar_id)
+        permissions.require(actor, "warehouse.transfers.dispatch", bar_id)
         self._bar(bar_id)
         self._live(bar_id)
         lines = _normalized_lines(quantities, positive=True)
@@ -352,11 +352,17 @@ class WarehouseService:
             self._move(actor=actor, bar_id=bar_id, product_id=product_id,
                        location_id=None, kind="TRANSIT_IN", delta=quantity,
                        cost=cost, transfer_line_id=line.id, reason=f"Transit {reference}")
+        db.session.flush()
+        record(
+            actor, bar_id, "warehouse.transfer.dispatch",
+            "warehouse_transfers", transfer.id,
+            f"Expédition MAIN vers TRANSIT : {reference}",
+        )
         return transfer
 
     def receive(self, actor, bar_id, transfer_id, received_quantities, idempotency_key):
         """Accept dispatched quantities at CASHIER; concurrent/repeated receipt safe."""
-        permissions.require(actor, "orders.deliver", bar_id)
+        permissions.require(actor, "warehouse.transfers.receive", bar_id)
         self._bar(bar_id)
         self._live(bar_id)
         lines = _normalized_lines(received_quantities, positive=True)
@@ -428,6 +434,8 @@ class WarehouseService:
                 for line in transfer_lines.values()
             ) else "PARTIAL"
         )
+        db.session.flush()
+        record(actor, bar_id, "warehouse.transfer.receive", "warehouse_transfer_receipts", receipt.id, transfer.reference)
         return receipt
 
 

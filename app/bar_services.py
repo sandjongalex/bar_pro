@@ -190,7 +190,7 @@ def create_employee(actor, bar_id, data, role):
         raise ValueError("INVALID_STAFF_NAME")
     if len(password) < 8:
         raise ValueError("WEAK_STAFF_PASSWORD")
-    if role not in {"BAR_ADMIN", "CASHIER", "SERVER"}:
+    if role not in {"BAR_ADMIN", "CASHIER", "SERVER", "STOREKEEPER"}:
         raise ValueError("INVALID_STAFF_ROLE")
     if db.session.scalar(select(User.id).where(User.email == email)):
         raise ValueError("STAFF_EMAIL_EXISTS")
@@ -213,7 +213,7 @@ def assign_staff(actor, bar_id, user_id, role):
     user = db.session.get(User, user_id)
     if not user or user.category != "EMPLOYEE" or not user.is_active:
         raise LookupError("INVALID_STAFF")
-    if role not in {"BAR_ADMIN", "CASHIER", "SERVER"}:
+    if role not in {"BAR_ADMIN", "CASHIER", "SERVER", "STOREKEEPER"}:
         raise ValueError("INVALID_STAFF_ROLE")
 
     assignment = db.session.scalar(
@@ -242,6 +242,8 @@ def assign_staff(actor, bar_id, user_id, role):
         )
     else:
         if assignment.role != role:
+            from app.warehouse_permission_service import revoke_warehouse_grants_on_role_change
+            revoke_warehouse_grants_on_role_change(actor, assignment)
             _close_open_staff_shift(actor, bar_id, assignment)
         assignment.role = role
 
@@ -274,6 +276,8 @@ def end_staff_assignment(actor, bar_id, assignment_id):
     if not assignment:
         raise LookupError("STAFF_ASSIGNMENT_NOT_FOUND")
 
+    from app.warehouse_permission_service import revoke_warehouse_grants_on_role_change
+    revoke_warehouse_grants_on_role_change(actor, assignment)
     _close_open_staff_shift(actor, bar_id, assignment)
     assignment.ended_at = datetime.now(timezone.utc)
     user = db.session.get(User, assignment.user_id)
@@ -319,6 +323,8 @@ def set_employee_active(actor, bar_id, user_id, active):
             )
         )
         if assignment:
+            from app.warehouse_permission_service import revoke_warehouse_grants_on_role_change
+            revoke_warehouse_grants_on_role_change(actor, assignment)
             _close_open_staff_shift(actor, bar_id, assignment)
             assignment.ended_at = datetime.now(timezone.utc)
         user.disabled_at = datetime.now(timezone.utc)

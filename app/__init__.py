@@ -39,6 +39,7 @@ from app.owner_signup_web import bp as owner_signup_bp
 from app.staff import bp as staff_web_bp
 from app.shifts_web import bp as shifts_web_bp
 from app.reports_web import bp as reports_web_bp
+from app.warehouse_web import bp as warehouse_web_bp
 
 
 def create_app(config_name: str | None = None, test_config: dict[str, Any] | None = None) -> Flask:
@@ -67,6 +68,7 @@ def create_app(config_name: str | None = None, test_config: dict[str, Any] | Non
     from app import change_voucher_models  # noqa: F401 - customer change-voucher liability metadata
     from app import saas_governance_models  # noqa: F401 - administrative statuses
     from app import warehouse_models  # noqa: F401 - additive two-location and transit metadata
+    from app import warehouse_permission_models  # noqa: F401 - warehouse manager delegation
     _register_blueprints(app)
     from app.pwa import bp as pwa_bp
     app.register_blueprint(pwa_bp)
@@ -150,6 +152,7 @@ def _register_blueprints(app: Flask) -> None:
     app.register_blueprint(cashier_handovers_web_bp)
     app.register_blueprint(cashier_history_web_bp)
     app.register_blueprint(reports_web_bp)
+    app.register_blueprint(warehouse_web_bp)
     app.register_blueprint(expenses_web_bp)
     app.register_blueprint(finance_bp)
     app.register_blueprint(reports_bp)

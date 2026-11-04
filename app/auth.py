@@ -47,6 +47,8 @@ def _web_destination(user, employee_context=None):
         return url_for("orders_web.quick", bar_id=context.bar_id)
     if context.role == "BAR_ADMIN":
         return url_for("web.dashboard", bar_id=context.bar_id)
+    if context.role == "STOREKEEPER":
+        return url_for("warehouse_web.overview", bar_id=context.bar_id)
     raise LookupError("EMPLOYEE_ROLE_INVALID")
 
 def _bind_employee_session(context):

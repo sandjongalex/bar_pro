@@ -17,6 +17,7 @@
     </div>
   </div>
   <div class="bar-hero-actions">
+    {% if nav_can('warehouse.main.read', bar.id) or nav_can('warehouse.cashier.needs.read', bar.id) or nav_can('warehouse.transfers.read', bar.id) %}<a class="btn btn-outline-primary" href="{{ url_for('warehouse_web.overview', bar_id=bar.id) }}">Magasins</a>{% endif %}
     {% if nav_can('shifts.read', bar.id) %}<a class="btn btn-outline-success" href="{{ url_for('shifts_web.manage',bar_id=bar.id) }}">Personnel en service</a>{% endif %}
     {% if rights.orders_create %}<a class="btn btn-outline-primary" href="{{ url_for('orders_web.quick',bar_id=bar.id) }}">Point de vente</a>{% endif %}
     {% if rights.payments_read %}<a class="btn btn-primary" href="{{ url_for('checkout_web.checkout',bar_id=bar.id) }}">Caisse commandes</a>{% endif %}

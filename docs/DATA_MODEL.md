@@ -4,7 +4,7 @@ Ce fichier est généré par [`scripts/schema_document.py`](../scripts/schema_do
 Ne pas l'éditer librement : [`tests/test_schema.py`](../tests/test_schema.py) compare exactement
 son contenu à `scripts.schema_document.render()`.
 
-Révision Alembic terminale observée : `c6f2d4e8a1b0`. Le dictionnaire décrit les tables,
+Révision Alembic terminale observée : `d7e3a5b9c2f1`. Le dictionnaire décrit les tables,
 colonnes, clés, contraintes, index et relations dérivables de `app.models`.
 Les types sont compilés pour MySQL et SQLite quand ils diffèrent. Une compilation SQL ou
 un test SQLite ne constitue pas une validation sur serveur MySQL.
@@ -48,6 +48,7 @@ un test SQLite ne constitue pas une validation sur serveur MySQL.
 | `d1e2f3a4b5c6` | `e1f2a3b4c5d6` | `d1e2f3a4b5c6_customer_manual_debt_due_date.py` | Add optional due date to manual customer debt ledger entries. |
 | `d2e3f4a5b6c7` | `c1d2e3f4a5b6` | `d2e3f4a5b6c7_inventory_v2_count_states.py` | Add per-product count timestamps and authors without modifying legacy inventory. |
 | `d4e5f6a7b8c9` | `c3d4e5f6a7b8` | `d4e5f6a7b8c9_customer_credit_cases_notifications.py` | Add customer receivables, returnable cases and persistent notifications. |
+| `d7e3a5b9c2f1` | `c6f2d4e8a1b0` | `d7e3a5b9c2f1_storekeeper_permissions.py` | Allow STOREKEEPER on existing staff assignments and add owner-delegated grants.  Revision ID: d7e3a5b9c2f1 Revises: c6f2d4e8a1b0 Existing accounts and assignments are kept intact. |
 | `e1f2a3b4c5d6` | `d0e1f2a3b4c5` | `e1f2a3b4c5d6_missing_tenant_indexes.py` | Reconcile tenant indexes declared by newer customer and shift ORM models.  Safe for existing deployments: only missing indexes are created. No table, order, stock or payment data is modified. |
 | `e3f4a5b6c7d8` | `d2e3f4a5b6c7` | `e3f4a5b6c7d8_inventory_live_reconciliation.py` | Add non-destructive ledger cursors for V2 live reconciliation.  Older V2 draft inventories deliberately retain NULL cursors and require recount rather than silently assuming an inaccurate inventory start snapshot. |
 | `e5f6a7b8c9d0` | `d4e5f6a7b8c9` | `e5f6a7b8c9d0_purchase_units_supplier_notes.py` | Add supplier notes and purchase unit/conversion metadata.  Revision ID: e5f6a7b8c9d0 Revises: d4e5f6a7b8c9 |
@@ -269,6 +270,10 @@ erDiagram
     bars ||--o{ warehouse_allocations : "bar_id"
     users ||--o{ warehouse_allocations : "validated_by_id"
     bars ||--o{ warehouse_locations : "bar_id"
+    bars ||--o{ warehouse_staff_grants : "bar_id"
+    staff_assignments ||--o{ warehouse_staff_grants : "bar_id, staff_assignment_id"
+    users ||--o{ warehouse_staff_grants : "granted_by_id"
+    users ||--o{ warehouse_staff_grants : "revoked_by_id"
     bars ||--o{ warehouse_stock_balances : "bar_id"
     warehouse_locations ||--o{ warehouse_stock_balances : "bar_id, location_id"
     products ||--o{ warehouse_stock_balances : "bar_id, product_id"
@@ -495,6 +500,10 @@ erDiagram
 | `warehouse_allocations` | `—` | `bar_id` | `bars.id` | `RESTRICT` |
 | `warehouse_allocations` | `—` | `validated_by_id` | `users.id` | `RESTRICT` |
 | `warehouse_locations` | `—` | `bar_id` | `bars.id` | `RESTRICT` |
+| `warehouse_staff_grants` | `—` | `bar_id` | `bars.id` | `RESTRICT` |
+| `warehouse_staff_grants` | `—` | `bar_id, staff_assignment_id` | `staff_assignments.bar_id, staff_assignments.id` | `RESTRICT` |
+| `warehouse_staff_grants` | `—` | `granted_by_id` | `users.id` | `RESTRICT` |
+| `warehouse_staff_grants` | `—` | `revoked_by_id` | `users.id` | `RESTRICT` |
 | `warehouse_stock_balances` | `—` | `bar_id` | `bars.id` | `RESTRICT` |
 | `warehouse_stock_balances` | `—` | `bar_id, location_id` | `warehouse_locations.bar_id, warehouse_locations.id` | `RESTRICT` |
 | `warehouse_stock_balances` | `—` | `bar_id, product_id` | `products.bar_id, products.id` | `RESTRICT` |
@@ -1762,7 +1771,7 @@ erDiagram
 
 - PK : `id`.
 - CHECK `ck_staff_dates` : `ended_at IS NULL OR ended_at >= started_at`.
-- CHECK `ck_staff_role` : `role IN ('BAR_ADMIN','CASHIER','SERVER')`.
+- CHECK `ck_staff_role` : `role IN ('BAR_ADMIN','CASHIER','SERVER','STOREKEEPER')`.
 - FK `—` : `bar_id` → `bars.id` ; ON DELETE `RESTRICT`.
 - FK `—` : `user_id` → `users.id` ; ON DELETE `RESTRICT`.
 - UNIQUE `uq_staff_assignments_active_user` : `active_user_id`.
@@ -2155,6 +2164,33 @@ erDiagram
 - UNIQUE `uq_warehouse_locations_code` : `bar_id, code`.
 - INDEX `ix_warehouse_locations_bar_created` : `bar_id, created_at, id`.
 - INDEX `ix_warehouse_locations_bar_id` : `bar_id`.
+
+### `warehouse_staff_grants`
+
+| Colonne | Type | NULL | PK | Default ORM | Default serveur | Calcul |
+| --- | --- | --- | --- | --- | --- | --- |
+| `id` | MySQL `BIGINT` / SQLite `INTEGER` | non | oui | — | — | — |
+| `staff_assignment_id` | MySQL `BIGINT` / SQLite `INTEGER` | non | non | — | — | — |
+| `action` | VARCHAR(64) | non | non | — | — | — |
+| `enabled` | MySQL `BOOL` / SQLite `BOOLEAN` | non | non | True | — | — |
+| `granted_by_id` | MySQL `BIGINT` / SQLite `INTEGER` | non | non | — | — | — |
+| `granted_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | non | non | — | — | — |
+| `revoked_by_id` | MySQL `BIGINT` / SQLite `INTEGER` | oui | non | — | — | — |
+| `revoked_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | oui | non | — | — | — |
+| `bar_id` | MySQL `BIGINT` / SQLite `INTEGER` | non | non | — | — | — |
+| `created_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | non | non | utcnow | — | — |
+| `updated_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | non | non | utcnow | — | — |
+
+- PK : `id`.
+- CHECK `ck_warehouse_staff_grant_state` : `(enabled = 1 AND revoked_at IS NULL AND revoked_by_id IS NULL) OR (enabled = 0 AND revoked_at IS NOT NULL AND revoked_by_id IS NOT NULL)`.
+- FK `—` : `bar_id` → `bars.id` ; ON DELETE `RESTRICT`.
+- FK `—` : `bar_id, staff_assignment_id` → `staff_assignments.bar_id, staff_assignments.id` ; ON DELETE `RESTRICT`.
+- FK `—` : `granted_by_id` → `users.id` ; ON DELETE `RESTRICT`.
+- FK `—` : `revoked_by_id` → `users.id` ; ON DELETE `RESTRICT`.
+- UNIQUE `uq_warehouse_staff_grant_action` : `bar_id, staff_assignment_id, action`.
+- UNIQUE `uq_warehouse_staff_grants_bar_id_id` : `bar_id, id`.
+- INDEX `ix_warehouse_staff_grants_bar_created` : `bar_id, created_at, id`.
+- INDEX `ix_warehouse_staff_grants_bar_id` : `bar_id`.
 
 ### `warehouse_stock_balances`
 
