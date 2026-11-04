@@ -300,3 +300,42 @@ test('newer notices survive old timers; errors can be dismissed manually', () =>
   assert.equal(region().firstElementChild, null);
   assert.equal(scheduled.size, 0);
 });
+
+test('explicit expired AJAX session redirects once without retrying a POST', async () => {
+  let sent = 0;
+  const redirects = [];
+  const { api } = start(async () => {
+    sent++;
+    return response({ success: false, error: { code: 'SESSION_EXPIRED' } }, { status: 401 });
+  }, { window: { location: {
+    origin: 'https://example.test', href: 'https://example.test/bars/1/orders/new',
+    assign: url => redirects.push(url),
+  } } });
+  const form = { querySelector: () => ({ value: 'csrf-token' }) };
+  await assert.rejects(api.request('/bars/1/order', { method: 'POST', form, body: 'a=1' }),
+    error => error.code === 'SESSION_EXPIRED');
+  assert.equal(sent, 1);
+  assert.deepEqual(redirects, ['/login?session=expired']);
+});
+
+test('login redirects from HTML AJAX navigate, but CSRF and forbidden errors do not', async () => {
+  const destinations = [];
+  const location = {
+    origin: 'https://example.test', href: 'https://example.test/bars/1/orders/new',
+    assign: url => destinations.push(url),
+  };
+  const redirected = start(async () => ({
+    ...response('<html>login</html>', { html: true, redirected: true }),
+    url: 'https://example.test/login',
+  }), { window: { location } });
+  await assert.rejects(redirected.api.request('/bars/1/orders', { format: 'html' }), /Session expirée/);
+  assert.deepEqual(destinations, ['/login?session=expired']);
+
+  for (const status of [400, 403]) {
+    const denied = start(async () => response({
+      success: false, error: { code: status === 400 ? 'CSRF_REJECTED' : 'FORBIDDEN' }
+    }, { status }), { window: { location } });
+    await assert.rejects(denied.api.request('/bars/1/orders'));
+  }
+  assert.equal(destinations.length, 1, 'CSRF and RBAC failures must not log out valid users');
+});

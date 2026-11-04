@@ -29,4 +29,6 @@ def test_api_login_refresh_logout_and_disabled(tmp_path):
 
 def test_web_login_requires_csrf_and_session(tmp_path):
     app=app_with_auth(tmp_path); client=app.test_client()
-    assert client.post("/login",data={"email":"owner.auth.demo@example.invalid","password":"correct-password"}).status_code==400
+    response = client.post("/login", data={"email":"owner.auth.demo@example.invalid","password":"correct-password"})
+    assert response.status_code == 303
+    assert response.headers["Location"].endswith("/login?session=expired")

@@ -36,6 +36,9 @@
           <p class="text-secondary mb-0">Connectez-vous pour accéder à votre tableau de bord.</p>
         </div>
 
+        {% if request.args.get('session') == 'expired' %}
+          <div class="alert alert-warning login-alert" role="status">Votre session ou votre formulaire a expiré. Reconnectez-vous pour continuer.</div>
+        {% endif %}
         {% if error %}
           <div class="alert alert-danger login-alert" role="alert">{{ error }}</div>
         {% endif %}

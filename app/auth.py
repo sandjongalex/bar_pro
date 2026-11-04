@@ -2,7 +2,7 @@
 from datetime import datetime, timedelta
 import hashlib, secrets, uuid
 import jwt
-from flask import Blueprint, abort, current_app, jsonify, request, render_template, session, g, url_for
+from flask import Blueprint, abort, current_app, jsonify, request, render_template, redirect, session, g, url_for
 from flask_login import current_user, login_required, login_user, logout_user
 from functools import wraps
 from sqlalchemy import select
@@ -77,7 +77,7 @@ def bind_employee_web_context():
         logout_user()
         session.clear()
         g.pop("csrf_token", None)
-        return "", 302, {"Location": url_for("auth.web_login")}
+        return _web_unauthorized_response(expired=True)
 
     _bind_employee_session(context)
     route_bar_id = (request.view_args or {}).get("bar_id")
@@ -131,6 +131,34 @@ def issue(user,bar_id,family=None,parent=None):
     claims={"sid":str(row.id),"iss":current_app.config["JWT_ISSUER"],"aud":current_app.config["JWT_AUDIENCE"],"sub":str(user.id),"bar_id":bar_id,"jti":str(uuid.uuid4()),"iat":now,"nbf":now,"exp":now+timedelta(minutes=15),"token_use":"access","credentials_version":user.credentials_version}
     access=jwt.encode(claims,current_app.config["JWT_PRIVATE_KEY"],algorithm="ES256")
     return access,raw
+def _web_unauthorized_response(*, expired=False):
+    """Redirect cookie-authenticated web pages without replaying a POST.
+
+    JSON clients receive an explicit 401. JWT Bearer endpoints keep their own
+    independent authentication handling and are never redirected to HTML.
+    """
+    message = "Votre session n'est plus valide. Reconnectez-vous."
+    if request.path.startswith("/api/") or request.accept_mimetypes.best == "application/json":
+        response = jsonify({
+            "success": False,
+            "error": {"code": "SESSION_EXPIRED", "message": message, "details": None},
+        })
+        response.status_code = 401
+    else:
+        target = url_for("auth.web_login", session="expired") if expired else url_for("auth.web_login")
+        response = redirect(
+            target,
+            code=303 if request.method not in {"GET", "HEAD", "OPTIONS"} else 302,
+        )
+    response.headers["Cache-Control"] = "no-store"
+    return response
+
+
+@login_manager.unauthorized_handler
+def unauthorized_web():
+    return _web_unauthorized_response()
+
+
 @login_manager.user_loader
 def load_user(user_id):
     try: user=db.session.get(User,int(user_id))
