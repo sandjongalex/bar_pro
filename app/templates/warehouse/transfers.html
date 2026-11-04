@@ -1,0 +1,167 @@
+{% extends 'layout.html' %}
+{% block title %}Bons de transfert · {{ bar.name }}{% endblock %}
+{% block header %}Transferts · {{ bar.name }}{% endblock %}
+{% block content %}
+<section class="panel-card p-3 p-md-4">
+  <div class="d-flex flex-wrap justify-content-between gap-2 align-items-center">
+    <div>
+      <p class="eyebrow mb-1">Approvisionnement interne</p>
+      <h1 class="h3 mb-1">Bons de transfert</h1>
+      <p class="text-secondary mb-0">Sens unique : magasin principal → transit → caisse. Aucun retour au principal.</p>
+    </div>
+    <a href="{{ url_for('warehouse_web.overview', bar_id=bar.id) }}" class="btn btn-outline-secondary">Retour au magasin</a>
+  </div>
+  {% if not allocation or allocation.status != 'LIVE' %}
+    <div class="alert alert-warning mt-3">Les demandes peuvent être préparées, mais l'expédition physique est bloquée jusqu'à l'activation contrôlée du stock des deux magasins.</div>
+  {% endif %}
+</section>
+
+{% if rights['requests.create'] or rights['transfers.dispatch'] %}
+<section class="panel-card mt-3 p-3 p-md-4">
+  <h2 class="h5">Nouveau bon d'approvisionnement</h2>
+  <form method="post" action="{{ url_for('warehouse_web.new_transfer_form', bar_id=bar.id) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="row g-3">
+      <div class="col-12 col-md-6">
+        <label for="warehouse-reference" class="form-label">Référence unique</label>
+        <input id="warehouse-reference" name="reference" class="form-control" maxlength="64" required placeholder="TR-2026-0001">
+      </div>
+      <div class="col-12 col-md-6">
+        <label for="warehouse-recipient" class="form-label">Destinataire (caissière)</label>
+        <select id="warehouse-recipient" name="recipient_user_id" class="form-select">
+          {% if rights['transfers.receive'] %}<option value="{{ current_user.id }}">Moi-même</option>{% endif %}
+          <option value="">Sélectionner une caissière</option>
+          {% for user_id, display_name in cashiers %}<option value="{{ user_id }}">{{ display_name }}</option>{% endfor %}
+        </select>
+      </div>
+    </div>
+    <div class="table-responsive mt-3">
+      <table class="table align-middle">
+        <thead><tr><th>Produit</th><th>Quantité demandée</th><th>Unité</th></tr></thead>
+        <tbody>
+          {% for product in products %}
+          <tr>
+            <td>{{ product.name }}</td>
+            <td><input aria-label="Quantité {{ product.name }}" class="form-control" type="number" min="0" step="0.000001" name="qty_{{ product.id }}" placeholder="0"></td>
+            <td>
+              <select aria-label="Unité {{ product.name }}" name="unit_{{ product.id }}" class="form-select">
+                <option value="BOTTLE">Bouteilles</option>
+                {% if product.units_per_case %}<option value="CASE">Casiers ({{ product.units_per_case }} bouteilles)</option>{% endif %}
+              </select>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <button class="btn btn-primary" type="submit">Enregistrer la demande</button>
+  </form>
+</section>
+{% endif %}
+
+<section class="panel-card mt-3 p-3 p-md-4">
+  <h2 class="h5">Suivi des bons et quantités</h2>
+  {% for transfer in vouchers %}
+  <article class="border rounded-3 p-3 mb-3">
+    <div class="d-flex gap-2 flex-wrap justify-content-between align-items-center">
+      <div><strong>{{ transfer.reference }}</strong> · <span class="text-secondary">{{ transfer.status }}</span>
+        <div class="small text-secondary">Demandé par #{{ transfer.requested_by_id or '—' }} · Expédié par #{{ transfer.dispatched_by_id or '—' }} · Destinataire #{{ transfer.recipient_user_id or '—' }}</div>
+      </div>
+      {% if transfer.dispatched_at %}
+      <span class="small text-secondary">Expédié le {{ transfer.dispatched_at.strftime('%d/%m/%Y %H:%M') }}</span>
+      {% endif %}
+    </div>
+    <div class="table-responsive mt-2">
+      <table class="table table-sm align-middle">
+        <thead><tr><th>Produit</th><th class="text-end">Demandé</th><th class="text-end">Préparé</th><th class="text-end">Expédié</th><th class="text-end">Accepté</th><th class="text-end">Litige</th><th class="text-end">Perte</th></tr></thead>
+        <tbody>{% for line in lines.get(transfer.id, []) %}
+          <tr><td>{{ names.get(line.product_id, 'Produit #' ~ line.product_id) }}</td>
+          <td class="text-end">{{ line.quantity_requested }}</td><td class="text-end">{{ line.quantity_prepared }}</td>
+          <td class="text-end">{{ line.quantity_dispatched }}</td><td class="text-end">{{ line.quantity_received }}</td>
+          <td class="text-end">{{ line.quantity_disputed }}</td><td class="text-end">{{ line.quantity_lost }}</td></tr>
+        {% endfor %}</tbody>
+      </table>
+    </div>
+    {% if transfer.status in ['REQUESTED', 'PREPARING'] and rights['requests.prepare'] %}
+    <form method="post" action="{{ url_for('warehouse_web.transfer_form_action', bar_id=bar.id, transfer_id=transfer.id, action='prepare') }}" class="border-top pt-2">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <h3 class="h6">Préparation</h3>
+      <div class="row g-2 align-items-end">
+        {% for line in lines.get(transfer.id, []) %}
+          <div class="col-12 col-sm-6 col-lg-4">
+            <label class="form-label small">{{ names.get(line.product_id, 'Produit #' ~ line.product_id) }} (bouteilles)</label>
+            <input class="form-control" type="number" name="qty_{{ line.product_id }}" min="0" step="0.000001" value="{{ line.quantity_prepared }}">
+            <input type="hidden" name="unit_{{ line.product_id }}" value="BOTTLE">
+          </div>
+        {% endfor %}
+        <div class="col-12"><button class="btn btn-outline-primary btn-sm" type="submit">Enregistrer les quantités préparées</button></div>
+      </div>
+    </form>
+    {% endif %}
+    {% if transfer.status == 'PREPARING' and rights['transfers.dispatch'] and allocation and allocation.status == 'LIVE' %}
+    <form method="post" action="{{ url_for('warehouse_web.transfer_form_action', bar_id=bar.id, transfer_id=transfer.id, action='ship') }}" onsubmit="return confirm('Débiter définitivement MAIN et placer les marchandises en transit ?');">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button class="btn btn-primary btn-sm my-2" type="submit">Expédier MAIN → TRANSIT</button>
+    </form>
+    {% endif %}
+    {% if transfer.status in ['SHIPPED', 'PARTIALLY_RECEIVED', 'DISPUTED'] and rights['transfers.receive'] %}
+    <form method="post" action="{{ url_for('warehouse_web.transfer_form_action', bar_id=bar.id, transfer_id=transfer.id, action='receive') }}" class="border-top pt-2">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="idempotency_key" value="{{ request_key }}-{{ transfer.id }}">
+      <h3 class="h6">Réception à la caisse (quantités acceptées)</h3>
+      <div class="row g-2 align-items-end">
+        {% for line in lines.get(transfer.id, []) %}
+          <div class="col-12 col-sm-6 col-lg-4">
+            <label class="form-label small">{{ names.get(line.product_id, 'Produit #' ~ line.product_id) }} · disponible {{ line.quantity_dispatched - line.quantity_received - line.quantity_disputed - line.quantity_lost }}</label>
+            <input class="form-control" type="number" name="qty_{{ line.product_id }}" min="0" step="0.000001" placeholder="0">
+          </div>
+        {% endfor %}
+        <div class="col-12"><button class="btn btn-success btn-sm" type="submit">Accepter physiquement à la caisse</button></div>
+      </div>
+    </form>
+    <form method="post" action="{{ url_for('warehouse_web.transfer_form_action', bar_id=bar.id, transfer_id=transfer.id, action='dispute') }}" class="border-top mt-3 pt-2">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <h3 class="h6">Déclarer un écart (reste en transit)</h3>
+      <div class="row g-2 align-items-end">
+        {% for line in lines.get(transfer.id, []) %}
+        <div class="col-12 col-sm-6 col-lg-4">
+          <label class="form-label small">{{ names.get(line.product_id, 'Produit #' ~ line.product_id) }} · manquant</label>
+          <input class="form-control" type="number" name="qty_{{ line.product_id }}" min="0" step="0.000001" placeholder="0">
+        </div>
+        {% endfor %}
+        <div class="col-12">
+          <label class="form-label">Motif du litige</label>
+          <input class="form-control" name="note" maxlength="500" minlength="5" required placeholder="Quantités manquantes constatées">
+        </div>
+        <div class="col-12"><button class="btn btn-outline-danger btn-sm" type="submit">Déclarer l'écart</button></div>
+      </div>
+    </form>
+    {% endif %}
+    {% if transfer.status == 'DISPUTED' and rights['discrepancies.resolve'] %}
+      {% for line in lines.get(transfer.id, []) if line.quantity_disputed > 0 %}
+      <form method="post" action="{{ url_for('warehouse_web.transfer_form_action', bar_id=bar.id, transfer_id=transfer.id, action='resolve') }}" class="border-top mt-3 pt-2">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="product_id" value="{{ line.product_id }}">
+        <h3 class="h6">Résoudre l'écart · {{ names.get(line.product_id, 'Produit #' ~ line.product_id) }}</h3>
+        <div class="row g-2">
+          <div class="col-12 col-sm-4"><label class="form-label">Quantité</label><input type="number" class="form-control" name="quantity" min="0.000001" step="0.000001" max="{{ line.quantity_disputed }}" required></div>
+          <div class="col-12 col-sm-4"><label class="form-label">Décision</label><select name="outcome" class="form-select"><option value="DELIVERED">Livraison complémentaire vérifiée</option><option value="LOSS_APPROVED">Perte justifiée</option></select></div>
+          <div class="col-12 col-sm-4"><label class="form-label">Justificatif / note</label><input class="form-control" name="note" minlength="5" maxlength="500" required></div>
+          <div class="col-12"><button class="btn btn-outline-warning btn-sm" type="submit">Valider la résolution</button></div>
+        </div>
+      </form>
+      {% endfor %}
+    {% endif %}
+    {% if transfer.status in ['RECEIVED', 'PARTIALLY_RECEIVED', 'SHIPPED'] and rights['discrepancies.resolve'] %}
+    <form method="post" action="{{ url_for('warehouse_web.transfer_form_action', bar_id=bar.id, transfer_id=transfer.id, action='close') }}" class="border-top mt-3 pt-2 d-flex flex-wrap gap-2">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input name="note" class="form-control" style="max-width:340px" minlength="5" maxlength="500" required placeholder="Motif de clôture">
+      <button class="btn btn-outline-secondary btn-sm" type="submit">Clôturer si toutes quantités soldées</button>
+    </form>
+    {% endif %}
+  </article>
+  {% else %}
+  <p class="text-secondary mb-0">Aucun bon de transfert pour cet établissement.</p>
+  {% endfor %}
+</section>
+{% endblock %}
