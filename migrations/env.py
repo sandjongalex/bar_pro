@@ -1,4 +1,5 @@
 import logging
+import re
 from logging.config import fileConfig
 
 from flask import current_app
@@ -67,6 +68,25 @@ def run_migrations_offline():
         context.run_migrations()
 
 
+# MySQL automatically creates secondary indexes when a FOREIGN KEY has no
+# suitable supporting index. Their generated names (bar_id_2, bar_id_3, ...)
+# are reflected by SQLAlchemy but absent from our declarative metadata.
+# Suppressing the Alembic "remove_index" suggestion is correct *only* for
+# indexes that correspond exactly to a reflected FK's constrained columns.
+# Other database indexes must remain visible to autogenerate.
+_MYSQL_AUTO_FK_INDEX_NAME = re.compile(r"bar_id_[2-9][0-9]*\\Z")
+
+
+def is_mysql_implicit_foreign_key_index(index, name):
+    if not name or not _MYSQL_AUTO_FK_INDEX_NAME.fullmatch(name):
+        return False
+    columns = tuple(column.name for column in index.columns)
+    return any(
+        columns == tuple(element.parent.name for element in fk.elements)
+        for fk in index.table.foreign_key_constraints
+    )
+
+
 def run_migrations_online():
     """Run migrations in 'online' mode.
 
@@ -85,13 +105,37 @@ def run_migrations_online():
                 directives[:] = []
                 logger.info('No changes in schema detected.')
 
-    conf_args = current_app.extensions['migrate'].configure_args
+    # Copy the extension options instead of mutating them between commands.
+    conf_args = dict(current_app.extensions['migrate'].configure_args)
     if conf_args.get("process_revision_directives") is None:
         conf_args["process_revision_directives"] = process_revision_directives
 
     connectable = get_engine()
 
     with connectable.connect() as connection:
+        if connection.dialect.name == "mysql":
+            previous_include_object = conf_args.get("include_object")
+
+            def include_object(obj, name, type_, reflected, compare_to):
+                if previous_include_object is not None and not previous_include_object(
+                    obj, name, type_, reflected, compare_to
+                ):
+                    return False
+                if (
+                    type_ == "index"
+                    and reflected
+                    and compare_to is None
+                    and is_mysql_implicit_foreign_key_index(obj, name)
+                ):
+                    logger.debug(
+                        "Ignoring MySQL-generated FK-support index %s on %s",
+                        name, obj.table.name,
+                    )
+                    return False
+                return True
+
+            conf_args["include_object"] = include_object
+
         context.configure(
             connection=connection,
             target_metadata=get_metadata(),
