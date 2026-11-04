@@ -6,6 +6,7 @@
   <title>{% block title %}Bar Manager Pro{% endblock %}</title>
   <link rel="manifest" href="{{ url_for('static', filename='manifest.webmanifest') }}">
   <meta name="theme-color" content="#f5f7f6">
+  <script src="{{ url_for('static', filename='browser_compat.js', v='1') }}"></script>
   <script src="{{ url_for('static', filename='theme.js') }}"></script>
   <style>[data-pwa-install][hidden] { display: none !important; }</style>
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -40,8 +41,14 @@
   <link href="{{ url_for('static', filename='skeleton_loading.css') }}" rel="stylesheet">
   <link href="{{ url_for('static', filename='barpro_async.css') }}" rel="stylesheet">
   <link href="{{ url_for('static', filename='employee_ui_review.css') }}" rel="stylesheet">
+  <link href="{{ url_for('static', filename='browser_compat.css', v='1') }}" rel="stylesheet">
 </head>
 <body class="app-body" data-employee-role="{{ nav_role(request.view_args.get('bar_id')) if request.view_args and request.view_args.get('bar_id') else 'OTHER' }}">
+<div id="browserCompatNotice" class="bp-browser-compat-notice" role="alert" hidden>
+  Ce navigateur ne prend pas en charge toutes les fonctions de BAR_PRO.
+  Certaines opérations peuvent être indisponibles : utilisez un navigateur à jour si possible.
+</div>
+<noscript><div class="bp-browser-compat-notice">JavaScript est désactivé : certaines fonctions interactives peuvent être indisponibles.</div></noscript>
 {% set endpoint = request.endpoint or '' %}
 {% set route_bar_id = request.view_args.get('bar_id') if request.view_args else none %}
 {% set nav_bar_id = none %}
@@ -221,7 +228,8 @@
 <script src="{{ url_for('static', filename='employee_mobile_nav.js') }}" defer></script>
 {% block scripts %}{% endblock %}
 <script>
-  if ('serviceWorker' in navigator && window.isSecureContext) {
+  if ((!window.BarProBrowserCompat || window.BarProBrowserCompat.mode === 'modern') &&
+      'serviceWorker' in navigator && window.isSecureContext) {
     window.addEventListener('load', function () {
       navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(function (err) {
         console.warn('PWA registration unavailable:', err);

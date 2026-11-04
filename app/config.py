@@ -62,6 +62,9 @@ class BaseConfig:
     SESSION_COOKIE_HTTPONLY = True
     SESSION_COOKIE_SAMESITE = "Lax"
     WTF_CSRF_TIME_LIMIT = 3600
+    # Trust proxy proto only behind an isolated, controlled reverse proxy.
+    TRUSTED_PROXY_PROTO_HOPS = os.getenv("TRUSTED_PROXY_PROTO_HOPS", "0")
+    HSTS_MAX_AGE = os.getenv("HSTS_MAX_AGE", "0")
 
 
 class DevelopmentConfig(BaseConfig):
@@ -95,6 +98,7 @@ class ProductionConfig(BaseConfig):
     ENVIRONMENT = "production"
     SESSION_COOKIE_SECURE = True
     PREFERRED_URL_SCHEME = "https"
+    HSTS_MAX_AGE = os.getenv("HSTS_MAX_AGE", "86400")
 
 
 CONFIGS = {
@@ -142,6 +146,16 @@ def validate_config(config: dict) -> None:
         raise ConfigError(
             "LOG_LEVEL must be a standard Python log level."
         )
+
+    try:
+        proxy_hops = int(config.get("TRUSTED_PROXY_PROTO_HOPS", 0))
+        hsts_seconds = int(config.get("HSTS_MAX_AGE", 0))
+    except (TypeError, ValueError):
+        raise ConfigError("Proxy hops and HSTS max age must be integers.") from None
+    if proxy_hops not in (0, 1):
+        raise ConfigError("TRUSTED_PROXY_PROTO_HOPS must be 0 or 1.")
+    if hsts_seconds < 0 or hsts_seconds > 63072000:
+        raise ConfigError("HSTS_MAX_AGE must be between 0 and 63072000.")
 
     if config.get("ENVIRONMENT") == "production":
         scheme = urlparse(
@@ -232,6 +246,8 @@ def load_environment(config) -> None:
         "JWT_AUDIENCE",
         "LOG_LEVEL",
         "LOGIN_RATE_LIMIT",
+        "TRUSTED_PROXY_PROTO_HOPS",
+        "HSTS_MAX_AGE",
     )
 
     for name in environment_variables:
