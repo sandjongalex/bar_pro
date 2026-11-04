@@ -129,6 +129,20 @@ class WarehouseService:
         """Internal paired ledger write: caller holds the bar row lock."""
         if delta == 0:
             return None
+        allowed_destination = {
+            "TRANSFER_OUT": "MAIN",
+            "TRANSFER_IN": "CASHIER",
+            "PURCHASE_IN": "MAIN",
+            "PURCHASE_REVERSAL": "MAIN",
+        }.get(kind)
+        if allowed_destination is not None:
+            location_code = db.session.scalar(select(WarehouseLocation.code).where(
+                WarehouseLocation.bar_id == bar_id,
+                WarehouseLocation.id == location_id,
+            ))
+            if location_code != allowed_destination:
+                # No path can ever move CASHIER stock back to MAIN.
+                raise WarehouseError("INVALID_TRANSFER_DIRECTION")
         if kind.startswith("TRANSIT_"):
             if location_id is not None:
                 raise WarehouseError("INVALID_LOCATION")
