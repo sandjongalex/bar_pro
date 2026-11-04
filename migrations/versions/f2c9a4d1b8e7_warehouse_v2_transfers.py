@@ -53,6 +53,7 @@ def upgrade():
         "requested_unit = 'BOTTLE', units_per_case_snapshot = 1"
     ))
     with op.batch_alter_table("warehouse_transfers") as batch:
+        batch.alter_column("status", existing_type=sa.String(16), existing_nullable=False, type_=sa.String(24))
         batch.alter_column("dispatched_by_id", existing_type=ident, existing_nullable=False, nullable=True)
         batch.alter_column("dispatched_at", existing_type=dt, existing_nullable=False, nullable=True)
         batch.drop_constraint("ck_warehouse_transfers_status", type_="check")
