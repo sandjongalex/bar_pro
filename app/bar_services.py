@@ -149,6 +149,8 @@ def create_bar(actor, owner_id, data, copy_from_id=None):
     # Every newly created bar receives the standard catalogue. The seed is
     # idempotent, so products copied from another bar are not duplicated.
     seed_default_catalog(bar.id)
+    from app.warehouse_service import warehouse_service
+    warehouse_service.ensure_locations(bar.id)
     return bar
 
 

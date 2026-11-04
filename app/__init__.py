@@ -66,6 +66,7 @@ def create_app(config_name: str | None = None, test_config: dict[str, Any] | Non
     from app import inventory_finance_models  # noqa: F401 - physical cash counts and debt review
     from app import change_voucher_models  # noqa: F401 - customer change-voucher liability metadata
     from app import saas_governance_models  # noqa: F401 - administrative statuses
+    from app import warehouse_models  # noqa: F401 - additive two-location and transit metadata
     _register_blueprints(app)
     from app.pwa import bp as pwa_bp
     app.register_blueprint(pwa_bp)
