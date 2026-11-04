@@ -1,14 +1,14 @@
 """Additive warehouse V2 foundation; no migration of legacy quantities.
 
 Revision ID: c6f2d4e8a1b0
-Revises: b5c6d7e8f901
+Revises: a9b0c1d2e3f4
 """
 from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects import mysql
 
 revision = "c6f2d4e8a1b0"
-down_revision = "b5c6d7e8f901"
+down_revision = "a9b0c1d2e3f4"
 branch_labels = None
 depends_on = None
 

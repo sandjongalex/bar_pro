@@ -21,6 +21,14 @@ def test_mysql_purchase_upgrade_preserves_existing_supplier_invoice_and_roles(mo
     monkeypatch.setenv("TEST_DATABASE_URI", os.environ["WAREHOUSE_MYSQL_TEST_URI"])
     app = create_app("testing")
     with app.app_context():
+        # Reproduce the exact Alembic state left in production before
+        # warehouse migrations. Do not stamp or skip the original DDL.
+        upgrade(revision="a9b0c1d2e3f4", directory=app.config["MIGRATIONS_DIRECTORY"])
+        old_columns = {
+            x["name"]: x for x in inspect(db.engine).get_columns("inventory_cashier_assignments")
+        }
+        assert old_columns["cashier_shift_id"]["nullable"]
+        assert old_columns["cashier_user_id"]["nullable"]
         upgrade(revision="d7e3a5b9c2f1", directory=app.config["MIGRATIONS_DIRECTORY"])
         owner = User(email="mysql-buy-owner@example.invalid", display_name="Owner", category="OWNER")
         owner.set_password("test-password")

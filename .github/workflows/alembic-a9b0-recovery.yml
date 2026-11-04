@@ -1,0 +1,60 @@
+name: Restore production Alembic a9b0 revision
+
+on:
+  push:
+    branches:
+      - fix/restore-a9b0-inventory-migration
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  sqlite-existing-revision:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install dependencies
+        run: python -m pip install -r requirements.txt
+      - name: Ensure applied a9b0 revision upgrades safely to e8 head
+        env:
+          SECRET_KEY: a9b0-recovery-test-only
+        run: |
+          python -m pytest -q tests/test_alembic_a9b0_recovery.py
+          python -m pytest -q tests/test_schema.py::test_migrated_columns_constraints_and_metadata_match tests/test_schema.py::test_flask_cli_upgrade_and_routes_on_empty_database
+
+  mysql-existing-revision:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: a9b0-test-only
+          MYSQL_DATABASE: barpro_a9b0_recovery_ci
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -pa9b0-test-only"
+          --health-interval=10s --health-timeout=5s --health-retries=12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install dependencies
+        run: python -m pip install -r requirements.txt
+      - name: Run MySQL 8 upgrade from actual production revision
+        env:
+          SECRET_KEY: a9b0-recovery-test-only
+          WAREHOUSE_MYSQL_TEST_URI: mysql+pymysql://root:a9b0-test-only@127.0.0.1:3306/barpro_a9b0_recovery_ci?charset=utf8mb4
+        run: python -m pytest -q tests/test_warehouse_v2_purchases_mysql.py
