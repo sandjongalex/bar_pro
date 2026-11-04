@@ -33,8 +33,10 @@ def set_warehouse_grant(actor, bar_id, assignment_id, action, enabled):
         raise LookupError("NOT_FOUND")
     if assignment.role not in {"BAR_ADMIN", "STOREKEEPER"}:
         raise ValueError("WAREHOUSE_GRANT_ROLE_INVALID")
-    if assignment.role == "STOREKEEPER" and action != "warehouse.purchases.manage":
-        raise ValueError("STOREKEEPER_ONLY_SPECIAL_PURCHASING")
+    if assignment.role == "STOREKEEPER" and action not in {
+        "warehouse.purchases.manage", "warehouse.purchases.receive",
+    }:
+        raise ValueError("STOREKEEPER_ONLY_SPECIAL_PURCHASING_OR_RECEIPT")
     if not isinstance(enabled, bool):
         raise ValueError("INVALID_GRANT_STATE")
     grant = db.session.scalar(
