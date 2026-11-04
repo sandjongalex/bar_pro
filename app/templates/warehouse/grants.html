@@ -13,7 +13,7 @@
     <div class="table-responsive"><table class="table table-sm align-middle">
       <thead><tr><th>Permission</th><th>État</th><th>Décision</th></tr></thead><tbody>
       {% for action, label in delegable.items() %}
-        {% if assignment.role == 'BAR_ADMIN' or action == 'warehouse.purchases.manage' %}
+        {% if assignment.role == 'BAR_ADMIN' or action in ['warehouse.purchases.manage', 'warehouse.purchases.receive'] %}
         {% set active = (assignment.id, action) in grants %}
         <tr>
           <td>{{ label }}</td>
