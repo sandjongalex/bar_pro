@@ -216,3 +216,46 @@ def test_owner_web_grant_requires_csrf_and_tenant_bound(env):
         data={"assignment_id": assignment.id, "action": "warehouse.transfers.dispatch", "enabled": "1"},
     ).status_code == 400
     assert not permissions.evaluate(admin, "warehouse.transfers.dispatch", env[2].id).allowed
+
+
+def test_keeper_dispatch_is_audited_and_cannot_cross_tenant(env):
+    """Simulate LIVE only in this disposable test DB, not in production."""
+    from app.warehouse_service import warehouse_service
+
+    keeper, _ = _employee(env, "STOREKEEPER", "dispatch-audit")
+    staged = warehouse_service.stage_allocation(
+        env[1], env[2].id,
+        {env[4].id: {"MAIN": "8", "CASHIER": "2"}},
+    )
+    db.session.commit()
+    staged.status = "LIVE"
+    db.session.commit()
+
+    with pytest.raises(PermissionError):
+        warehouse_service.dispatch(keeper, env[3].id, "TR-CROSS-BAR", {env[4].id: 1})
+    db.session.rollback()
+
+    transfer = warehouse_service.dispatch(
+        keeper, env[2].id, "TR-AUDITED-001", {env[4].id: "3"},
+    )
+    db.session.commit()
+
+    events = list(db.session.scalars(
+        select(AuditLog).where(
+            AuditLog.bar_id == env[2].id,
+            AuditLog.action == "warehouse.transfer.dispatch",
+            AuditLog.target_table == "warehouse_transfers",
+            AuditLog.target_id == transfer.id,
+            AuditLog.actor_id == keeper.id,
+        )
+    ))
+    assert len(events) == 1
+    assert warehouse_service.totals(env[2].id)[env[4].id] == {
+        "MAIN": 5, "CASHIER": 2, "TRANSIT": 3, "TOTAL": 10,
+    }
+    assert db.session.scalar(
+        select(func.count()).select_from(AuditLog).where(
+            AuditLog.bar_id == env[3].id,
+            AuditLog.action == "warehouse.transfer.dispatch",
+        )
+    ) == 0
