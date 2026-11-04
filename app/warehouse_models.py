@@ -91,16 +91,28 @@ class WarehouseAllocationLine(Tenant, db.Model):
 
 
 class WarehouseTransfer(Tenant, db.Model):
+    """Single-direction replenishment voucher, never an order or sale."""
     __tablename__ = "warehouse_transfers"
     id = db.Column(ID, primary_key=True)
     reference = db.Column(db.String(64), nullable=False)
-    status = db.Column(db.String(16), nullable=False, default="IN_TRANSIT")
-    dispatched_by_id = db.Column(ID, db.ForeignKey("users.id", ondelete="RESTRICT"), nullable=False)
-    dispatched_at = db.Column(datetime_type(fsp=6), nullable=False)
+    status = db.Column(db.String(24), nullable=False, default="REQUESTED")
+    requested_by_id = db.Column(ID, db.ForeignKey("users.id", ondelete="RESTRICT"))
+    requested_at = db.Column(datetime_type(fsp=6))
+    recipient_user_id = db.Column(ID, db.ForeignKey("users.id", ondelete="RESTRICT"))
+    prepared_by_id = db.Column(ID, db.ForeignKey("users.id", ondelete="RESTRICT"))
+    prepared_at = db.Column(datetime_type(fsp=6))
+    dispatched_by_id = db.Column(ID, db.ForeignKey("users.id", ondelete="RESTRICT"))
+    dispatched_at = db.Column(datetime_type(fsp=6))
+    last_received_by_id = db.Column(ID, db.ForeignKey("users.id", ondelete="RESTRICT"))
+    closed_by_id = db.Column(ID, db.ForeignKey("users.id", ondelete="RESTRICT"))
+    closed_at = db.Column(datetime_type(fsp=6))
     __table_args__ = tenant_args(
         "warehouse_transfers",
         UniqueConstraint("bar_id", "reference", name="uq_warehouse_transfers_reference"),
-        CheckConstraint("status IN ('IN_TRANSIT','PARTIAL','DISPUTED','RECEIVED')", name="ck_warehouse_transfers_status"),
+        CheckConstraint(
+            "status IN ('REQUESTED','PREPARING','SHIPPED','PARTIALLY_RECEIVED','RECEIVED','DISPUTED','CLOSED')",
+            name="ck_warehouse_transfers_status",
+        ),
     )
 
 
@@ -109,9 +121,14 @@ class WarehouseTransferLine(Tenant, db.Model):
     id = db.Column(ID, primary_key=True)
     transfer_id = db.Column(ID, nullable=False)
     product_id = db.Column(ID, nullable=False)
-    quantity_dispatched = db.Column(QTY, nullable=False)
+    quantity_requested = db.Column(QTY, nullable=False)
+    quantity_prepared = db.Column(QTY, nullable=False, default=Decimal("0"))
+    quantity_dispatched = db.Column(QTY, nullable=False, default=Decimal("0"))
     quantity_received = db.Column(QTY, nullable=False, default=Decimal("0"))
     quantity_disputed = db.Column(QTY, nullable=False, default=Decimal("0"))
+    quantity_lost = db.Column(QTY, nullable=False, default=Decimal("0"))
+    requested_unit = db.Column(db.String(8), nullable=False, default="BOTTLE")
+    units_per_case_snapshot = db.Column(QTY, nullable=False, default=Decimal("1"))
     unit_cost_snapshot = db.Column(MONEY, nullable=False)
     __table_args__ = tenant_args(
         "warehouse_transfer_lines",
@@ -119,9 +136,39 @@ class WarehouseTransferLine(Tenant, db.Model):
         ForeignKeyConstraint(["bar_id", "product_id"], ["products.bar_id", "products.id"], ondelete="RESTRICT"),
         UniqueConstraint("bar_id", "transfer_id", "product_id", name="uq_warehouse_transfer_product"),
         CheckConstraint(
-            "quantity_dispatched > 0 AND quantity_received >= 0 AND quantity_disputed >= 0 AND quantity_received + quantity_disputed <= quantity_dispatched AND unit_cost_snapshot >= 0",
+            "quantity_requested > 0 AND quantity_prepared >= 0 AND quantity_dispatched >= 0 "
+            "AND quantity_received >= 0 AND quantity_disputed >= 0 AND quantity_lost >= 0 "
+            "AND quantity_prepared <= quantity_requested "
+            "AND quantity_dispatched <= quantity_prepared "
+            "AND quantity_received + quantity_disputed + quantity_lost <= quantity_dispatched "
+            "AND requested_unit IN ('CASE','BOTTLE') AND units_per_case_snapshot > 0 AND unit_cost_snapshot >= 0",
             name="ck_warehouse_transfer_line_values",
         ),
+    )
+
+
+class WarehouseTransferEvent(Tenant, db.Model):
+    """Append-only actor and difference history; no physical quantities overwritten."""
+    __tablename__ = "warehouse_transfer_events"
+    id = db.Column(ID, primary_key=True)
+    transfer_id = db.Column(ID, nullable=False)
+    transfer_line_id = db.Column(ID)
+    event_kind = db.Column(db.String(24), nullable=False)
+    quantity = db.Column(QTY, nullable=False, default=Decimal("0"))
+    unit_cost_snapshot = db.Column(MONEY, nullable=False, default=Decimal("0"))
+    actor_id = db.Column(ID, db.ForeignKey("users.id", ondelete="RESTRICT"), nullable=False)
+    note = db.Column(db.String(500), nullable=False)
+    occurred_at = db.Column(datetime_type(fsp=6), nullable=False)
+    __table_args__ = tenant_args(
+        "warehouse_transfer_events",
+        ForeignKeyConstraint(["bar_id", "transfer_id"], ["warehouse_transfers.bar_id", "warehouse_transfers.id"], ondelete="RESTRICT"),
+        ForeignKeyConstraint(["bar_id", "transfer_line_id"], ["warehouse_transfer_lines.bar_id", "warehouse_transfer_lines.id"], ondelete="RESTRICT"),
+        CheckConstraint("quantity >= 0 AND unit_cost_snapshot >= 0", name="ck_warehouse_transfer_events_values"),
+        CheckConstraint(
+            "event_kind IN ('REQUESTED','PREPARED','SHIPPED','RECEIVED','DISPUTED','DELIVERED','LOSS_APPROVED','CLOSED')",
+            name="ck_warehouse_transfer_events_kind",
+        ),
+        Index("ix_warehouse_transfer_events_transfer", "bar_id", "transfer_id", "occurred_at"),
     )
 
 
