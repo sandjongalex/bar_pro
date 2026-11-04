@@ -351,3 +351,67 @@ def test_internal_movement_gateway_forbids_reverse_or_fake_credit(env):
             )
     db.session.rollback()
     assert warehouse_service.totals(bar_id)[pid] == before
+
+
+def test_cashier_requests_keeper_ships_and_recipient_receives(env):
+    from test_employee_tenant_auth import _employee
+
+    owner, bar_id, pid = _live(env)
+    cashier, _ = _employee(env[2], "CASHIER", "transfer-cashier")
+    keeper = User(
+        email="warehouse-transfer-storekeeper@example.invalid",
+        display_name="Warehouse Keeper", category="EMPLOYEE",
+    )
+    keeper.set_password("test-password")
+    db.session.add(keeper)
+    db.session.flush()
+    from app.bar_services import assign_staff
+    assign_staff(owner, bar_id, keeper.id, "STOREKEEPER")
+    db.session.commit()
+
+    transfer = service.create_request(cashier, bar_id, "CASHIER-ASK-1", {pid: 3})
+    db.session.commit()
+    assert transfer.requested_by_id == cashier.id
+    assert transfer.recipient_user_id == cashier.id
+
+    service.prepare(keeper, bar_id, transfer.id, {pid: 3})
+    service.ship(keeper, bar_id, transfer.id)
+    db.session.commit()
+    assert transfer.dispatched_by_id == keeper.id
+
+    with pytest.raises(PermissionError):
+        service.receive(keeper, bar_id, transfer.id, {pid: 1}, "keeper-receipt-rejected")
+    db.session.rollback()
+    service.receive(cashier, bar_id, transfer.id, {pid: 3}, "cashier-receipt-approved")
+    db.session.commit()
+    assert transfer.status == "RECEIVED"
+    assert transfer.last_received_by_id == cashier.id
+
+
+def test_delegated_manager_can_resolve_but_keeper_cannot(env):
+    from app.bar_services import assign_staff
+    from app.warehouse_permission_service import set_warehouse_grant
+
+    owner, bar_id, pid, transfer = _shipped(env)
+    admin = User(email="warehouse-resolve-manager@example.invalid",
+                 display_name="Manager", category="EMPLOYEE")
+    admin.set_password("test-password")
+    keeper = User(email="warehouse-noresolve-keeper@example.invalid",
+                  display_name="Keeper", category="EMPLOYEE")
+    keeper.set_password("test-password")
+    db.session.add_all([admin, keeper])
+    db.session.flush()
+    assignment = assign_staff(owner, bar_id, admin.id, "BAR_ADMIN")
+    assign_staff(owner, bar_id, keeper.id, "STOREKEEPER")
+    set_warehouse_grant(owner, bar_id, assignment.id, "warehouse.discrepancies.resolve", True)
+    db.session.commit()
+
+    service.report_dispute(owner, bar_id, transfer.id, {pid: 2}, "Bouteilles reçues en quantité inférieure")
+    db.session.commit()
+    with pytest.raises(PermissionError):
+        service.resolve_dispute(keeper, bar_id, transfer.id, pid, 2, "LOSS_APPROVED", "Perte")
+    db.session.rollback()
+    service.resolve_dispute(admin, bar_id, transfer.id, pid, 2, "DELIVERED", "Écart levé après réception")
+    db.session.commit()
+    assert warehouse_service.totals(bar_id)[pid]["TRANSIT"] == 2
+    assert transfer.status == "PARTIALLY_RECEIVED"
