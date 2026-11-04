@@ -163,7 +163,7 @@ class WarehouseStockMovement(Tenant, db.Model):
         ForeignKeyConstraint(["bar_id", "transfer_line_id"], ["warehouse_transfer_lines.bar_id", "warehouse_transfer_lines.id"], ondelete="RESTRICT"),
         ForeignKeyConstraint(["bar_id", "receipt_id"], ["warehouse_transfer_receipts.bar_id", "warehouse_transfer_receipts.id"], ondelete="RESTRICT"),
         CheckConstraint(
-            "(location_id IS NOT NULL AND movement_type IN ('OPENING','TRANSFER_OUT','TRANSFER_IN','ADJUSTMENT','LOSS')) OR (location_id IS NULL AND movement_type IN ('TRANSIT_IN','TRANSIT_OUT'))",
+            "(location_id IS NOT NULL AND movement_type IN ('OPENING','TRANSFER_OUT','TRANSFER_IN','ADJUSTMENT','LOSS','PURCHASE_IN','PURCHASE_REVERSAL')) OR (location_id IS NULL AND movement_type IN ('TRANSIT_IN','TRANSIT_OUT'))",
             name="ck_warehouse_movement_bucket",
         ),
         CheckConstraint("quantity_delta <> 0 AND unit_cost_snapshot >= 0", name="ck_warehouse_movement_values"),
