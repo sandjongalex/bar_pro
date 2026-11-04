@@ -22,7 +22,7 @@ def test_initial_migration_creates_every_model_table(tmp_path):
     with app.app_context():
         actual = set(inspect(db.engine).get_table_names())
         assert set(db.metadata.tables).issubset(actual)
-        assert len(db.metadata.tables) == 64  # MAIN supplier receipt evidence added to warehouse V2
+        assert len(db.metadata.tables) == 65  # warehouse V2 transfer discrepancy events added
 
 
 def test_initial_downgrade_refuses_destructive_data_loss(tmp_path):
