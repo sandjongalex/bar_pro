@@ -27,7 +27,7 @@ jobs:
         env:
           SECRET_KEY: transfers-ci-only
         run: |
-          python -m pytest -q tests/test_warehouse_v2_transfers.py tests/test_warehouse_v2_foundation.py tests/test_warehouse_v2_storekeeper.py
+          python -m pytest -q tests/test_warehouse_v2_transfers.py tests/test_warehouse_v2_transfers_legacy.py tests/test_warehouse_v2_foundation.py tests/test_warehouse_v2_storekeeper.py
           python -m pytest -q tests/test_alembic_a9b0_recovery.py
       - name: Metadata migration parity and existing purchase tests
         env:
