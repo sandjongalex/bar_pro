@@ -150,7 +150,9 @@ class WarehouseTransferService:
     @staticmethod
     def _receiver(actor, transfer, bar_id):
         permissions.require(actor, "warehouse.transfers.receive", bar_id)
-        if transfer.recipient_user_id is not None and actor.id != transfer.recipient_user_id:
+        if transfer.recipient_user_id is None or actor.id != transfer.recipient_user_id:
+            # Historical vouchers have no recorded recipient: only the owner
+            # can accept those, never an arbitrary on-duty cashier.
             bar = db.session.get(Bar, bar_id)
             if bar is None or bar.owner_id != actor.id or actor.category != "OWNER":
                 raise PermissionError("TRANSFER_RECIPIENT_REQUIRED")
