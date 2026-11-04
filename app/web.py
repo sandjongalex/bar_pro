@@ -94,6 +94,8 @@ def dashboard():
                 )
             return redirect(url_for("orders_web.quick", bar_id=employee_context.bar_id))
 
+        if employee_context.role == "STOREKEEPER":
+            return redirect(url_for("warehouse_web.overview", bar_id=employee_context.bar_id))
         if employee_context.role != "BAR_ADMIN":
             abort(404)
 
