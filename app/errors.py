@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, render_template, request
+from flask_login import current_user
 from werkzeug.exceptions import Forbidden, InternalServerError, NotFound
 
 
@@ -28,20 +29,26 @@ def register_error_handlers(app: Flask) -> None:
     def rate_limit_error(error):
         return _response(
             429, "RATE_LIMITED",
-            "Trop de requêtes pour le moment. Patientez un instant, "
-            "vérifiez si la livraison a déjà été enregistrée, puis réessayez.",
+            "Trop de requêtes pour le moment. Patientez un instant avant de réessayer.",
         )
 
     @app.errorhandler(CSRFError)
     def csrf_error(error):
-        # CSRF is still mandatory; only replace the opaque HTTP error with
-        # instructions that do not encourage blind replays of stock movements.
+        # Never retry a rejected business POST: its result must be verified first.
         db.session.rollback()
-        return _response(
-            400, "CSRF_REJECTED",
-            "Session de sécurité expirée ou modifiée. Actualisez la page, "
-            "vérifiez si la livraison est déjà confirmée, puis réessayez si nécessaire.",
+        if request.path == "/login" or (
+            not current_user.is_authenticated
+            and (request.path.startswith("/bars/") or request.path == "/logout")
+        ):
+            from app.auth import _web_unauthorized_response
+            return _web_unauthorized_response(expired=True)
+        message = (
+            "Le formulaire de sécurité a expiré. Actualisez la page et vérifiez "
+            "l'état de l'opération avant une nouvelle tentative."
         )
+        if _wants_json():
+            return _response(400, "CSRF_REJECTED", message)
+        return render_template("csrf_error.html"), 400
 
     @app.errorhandler(HTTPException)
     def http_error(error):

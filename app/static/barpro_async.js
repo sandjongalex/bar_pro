@@ -83,6 +83,14 @@
     if (!online) notify('Connexion interrompue : les opérations ne peuvent pas être confirmées.', 'error');
   }
 
+  function redirectExpiredSession() {
+    const login = '/login?session=expired';
+    if (new URL(root.location.href).pathname === '/login') return;
+    // Navigating is safe; never resend an uncertain financial/stock mutation.
+    if (typeof root.location.assign === 'function') root.location.assign(login);
+    else root.location.href = login;
+  }
+
   async function request(url, options = {}) {
     const target = webUrl(url);
     const method = String(options.method || 'GET').toUpperCase();
@@ -115,6 +123,12 @@
         body: options.body, headers, signal: controller.signal
       });
       if (response.redirected || !webUrl(response.url || target.href)) {
+        if (response.redirected) {
+          const destination = new URL(response.url || target.href, root.location.href);
+          if (destination.origin === root.location.origin && destination.pathname === '/login') {
+            redirectExpiredSession();
+          }
+        }
         throw Object.assign(new Error('Session expirée ou redirection inattendue.'), { code: 'REDIRECT', status: 401 });
       }
       const type = response.headers.get('Content-Type') || '';
@@ -122,6 +136,12 @@
         throw Object.assign(new Error('Réponse inattendue du serveur. Vérifiez votre session.'), { code: 'FORMAT', status: response.status });
       }
       const payload = format === 'json' ? await response.json() : await response.text();
+      if (response.status === 401 && format === 'json' && payload?.error?.code === 'SESSION_EXPIRED') {
+        redirectExpiredSession();
+        throw Object.assign(new Error('Session expirée : reconnexion nécessaire.'), {
+          code: 'SESSION_EXPIRED', status: 401, payload
+        });
+      }
       if (key && activeRequests.get(key) !== controller) {
         throw Object.assign(new Error('Réponse obsolète.'), { code: 'STALE' });
       }
