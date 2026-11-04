@@ -213,6 +213,9 @@ class WarehouseTransferService:
             db.session.flush()
             self._event(actor, voucher, "REQUESTED", "Demande de réapprovisionnement", line=line, quantity=qty)
         record(actor, bar_id, "warehouse.transfer.request", "warehouse_transfers", voucher.id, ref)
+        if permissions.evaluate(actor, "warehouse.requests.create", bar_id).allowed:
+            from app.warehouse_notifications import notify_warehouse_request
+            notify_warehouse_request(actor, bar_id, ref, "Un nouveau bon de réapprovisionnement attend la préparation.")
         return voucher
 
     def prepare(self, actor, bar_id, transfer_id, quantities):
@@ -317,6 +320,8 @@ class WarehouseTransferService:
             {"transfer_id": _id(transfer_id), "quantities": payload},
             sort_keys=True, separators=(",", ":"),
         ).encode()).hexdigest()
+        voucher = self._transfer(bar_id, transfer_id)
+        self._receiver(actor, voucher, bar_id)
         previous = db.session.scalar(select(WarehouseTransferReceipt).where(
             WarehouseTransferReceipt.bar_id == bar_id,
             WarehouseTransferReceipt.idempotency_key == key,
@@ -325,8 +330,6 @@ class WarehouseTransferService:
             if previous.transfer_id != _id(transfer_id) or previous.payload_hash != digest:
                 raise WarehouseError("IDEMPOTENCY_CONFLICT")
             return previous
-        voucher = self._transfer(bar_id, transfer_id)
-        self._receiver(actor, voucher, bar_id)
         if voucher.status not in {"SHIPPED", "PARTIALLY_RECEIVED", "DISPUTED"}:
             raise WarehouseError("TRANSFER_NOT_RECEIVABLE")
         lines = self._transfer_lines(bar_id, voucher.id)
