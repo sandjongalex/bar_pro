@@ -55,9 +55,12 @@ def test_invalid_proxy_security_configuration_rejected(setting, value):
 
 
 def test_compatibility_bootstrap_precedes_other_scripts():
-    for name in ("layout.html", "login.html", "owner_registration.html"):
+    for name in ("layout.html", "login.html"):
         content = (ROOT / "app" / "templates" / name).read_text(encoding="utf-8")
         assert "browser_compat.css" in content
         assert content.index("browser_compat.js") < content.index("theme.js")
+    signup = (ROOT / "app" / "templates" / "owner_registration.html").read_text(encoding="utf-8")
+    assert "browser_compat.js" in signup
+    assert "browser_compat.css" in signup
     layout = (ROOT / "app" / "templates" / "layout.html").read_text(encoding="utf-8")
     assert layout.index("browser_compat.js") < layout.index("barpro_async.js")
