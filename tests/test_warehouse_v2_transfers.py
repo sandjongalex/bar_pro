@@ -259,3 +259,74 @@ def test_invalid_transfer_units_ids_or_stock_values(env):
     with pytest.raises(LookupError):
         service.create_request(owner, bar.id, "TR-CROSS", {999999: 1})
     db.session.rollback()
+
+
+def test_transfer_web_board_and_csrf_guard(env):
+    from test_employee_tenant_auth import _login, _csrf
+
+    owner, bar_id, pid = _live(env)
+    client = env[0].test_client()
+    assert _login(client, owner.email).status_code == 302
+    page = client.get(f"/bars/{bar_id}/warehouse/transfers/manage")
+    assert page.status_code == 200
+    assert "Bons de transfert" in page.text
+    assert client.get(f"/bars/{env[3].id}/warehouse/transfers").status_code == 404
+    bare = client.post(
+        f"/bars/{bar_id}/warehouse/transfers",
+        json={"reference": "WEB-FAIL", "quantities": {str(pid): "1"}},
+    )
+    assert bare.status_code == 400  # CSRF required also for session JSON.
+    csrf = _csrf(page)
+    response = client.post(
+        f"/bars/{bar_id}/warehouse/transfers/new",
+        data={
+            "csrf_token": csrf,
+            "reference": "WEB-REQ-1",
+            "recipient_user_id": str(owner.id),
+            f"qty_{pid}": "2",
+            f"unit_{pid}": "BOTTLE",
+        },
+    )
+    assert response.status_code == 302
+    assert client.get(f"/bars/{bar_id}/warehouse/transfers/manage").status_code == 200
+    assert db.session.scalar(select(WarehouseTransfer.id).where(
+        WarehouseTransfer.reference == "WEB-REQ-1",
+    )) is not None
+
+
+def test_transfer_internal_api_json_create_prepare_ship_and_receive(env):
+    from test_employee_tenant_auth import _login, _csrf
+
+    owner, bar_id, pid = _live(env)
+    client = env[0].test_client()
+    assert _login(client, owner.email).status_code == 302
+    csrf = _csrf(client.get(f"/bars/{bar_id}/warehouse/transfers/manage"))
+    headers = {"X-CSRFToken": csrf}
+    base = f"/bars/{bar_id}/warehouse/transfers"
+    res = client.post(base, headers=headers, json={
+        "reference": "API-TR-1",
+        "recipient_user_id": owner.id,
+        "quantities": {str(pid): {"unit": "BOTTLE", "quantity": "3"}},
+    })
+    assert res.status_code == 201, res.text
+    transfer_id = res.json["id"]
+    assert client.get(f"{base}/{transfer_id}").status_code == 200
+    assert client.post(f"{base}/{transfer_id}/ship", headers=headers, json={}).status_code == 422
+    assert client.post(f"{base}/{transfer_id}/prepare", headers=headers, json={
+        "quantities": {str(pid): "3"},
+    }).status_code == 200
+    assert client.post(f"{base}/{transfer_id}/ship", headers=headers, json={}).status_code == 200
+    received = client.post(f"{base}/{transfer_id}/receive", headers=headers, json={
+        "quantities": {str(pid): "3"},
+        "idempotency_key": "api-receipt-00000001",
+    })
+    assert received.status_code == 200, received.text
+    duplicate = client.post(f"{base}/{transfer_id}/receive", headers=headers, json={
+        "quantities": {str(pid): "3"},
+        "idempotency_key": "api-receipt-00000001",
+    })
+    assert duplicate.status_code == 200
+    assert duplicate.json["receipt_id"] == received.json["receipt_id"]
+    assert warehouse_service.totals(bar_id)[pid] == {
+        "MAIN": 4, "CASHIER": 6, "TRANSIT": 0, "TOTAL": 10,
+    }
