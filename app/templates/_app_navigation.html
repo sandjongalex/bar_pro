@@ -1,6 +1,6 @@
 {% set role = nav_role(nav_bar_id) if nav_bar_id else none %}
 {% set sales_active = endpoint.startswith('orders_web.') or endpoint.startswith('checkout_web.') or endpoint.startswith('cashier_workspace_web.') or endpoint.startswith('unpaid_orders_web.') %}
-{% set stock_active = endpoint.startswith('catalog.') or endpoint.startswith('stock.') or endpoint.startswith('inventories.') %}
+{% set stock_active = endpoint.startswith('catalog.') or endpoint.startswith('stock.') or endpoint.startswith('inventories.') or endpoint.startswith('warehouse_web.') %}
 {% set purchases_active = endpoint.startswith('purchases_web.') or endpoint.startswith('supplier_debts_web.') %}
 {% set finance_active = endpoint.startswith('cashier_web.') or endpoint.startswith('cashier_returns_web.') or endpoint.startswith('cashier_exchanges_web.') or endpoint.startswith('cashier_handovers_web.') or endpoint.startswith('cashier_history_web.') or endpoint.startswith('finance_web.') or endpoint.startswith('expenses_web.') or endpoint.startswith('customers_web.') or endpoint.startswith('reports_web.') %}
 {% set team_active = endpoint.startswith('staff_web.') or endpoint.startswith('shifts_web.') %}
@@ -103,12 +103,18 @@
     </details>
     {% endif %}
 
-    {% if nav_bar_id and (nav_can('catalog.read', nav_bar_id) or nav_can('inventory.read', nav_bar_id)) %}
+    {% if nav_bar_id and (nav_can('catalog.read', nav_bar_id) or nav_can('inventory.read', nav_bar_id) or nav_can('warehouse.main.read', nav_bar_id) or nav_can('warehouse.cashier.needs.read', nav_bar_id) or nav_can('warehouse.transfers.read', nav_bar_id)) %}
     <details class="nav-group" {% if stock_active %}open{% endif %}>
       <summary class="nav-group-summary {% if stock_active %}active{% endif %}">
         <span class="nav-icon">S</span><span class="nav-link-text">Stock</span><span class="nav-chevron">⌄</span>
       </summary>
       <div class="nav-group-links">
+        {% if nav_can('warehouse.main.read', nav_bar_id) or nav_can('warehouse.cashier.needs.read', nav_bar_id) or nav_can('warehouse.transfers.read', nav_bar_id) %}
+        <a class="nav-sublink {% if endpoint.startswith('warehouse_web.') %}active{% endif %}" href="{{ url_for('warehouse_web.overview', bar_id=nav_bar_id) }}">Magasin principal / caisse</a>
+        {% endif %}
+        {% if nav_can('warehouse.permissions.manage', nav_bar_id) %}
+        <a class="nav-sublink {% if endpoint == 'warehouse_web.grants' %}active{% endif %}" href="{{ url_for('warehouse_web.grants', bar_id=nav_bar_id) }}">Délégations du gérant</a>
+        {% endif %}
         {% if nav_can('catalog.read', nav_bar_id) %}
         <a class="nav-sublink {% if endpoint.startswith('catalog.') %}active{% endif %}" href="{{ url_for('catalog.web_list', bar_id=nav_bar_id) }}">Produits & catégories</a>
         {% endif %}
