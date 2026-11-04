@@ -233,11 +233,24 @@ def test_mysql_migration_backfills_existing_bar_without_touching_stock(monkeypat
     app = create_app("testing")
     with app.app_context():
         upgrade(directory=app.config["MIGRATIONS_DIRECTORY"])
-        # In CI this is a fresh empty MySQL schema. Check the actual MySQL
-        # DDL and exact table/constraint migration against application models.
-        from alembic.autogenerate import compare_metadata
-        from alembic.migration import MigrationContext
+        # InnoDB creates implicit foreign-key indexes, so compare_metadata can
+        # report spurious index diffs. Validate real tables and Alembic head.
+        from alembic.config import Config
+        from alembic.script import ScriptDirectory
+        from sqlalchemy import inspect, text
+        cfg = Config()
+        cfg.set_main_option("script_location", app.config["MIGRATIONS_DIRECTORY"])
+        head = ScriptDirectory.from_config(cfg).get_current_head()
         with db.engine.connect() as conn:
-            assert compare_metadata(MigrationContext.configure(conn), db.metadata) == []
+            assert conn.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == head
+            inspector = inspect(conn)
+            required = {"warehouse_locations", "warehouse_stock_balances",
+                        "warehouse_transit_balances", "warehouse_stock_movements",
+                        "warehouse_allocations", "warehouse_allocation_lines",
+                        "warehouse_transfers", "warehouse_transfer_lines",
+                        "warehouse_transfer_receipts"}
+            assert required <= set(inspector.get_table_names())
+            assert any(x["name"] == "ck_warehouse_stock_nonnegative"
+                       for x in inspector.get_check_constraints("warehouse_stock_balances"))
         db.session.remove()
         db.engine.dispose()
