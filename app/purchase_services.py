@@ -144,7 +144,7 @@ class PurchaseService:
         purchase_date=None,
         notes=None,
     ):
-        permissions.require(actor, "purchases.manage", bar_id)
+        require_purchase_manager(actor, bar_id)
         supplier = db.session.scalar(
             select(Supplier).where(Supplier.id == supplier_id, Supplier.bar_id == bar_id).with_for_update()
         )
@@ -191,7 +191,7 @@ class PurchaseService:
         return _page(query.order_by(Purchase.purchase_date.desc(), Purchase.id.desc()), page, page_size)
 
     def update(self, actor, bar_id, purchase_id, data):
-        permissions.require(actor, "purchases.manage", bar_id)
+        require_purchase_manager(actor, bar_id)
         purchase = self._draft(bar_id, purchase_id)
         if "reference" in data:
             purchase.reference = required_text(data["reference"], 64)
@@ -215,7 +215,7 @@ class PurchaseService:
         return purchase
 
     def replace_lines(self, actor, bar_id, purchase_id, lines):
-        permissions.require(actor, "purchases.manage", bar_id)
+        require_purchase_manager(actor, bar_id)
         purchase = self._draft(bar_id, purchase_id)
         if not lines:
             raise ValueError("PURCHASE_EMPTY")
@@ -284,7 +284,7 @@ class PurchaseService:
         return purchase
 
     def receive(self, actor, bar_id, purchase_id):
-        permissions.require(actor, "purchases.manage", bar_id)
+        permissions.require(actor, "warehouse.purchases.receive", bar_id)
         purchase = self._draft(bar_id, purchase_id)
         lines = self._lines(bar_id, purchase.id)
         if not lines:
@@ -299,6 +299,9 @@ class PurchaseService:
                 f"Reception achat {purchase.reference}",
                 purchase_line_id=line.id,
             )
+        # The legacy shared stock still serves existing sales until cutover.
+        # Receipt metadata is MAIN-only; LIVE also moves physical MAIN stock.
+        record_main_receipt(actor, bar_id, purchase, lines)
         purchase.status = "POSTED"
         purchase.posted_at = utcnow()
         record(actor, bar_id, "purchases.receive", "purchases", purchase.id, purchase.reference)
@@ -312,7 +315,7 @@ class PurchaseService:
         keys or rewrite history.  The posted purchase is therefore cancelled after
         an auditable stock reversal and a new draft is copied from it for editing.
         """
-        permissions.require(actor, "purchases.manage", bar_id)
+        require_purchase_manager(actor, bar_id)
         purchase = self._posted(bar_id, purchase_id)
         if self.net_paid(bar_id, purchase.id) != 0:
             raise ValueError("PURCHASE_HAS_PAYMENTS")
@@ -328,6 +331,7 @@ class PurchaseService:
                 line.id,
                 f"Correction achat {purchase.reference}: {reason}",
             )
+        reverse_main_receipt(actor, bar_id, purchase, source_lines, reason)
 
         purchase.status = "CANCELLED"
         purchase.cancelled_at = utcnow()
@@ -368,25 +372,27 @@ class PurchaseService:
 
     def cancel_received(self, actor, bar_id, purchase_id, reason):
         """Cancel a received purchase while preserving an auditable stock reversal."""
-        permissions.require(actor, "purchases.manage", bar_id)
+        require_purchase_manager(actor, bar_id)
         purchase = self._posted(bar_id, purchase_id)
         if self.net_paid(bar_id, purchase.id) != 0:
             raise ValueError("PURCHASE_HAS_PAYMENTS")
         reason = required_text(reason)
-        for line in self._lines(bar_id, purchase.id):
+        source_lines = self._lines(bar_id, purchase.id)
+        for line in source_lines:
             stock_service.reverse_purchase_receipt(
                 actor,
                 bar_id,
                 line.id,
                 f"Annulation achat {purchase.reference}: {reason}",
             )
+        reverse_main_receipt(actor, bar_id, purchase, source_lines, reason)
         purchase.status = "CANCELLED"
         purchase.cancelled_at = utcnow()
         record(actor, bar_id, "purchases.cancel_received", "purchases", purchase.id, reason)
         return purchase
 
     def cancel(self, actor, bar_id, purchase_id, reason):
-        permissions.require(actor, "purchases.manage", bar_id)
+        require_purchase_manager(actor, bar_id)
         purchase = self._draft(bar_id, purchase_id)
         purchase.status = "CANCELLED"
         purchase.cancelled_at = utcnow()
