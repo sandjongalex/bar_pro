@@ -111,6 +111,27 @@ class SupplierService:
         return item
 
 
+def require_purchase_manager(actor, bar_id):
+    """Only the owner or an explicitly delegated BAR_ADMIN can edit purchases.
+
+    A STOREKEEPER special grant from the previous phase never opens financial
+    purchase editing or supplier settlement routes.
+    """
+    permissions.require(actor, "warehouse.purchases.manage", bar_id)
+    if actor.category == "OWNER":
+        return
+    if actor.category != "EMPLOYEE":
+        raise PermissionError("FORBIDDEN")
+    assignment = db.session.scalar(select(StaffAssignment.id).where(
+        StaffAssignment.bar_id == bar_id,
+        StaffAssignment.user_id == actor.id,
+        StaffAssignment.role == "BAR_ADMIN",
+        StaffAssignment.ended_at.is_(None),
+    ))
+    if assignment is None:
+        raise PermissionError("FORBIDDEN")
+
+
 class PurchaseService:
     def create(
         self,
