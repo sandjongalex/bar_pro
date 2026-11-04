@@ -30,8 +30,13 @@ def test_mysql_upgrade_preserves_existing_staff_and_adds_storekeeper(monkeypatch
             bar_id=bar.id, user_id=existing.id, role="CASHIER", started_at=utcnow()
         )
         db.session.add(old)
-        db.session.commit()
+        db.session.flush()
+        # Capture keys BEFORE commit: expired ORM attributes accessed afterwards
+        # would implicitly start a new MySQL transaction and hold a metadata
+        # lock, blocking ALTER TABLE staff_assignments indefinitely.
         owner_id, user_id, bar_id, old_id = owner.id, existing.id, bar.id, old.id
+        db.session.commit()
+        db.session.remove()
 
         upgrade(directory=app.config["MIGRATIONS_DIRECTORY"])
         upgrade(directory=app.config["MIGRATIONS_DIRECTORY"])
