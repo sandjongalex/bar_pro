@@ -96,5 +96,30 @@ def test_mysql_purchase_upgrade_preserves_existing_supplier_invoice_and_roles(mo
             WarehouseStockMovement.bar_id == bar_id,
             WarehouseStockMovement.movement_type == "PURCHASE_IN",
         )) is None
+        # Reproduce the PythonAnywhere issue: MySQL creates secondary FK
+        # support indexes (bar_id_2, bar_id_3, ...) automatically. The
+        # schema check must not propose dropping those integrity indexes.
+        tables_with_fks = ("cash_handovers", "orders", "warehouse_stock_movements")
+        before = {
+            table: [
+                (index["name"], tuple(index["column_names"]))
+                for index in inspect(db.engine).get_indexes(table)
+            ]
+            for table in tables_with_fks
+        }
+        assert any(name.startswith("bar_id_") for name, _ in before["cash_handovers"])
+        db.session.remove()
+        result = app.test_cli_runner().invoke(args=["db", "check"])
+        assert result.exit_code == 0, (
+            result.output + ("\\n" + repr(result.exception) if result.exception else "")
+        )
+        after = {
+            table: [
+                (index["name"], tuple(index["column_names"]))
+                for index in inspect(db.engine).get_indexes(table)
+            ]
+            for table in tables_with_fks
+        }
+        assert after == before  # Read-only schema check never drops FK indexes.
         db.session.remove()
         db.engine.dispose()
