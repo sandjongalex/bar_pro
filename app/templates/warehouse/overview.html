@@ -1,0 +1,78 @@
+{% extends 'layout.html' %}
+{% block title %}Magasin · {{ bar.name }} · Bar Manager Pro{% endblock %}
+{% block header %}Magasin · {{ bar.name }}{% endblock %}
+{% block content %}
+<section class="panel-card p-3 p-md-4">
+  <div class="d-flex justify-content-between flex-wrap gap-3 align-items-center">
+    <div>
+      <p class="eyebrow mb-1">Stock physique · {{ bar.name }}</p>
+      <h1 class="h3 mb-2">Espace magasin</h1>
+      <p class="text-secondary mb-0">Consultation sécurisée du magasin principal, des besoins de la caisse et des transferts.</p>
+    </div>
+    {% if nav_can('warehouse.permissions.manage', bar.id) %}
+      <a class="btn btn-outline-primary" href="{{ url_for('warehouse_web.grants', bar_id=bar.id) }}">Droits des gérants</a>
+    {% endif %}
+  </div>
+  {% if not allocation %}
+    <div class="alert alert-warning mt-3 mb-0">Le stock des deux magasins n'est pas encore réparti. Les soldes historiques restent la seule référence opérationnelle.</div>
+  {% elif allocation.status != 'LIVE' %}
+    <div class="alert alert-info mt-3 mb-0">Répartition initiale en préparation, pas encore activée. Les quantités ci-dessous ne sont pas les soldes opérationnels des ventes.</div>
+  {% endif %}
+</section>
+
+{% if checks['main.read'] or checks['cashier.needs.read'] %}
+<section class="panel-card mt-3 p-3 p-md-4">
+  <h2 class="h5">Produits et besoins</h2>
+  <div class="table-responsive">
+    <table class="table table-striped align-middle">
+      <thead><tr><th>Produit</th>{% if checks['main.read'] %}<th class="text-end">Principal</th>{% endif %}{% if checks['cashier.needs.read'] %}<th class="text-end">Caisse</th><th>Besoin</th>{% endif %}</tr></thead>
+      <tbody>
+        {% for row in rows %}
+          <tr>
+            <td>{{ row.product.name }}</td>
+            {% if checks['main.read'] %}<td class="text-end">{{ row.main if allocation else '—' }}</td>{% endif %}
+            {% if checks['cashier.needs.read'] %}<td class="text-end">{{ row.cashier if allocation else '—' }}</td>
+              <td>{% if allocation %}{{ 'Au seuil de réapprovisionnement' if row.needs_restock else 'OK' }}{% else %}À déterminer{% endif %}</td>
+            {% endif %}
+          </tr>
+        {% else %}<tr><td colspan="4" class="text-secondary">Aucun produit.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endif %}
+
+{% if checks['transfers.read'] %}
+<section class="panel-card mt-3 p-3 p-md-4">
+  <h2 class="h5">Historique des transferts</h2>
+  <div class="table-responsive"><table class="table"><thead><tr><th>Référence</th><th>État</th><th>Date d'expédition</th></tr></thead>
+  <tbody>{% for t in transfers %}<tr><td>{{ t.reference }}</td><td>{{ t.status }}</td><td>{{ t.dispatched_at.strftime('%d/%m/%Y %H:%M') }}</td></tr>
+  {% else %}<tr><td colspan="3" class="text-secondary">Aucun transfert enregistré.</td></tr>{% endfor %}</tbody></table></div>
+</section>
+{% endif %}
+
+{% if checks['discrepancies.read'] %}
+<section class="panel-card mt-3 p-3 p-md-4">
+  <h2 class="h5">Écarts déclarés sur les transferts</h2>
+  {% for line in disputes %}<p>Transfert #{{ line.transfer_id }} · produit #{{ line.product_id }} · écart {{ line.quantity_disputed }}</p>
+  {% else %}<p class="text-secondary mb-0">Aucun écart déclaré.</p>{% endfor %}
+  <p class="small text-secondary mt-2">Le magasinier peut consulter les écarts, mais pas les valider.</p>
+</section>
+{% endif %}
+
+{% if checks['notifications.read'] %}
+<section class="panel-card mt-3 p-3 p-md-4">
+  <h2 class="h5">Notifications de demandes</h2>
+  {% for notice in notifications %}
+  <div class="d-flex gap-3 justify-content-between flex-wrap border-bottom py-2">
+    <div><strong>{{ notice.title }}</strong><p class="mb-0">{{ notice.body }}</p></div>
+    <form method="post" action="{{ url_for('web.notification_read', notification_id=notice.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button class="btn btn-outline-secondary btn-sm" type="submit">Marquer comme lue</button>
+    </form>
+  </div>
+  {% else %}<p class="text-secondary mb-0">Aucune demande reçue.</p>{% endfor %}
+  <p class="small text-secondary mt-2">La création et le traitement des demandes sont prévus dans les prochaines phases.</p>
+</section>
+{% endif %}
+{% endblock %}
