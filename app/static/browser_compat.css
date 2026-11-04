@@ -12,6 +12,7 @@ html.bp-compat-lite .cash-sub-card,
 html.bp-compat-lite .invoice-card,
 html.bp-compat-lite .server-order-card,
 html.bp-compat-lite .login-card,
+html.bp-compat-lite .signup-card,
 html.bp-compat-limited .panel-card {
   -webkit-backdrop-filter: none !important;
   backdrop-filter: none !important;
