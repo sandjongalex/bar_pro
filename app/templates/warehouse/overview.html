@@ -9,6 +9,9 @@
       <h1 class="h3 mb-2">Espace magasin</h1>
       <p class="text-secondary mb-0">Consultation sécurisée du magasin principal, des besoins de la caisse et des transferts.</p>
     </div>
+    {% if nav_can('warehouse.transfers.read', bar.id) %}
+      <a class="btn btn-primary" href="{{ url_for('warehouse_web.manage_transfers', bar_id=bar.id) }}">Bons de transfert</a>
+    {% endif %}
     {% if nav_can('warehouse.permissions.manage', bar.id) %}
       <a class="btn btn-outline-primary" href="{{ url_for('warehouse_web.grants', bar_id=bar.id) }}">Droits des gérants</a>
     {% endif %}
