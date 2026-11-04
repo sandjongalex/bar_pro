@@ -213,6 +213,13 @@ def manage_transfers(bar_id):
             WarehouseTransferLine.transfer_id.in_([v.id for v in vouchers]),
         ).order_by(WarehouseTransferLine.id)):
             lines.setdefault(line.transfer_id, []).append(line)
+    events = {}
+    if vouchers:
+        for event in db.session.scalars(select(WarehouseTransferEvent).where(
+            WarehouseTransferEvent.bar_id == bar_id,
+            WarehouseTransferEvent.transfer_id.in_([v.id for v in vouchers]),
+        ).order_by(WarehouseTransferEvent.id.desc()).limit(300)):
+            events.setdefault(event.transfer_id, []).append(event)
     names = {p.id: p.name for p in products}
     cashiers = list(db.session.execute(select(User.id, User.display_name)
         .join(StaffAssignment, StaffAssignment.user_id == User.id)
@@ -224,7 +231,7 @@ def manage_transfers(bar_id):
     return render_template(
         "warehouse/transfers.html", bar=bar, allocation=allocation,
         rights=rights, products=products, vouchers=vouchers,
-        lines=lines, names=names, cashiers=cashiers,
+        lines=lines, events=events, names=names, cashiers=cashiers,
         request_key=token_urlsafe(16),
     )
 
