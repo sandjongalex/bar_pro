@@ -4,7 +4,7 @@ Ce fichier est généré par [`scripts/schema_document.py`](../scripts/schema_do
 Ne pas l'éditer librement : [`tests/test_schema.py`](../tests/test_schema.py) compare exactement
 son contenu à `scripts.schema_document.render()`.
 
-Révision Alembic terminale observée : `b5c6d7e8f901`. Le dictionnaire décrit les tables,
+Révision Alembic terminale observée : `d7e3a5b9c2f1`. Le dictionnaire décrit les tables,
 colonnes, clés, contraintes, index et relations dérivables de `app.models`.
 Les types sont compilés pour MySQL et SQLite quand ils diffèrent. Une compilation SQL ou
 un test SQLite ne constitue pas une validation sur serveur MySQL.
@@ -42,11 +42,13 @@ un test SQLite ne constitue pas une validation sur serveur MySQL.
 | `ba5a5a1f0001` | `d1e2f3a4b5c6` | `ba5a5a1f0001_saas_governance.py` | Independent bar and owner administrative governance (no data backfill). |
 | `c1d2e3f4a5b6` | `ba5a5a1f0001` | `c1d2e3f4a5b6_inventory_cashier_assignments.py` | Add optional cashier-to-shift attribution for V2 inventories.  Legacy inventory documents remain unchanged; only new V2 inventories get assignment rows. No payment, sales or stock records are rewritten. |
 | `c3d4e5f6a7b8` | `b2c3d4e5f6a7` | `c3d4e5f6a7b8_integrity.py` | Reconcile tender and tenant source integrity without rewriting history. |
+| `c6f2d4e8a1b0` | `b5c6d7e8f901` | `c6f2d4e8a1b0_warehouse_v2_foundations.py` | Additive warehouse V2 foundation; no migration of legacy quantities.  Revision ID: c6f2d4e8a1b0 Revises: b5c6d7e8f901 |
 | `c9d0e1f2a3b4` | `b8c9d0e1f2a3` | `c9d0e1f2a3b4_employee_shifts.py` | Add employee attendance and on-duty shifts. |
 | `d0e1f2a3b4c5` | `c9d0e1f2a3b4` | `d0e1f2a3b4c5_change_vouchers.py` | Add customer change vouchers and settlement journal.  Revision ID: d0e1f2a3b4c5 Revises: c9d0e1f2a3b4 |
 | `d1e2f3a4b5c6` | `e1f2a3b4c5d6` | `d1e2f3a4b5c6_customer_manual_debt_due_date.py` | Add optional due date to manual customer debt ledger entries. |
 | `d2e3f4a5b6c7` | `c1d2e3f4a5b6` | `d2e3f4a5b6c7_inventory_v2_count_states.py` | Add per-product count timestamps and authors without modifying legacy inventory. |
 | `d4e5f6a7b8c9` | `c3d4e5f6a7b8` | `d4e5f6a7b8c9_customer_credit_cases_notifications.py` | Add customer receivables, returnable cases and persistent notifications. |
+| `d7e3a5b9c2f1` | `c6f2d4e8a1b0` | `d7e3a5b9c2f1_storekeeper_permissions.py` | Allow STOREKEEPER on existing staff assignments and add owner-delegated grants.  Revision ID: d7e3a5b9c2f1 Revises: c6f2d4e8a1b0 Existing accounts and assignments are kept intact. |
 | `e1f2a3b4c5d6` | `d0e1f2a3b4c5` | `e1f2a3b4c5d6_missing_tenant_indexes.py` | Reconcile tenant indexes declared by newer customer and shift ORM models.  Safe for existing deployments: only missing indexes are created. No table, order, stock or payment data is modified. |
 | `e3f4a5b6c7d8` | `d2e3f4a5b6c7` | `e3f4a5b6c7d8_inventory_live_reconciliation.py` | Add non-destructive ledger cursors for V2 live reconciliation.  Older V2 draft inventories deliberately retain NULL cursors and require recount rather than silently assuming an inaccurate inventory start snapshot. |
 | `e5f6a7b8c9d0` | `d4e5f6a7b8c9` | `e5f6a7b8c9d0_purchase_units_supplier_notes.py` | Add supplier notes and purchase unit/conversion metadata.  Revision ID: e5f6a7b8c9d0 Revises: d4e5f6a7b8c9 |
@@ -262,6 +264,36 @@ erDiagram
     orders ||--o{ user_notifications : "bar_id, order_id"
     users ||--o{ user_notifications : "user_id"
     users ||--o{ user_sessions : "user_id"
+    bars ||--o{ warehouse_allocation_lines : "bar_id"
+    warehouse_allocations ||--o{ warehouse_allocation_lines : "bar_id, allocation_id"
+    products ||--o{ warehouse_allocation_lines : "bar_id, product_id"
+    bars ||--o{ warehouse_allocations : "bar_id"
+    users ||--o{ warehouse_allocations : "validated_by_id"
+    bars ||--o{ warehouse_locations : "bar_id"
+    bars ||--o{ warehouse_staff_grants : "bar_id"
+    staff_assignments ||--o{ warehouse_staff_grants : "bar_id, staff_assignment_id"
+    users ||--o{ warehouse_staff_grants : "granted_by_id"
+    users ||--o{ warehouse_staff_grants : "revoked_by_id"
+    bars ||--o{ warehouse_stock_balances : "bar_id"
+    warehouse_locations ||--o{ warehouse_stock_balances : "bar_id, location_id"
+    products ||--o{ warehouse_stock_balances : "bar_id, product_id"
+    bars ||--o{ warehouse_stock_movements : "bar_id"
+    warehouse_allocation_lines ||--o{ warehouse_stock_movements : "bar_id, allocation_line_id"
+    warehouse_locations ||--o{ warehouse_stock_movements : "bar_id, location_id"
+    products ||--o{ warehouse_stock_movements : "bar_id, product_id"
+    warehouse_transfer_receipts ||--o{ warehouse_stock_movements : "bar_id, receipt_id"
+    warehouse_transfer_lines ||--o{ warehouse_stock_movements : "bar_id, transfer_line_id"
+    users ||--o{ warehouse_stock_movements : "recorded_by_id"
+    bars ||--o{ warehouse_transfer_lines : "bar_id"
+    products ||--o{ warehouse_transfer_lines : "bar_id, product_id"
+    warehouse_transfers ||--o{ warehouse_transfer_lines : "bar_id, transfer_id"
+    bars ||--o{ warehouse_transfer_receipts : "bar_id"
+    warehouse_transfers ||--o{ warehouse_transfer_receipts : "bar_id, transfer_id"
+    users ||--o{ warehouse_transfer_receipts : "received_by_id"
+    bars ||--o{ warehouse_transfers : "bar_id"
+    users ||--o{ warehouse_transfers : "dispatched_by_id"
+    bars ||--o{ warehouse_transit_balances : "bar_id"
+    products ||--o{ warehouse_transit_balances : "bar_id, product_id"
 ```
 
 ## Relations ORM déclarées
@@ -462,6 +494,36 @@ erDiagram
 | `user_notifications` | `—` | `bar_id, order_id` | `orders.bar_id, orders.id` | `RESTRICT` |
 | `user_notifications` | `—` | `user_id` | `users.id` | `RESTRICT` |
 | `user_sessions` | `—` | `user_id` | `users.id` | `RESTRICT` |
+| `warehouse_allocation_lines` | `—` | `bar_id` | `bars.id` | `RESTRICT` |
+| `warehouse_allocation_lines` | `—` | `bar_id, allocation_id` | `warehouse_allocations.bar_id, warehouse_allocations.id` | `RESTRICT` |
+| `warehouse_allocation_lines` | `—` | `bar_id, product_id` | `products.bar_id, products.id` | `RESTRICT` |
+| `warehouse_allocations` | `—` | `bar_id` | `bars.id` | `RESTRICT` |
+| `warehouse_allocations` | `—` | `validated_by_id` | `users.id` | `RESTRICT` |
+| `warehouse_locations` | `—` | `bar_id` | `bars.id` | `RESTRICT` |
+| `warehouse_staff_grants` | `—` | `bar_id` | `bars.id` | `RESTRICT` |
+| `warehouse_staff_grants` | `—` | `bar_id, staff_assignment_id` | `staff_assignments.bar_id, staff_assignments.id` | `RESTRICT` |
+| `warehouse_staff_grants` | `—` | `granted_by_id` | `users.id` | `RESTRICT` |
+| `warehouse_staff_grants` | `—` | `revoked_by_id` | `users.id` | `RESTRICT` |
+| `warehouse_stock_balances` | `—` | `bar_id` | `bars.id` | `RESTRICT` |
+| `warehouse_stock_balances` | `—` | `bar_id, location_id` | `warehouse_locations.bar_id, warehouse_locations.id` | `RESTRICT` |
+| `warehouse_stock_balances` | `—` | `bar_id, product_id` | `products.bar_id, products.id` | `RESTRICT` |
+| `warehouse_stock_movements` | `—` | `bar_id` | `bars.id` | `RESTRICT` |
+| `warehouse_stock_movements` | `—` | `bar_id, allocation_line_id` | `warehouse_allocation_lines.bar_id, warehouse_allocation_lines.id` | `RESTRICT` |
+| `warehouse_stock_movements` | `—` | `bar_id, location_id` | `warehouse_locations.bar_id, warehouse_locations.id` | `RESTRICT` |
+| `warehouse_stock_movements` | `—` | `bar_id, product_id` | `products.bar_id, products.id` | `RESTRICT` |
+| `warehouse_stock_movements` | `—` | `bar_id, receipt_id` | `warehouse_transfer_receipts.bar_id, warehouse_transfer_receipts.id` | `RESTRICT` |
+| `warehouse_stock_movements` | `—` | `bar_id, transfer_line_id` | `warehouse_transfer_lines.bar_id, warehouse_transfer_lines.id` | `RESTRICT` |
+| `warehouse_stock_movements` | `—` | `recorded_by_id` | `users.id` | `RESTRICT` |
+| `warehouse_transfer_lines` | `—` | `bar_id` | `bars.id` | `RESTRICT` |
+| `warehouse_transfer_lines` | `—` | `bar_id, product_id` | `products.bar_id, products.id` | `RESTRICT` |
+| `warehouse_transfer_lines` | `—` | `bar_id, transfer_id` | `warehouse_transfers.bar_id, warehouse_transfers.id` | `RESTRICT` |
+| `warehouse_transfer_receipts` | `—` | `bar_id` | `bars.id` | `RESTRICT` |
+| `warehouse_transfer_receipts` | `—` | `bar_id, transfer_id` | `warehouse_transfers.bar_id, warehouse_transfers.id` | `RESTRICT` |
+| `warehouse_transfer_receipts` | `—` | `received_by_id` | `users.id` | `RESTRICT` |
+| `warehouse_transfers` | `—` | `bar_id` | `bars.id` | `RESTRICT` |
+| `warehouse_transfers` | `—` | `dispatched_by_id` | `users.id` | `RESTRICT` |
+| `warehouse_transit_balances` | `—` | `bar_id` | `bars.id` | `RESTRICT` |
+| `warehouse_transit_balances` | `—` | `bar_id, product_id` | `products.bar_id, products.id` | `RESTRICT` |
 
 ## Dictionnaire physique
 
@@ -1709,7 +1771,7 @@ erDiagram
 
 - PK : `id`.
 - CHECK `ck_staff_dates` : `ended_at IS NULL OR ended_at >= started_at`.
-- CHECK `ck_staff_role` : `role IN ('BAR_ADMIN','CASHIER','SERVER')`.
+- CHECK `ck_staff_role` : `role IN ('BAR_ADMIN','CASHIER','SERVER','STOREKEEPER')`.
 - FK `—` : `bar_id` → `bars.id` ; ON DELETE `RESTRICT`.
 - FK `—` : `user_id` → `users.id` ; ON DELETE `RESTRICT`.
 - UNIQUE `uq_staff_assignments_active_user` : `active_user_id`.
@@ -2035,6 +2097,251 @@ erDiagram
 - CHECK `ck_users_credentials_version` : `credentials_version > 0`.
 - UNIQUE `—` : `email`.
 - INDEX `ix_users_category_active` : `category, is_active, id`.
+
+### `warehouse_allocation_lines`
+
+| Colonne | Type | NULL | PK | Default ORM | Default serveur | Calcul |
+| --- | --- | --- | --- | --- | --- | --- |
+| `id` | MySQL `BIGINT` / SQLite `INTEGER` | non | oui | — | — | — |
+| `allocation_id` | MySQL `BIGINT` / SQLite `INTEGER` | non | non | — | — | — |
+| `product_id` | MySQL `BIGINT` / SQLite `INTEGER` | non | non | — | — | — |
+| `legacy_quantity_snapshot` | NUMERIC(20, 6) | non | non | — | — | — |
+| `legacy_balance_version` | MySQL `BIGINT` / SQLite `INTEGER` | non | non | — | — | — |
+| `main_quantity` | NUMERIC(20, 6) | non | non | — | — | — |
+| `cashier_quantity` | NUMERIC(20, 6) | non | non | — | — | — |
+| `unit_cost_snapshot` | NUMERIC(19, 4) | non | non | — | — | — |
+| `bar_id` | MySQL `BIGINT` / SQLite `INTEGER` | non | non | — | — | — |
+| `created_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | non | non | utcnow | — | — |
+| `updated_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | non | non | utcnow | — | — |
+
+- PK : `id`.
+- CHECK `ck_warehouse_allocation_conservation` : `legacy_quantity_snapshot >= 0 AND legacy_balance_version >= 0 AND main_quantity >= 0 AND cashier_quantity >= 0 AND unit_cost_snapshot >= 0 AND main_quantity + cashier_quantity = legacy_quantity_snapshot`.
+- FK `—` : `bar_id` → `bars.id` ; ON DELETE `RESTRICT`.
+- FK `—` : `bar_id, allocation_id` → `warehouse_allocations.bar_id, warehouse_allocations.id` ; ON DELETE `RESTRICT`.
+- FK `—` : `bar_id, product_id` → `products.bar_id, products.id` ; ON DELETE `RESTRICT`.
+- UNIQUE `uq_warehouse_allocation_lines_bar_id_id` : `bar_id, id`.
+- UNIQUE `uq_warehouse_allocation_product` : `bar_id, allocation_id, product_id`.
+- INDEX `ix_warehouse_allocation_lines_bar_created` : `bar_id, created_at, id`.
+- INDEX `ix_warehouse_allocation_lines_bar_id` : `bar_id`.
+
+### `warehouse_allocations`
+
+| Colonne | Type | NULL | PK | Default ORM | Default serveur | Calcul |
+| --- | --- | --- | --- | --- | --- | --- |
+| `id` | MySQL `BIGINT` / SQLite `INTEGER` | non | oui | — | — | — |
+| `status` | VARCHAR(16) | non | non | 'STAGED' | — | — |
+| `validated_by_id` | MySQL `BIGINT` / SQLite `INTEGER` | non | non | — | — | — |
+| `validated_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | non | non | — | — | — |
+| `legacy_movement_checkpoint_id` | MySQL `BIGINT` / SQLite `INTEGER` | oui | non | — | — | — |
+| `bar_id` | MySQL `BIGINT` / SQLite `INTEGER` | non | non | — | — | — |
+| `created_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | non | non | utcnow | — | — |
+| `updated_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | non | non | utcnow | — | — |
+
+- PK : `id`.
+- CHECK `ck_warehouse_allocations_status` : `status IN ('STAGED','LIVE')`.
+- FK `—` : `bar_id` → `bars.id` ; ON DELETE `RESTRICT`.
+- FK `—` : `validated_by_id` → `users.id` ; ON DELETE `RESTRICT`.
+- UNIQUE `uq_warehouse_allocations_bar_id_id` : `bar_id, id`.
+- UNIQUE `uq_warehouse_allocations_one_bar` : `bar_id`.
+- INDEX `ix_warehouse_allocations_bar_created` : `bar_id, created_at, id`.
+- INDEX `ix_warehouse_allocations_bar_id` : `bar_id`.
+
+### `warehouse_locations`
+
+| Colonne | Type | NULL | PK | Default ORM | Default serveur | Calcul |
+| --- | --- | --- | --- | --- | --- | --- |
+| `id` | MySQL `BIGINT` / SQLite `INTEGER` | non | oui | — | — | — |
+| `code` | VARCHAR(16) | non | non | — | — | — |
+| `label` | VARCHAR(80) | non | non | — | — | — |
+| `bar_id` | MySQL `BIGINT` / SQLite `INTEGER` | non | non | — | — | — |
+| `created_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | non | non | utcnow | — | — |
+| `updated_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | non | non | utcnow | — | — |
+
+- PK : `id`.
+- CHECK `ck_warehouse_locations_code` : `code IN ('MAIN','CASHIER')`.
+- FK `—` : `bar_id` → `bars.id` ; ON DELETE `RESTRICT`.
+- UNIQUE `uq_warehouse_locations_bar_id_id` : `bar_id, id`.
+- UNIQUE `uq_warehouse_locations_code` : `bar_id, code`.
+- INDEX `ix_warehouse_locations_bar_created` : `bar_id, created_at, id`.
+- INDEX `ix_warehouse_locations_bar_id` : `bar_id`.
+
+### `warehouse_staff_grants`
+
+| Colonne | Type | NULL | PK | Default ORM | Default serveur | Calcul |
+| --- | --- | --- | --- | --- | --- | --- |
+| `id` | MySQL `BIGINT` / SQLite `INTEGER` | non | oui | — | — | — |
+| `staff_assignment_id` | MySQL `BIGINT` / SQLite `INTEGER` | non | non | — | — | — |
+| `action` | VARCHAR(64) | non | non | — | — | — |
+| `enabled` | MySQL `BOOL` / SQLite `BOOLEAN` | non | non | True | — | — |
+| `granted_by_id` | MySQL `BIGINT` / SQLite `INTEGER` | non | non | — | — | — |
+| `granted_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | non | non | — | — | — |
+| `revoked_by_id` | MySQL `BIGINT` / SQLite `INTEGER` | oui | non | — | — | — |
+| `revoked_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | oui | non | — | — | — |
+| `bar_id` | MySQL `BIGINT` / SQLite `INTEGER` | non | non | — | — | — |
+| `created_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | non | non | utcnow | — | — |
+| `updated_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | non | non | utcnow | — | — |
+
+- PK : `id`.
+- CHECK `ck_warehouse_staff_grant_state` : `(enabled = 1 AND revoked_at IS NULL AND revoked_by_id IS NULL) OR (enabled = 0 AND revoked_at IS NOT NULL AND revoked_by_id IS NOT NULL)`.
+- FK `—` : `bar_id` → `bars.id` ; ON DELETE `RESTRICT`.
+- FK `—` : `bar_id, staff_assignment_id` → `staff_assignments.bar_id, staff_assignments.id` ; ON DELETE `RESTRICT`.
+- FK `—` : `granted_by_id` → `users.id` ; ON DELETE `RESTRICT`.
+- FK `—` : `revoked_by_id` → `users.id` ; ON DELETE `RESTRICT`.
+- UNIQUE `uq_warehouse_staff_grant_action` : `bar_id, staff_assignment_id, action`.
+- UNIQUE `uq_warehouse_staff_grants_bar_id_id` : `bar_id, id`.
+- INDEX `ix_warehouse_staff_grants_bar_created` : `bar_id, created_at, id`.
+- INDEX `ix_warehouse_staff_grants_bar_id` : `bar_id`.
+
+### `warehouse_stock_balances`
+
+| Colonne | Type | NULL | PK | Default ORM | Default serveur | Calcul |
+| --- | --- | --- | --- | --- | --- | --- |
+| `id` | MySQL `BIGINT` / SQLite `INTEGER` | non | oui | — | — | — |
+| `location_id` | MySQL `BIGINT` / SQLite `INTEGER` | non | non | — | — | — |
+| `product_id` | MySQL `BIGINT` / SQLite `INTEGER` | non | non | — | — | — |
+| `quantity` | NUMERIC(20, 6) | non | non | Decimal('0') | — | — |
+| `version` | MySQL `BIGINT` / SQLite `INTEGER` | non | non | 0 | — | — |
+| `bar_id` | MySQL `BIGINT` / SQLite `INTEGER` | non | non | — | — | — |
+| `created_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | non | non | utcnow | — | — |
+| `updated_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | non | non | utcnow | — | — |
+
+- PK : `id`.
+- CHECK `ck_warehouse_stock_nonnegative` : `quantity >= 0 AND version >= 0`.
+- FK `—` : `bar_id` → `bars.id` ; ON DELETE `RESTRICT`.
+- FK `—` : `bar_id, location_id` → `warehouse_locations.bar_id, warehouse_locations.id` ; ON DELETE `RESTRICT`.
+- FK `—` : `bar_id, product_id` → `products.bar_id, products.id` ; ON DELETE `RESTRICT`.
+- UNIQUE `uq_warehouse_stock_balances_bar_id_id` : `bar_id, id`.
+- UNIQUE `uq_warehouse_stock_location_product` : `bar_id, location_id, product_id`.
+- INDEX `ix_warehouse_stock_balances_bar_created` : `bar_id, created_at, id`.
+- INDEX `ix_warehouse_stock_balances_bar_id` : `bar_id`.
+- INDEX `ix_warehouse_stock_product` : `bar_id, product_id, location_id`.
+
+### `warehouse_stock_movements`
+
+| Colonne | Type | NULL | PK | Default ORM | Default serveur | Calcul |
+| --- | --- | --- | --- | --- | --- | --- |
+| `id` | MySQL `BIGINT` / SQLite `INTEGER` | non | oui | — | — | — |
+| `location_id` | MySQL `BIGINT` / SQLite `INTEGER` | oui | non | — | — | — |
+| `product_id` | MySQL `BIGINT` / SQLite `INTEGER` | non | non | — | — | — |
+| `movement_type` | VARCHAR(20) | non | non | — | — | — |
+| `quantity_delta` | NUMERIC(20, 6) | non | non | — | — | — |
+| `unit_cost_snapshot` | NUMERIC(19, 4) | non | non | — | — | — |
+| `allocation_line_id` | MySQL `BIGINT` / SQLite `INTEGER` | oui | non | — | — | — |
+| `transfer_line_id` | MySQL `BIGINT` / SQLite `INTEGER` | oui | non | — | — | — |
+| `receipt_id` | MySQL `BIGINT` / SQLite `INTEGER` | oui | non | — | — | — |
+| `occurred_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | non | non | — | — | — |
+| `recorded_by_id` | MySQL `BIGINT` / SQLite `INTEGER` | non | non | — | — | — |
+| `reason` | VARCHAR(500) | non | non | — | — | — |
+| `bar_id` | MySQL `BIGINT` / SQLite `INTEGER` | non | non | — | — | — |
+| `created_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | non | non | utcnow | — | — |
+| `updated_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | non | non | utcnow | — | — |
+
+- PK : `id`.
+- CHECK `ck_warehouse_movement_bucket` : `(location_id IS NOT NULL AND movement_type IN ('OPENING','TRANSFER_OUT','TRANSFER_IN','ADJUSTMENT','LOSS')) OR (location_id IS NULL AND movement_type IN ('TRANSIT_IN','TRANSIT_OUT'))`.
+- CHECK `ck_warehouse_movement_values` : `quantity_delta <> 0 AND unit_cost_snapshot >= 0`.
+- FK `—` : `bar_id` → `bars.id` ; ON DELETE `RESTRICT`.
+- FK `—` : `bar_id, allocation_line_id` → `warehouse_allocation_lines.bar_id, warehouse_allocation_lines.id` ; ON DELETE `RESTRICT`.
+- FK `—` : `bar_id, location_id` → `warehouse_locations.bar_id, warehouse_locations.id` ; ON DELETE `RESTRICT`.
+- FK `—` : `bar_id, product_id` → `products.bar_id, products.id` ; ON DELETE `RESTRICT`.
+- FK `—` : `bar_id, receipt_id` → `warehouse_transfer_receipts.bar_id, warehouse_transfer_receipts.id` ; ON DELETE `RESTRICT`.
+- FK `—` : `bar_id, transfer_line_id` → `warehouse_transfer_lines.bar_id, warehouse_transfer_lines.id` ; ON DELETE `RESTRICT`.
+- FK `—` : `recorded_by_id` → `users.id` ; ON DELETE `RESTRICT`.
+- UNIQUE `uq_warehouse_stock_movements_bar_id_id` : `bar_id, id`.
+- INDEX `ix_warehouse_movements_product_time` : `bar_id, product_id, occurred_at, id`.
+- INDEX `ix_warehouse_stock_movements_bar_created` : `bar_id, created_at, id`.
+- INDEX `ix_warehouse_stock_movements_bar_id` : `bar_id`.
+
+### `warehouse_transfer_lines`
+
+| Colonne | Type | NULL | PK | Default ORM | Default serveur | Calcul |
+| --- | --- | --- | --- | --- | --- | --- |
+| `id` | MySQL `BIGINT` / SQLite `INTEGER` | non | oui | — | — | — |
+| `transfer_id` | MySQL `BIGINT` / SQLite `INTEGER` | non | non | — | — | — |
+| `product_id` | MySQL `BIGINT` / SQLite `INTEGER` | non | non | — | — | — |
+| `quantity_dispatched` | NUMERIC(20, 6) | non | non | — | — | — |
+| `quantity_received` | NUMERIC(20, 6) | non | non | Decimal('0') | — | — |
+| `quantity_disputed` | NUMERIC(20, 6) | non | non | Decimal('0') | — | — |
+| `unit_cost_snapshot` | NUMERIC(19, 4) | non | non | — | — | — |
+| `bar_id` | MySQL `BIGINT` / SQLite `INTEGER` | non | non | — | — | — |
+| `created_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | non | non | utcnow | — | — |
+| `updated_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | non | non | utcnow | — | — |
+
+- PK : `id`.
+- CHECK `ck_warehouse_transfer_line_values` : `quantity_dispatched > 0 AND quantity_received >= 0 AND quantity_disputed >= 0 AND quantity_received + quantity_disputed <= quantity_dispatched AND unit_cost_snapshot >= 0`.
+- FK `—` : `bar_id` → `bars.id` ; ON DELETE `RESTRICT`.
+- FK `—` : `bar_id, product_id` → `products.bar_id, products.id` ; ON DELETE `RESTRICT`.
+- FK `—` : `bar_id, transfer_id` → `warehouse_transfers.bar_id, warehouse_transfers.id` ; ON DELETE `RESTRICT`.
+- UNIQUE `uq_warehouse_transfer_lines_bar_id_id` : `bar_id, id`.
+- UNIQUE `uq_warehouse_transfer_product` : `bar_id, transfer_id, product_id`.
+- INDEX `ix_warehouse_transfer_lines_bar_created` : `bar_id, created_at, id`.
+- INDEX `ix_warehouse_transfer_lines_bar_id` : `bar_id`.
+
+### `warehouse_transfer_receipts`
+
+| Colonne | Type | NULL | PK | Default ORM | Default serveur | Calcul |
+| --- | --- | --- | --- | --- | --- | --- |
+| `id` | MySQL `BIGINT` / SQLite `INTEGER` | non | oui | — | — | — |
+| `transfer_id` | MySQL `BIGINT` / SQLite `INTEGER` | non | non | — | — | — |
+| `idempotency_key` | VARCHAR(80) | non | non | — | — | — |
+| `payload_hash` | VARCHAR(64) | non | non | — | — | — |
+| `quantities` | JSON | non | non | — | — | — |
+| `received_by_id` | MySQL `BIGINT` / SQLite `INTEGER` | non | non | — | — | — |
+| `received_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | non | non | — | — | — |
+| `bar_id` | MySQL `BIGINT` / SQLite `INTEGER` | non | non | — | — | — |
+| `created_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | non | non | utcnow | — | — |
+| `updated_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | non | non | utcnow | — | — |
+
+- PK : `id`.
+- FK `—` : `bar_id` → `bars.id` ; ON DELETE `RESTRICT`.
+- FK `—` : `bar_id, transfer_id` → `warehouse_transfers.bar_id, warehouse_transfers.id` ; ON DELETE `RESTRICT`.
+- FK `—` : `received_by_id` → `users.id` ; ON DELETE `RESTRICT`.
+- UNIQUE `uq_warehouse_receipt_idempotency` : `bar_id, idempotency_key`.
+- UNIQUE `uq_warehouse_transfer_receipts_bar_id_id` : `bar_id, id`.
+- INDEX `ix_warehouse_transfer_receipts_bar_created` : `bar_id, created_at, id`.
+- INDEX `ix_warehouse_transfer_receipts_bar_id` : `bar_id`.
+
+### `warehouse_transfers`
+
+| Colonne | Type | NULL | PK | Default ORM | Default serveur | Calcul |
+| --- | --- | --- | --- | --- | --- | --- |
+| `id` | MySQL `BIGINT` / SQLite `INTEGER` | non | oui | — | — | — |
+| `reference` | VARCHAR(64) | non | non | — | — | — |
+| `status` | VARCHAR(16) | non | non | 'IN_TRANSIT' | — | — |
+| `dispatched_by_id` | MySQL `BIGINT` / SQLite `INTEGER` | non | non | — | — | — |
+| `dispatched_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | non | non | — | — | — |
+| `bar_id` | MySQL `BIGINT` / SQLite `INTEGER` | non | non | — | — | — |
+| `created_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | non | non | utcnow | — | — |
+| `updated_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | non | non | utcnow | — | — |
+
+- PK : `id`.
+- CHECK `ck_warehouse_transfers_status` : `status IN ('IN_TRANSIT','PARTIAL','DISPUTED','RECEIVED')`.
+- FK `—` : `bar_id` → `bars.id` ; ON DELETE `RESTRICT`.
+- FK `—` : `dispatched_by_id` → `users.id` ; ON DELETE `RESTRICT`.
+- UNIQUE `uq_warehouse_transfers_bar_id_id` : `bar_id, id`.
+- UNIQUE `uq_warehouse_transfers_reference` : `bar_id, reference`.
+- INDEX `ix_warehouse_transfers_bar_created` : `bar_id, created_at, id`.
+- INDEX `ix_warehouse_transfers_bar_id` : `bar_id`.
+
+### `warehouse_transit_balances`
+
+| Colonne | Type | NULL | PK | Default ORM | Default serveur | Calcul |
+| --- | --- | --- | --- | --- | --- | --- |
+| `id` | MySQL `BIGINT` / SQLite `INTEGER` | non | oui | — | — | — |
+| `product_id` | MySQL `BIGINT` / SQLite `INTEGER` | non | non | — | — | — |
+| `quantity` | NUMERIC(20, 6) | non | non | Decimal('0') | — | — |
+| `version` | MySQL `BIGINT` / SQLite `INTEGER` | non | non | 0 | — | — |
+| `bar_id` | MySQL `BIGINT` / SQLite `INTEGER` | non | non | — | — | — |
+| `created_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | non | non | utcnow | — | — |
+| `updated_at` | MySQL `DATETIME(6)` / SQLite `DATETIME` | non | non | utcnow | — | — |
+
+- PK : `id`.
+- CHECK `ck_warehouse_transit_nonnegative` : `quantity >= 0 AND version >= 0`.
+- FK `—` : `bar_id` → `bars.id` ; ON DELETE `RESTRICT`.
+- FK `—` : `bar_id, product_id` → `products.bar_id, products.id` ; ON DELETE `RESTRICT`.
+- UNIQUE `uq_warehouse_transit_balances_bar_id_id` : `bar_id, id`.
+- UNIQUE `uq_warehouse_transit_product` : `bar_id, product_id`.
+- INDEX `ix_warehouse_transit_balances_bar_created` : `bar_id, created_at, id`.
+- INDEX `ix_warehouse_transit_balances_bar_id` : `bar_id`.
 
 ## Contraintes SQL, validations de service et exigences futures
 
