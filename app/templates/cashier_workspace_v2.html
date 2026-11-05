@@ -67,7 +67,10 @@ document.addEventListener('DOMContentLoaded', () => {
   if (orderMeta && !orderMeta.querySelector('[name="invoice_name"]')) {
     const wrapper = document.createElement('div');
     wrapper.className = 'cashier-counter-name';
-    wrapper.innerHTML = '<label class="form-label" for="counterInvoiceName">Nom (facultatif)</label><input class="form-control" id="counterInvoiceName" name="invoice_name" maxlength="120" autocomplete="off" placeholder="Client ou repère">';
+    wrapper.innerHTML = '<div class="order-name-heading"><label class="form-label" for="counterInvoiceName">Nom (facultatif)</label><span class="order-name-count">Articles </span></div><input class="form-control" id="counterInvoiceName" name="invoice_name" maxlength="120" autocomplete="off" placeholder="Client ou repère">';
+    // Keep one badge: the existing cart renderer continues updating this element.
+    const counter = document.getElementById("cashierCartCount");
+    if (counter) wrapper.querySelector(".order-name-count").appendChild(counter);
     orderMeta.prepend(wrapper);
   }
 

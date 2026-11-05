@@ -473,3 +473,85 @@ html[data-bs-theme="dark"] .server-pos-layout .pos-cart-panel .pos-extra-options
 html[data-bs-theme="dark"] .cashier-sale-panel .cashier-sale-cart .cashier-sale-options {
   border-color: #80653a;
 }
+
+/* Product count beside Nom, quantities aligned to each product name. */
+.server-pos-layout .order-name-heading,
+.cashier-sale-panel .order-name-heading {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:8px;
+  min-width:0;
+  margin-bottom:5px;
+}
+.server-pos-layout .order-name-heading label,
+.cashier-sale-panel .order-name-heading label {
+  min-width:0;
+  margin:0!important;
+}
+.server-pos-layout .order-name-count,
+.cashier-sale-panel .order-name-count {
+  display:inline-flex;
+  align-items:center;
+  flex:0 0 auto;
+  gap:5px;
+  white-space:nowrap;
+  font-weight:750;
+  font-size:.68rem;
+  color:#685029;
+}
+.server-pos-layout .order-name-count strong,
+.cashier-sale-panel .order-name-count strong {
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  min-width:27px;
+  min-height:25px;
+  padding:2px 6px;
+  border-radius:8px;
+  background:#f9ebca;
+  color:#62430e;
+  font-size:.81rem;
+  font-weight:900;
+}
+.server-pos-layout .pos-cart-product-head,
+.cashier-sale-panel .pos-cart-product-head {
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:6px;
+  min-width:0;
+}
+.server-pos-layout .pos-cart-product-head strong,
+.cashier-sale-panel .pos-cart-product-head strong {
+  min-width:0;
+  overflow-wrap:anywhere;
+}
+.server-pos-layout .pos-cart-item-quantity,
+.cashier-sale-panel .pos-cart-item-quantity {
+  flex:0 0 auto;
+  min-width:24px;
+  padding:2px 5px;
+  border-radius:7px;
+  text-align:center;
+  background:#f9ebca;
+  color:#6f5014;
+  font-size:.72rem;
+  font-weight:900;
+  line-height:1.25;
+}
+@media(max-width:360px) {
+  .server-pos-layout .order-name-heading,
+  .cashier-sale-panel .order-name-heading {gap:4px}
+  .server-pos-layout .order-name-count,
+  .cashier-sale-panel .order-name-count {gap:3px;font-size:.62rem}
+}
+html[data-bs-theme="dark"] .server-pos-layout .order-name-count,
+html[data-bs-theme="dark"] .cashier-sale-panel .order-name-count {color:#f2d4a2}
+html[data-bs-theme="dark"] .server-pos-layout .order-name-count strong,
+html[data-bs-theme="dark"] .cashier-sale-panel .order-name-count strong,
+html[data-bs-theme="dark"] .server-pos-layout .pos-cart-item-quantity,
+html[data-bs-theme="dark"] .cashier-sale-panel .pos-cart-item-quantity {
+  background:#58452c;
+  color:#ffdf9e;
+}

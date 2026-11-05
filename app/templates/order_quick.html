@@ -53,7 +53,7 @@
 
     <div class="server-invoice-identify">
       <div class="server-invoice-field">
-        <label for="invoice_name">Nom de la facture <span class="server-invoice-optional">facultatif</span></label>
+        <div class="order-name-heading"><label for="invoice_name">Nom de la facture <span class="server-invoice-optional">facultatif</span></label><span class="order-name-count">Articles <strong id="cartCount">0</strong></span></div>
         <input class="form-control form-control-lg" id="invoice_name" name="invoice_name" maxlength="120" autocomplete="off" placeholder="Ex. Client terrasse, Paul">
       </div>
     </div>
@@ -100,7 +100,7 @@
   </section>
 
   <aside class="panel-card pos-cart-panel">
-    <div class="pos-cart-header"><h2>Panier <span class="pos-cart-counter" id="cartCount" aria-label="Nombre d'articles">0</span></h2><button class="btn btn-sm btn-light border" id="clearCart" type="button">Vider</button></div>
+    <div class="pos-cart-header"><h2>Panier</h2><button class="btn btn-sm btn-light border" id="clearCart" type="button">Vider</button></div>
     <div class="pos-cart-empty" id="cartEmpty"><div>🧾</div><strong>Panier vide</strong><small>Sélectionnez un produit.</small></div>
     <div class="pos-cart-lines" id="cartLines"></div>
     <div class="pos-order-meta">
@@ -234,7 +234,7 @@
       count += item.quantity;
       const row = document.createElement('div');
       row.className = 'pos-cart-line';
-      row.innerHTML = `<input type="hidden" name="product_id" value="${item.id}"><div class="pos-cart-copy"><strong>${escapeHtml(item.name)}</strong><small>${formatMoney(item.price)} ${escapeHtml(currency)} · stock ${item.stock}</small></div><div class="pos-qty-control"><button type="button" class="qty-minus">−</button><input name="quantity" type="number" min="0.001" max="${item.stock}" step="0.001" value="${item.quantity}"><button type="button" class="qty-plus">+</button></div><strong class="pos-line-total">${formatMoney(item.price * item.quantity)}</strong>`;
+      row.innerHTML = `<input type="hidden" name="product_id" value="${item.id}"><div class="pos-cart-copy"><div class="pos-cart-product-head"><strong>${escapeHtml(item.name)}</strong><span class="pos-cart-item-quantity" aria-label="Quantité : ${item.quantity}">×${item.quantity}</span></div><small>${formatMoney(item.price)} ${escapeHtml(currency)} · stock ${item.stock}</small></div><div class="pos-qty-control"><button type="button" class="qty-minus">−</button><input name="quantity" type="number" min="0.001" max="${item.stock}" step="0.001" value="${item.quantity}"><button type="button" class="qty-plus">+</button></div><strong class="pos-line-total">${formatMoney(item.price * item.quantity)}</strong>`;
       row.querySelector('.qty-minus').addEventListener('click', () => changeQty(item.id, item.quantity - 1));
       row.querySelector('.qty-plus').addEventListener('click', () => changeQty(item.id, item.quantity + 1));
       row.querySelector('input[name="quantity"]').addEventListener('change', e => changeQty(item.id, Number(e.target.value)));
