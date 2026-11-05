@@ -82,3 +82,34 @@ class InventoryDebtRequest(Tenant, db.Model):
         ),
         Index("ix_inventory_debt_requests_inventory", "bar_id", "inventory_id", "status"),
     )
+
+
+class InventoryExpenseLink(Tenant, db.Model):
+    """Attach a late-entered expense to the inventory it must reconcile."""
+
+    __tablename__ = "inventory_expense_links"
+    id = db.Column(ID, primary_key=True)
+    inventory_id = db.Column(ID, nullable=False)
+    expense_id = db.Column(ID, nullable=False)
+    linked_by_id = db.Column(ID, db.ForeignKey("users.id", ondelete="RESTRICT"), nullable=False)
+
+    __table_args__ = tenant_args(
+        "inventory_expense_links",
+        ForeignKeyConstraint(
+            ["bar_id", "inventory_id"],
+            ["inventories.bar_id", "inventories.id"],
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["bar_id", "expense_id"],
+            ["expenses.bar_id", "expenses.id"],
+            ondelete="RESTRICT",
+        ),
+        UniqueConstraint(
+            "bar_id", "expense_id", name="uq_inventory_expense_link_expense"
+        ),
+        Index(
+            "ix_inventory_expense_link_inventory",
+            "bar_id", "inventory_id", "expense_id",
+        ),
+    )

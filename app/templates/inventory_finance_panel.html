@@ -16,6 +16,38 @@
     {% endif %}
   </div>
 
+  {% if finance.has_period_financials %}
+  <div class="inv-finance-grid mt-3" aria-label="Montant théorique à remettre">
+    <div class="inv-finance-metric">
+      <span>Montant théorique à remettre</span>
+      <strong>{{ '{:,.0f}'.format(finance.expected_handover_amount|float) }} {{ bar.currency }}</strong>
+      <small>Ventes théoriques − dépenses imputées − dettes approuvées</small>
+    </div>
+    <div class="inv-finance-metric">
+      <span>Ventes théoriques</span>
+      <strong>{{ '{:,.0f}'.format(finance.theoretical_sales_amount|float) }} {{ bar.currency }}</strong>
+      <small>Calculées à partir des quantités physiques sauvegardées</small>
+    </div>
+    <div class="inv-finance-metric">
+      <span>Dépenses imputées</span>
+      <strong>− {{ '{:,.0f}'.format(finance.expenses_amount|float) }} {{ bar.currency }}</strong>
+      <small>Dépenses de la période et dépenses ajoutées depuis cet inventaire</small>
+    </div>
+    <div class="inv-finance-metric">
+      <span>Dettes et crédits approuvés</span>
+      <strong>− {{ '{:,.0f}'.format(finance.credit_sales_amount|float) }} {{ bar.currency }}</strong>
+      <small>Déduits après validation du propriétaire</small>
+    </div>
+    {% if finance.pending_debt_amount > 0 %}
+    <div class="inv-finance-metric inv-finance-negative">
+      <span>Dettes en attente — non déduites</span>
+      <strong>{{ '{:,.0f}'.format(finance.pending_debt_amount|float) }} {{ bar.currency }}</strong>
+      <small>À faire approuver avant la validation finale</small>
+    </div>
+    {% endif %}
+  </div>
+  {% endif %}
+
   {% if finance.session %}
     <div class="inv-finance-grid">
       <div class="inv-finance-metric">
@@ -100,7 +132,7 @@
         <div><label class="form-label">Explication</label><input class="form-control" name="reason" maxlength="500" required placeholder="Ex. Client parti à crédit"></div>
         <button class="btn btn-outline-primary" type="submit">Soumettre au propriétaire</button>
       </form>
-      <p class="text-secondary small mt-2">Une demande n'est pas encore une dette comptabilisée. Une dette sans facture n'est jamais déduite automatiquement de la recette attendue.</p>
+      <p class="text-secondary small mt-2">La dette est déduite du montant théorique à remettre après approbation du propriétaire. Une demande en attente n'est pas encore déduite.</p>
       {% else %}
         <p class="mt-2">Créez d'abord la fiche du client dans la gestion des clients.</p>
       {% endif %}
@@ -133,7 +165,6 @@
     {% endfor %}
   </div>
   {% endif %}
-  <p class="small text-secondary mt-3 mb-0">Le manquant réel provient exclusivement du tiroir et de sa session de caisse. Les ventes théoriques calculées depuis les bouteilles sont un indicateur distinct ; elles ne sont jamais ajoutées une deuxième fois à la caisse. Les dettes manuelles sont hors caisse, et les dettes de facture doivent correspondre au solde encore impayé.</p>
+  <p class="small text-secondary mt-3 mb-0">Le montant théorique à remettre est calculé ainsi : ventes théoriques du stock − dépenses imputées à cet inventaire − dettes et crédits approuvés. Les demandes de dette en attente ne sont pas déduites avant validation du propriétaire. Le solde du tiroir reste un indicateur distinct : seules les dépenses réglées en espèces diminuent les espèces attendues dans la session de caisse.</p>
 </section>
 
-<script defer src="{{ url_for('static',filename='inventory_finance_async.js',v='20261027-v2') }}"></script>

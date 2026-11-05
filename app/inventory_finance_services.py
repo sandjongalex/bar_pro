@@ -13,7 +13,7 @@ from app.cash_services import cash_service
 from app.customer_services import customer_service
 from app.expense_services import expense_service
 from app.extensions import db
-from app.inventory_finance_models import InventoryCashReconciliation, InventoryDebtRequest
+from app.inventory_finance_models import InventoryCashReconciliation, InventoryDebtRequest, InventoryExpenseLink
 from app.inventory_services import inventory_service
 from app.models import (
     CashSession, Customer, ExpenseCategory, Order, User, utcnow,
@@ -74,6 +74,7 @@ def view(actor, bar_id, inventory_id):
     current = saved_session or live_session
     live_expected = (cash_service.expected(live_session)
                      if live_session and live_session.status == "OPEN" else None)
+    financial = inventory_service.financial_summary(inv)
     rows = db.session.execute(
         select(InventoryDebtRequest, Customer)
         .join(Customer, (Customer.id == InventoryDebtRequest.customer_id)
@@ -112,6 +113,13 @@ def view(actor, bar_id, inventory_id):
         "session_open": live_session is not None and (
             saved is None or live_session.id == saved.cash_session_id),
         "live_expected": live_expected,
+        "has_period_financials": financial["available"],
+        "theoretical_sales_amount": financial["theoretical_sales_amount"],
+        "expenses_amount": financial["expenses_amount"],
+        "credit_sales_amount": financial["credit_sales_amount"],
+        "approved_debt_amount": financial["approved_debt_amount"],
+        "pending_debt_amount": financial["pending_debt_amount"],
+        "expected_handover_amount": financial["expected_cash_amount"],
         "changed_since_count": saved is not None and (
             live_session is not None and (
                 live_session.id != saved.cash_session_id
@@ -199,6 +207,11 @@ def add_expense(actor, bar_id, inventory_id, *, category_id, amount, description
         f"Inventaire {inv.reference} : {note}",
         amount, method, None, session.id if session is not None else None,
     )
+    db.session.flush()
+    db.session.add(InventoryExpenseLink(
+        bar_id=bar_id, inventory_id=inv.id, expense_id=expense.id,
+        linked_by_id=actor.id,
+    ))
     db.session.flush()
     record(actor, bar_id, "inventory.finance.late_expense", "inventories",
            inv.id, note, changes={"expense_id": expense.id, "amount": str(expense.amount),

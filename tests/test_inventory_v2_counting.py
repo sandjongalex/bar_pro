@@ -145,6 +145,7 @@ def test_web_count_page_autosave_and_csrf(env):
     assert "/v2-count" in response.headers["Location"]
     count_page = client.get(path + "/v2-count")
     assert count_page.status_code == 200
+    assert "inventory_finance_async.js" in count_page.text
     assert "Non compté" in count_page.text
     assert re.search(
         rf'name="units_{env[4].id}"[^>]*value=""',

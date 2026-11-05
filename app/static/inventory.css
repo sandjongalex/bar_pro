@@ -196,10 +196,13 @@
     white-space:nowrap;
     min-height:34px;
   }
-  /* Always visible: machine baseline, the physical input, stock delta, note. */
-  .inventory-table-card .inventory-table tbody tr td:nth-child(5) {order:1;}
-  .inventory-table-card .inventory-table tbody tr td:nth-child(6) {order:2;}
-  .inventory-table-card .inventory-table tbody tr td:nth-child(9) {
+  /* Column order after the added non-sale movements column:
+     6 machine, 7 physical input, 10 difference, 11 note.
+     Product, opening, purchases, movements, theoretical, sold and sales
+     remain expandable details on small screens. */
+  .inventory-table-card .inventory-table tbody tr td:nth-child(6) {order:1;}
+  .inventory-table-card .inventory-table tbody tr td:nth-child(7) {order:2;}
+  .inventory-table-card .inventory-table tbody tr td:nth-child(10) {
     order:3;
     grid-column:1/-1;
     display:flex;
@@ -210,11 +213,11 @@
     padding:5px 9px;
     margin-top:2px;
   }
-  .inventory-table-card .inventory-table tbody tr td:nth-child(9):before {
+  .inventory-table-card .inventory-table tbody tr td:nth-child(10):before {
     display:inline;
     margin:0;
   }
-  .inventory-table-card .inventory-table tbody tr td:nth-child(10) {
+  .inventory-table-card .inventory-table tbody tr td:nth-child(11) {
     order:4;
     grid-column:1/-1;
     padding:4px 2px 0;
@@ -222,19 +225,21 @@
   .inventory-table-card .inventory-table tbody tr td:nth-child(2),
   .inventory-table-card .inventory-table tbody tr td:nth-child(3),
   .inventory-table-card .inventory-table tbody tr td:nth-child(4),
-  .inventory-table-card .inventory-table tbody tr td:nth-child(7),
-  .inventory-table-card .inventory-table tbody tr td:nth-child(8) {
+  .inventory-table-card .inventory-table tbody tr td:nth-child(5),
+  .inventory-table-card .inventory-table tbody tr td:nth-child(8),
+  .inventory-table-card .inventory-table tbody tr td:nth-child(9) {
     display:none;
     order:5;
   }
   .inventory-table-card .inventory-table tbody tr.inventory-details-open td:nth-child(2),
   .inventory-table-card .inventory-table tbody tr.inventory-details-open td:nth-child(3),
   .inventory-table-card .inventory-table tbody tr.inventory-details-open td:nth-child(4),
-  .inventory-table-card .inventory-table tbody tr.inventory-details-open td:nth-child(7),
-  .inventory-table-card .inventory-table tbody tr.inventory-details-open td:nth-child(8) {
+  .inventory-table-card .inventory-table tbody tr.inventory-details-open td:nth-child(5),
+  .inventory-table-card .inventory-table tbody tr.inventory-details-open td:nth-child(8),
+  .inventory-table-card .inventory-table tbody tr.inventory-details-open td:nth-child(9) {
     display:block;
   }
-  .inventory-table-card .inventory-table tbody tr td:nth-child(6) .inventory-count-input {
+  .inventory-table-card .inventory-table tbody tr td:nth-child(7) .inventory-count-input {
     min-height:44px;
     border-width:2px;
     font-size:1.04rem;
@@ -242,8 +247,8 @@
     background:#f4fcf8;
     padding:7px 10px;
   }
-  .inventory-table-card .inventory-table tbody td:nth-child(9) .inventory-gap {font-size:1rem;}
-  .inventory-table-card .inventory-table tbody td:nth-child(10) .form-control {min-height:38px;}
+  .inventory-table-card .inventory-table tbody td:nth-child(10) .inventory-gap {font-size:1rem;}
+  .inventory-table-card .inventory-table tbody td:nth-child(11) .form-control {min-height:38px;}
   /* Avoid the sticky toolbar covering the next card on tablet portrait. */
   .inventory-actions {
     position:static;
@@ -268,7 +273,7 @@
   .inventory-table-card .inventory-table tbody tr td:last-child {
     grid-column:1/-1;
   }
-  .inventory-table-card .inventory-table tbody tr td:nth-child(9) {grid-column:1/-1;}
+  .inventory-table-card .inventory-table tbody tr td:nth-child(10) {grid-column:1/-1;}
   .inventory-table-card .inventory-table tbody td {font-size:.84rem;}
 }
 

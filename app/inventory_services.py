@@ -5,11 +5,12 @@ from datetime import date, datetime, time, timezone
 from decimal import Decimal, ROUND_HALF_UP
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 
 from app.customer_models import CustomerLedgerEntry
 from app.extensions import db
 from app.inventory_period_models import InventoryLineSnapshot, InventoryPeriodSnapshot
+from app.inventory_finance_models import InventoryDebtRequest, InventoryExpenseLink
 from app.inventory_assignment_models import InventoryCashierAssignment
 from app.inventory_count_models import InventoryLineCountState
 from app.shift_models import EmployeeShift
@@ -587,16 +588,79 @@ class InventoryService:
             return inv
         return self.count(actor, bar_id, inventory_id, quantities, notes)
 
-    def _financial_snapshot(self, inv, period, theoretical_sales):
+    def financial_summary(self, inv):
+        """Return live theoretical handover values for this inventory draft."""
+        period = db.session.scalar(
+            select(InventoryPeriodSnapshot).where(
+                InventoryPeriodSnapshot.bar_id == inv.bar_id,
+                InventoryPeriodSnapshot.inventory_id == inv.id,
+            )
+        )
+        if period is None:
+            return {
+                "available": False,
+                "theoretical_sales_amount": ZERO,
+                "expenses_amount": ZERO,
+                "credit_sales_amount": ZERO,
+                "approved_debt_amount": ZERO,
+                "pending_debt_amount": ZERO,
+                "expected_cash_amount": ZERO,
+                "recorded_net_amount": ZERO,
+                "cash_difference_amount": ZERO,
+            }
+        return self._financial_values(
+            inv, period, Decimal(period.theoretical_sales_amount or 0)
+        )
+
+    def _financial_values(self, inv, period, theoretical_sales):
         start_at = period.period_start_at
         end_at = period.period_end_at
+        theoretical_sales = _money(theoretical_sales)
 
+        # Explicit inventory links include forgotten expenses recorded after
+        # the draft's original cutoff timestamp.
+        linked_expense_ids = select(InventoryExpenseLink.expense_id).where(
+            InventoryExpenseLink.bar_id == inv.bar_id,
+            InventoryExpenseLink.inventory_id == inv.id,
+        )
+        expense_rows = db.session.scalars(
+            select(Expense).where(
+                Expense.bar_id == inv.bar_id,
+                or_(*(
+                    _in_period(Expense.incurred_at, start_at, end_at)
+                    + [Expense.id.in_(linked_expense_ids)]
+                )),
+            )
+        )
         expenses = ZERO
-        for item in db.session.scalars(
-            select(Expense).where(Expense.bar_id == inv.bar_id, *_in_period(Expense.incurred_at, start_at, end_at))
-        ):
-            expenses += Decimal(item.amount) if item.entry_kind == "EXPENSE" else -Decimal(item.amount)
+        for item in expense_rows:
+            expenses += (
+                Decimal(item.amount)
+                if item.entry_kind == "EXPENSE"
+                else -Decimal(item.amount)
+            )
         expenses = max(_money(expenses), ZERO)
+
+        debt_requests = list(db.session.scalars(
+            select(InventoryDebtRequest).where(
+                InventoryDebtRequest.bar_id == inv.bar_id,
+                InventoryDebtRequest.inventory_id == inv.id,
+            )
+        ))
+        approved_requests = [
+            item for item in debt_requests if item.status == "APPROVED"
+        ]
+        approved_entry_ids = [
+            item.ledger_entry_id for item in approved_requests
+            if item.ledger_entry_id is not None
+        ]
+        approved_debt = sum(
+            (Decimal(item.amount) for item in approved_requests), ZERO
+        )
+        pending_debt = sum(
+            (Decimal(item.amount) for item in debt_requests if item.status == "PENDING"),
+            ZERO,
+        )
 
         order_ids = list(
             db.session.scalars(
@@ -613,17 +677,21 @@ class InventoryService:
         payments = ZERO
         refunds = ZERO
         if order_ids:
-            credit_sales = Decimal(
-                db.session.scalar(
-                    select(func.coalesce(func.sum(CustomerLedgerEntry.amount_delta), 0)).where(
-                        CustomerLedgerEntry.bar_id == inv.bar_id,
-                        CustomerLedgerEntry.order_id.in_(order_ids),
-                        CustomerLedgerEntry.entry_kind.in_(["CREDIT_SALE", "REVERSAL"]),
-                        CustomerLedgerEntry.occurred_at <= end_at,
-                    )
-                )
-                or 0
+            credit_query = select(
+                func.coalesce(func.sum(CustomerLedgerEntry.amount_delta), 0)
+            ).where(
+                CustomerLedgerEntry.bar_id == inv.bar_id,
+                CustomerLedgerEntry.order_id.in_(order_ids),
+                CustomerLedgerEntry.entry_kind.in_(["CREDIT_SALE", "REVERSAL"]),
+                CustomerLedgerEntry.occurred_at <= end_at,
             )
+            # Inventory-approved debts are added by their request below, not
+            # again through the customer-ledger entry.
+            if approved_entry_ids:
+                credit_query = credit_query.where(
+                    ~CustomerLedgerEntry.id.in_(approved_entry_ids)
+                )
+            credit_sales = Decimal(db.session.scalar(credit_query) or 0)
             payments = Decimal(
                 db.session.scalar(
                     select(func.coalesce(func.sum(Payment.amount_applied), 0)).where(
@@ -645,18 +713,32 @@ class InventoryService:
                 or 0
             )
 
-        credit_sales = max(_money(credit_sales), ZERO)
+        credit_sales = max(_money(credit_sales + approved_debt), ZERO)
         net_receipts = _money(payments - refunds)
         expected_cash = _money(theoretical_sales - credit_sales - expenses)
         recorded_net = _money(net_receipts - expenses)
         cash_difference = _money(recorded_net - expected_cash)
 
-        period.theoretical_sales_amount = _money(theoretical_sales)
-        period.expenses_amount = expenses
-        period.credit_sales_amount = credit_sales
-        period.expected_cash_amount = expected_cash
-        period.recorded_net_amount = recorded_net
-        period.cash_difference_amount = cash_difference
+        return {
+            "available": True,
+            "theoretical_sales_amount": theoretical_sales,
+            "expenses_amount": expenses,
+            "credit_sales_amount": credit_sales,
+            "approved_debt_amount": _money(approved_debt),
+            "pending_debt_amount": _money(pending_debt),
+            "expected_cash_amount": expected_cash,
+            "recorded_net_amount": recorded_net,
+            "cash_difference_amount": cash_difference,
+        }
+
+    def _financial_snapshot(self, inv, period, theoretical_sales):
+        values = self._financial_values(inv, period, theoretical_sales)
+        period.theoretical_sales_amount = values["theoretical_sales_amount"]
+        period.expenses_amount = values["expenses_amount"]
+        period.credit_sales_amount = values["credit_sales_amount"]
+        period.expected_cash_amount = values["expected_cash_amount"]
+        period.recorded_net_amount = values["recorded_net_amount"]
+        period.cash_difference_amount = values["cash_difference_amount"]
 
     def post(self, actor, bar_id, inventory_id):
         inv = self.get(actor, bar_id, inventory_id, write=True)
