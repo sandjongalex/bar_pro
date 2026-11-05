@@ -10,10 +10,10 @@ from app.customer_services import customer_service
 from app.expense_services import expense_service
 from app.extensions import db
 from app.inventory_services import inventory_service
-from app.inventory_finance_models import InventoryCashReconciliation, InventoryDebtRequest
+from app.inventory_finance_models import InventoryCashReconciliation, InventoryDebtRequest, InventoryDebtPaymentLink
 from app.inventory_period_models import InventoryPeriodSnapshot
 from app.inventory_finance_services import (
-    view, count_cash, add_expense, request_debt, decide_debt,
+    view, count_cash, add_expense, request_debt, decide_debt, add_debt_payment,
 )
 from app.models import CashMovement, CashSession, Customer, Expense, ExpenseCategory, Order
 
@@ -408,3 +408,48 @@ def test_live_handover_subtracts_late_expenses_and_only_approved_inventory_debts
     assert saved_period.expenses_amount == Decimal("50")
     assert saved_period.credit_sales_amount == Decimal("75")
     assert saved_period.expected_cash_amount == Decimal("75")
+
+
+
+def test_old_manual_debt_repayment_is_added_to_current_inventory_handover(env):
+    inv = setup_inventory(env, reference="OLD-DEBT-REPAYMENT")
+    session = drawer(env)
+    cust = customer(env)
+    customer_service.record_manual_debt(
+        env[1], env[2].id, cust.id, "DET-20261030-ALEX",
+        "250", "Dette contractée le 30 octobre",
+    )
+    inventory_service.count(env[1], env[2].id, inv.id, {str(env[4].id): "8"})
+    db.session.commit()
+    link = add_debt_payment(
+        env[1], env[2].id, inv.id, customer_id=cust.id,
+        debt_kind="MANUAL", amount="250", debt_origin_date="2026-10-30",
+        reason="Alex règle sa dette du 30 octobre",
+        nonce="oldDebtPaymentOnce01",
+    )
+    db.session.commit()
+    assert link.ledger_entry_id is not None
+    assert customer_service.manual_debt_balance(env[2].id, cust.id) == 0
+    assert cash_service.expected(session) == Decimal("1250")
+    summary = view(env[1], env[2].id, inv.id)
+    assert summary["debt_repayments_amount"] == Decimal("250")
+    assert summary["expected_handover_amount"] == Decimal("450")
+    assert summary["debt_payments"][0]["debt_origin_date"].isoformat() == "2026-10-30"
+    assert db.session.query(CashMovement).count() == 1
+    with pytest.raises(ValueError, match="INVENTORY_DEBT_PAYMENT_DUPLICATE"):
+        add_debt_payment(
+            env[1], env[2].id, inv.id, customer_id=cust.id,
+            debt_kind="MANUAL", amount="250", debt_origin_date="2026-10-30",
+            reason="Tentative de doublon", nonce="oldDebtPaymentOnce01",
+        )
+    db.session.rollback()
+    inventory_service.post(env[1], env[2].id, inv.id)
+    db.session.commit()
+    saved_period = db.session.scalar(select(InventoryPeriodSnapshot).where(
+        InventoryPeriodSnapshot.bar_id == env[2].id,
+        InventoryPeriodSnapshot.inventory_id == inv.id,
+    ))
+    assert saved_period.theoretical_sales_amount == Decimal("200")
+    assert saved_period.debt_repayments_amount == Decimal("250")
+    assert saved_period.expected_cash_amount == Decimal("450")
+    assert db.session.query(InventoryDebtPaymentLink).count() == 1

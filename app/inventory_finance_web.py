@@ -9,7 +9,8 @@ from sqlalchemy.exc import IntegrityError
 from app.extensions import db
 from app.inventory_assignment_models import InventoryCashierAssignment
 from app.inventory_finance_services import (
-    count_cash, add_expense, request_debt, decide_debt, view as finance_view,
+    count_cash, add_expense, request_debt, decide_debt, add_debt_payment,
+    view as finance_view,
 )
 from app.inventory_services import inventory_service
 from app.models import Bar
@@ -54,6 +55,17 @@ def act(bar_id, inventory_id):
                 nonce=request.form.get("nonce", ""),
             )
             message = "Dette signalée : confirmation du propriétaire requise."
+        elif action == "debt_payment":
+            add_debt_payment(
+                current_user, bar_id, inventory_id,
+                customer_id=int(request.form.get("customer_id", 0)),
+                debt_kind=request.form.get("debt_kind", ""),
+                amount=request.form.get("amount", ""),
+                debt_origin_date=request.form.get("debt_origin_date", ""),
+                reason=request.form.get("reason", ""),
+                nonce=request.form.get("nonce", ""),
+            )
+            message = "Règlement de dette antérieure enregistré dans le compte client et la caisse."
         elif action in ("approve_debt", "reject_debt"):
             decide_debt(
                 current_user, bar_id, inventory_id,
@@ -83,6 +95,7 @@ def act(bar_id, inventory_id):
                 finance=finance_view(current_user, bar_id, inventory_id),
                 finance_expense_nonce=secrets.token_hex(12),
                 finance_debt_nonce=secrets.token_hex(12),
+                finance_debt_payment_nonce=secrets.token_hex(12),
                 inventory=inv,
                 bar=db.session.get(Bar, bar_id),
                 bar_id=bar_id,

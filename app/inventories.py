@@ -57,6 +57,11 @@ def _message(code):
         "INVENTORY_FINANCE_DEBTS_PENDING": "Traitez les demandes de dette avant validation.",
         "INVENTORY_CASH_SESSION_REQUIRED": "Aucune session de caisse ouverte.",
         "INVENTORY_DEBT_DUPLICATE": "Cette demande de dette a déjà été envoyée.",
+        "INVENTORY_DEBT_PAYMENT_DUPLICATE": "Ce règlement de dette a déjà été enregistré.",
+        "INVALID_DEBT_PAYMENT_KIND": "Choisissez le type de dette à régler.",
+        "INVALID_DEBT_ORIGIN_DATE": "Renseignez une date valide pour la dette antérieure.",
+        "MANUAL_DEBT_REPAYMENT_LIMIT": "Le règlement dépasse la dette manuelle encore due par ce client.",
+        "CUSTOMER_PAYMENT_LIMIT": "Le règlement dépasse la dette sur facture encore due par ce client.",
         "INVENTORY_CASH_REASON_REQUIRED": "Justifiez la différence de caisse.",
         "INVENTORY_CASH_SESSION_MISMATCH": "La session de caisse a changé.",
         "INVENTORY_DEBT_ALREADY_DECIDED": "Demande déjà traitée.",
@@ -385,6 +390,7 @@ def detail(bar_id, inventory_id):
         finance=finance_view(current_user, bar_id, inv.id),
         finance_expense_nonce=secrets.token_hex(12),
         finance_debt_nonce=secrets.token_hex(12),
+        finance_debt_payment_nonce=secrets.token_hex(12),
         bar=bar,
         bar_id=bar_id,
         can_adjust=can_adjust,
@@ -595,7 +601,8 @@ def v2_report(bar_id, inventory_id):
     return render_template(template, report=data, bar=bar, bar_id=bar_id,
                            finance=finance_view(current_user, bar_id, inventory_id),
                            finance_expense_nonce=secrets.token_hex(12),
-                           finance_debt_nonce=secrets.token_hex(12))
+                           finance_debt_nonce=secrets.token_hex(12),
+                           finance_debt_payment_nonce=secrets.token_hex(12))
 
 
 @api_inventories_bp.get("/<int:inventory_id>/report")

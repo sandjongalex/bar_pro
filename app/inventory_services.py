@@ -10,7 +10,7 @@ from sqlalchemy import func, or_, select
 from app.customer_models import CustomerLedgerEntry
 from app.extensions import db
 from app.inventory_period_models import InventoryLineSnapshot, InventoryPeriodSnapshot
-from app.inventory_finance_models import InventoryDebtRequest, InventoryExpenseLink
+from app.inventory_finance_models import InventoryDebtRequest, InventoryExpenseLink, InventoryDebtPaymentLink
 from app.inventory_assignment_models import InventoryCashierAssignment
 from app.inventory_count_models import InventoryLineCountState
 from app.shift_models import EmployeeShift
@@ -600,6 +600,7 @@ class InventoryService:
             return {
                 "available": False,
                 "theoretical_sales_amount": ZERO,
+                "debt_repayments_amount": ZERO,
                 "expenses_amount": ZERO,
                 "credit_sales_amount": ZERO,
                 "approved_debt_amount": ZERO,
@@ -661,6 +662,18 @@ class InventoryService:
             (Decimal(item.amount) for item in debt_requests if item.status == "PENDING"),
             ZERO,
         )
+        debt_repayments = sum(
+            (-Decimal(value or 0) for value in db.session.scalars(
+                select(CustomerLedgerEntry.amount_delta)
+                .join(InventoryDebtPaymentLink,
+                      (InventoryDebtPaymentLink.bar_id == CustomerLedgerEntry.bar_id)
+                      & (InventoryDebtPaymentLink.ledger_entry_id == CustomerLedgerEntry.id))
+                .where(InventoryDebtPaymentLink.bar_id == inv.bar_id,
+                       InventoryDebtPaymentLink.inventory_id == inv.id)
+            )),
+            ZERO,
+        )
+        debt_repayments = _money(debt_repayments)
 
         order_ids = list(
             db.session.scalars(
@@ -715,13 +728,14 @@ class InventoryService:
 
         credit_sales = max(_money(credit_sales + approved_debt), ZERO)
         net_receipts = _money(payments - refunds)
-        expected_cash = _money(theoretical_sales - credit_sales - expenses)
-        recorded_net = _money(net_receipts - expenses)
+        expected_cash = _money(theoretical_sales + debt_repayments - credit_sales - expenses)
+        recorded_net = _money(net_receipts + debt_repayments - expenses)
         cash_difference = _money(recorded_net - expected_cash)
 
         return {
             "available": True,
             "theoretical_sales_amount": theoretical_sales,
+            "debt_repayments_amount": debt_repayments,
             "expenses_amount": expenses,
             "credit_sales_amount": credit_sales,
             "approved_debt_amount": _money(approved_debt),
@@ -736,6 +750,7 @@ class InventoryService:
         period.theoretical_sales_amount = values["theoretical_sales_amount"]
         period.expenses_amount = values["expenses_amount"]
         period.credit_sales_amount = values["credit_sales_amount"]
+        period.debt_repayments_amount = values["debt_repayments_amount"]
         period.expected_cash_amount = values["expected_cash_amount"]
         period.recorded_net_amount = values["recorded_net_amount"]
         period.cash_difference_amount = values["cash_difference_amount"]

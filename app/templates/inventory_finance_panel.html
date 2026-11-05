@@ -21,12 +21,17 @@
     <div class="inv-finance-metric">
       <span>Montant théorique à remettre</span>
       <strong>{{ '{:,.0f}'.format(finance.expected_handover_amount|float) }} {{ bar.currency }}</strong>
-      <small>Ventes théoriques − dépenses imputées − dettes approuvées</small>
+      <small>Ventes théoriques + dettes antérieures encaissées − dépenses imputées − dettes approuvées</small>
     </div>
     <div class="inv-finance-metric">
       <span>Ventes théoriques</span>
       <strong>{{ '{:,.0f}'.format(finance.theoretical_sales_amount|float) }} {{ bar.currency }}</strong>
       <small>Calculées à partir des quantités physiques sauvegardées</small>
+    </div>
+    <div class="inv-finance-metric">
+      <span>Dettes antérieures encaissées</span>
+      <strong>+ {{ '{:,.0f}'.format(finance.debt_repayments_amount|float) }} {{ bar.currency }}</strong>
+      <small>Règlements de dettes anciennes reçus en espèces pendant cet inventaire</small>
     </div>
     <div class="inv-finance-metric">
       <span>Dépenses imputées</span>
@@ -137,6 +142,51 @@
         <p class="mt-2">Créez d'abord la fiche du client dans la gestion des clients.</p>
       {% endif %}
     </details>
+    <details class="inv-finance-action">
+      <summary><strong>Enregistrer le paiement d'une dette antérieure</strong></summary>
+      {% if finance.session_open and finance.can_record_debt_payment %}
+        {% if finance.debt_payment_customers %}
+        <form method="post" action="{{ url_for('inventories_finance.act',bar_id=bar_id,inventory_id=inventory.id if inventory is defined else report.inventory_id) }}" class="inv-finance-form mt-3">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="action" value="debt_payment">
+          <input type="hidden" name="nonce" value="{{ finance_debt_payment_nonce }}">
+          <div>
+            <label class="form-label">Client qui règle sa dette</label>
+            <select class="form-select" name="customer_id" required>
+              {% for customer in finance.debt_payment_customers %}
+              <option value="{{ customer.id }}">{{ customer.display_name }} — facture : {{ '{:,.0f}'.format(customer.credit_balance|float) }} / manuelle : {{ '{:,.0f}'.format(customer.manual_balance|float) }} {{ bar.currency }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div>
+            <label class="form-label">Type de dette réglée</label>
+            <select class="form-select" name="debt_kind" required>
+              <option value="CREDIT">Dette liée à une facture</option>
+              <option value="MANUAL">Dette manuelle hors facture</option>
+            </select>
+          </div>
+          <div>
+            <label class="form-label">Date d'origine de la dette</label>
+            <input class="form-control" type="date" name="debt_origin_date" required>
+          </div>
+          <div>
+            <label class="form-label">Montant encaissé ({{ bar.currency }})</label>
+            <input class="form-control" type="number" name="amount" min="1" step="1" required>
+          </div>
+          <div>
+            <label class="form-label">Observation / référence</label>
+            <input class="form-control" name="reason" maxlength="500" required placeholder="Ex. Alex règle sa dette du 30 octobre">
+          </div>
+          <button class="btn btn-outline-primary" type="submit">Enregistrer le règlement</button>
+        </form>
+        <p class="small text-secondary mt-2">Le règlement diminue le solde dû par le client et augmente les espèces de la session actuelle. Il ne constitue pas une nouvelle vente et ne modifie pas le stock. La date d'origine est conservée pour le suivi.</p>
+        {% else %}
+        <p class="small text-secondary mt-2">Aucun client actif ne présente de dette impayée dans BAR_PRO. Enregistrez d'abord la dette dans la fiche du client si elle n'y figure pas encore.</p>
+        {% endif %}
+      {% else %}
+        <p class="small text-secondary mt-2">Une session de caisse ouverte et le droit de règlement client sont nécessaires pour encaisser une dette antérieure.</p>
+      {% endif %}
+    </details>
   </div>
   {% endif %}
 
@@ -165,6 +215,30 @@
     {% endfor %}
   </div>
   {% endif %}
-  <p class="small text-secondary mt-3 mb-0">Le montant théorique à remettre est calculé ainsi : ventes théoriques du stock − dépenses imputées à cet inventaire − dettes et crédits approuvés. Les demandes de dette en attente ne sont pas déduites avant validation du propriétaire. Le solde du tiroir reste un indicateur distinct : seules les dépenses réglées en espèces diminuent les espèces attendues dans la session de caisse.</p>
+
+  {% if finance.debt_payments %}
+  <h3 class="h6 mt-4">Dettes antérieures encaissées pendant cet inventaire</h3>
+  <div class="inv-finance-requests">
+    {% for item in finance.debt_payments %}
+    <div class="inv-finance-request">
+      <div>
+        <strong>{{ item.customer }} — + {{ '{:,.0f}'.format(item.amount|float) }} {{ bar.currency }}</strong>
+        <small class="d-block text-secondary">{{ item.kind_label }} · Dette du {{ item.debt_origin_date }} · Payée le {{ item.paid_at }} · {{ item.reason }} · Saisie par {{ item.recorded_by }}</small>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <p class="small text-secondary mt-3 mb-0">Le montant à remettre est calculé ainsi : ventes théoriques du stock + dettes antérieures encaissées en espèces − dépenses imputées − dettes/crédits approuvés. Les dettes en attente ne sont pas déduites avant validation du propriétaire. Les remboursements de dettes sont enregistrés dans le compte du client et dans le journal de caisse, sans être comptés comme ventes.</p>
+  {% if finance.has_period_financials %}
+  <div class="inv-finance-grid mt-4" aria-label="Montant final de l'inventaire à remettre">
+    <div class="inv-finance-metric">
+      <span>Montant final de l'inventaire à remettre</span>
+      <strong>{{ '{:,.0f}'.format(finance.expected_handover_amount|float) }} {{ bar.currency }}</strong>
+      <small>Ventes {{ '{:,.0f}'.format(finance.theoretical_sales_amount|float) }} + dettes antérieures encaissées {{ '{:,.0f}'.format(finance.debt_repayments_amount|float) }} − dettes approuvées {{ '{:,.0f}'.format(finance.credit_sales_amount|float) }} − dépenses {{ '{:,.0f}'.format(finance.expenses_amount|float) }}</small>
+    </div>
+  </div>
+  {% endif %}
 </section>
 

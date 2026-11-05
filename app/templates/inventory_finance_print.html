@@ -1,7 +1,8 @@
 <h2>Montant théorique à remettre</h2>
 {% if finance.has_period_financials %}
 <p><strong>{{ '{:,.0f}'.format(finance.expected_handover_amount|float) }} {{ bar.currency }}</strong> =
-   ventes théoriques {{ '{:,.0f}'.format(finance.theoretical_sales_amount|float) }} −
+   ventes théoriques {{ '{:,.0f}'.format(finance.theoretical_sales_amount|float) }} +
+   dettes antérieures encaissées {{ '{:,.0f}'.format(finance.debt_repayments_amount|float) }} −
    dépenses imputées {{ '{:,.0f}'.format(finance.expenses_amount|float) }} −
    dettes/crédits approuvés {{ '{:,.0f}'.format(finance.credit_sales_amount|float) }}.</p>
 {% else %}
@@ -9,6 +10,13 @@
 {% endif %}
 {% if finance.pending_debt_amount > 0 %}
 <p><strong>Dettes en attente non déduites :</strong> {{ '{:,.0f}'.format(finance.pending_debt_amount|float) }} {{ bar.currency }}.</p>
+{% endif %}
+{% if finance.debt_payments %}
+<h2>Dettes antérieures encaissées</h2>
+{% for item in finance.debt_payments %}
+<p>{{ item.customer }} · {{ item.kind_label }} · Dette du {{ item.debt_origin_date }} ·
+   encaissée le {{ item.paid_at }} · + {{ '{:,.0f}'.format(item.amount|float) }} {{ bar.currency }} · {{ item.reason }}</p>
+{% endfor %}
 {% endif %}
 <h2>Relevé physique de caisse</h2>
 {% if finance.saved %}
@@ -32,6 +40,14 @@
    {{ {'PENDING':'En attente','APPROVED':'Approuvée','REJECTED':'Rejetée'}.get(item.status,item.status) }} · {{ item.reason }}</p>
 {% endfor %}
 {% endif %}
-<p class="note">Les montants calculés depuis le stock sont des indicateurs distincts.
-  Les dettes approuvées diminuent le montant théorique à remettre ; les demandes en attente ne sont pas déduites.
+{% if finance.has_period_financials %}
+<h2>Montant final de l'inventaire à remettre</h2>
+<p><strong>{{ '{:,.0f}'.format(finance.expected_handover_amount|float) }} {{ bar.currency }}</strong> —
+   ventes {{ '{:,.0f}'.format(finance.theoretical_sales_amount|float) }} +
+   dettes antérieures encaissées {{ '{:,.0f}'.format(finance.debt_repayments_amount|float) }} −
+   dépenses {{ '{:,.0f}'.format(finance.expenses_amount|float) }} −
+   dettes/crédits approuvés {{ '{:,.0f}'.format(finance.credit_sales_amount|float) }}.</p>
+{% endif %}
+<p class="note">Les remboursements de dettes sont des encaissements distincts des ventes et réduisent le solde du client.
+  Les demandes de dette en attente ne sont pas déduites avant validation du propriétaire.
   Ce relevé ne clôture pas automatiquement la session de caisse.</p>

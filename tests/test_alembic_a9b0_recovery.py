@@ -28,7 +28,7 @@ def test_existing_a9b0_database_upgrades_through_current_head(tmp_path):
         assert "warehouse_locations" not in schema.get_table_names()
 
         upgrade(directory=app.config["MIGRATIONS_DIRECTORY"])
-        assert db.session.execute(text("SELECT version_num FROM alembic_version")).scalar() == "f8b9c0d1e2f3"
+        assert db.session.execute(text("SELECT version_num FROM alembic_version")).scalar() == "f9c0d1e2f3a4"
         schema = inspect(db.engine)
         for name in (
             "warehouse_locations", "warehouse_stock_balances",
@@ -36,6 +36,10 @@ def test_existing_a9b0_database_upgrades_through_current_head(tmp_path):
         ):
             assert name in schema.get_table_names()
         assert "inventory_expense_links" in schema.get_table_names()
+        assert "inventory_debt_payment_links" in schema.get_table_names()
+        assert "debt_repayments_amount" in {
+            column["name"] for column in schema.get_columns("inventory_period_snapshots")
+        }
         columns = {col["name"]: col for col in schema.get_columns("inventory_cashier_assignments")}
         assert columns["cashier_shift_id"]["nullable"]
         assert columns["cashier_user_id"]["nullable"]

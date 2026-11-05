@@ -2,18 +2,20 @@
 from __future__ import annotations
 
 import secrets
+from datetime import date
 from decimal import Decimal
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from app.audit import record
 from app.inventory_assignment_models import InventoryCashierAssignment
 from app.shift_service import get_active_shift_for_user
 from app.cash_services import cash_service
+from app.customer_models import CustomerLedgerEntry
 from app.customer_services import customer_service
 from app.expense_services import expense_service
 from app.extensions import db
-from app.inventory_finance_models import InventoryCashReconciliation, InventoryDebtRequest, InventoryExpenseLink
+from app.inventory_finance_models import (InventoryCashReconciliation, InventoryDebtRequest, InventoryExpenseLink, InventoryDebtPaymentLink)
 from app.inventory_services import inventory_service
 from app.models import (
     CashSession, Customer, ExpenseCategory, Order, User, utcnow,
@@ -70,10 +72,10 @@ def view(actor, bar_id, inventory_id):
     saved_session = db.session.scalar(select(CashSession).where(
         CashSession.bar_id == bar_id, CashSession.id == saved.cash_session_id,
     )) if saved else None
-    # A closed historic count must always show its original session identity.
     current = saved_session or live_session
     live_expected = (cash_service.expected(live_session)
                      if live_session and live_session.status == "OPEN" else None)
+    session_open = live_session is not None and (saved is None or live_session.id == saved.cash_session_id)
     financial = inventory_service.financial_summary(inv)
     rows = db.session.execute(
         select(InventoryDebtRequest, Customer)
@@ -83,60 +85,86 @@ def view(actor, bar_id, inventory_id):
                InventoryDebtRequest.inventory_id == inv.id)
         .order_by(InventoryDebtRequest.id.desc())
     ).all()
-    users = {
-        user.id: user.display_name
-        for user in db.session.scalars(select(User).where(
-            User.id.in_([request.requested_by_id for request, _ in rows] or [-1])
-        ))
-    }
+    payment_rows = db.session.execute(
+        select(InventoryDebtPaymentLink, CustomerLedgerEntry, Customer)
+        .join(CustomerLedgerEntry, (CustomerLedgerEntry.id == InventoryDebtPaymentLink.ledger_entry_id)
+              & (CustomerLedgerEntry.bar_id == InventoryDebtPaymentLink.bar_id))
+        .join(Customer, (Customer.id == CustomerLedgerEntry.customer_id)
+              & (Customer.bar_id == CustomerLedgerEntry.bar_id))
+        .where(InventoryDebtPaymentLink.bar_id == bar_id,
+               InventoryDebtPaymentLink.inventory_id == inv.id)
+        .order_by(InventoryDebtPaymentLink.id.desc())
+    ).all()
+    user_ids = {req.requested_by_id for req, _ in rows}
+    user_ids.update(link.linked_by_id for link, _, _ in payment_rows)
+    users = {u.id: u.display_name for u in db.session.scalars(
+        select(User).where(User.id.in_(list(user_ids) or [-1]))
+    )}
     requests = [{
-        "id": req.id,
-        "customer": customer.display_name,
-        "amount": req.amount,
+        "id": req.id, "customer": customer.display_name, "amount": req.amount,
         "status": req.status,
         "kind": "Vente à crédit (facture)" if req.order_id else "Dette manuelle hors facture",
-        "order_id": req.order_id,
-        "reason": req.reason,
+        "order_id": req.order_id, "reason": req.reason,
         "requested_by": users.get(req.requested_by_id, "Utilisateur"),
     } for req, customer in rows]
-    can_edit = inv.status == "DRAFT" and permissions.evaluate(
-        actor, "inventory.count", bar_id
-    ).allowed
-    can_decide = can_edit and permissions.evaluate(
-        actor, "customer_debt.manage", bar_id
-    ).allowed
+    debt_payments = [{
+        "id": link.id, "customer": customer.display_name,
+        "amount": -Decimal(entry.amount_delta), "debt_kind": link.debt_kind,
+        "kind_label": "Dette sur facture" if link.debt_kind == "CREDIT" else "Dette manuelle",
+        "debt_origin_date": link.debt_origin_date, "paid_at": entry.occurred_at,
+        "reason": entry.reason, "recorded_by": users.get(link.linked_by_id, "Utilisateur"),
+    } for link, entry, customer in payment_rows]
+    customers = list(db.session.scalars(select(Customer).where(
+        Customer.bar_id == bar_id, Customer.is_active.is_(True),
+    ).order_by(Customer.display_name).limit(200)).all())
+    credit_balances = dict(db.session.execute(
+        select(CustomerLedgerEntry.customer_id, func.coalesce(func.sum(CustomerLedgerEntry.amount_delta), 0))
+        .where(CustomerLedgerEntry.bar_id == bar_id,
+               CustomerLedgerEntry.entry_kind != "ADJUSTMENT")
+        .group_by(CustomerLedgerEntry.customer_id)
+    ).all())
+    manual_balances = dict(db.session.execute(
+        select(CustomerLedgerEntry.customer_id, func.coalesce(func.sum(CustomerLedgerEntry.amount_delta), 0))
+        .where(CustomerLedgerEntry.bar_id == bar_id,
+               CustomerLedgerEntry.entry_kind == "ADJUSTMENT")
+        .group_by(CustomerLedgerEntry.customer_id)
+    ).all())
+    debt_payment_customers = []
+    for customer in customers:
+        credit_balance = max(Decimal(credit_balances.get(customer.id, 0) or 0), Decimal("0"))
+        manual_balance = max(Decimal(manual_balances.get(customer.id, 0) or 0), Decimal("0"))
+        if credit_balance > 0 or manual_balance > 0:
+            debt_payment_customers.append({
+                "id": customer.id, "display_name": customer.display_name,
+                "credit_balance": credit_balance, "manual_balance": manual_balance,
+            })
+    can_edit = inv.status == "DRAFT" and permissions.evaluate(actor, "inventory.count", bar_id).allowed
+    can_decide = can_edit and permissions.evaluate(actor, "customer_debt.manage", bar_id).allowed
+    can_record_debt_payment = can_edit and permissions.evaluate(actor, "customer_credit.manage", bar_id).allowed
     return {
-        "is_editable": can_edit,
-        "can_decide_debts": can_decide,
-        "saved": saved,
-        "session": current,
-        "session_open": live_session is not None and (
-            saved is None or live_session.id == saved.cash_session_id),
-        "live_expected": live_expected,
-        "has_period_financials": financial["available"],
+        "is_editable": can_edit, "can_decide_debts": can_decide,
+        "can_record_debt_payment": can_record_debt_payment,
+        "saved": saved, "session": current, "session_open": session_open,
+        "live_expected": live_expected, "has_period_financials": financial["available"],
         "theoretical_sales_amount": financial["theoretical_sales_amount"],
+        "debt_repayments_amount": financial["debt_repayments_amount"],
         "expenses_amount": financial["expenses_amount"],
         "credit_sales_amount": financial["credit_sales_amount"],
         "approved_debt_amount": financial["approved_debt_amount"],
         "pending_debt_amount": financial["pending_debt_amount"],
         "expected_handover_amount": financial["expected_cash_amount"],
-        "changed_since_count": saved is not None and (
-            live_session is not None and (
-                live_session.id != saved.cash_session_id
-                or Decimal(live_expected) != Decimal(saved.expected_amount)
-            )
+        "changed_since_count": saved is not None and live_session is not None and (
+            live_session.id != saved.cash_session_id
+            or Decimal(live_expected) != Decimal(saved.expected_amount)
         ),
         "categories": list(db.session.scalars(select(ExpenseCategory).where(
             ExpenseCategory.bar_id == bar_id, ExpenseCategory.is_active.is_(True),
         ).order_by(ExpenseCategory.name)).all()),
-        "customers": list(db.session.scalars(select(Customer).where(
-            Customer.bar_id == bar_id, Customer.is_active.is_(True),
-        ).order_by(Customer.display_name).limit(200)).all()),
+        "customers": customers, "debt_payment_customers": debt_payment_customers,
         "orders": list(db.session.scalars(select(Order).where(
-            Order.bar_id == bar_id,
-            Order.status.in_(("CONFIRMED", "SERVED")),
+            Order.bar_id == bar_id, Order.status.in_(("CONFIRMED", "SERVED")),
         ).order_by(Order.id.desc()).limit(100)).all()),
-        "debt_requests": requests,
+        "debt_requests": requests, "debt_payments": debt_payments,
         "pending_debts": sum(x["status"] == "PENDING" for x in requests),
     }
 
@@ -217,6 +245,58 @@ def add_expense(actor, bar_id, inventory_id, *, category_id, amount, description
            inv.id, note, changes={"expense_id": expense.id, "amount": str(expense.amount),
                                   "method": method})
     return expense
+
+
+def add_debt_payment(actor, bar_id, inventory_id, *, customer_id, debt_kind,
+                     amount, debt_origin_date, reason, nonce):
+    """Collect an older customer debt and attach its cash receipt to this inventory."""
+    inv = _check(actor, bar_id, inventory_id, write=True)
+    permissions.require(actor, "customer_credit.manage", bar_id)
+    session = _active_cash(bar_id)
+    if session is None:
+        raise ValueError("INVENTORY_CASH_SESSION_REQUIRED")
+    session = cash_service.session(bar_id, session.id)
+    nonce = (nonce or "").strip()
+    if not (8 <= len(nonce) <= 48 and nonce.isalnum()):
+        raise ValueError("INVALID_REQUEST")
+    if db.session.scalar(select(InventoryDebtPaymentLink.id).where(
+        InventoryDebtPaymentLink.bar_id == bar_id,
+        InventoryDebtPaymentLink.request_nonce == nonce,
+    )) is not None:
+        raise ValueError("INVENTORY_DEBT_PAYMENT_DUPLICATE")
+    try:
+        origin_date = date.fromisoformat(str(debt_origin_date or "").strip())
+    except (TypeError, ValueError):
+        raise ValueError("INVALID_DEBT_ORIGIN_DATE") from None
+    kind = (debt_kind or "").strip().upper()
+    if kind not in ("CREDIT", "MANUAL"):
+        raise ValueError("INVALID_DEBT_PAYMENT_KIND")
+    note = required_text(reason, 500)
+    reference = "INVPAY-" + nonce
+    if kind == "CREDIT":
+        entry = customer_service.record_payment(
+            actor, bar_id, int(customer_id), reference, amount, "CASH", note, session.id,
+        )
+    else:
+        entry = customer_service.record_manual_cash_repayment(
+            actor, bar_id, int(customer_id), reference, amount, note, session.id,
+        )
+    db.session.flush()
+    link = InventoryDebtPaymentLink(
+        bar_id=bar_id, inventory_id=inv.id, ledger_entry_id=entry.id,
+        debt_kind=kind, debt_origin_date=origin_date, request_nonce=nonce,
+        linked_by_id=actor.id,
+    )
+    db.session.add(link)
+    db.session.flush()
+    record(actor, bar_id, "inventory.finance.old_debt_paid",
+           "inventory_debt_payment_links", link.id, note,
+           changes={"inventory_id": inv.id, "customer_id": entry.customer_id,
+                    "ledger_entry_id": entry.id, "debt_kind": kind,
+                    "debt_origin_date": origin_date.isoformat(),
+                    "amount": str(-Decimal(entry.amount_delta)),
+                    "cash_session_id": session.id})
+    return link
 
 
 def request_debt(actor, bar_id, inventory_id, *, customer_id, order_id, amount, reason, nonce=None):

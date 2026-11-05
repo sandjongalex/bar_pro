@@ -23,6 +23,7 @@ class InventoryPeriodSnapshot(Tenant, db.Model):
     theoretical_sales_amount = db.Column(MONEY, nullable=False, default=0)
     expenses_amount = db.Column(MONEY, nullable=False, default=0)
     credit_sales_amount = db.Column(MONEY, nullable=False, default=0)
+    debt_repayments_amount = db.Column(MONEY, nullable=False, default=0)
     expected_cash_amount = db.Column(MONEY, nullable=False, default=0)
     recorded_net_amount = db.Column(MONEY, nullable=False, default=0)
     cash_difference_amount = db.Column(MONEY, nullable=False, default=0)

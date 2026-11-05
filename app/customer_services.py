@@ -180,6 +180,38 @@ class CustomerService:
         record(actor, bar_id, "customer_debt.manual_repayment", "customer_ledger_entries", item.id, item.reference)
         return item
 
+    def record_manual_cash_repayment(self, actor, bar_id, customer_id, reference, amount, reason, cash_session_id):
+        """Collect an existing manual debt in cash and register it in the drawer."""
+        permissions.require(actor, "customer_credit.manage", bar_id)
+        customer = db.session.scalar(select(Customer).where(
+            Customer.id == customer_id, Customer.bar_id == bar_id,
+            Customer.is_active.is_(True),
+        ).with_for_update())
+        if not customer:
+            raise LookupError("NOT_FOUND")
+        amount = number(amount, positive=True)
+        note = required_text(reason, 500)
+        if amount > self.manual_debt_balance(bar_id, customer.id, locking=True):
+            raise ValueError("MANUAL_DEBT_REPAYMENT_LIMIT")
+        session = cash_service.session(bar_id, cash_session_id)
+        item = CustomerLedgerEntry(
+            bar_id=bar_id, customer_id=customer.id, order_id=None,
+            reference=required_text(reference, 64), entry_kind="ADJUSTMENT",
+            amount_delta=-amount, currency=session.currency, method="CASH",
+            cash_session_id=session.id, reason=note, occurred_at=utcnow(),
+            recorded_by_id=actor.id,
+        )
+        db.session.add(item)
+        db.session.flush()
+        cash_service.entry(actor, bar_id, amount, session.currency,
+                           f"Règlement dette manuelle {item.reference}",
+                           session_id=session.id)
+        record(actor, bar_id, "customer_debt.manual_cash_repayment",
+               "customer_ledger_entries", item.id, item.reference,
+               changes={"customer_id": customer.id, "amount": str(amount),
+                        "cash_session_id": session.id})
+        return item
+
     def reverse_manual_debt(self, actor, bar_id, entry_id, reference, reason):
         """Append an audited reversal, never delete the debt or touch stock/cash.
 

@@ -113,3 +113,24 @@ class InventoryExpenseLink(Tenant, db.Model):
             "bar_id", "inventory_id", "expense_id",
         ),
     )
+
+
+class InventoryDebtPaymentLink(Tenant, db.Model):
+    """Attach a cash repayment of an older customer debt to one inventory."""
+    __tablename__ = "inventory_debt_payment_links"
+    id = db.Column(ID, primary_key=True)
+    inventory_id = db.Column(ID, nullable=False)
+    ledger_entry_id = db.Column(ID, nullable=False)
+    debt_kind = db.Column(db.String(16), nullable=False)
+    debt_origin_date = db.Column(db.Date, nullable=False)
+    request_nonce = db.Column(db.String(48), nullable=False)
+    linked_by_id = db.Column(ID, db.ForeignKey("users.id", ondelete="RESTRICT"), nullable=False)
+    __table_args__ = tenant_args(
+        "inventory_debt_payment_links",
+        ForeignKeyConstraint(["bar_id", "inventory_id"], ["inventories.bar_id", "inventories.id"], ondelete="RESTRICT"),
+        ForeignKeyConstraint(["bar_id", "ledger_entry_id"], ["customer_ledger_entries.bar_id", "customer_ledger_entries.id"], ondelete="RESTRICT"),
+        UniqueConstraint("bar_id", "ledger_entry_id", name="uq_inventory_debt_payment_ledger_entry"),
+        UniqueConstraint("bar_id", "request_nonce", name="uq_inventory_debt_payment_nonce"),
+        CheckConstraint("debt_kind IN ('CREDIT','MANUAL')", name="ck_inventory_debt_payment_kind"),
+        Index("ix_inventory_debt_payment_inventory", "bar_id", "inventory_id", "ledger_entry_id"),
+    )
