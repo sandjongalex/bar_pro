@@ -92,6 +92,7 @@
 <div id="catalogManager"
      class="catalog-manager"
      data-products-url="{{ url_for('catalog.async_products', bar_id=bar.id) }}"
+     data-product-delete-url="{{ url_for('catalog.async_delete_product', bar_id=bar.id) }}"
      data-categories-url="{{ url_for('catalog.async_categories', bar_id=bar.id) }}">
   {% if can_manage %}<input type="hidden" name="csrf_token" data-catalog-csrf value="{{ csrf_token() }}">{% endif %}
   <div class="catalog-notice alert" id="catalogNotice" role="status" aria-live="polite"></div>
@@ -169,6 +170,7 @@
               <td data-label="Actions"><div class="catalog-actions" data-actions>
                 <button class="btn btn-sm btn-primary" type="button" data-action="save-product">Enregistrer</button>
                 <button class="btn btn-sm btn-light border" type="button" data-action="insert-after" title="Insérer un produit après celui-ci">＋</button>
+                <button class="btn btn-sm btn-outline-danger" type="button" data-action="delete-product" title="Supprimer ou archiver ce produit">Supprimer</button>
               </div><small class="catalog-row-feedback" data-row-feedback></small></td>
               {% endif %}
             </tr>

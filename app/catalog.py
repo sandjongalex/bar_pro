@@ -10,6 +10,7 @@ from app.async_ui import wants_async_web_response, web_json_response
 from app.catalog_services import (
     create_category,
     create_product,
+    delete_product,
     list_all_products,
     list_categories,
     list_products,
@@ -284,6 +285,80 @@ def web_list(bar_id):
         bar_id=bar_id,
         can_manage=can_manage,
     )
+
+
+@catalog_bp.post("/async/products/delete")
+@login_required
+def async_delete_product(bar_id):
+    """Delete an unused product or archive one referenced by operational history."""
+    if not wants_async_web_response():
+        return jsonify({"success": False, "message": "Requête asynchrone invalide."}), 400
+
+    try:
+        permissions.require(current_user, "catalog.read", bar_id)
+        product_id = request.form.get("product_id", type=int)
+        if not product_id:
+            raise ValueError("INVALID_PRODUCT_ID")
+
+        result = delete_product(current_user, bar_id, product_id)
+        db.session.commit()
+
+        if result["deleted"] and result["image_key"]:
+            delete_product_image(result["image_key"])
+
+        if result["archived"]:
+            return web_json_response(
+                data={
+                    "id": result["id"],
+                    "deleted": False,
+                    "archived": True,
+                    "is_active": False,
+                },
+                message=(
+                    f"{result['name']} a été archivé, car il possède du stock "
+                    "ou un historique à conserver."
+                ),
+            )
+
+        return web_json_response(
+            data={"id": result["id"], "deleted": True, "archived": False},
+            message=f"{result['name']} a été supprimé définitivement.",
+        )
+    except IntegrityError:
+        db.session.rollback()
+        # A concurrent operation may have created a reference after the safety check.
+        item = Product.query.filter_by(
+            bar_id=bar_id, id=request.form.get("product_id", type=int)
+        ).first()
+        if item:
+            item.is_active = False
+            db.session.commit()
+            return web_json_response(
+                data={
+                    "id": str(item.id),
+                    "deleted": False,
+                    "archived": True,
+                    "is_active": False,
+                },
+                message=(
+                    f"{item.name} a été archivé, car une opération utilise déjà "
+                    "ce produit. Son historique est conservé."
+                ),
+            )
+        return web_json_response(
+            error="DELETE_CONFLICT",
+            status=409,
+            message="Le produit ne peut pas être supprimé.",
+        )
+    except (PermissionError, LookupError, ValueError, TypeError) as exc:
+        db.session.rollback()
+        status = 403 if isinstance(exc, PermissionError) else 404 if isinstance(exc, LookupError) else 422
+        message = (
+            "Le produit demandé est invalide."
+            if str(exc) == "INVALID_PRODUCT_ID"
+            else _message(exc)
+        )
+        return web_json_response(error=str(exc), status=status, message=message)
 
 
 @catalog_bp.post("/async/products")

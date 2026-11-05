@@ -1,6 +1,15 @@
 """Tenant-isolated catalogue use cases."""
 from app.extensions import db
-from app.models import Product, ProductCategory, StockBalance
+from app.models import (
+    InventoryLine,
+    OrderLine,
+    OrderReturnLine,
+    Product,
+    ProductCategory,
+    PurchaseLine,
+    StockBalance,
+    StockMovement,
+)
 from app.permissions import permissions
 from app.product_display_order import product_order_expression
 from app.product_images import save_product_image
@@ -153,6 +162,58 @@ def create_product(actor, bar_id, data, upload=None):
     db.session.add(StockBalance(bar_id=bar_id, product_id=item.id, quantity=0, version=0))
     db.session.flush()
     return item
+
+
+def delete_product(actor, bar_id, product_id):
+    """Delete an unused product; archive it when stock or history must be preserved."""
+    require(actor, "catalog.manage", bar_id)
+    item = (
+        Product.query.filter_by(bar_id=bar_id, id=product_id)
+        .with_for_update()
+        .first()
+    )
+    if not item:
+        raise LookupError("NOT_FOUND")
+
+    balance = (
+        StockBalance.query.filter_by(bar_id=bar_id, product_id=product_id)
+        .with_for_update()
+        .first()
+    )
+    has_stock = bool(balance and balance.quantity != 0)
+
+    history_models = (
+        StockMovement,
+        PurchaseLine,
+        InventoryLine,
+        OrderLine,
+        OrderReturnLine,
+    )
+    has_history = any(
+        db.session.query(model.id)
+        .filter_by(bar_id=bar_id, product_id=product_id)
+        .first()
+        is not None
+        for model in history_models
+    )
+
+    result = {
+        "id": str(item.id),
+        "name": item.name,
+        "image_key": item.image_key,
+        "is_active": False,
+    }
+    if has_stock or has_history:
+        item.is_active = False
+        result.update({"deleted": False, "archived": True})
+        return result
+
+    if balance:
+        db.session.delete(balance)
+    db.session.delete(item)
+    db.session.flush()
+    result.update({"deleted": True, "archived": False})
+    return result
 
 
 def position_product(actor, bar_id, product_id, before_product_id=None):

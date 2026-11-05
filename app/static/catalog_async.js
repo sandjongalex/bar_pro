@@ -9,6 +9,7 @@
 
   var csrfToken = csrfField.value;
   var productsUrl = root.getAttribute("data-products-url");
+  var productDeleteUrl = root.getAttribute("data-product-delete-url");
   var categoriesUrl = root.getAttribute("data-categories-url");
   var tbody = document.getElementById("catalogProductRows");
   var productTemplate = document.getElementById("catalogNewProductTemplate");
@@ -310,7 +311,16 @@
         insertButton.title = "Insérer un produit après celui-ci";
         insertButton.textContent = "＋";
         var actions = row.querySelector("[data-actions]");
-        if (actions) actions.appendChild(insertButton);
+        if (actions) {
+          actions.appendChild(insertButton);
+          var deleteButton = document.createElement("button");
+          deleteButton.type = "button";
+          deleteButton.className = "btn btn-sm btn-outline-danger";
+          deleteButton.setAttribute("data-action", "delete-product");
+          deleteButton.title = "Supprimer ou archiver ce produit";
+          deleteButton.textContent = "Supprimer";
+          actions.appendChild(deleteButton);
+        }
 
         var empty = document.getElementById("catalogEmpty");
         if (empty && empty.parentNode) empty.parentNode.removeChild(empty);
@@ -344,6 +354,52 @@
       refreshStats();
       applyFilters();
       showNotice(payload.message || "Produit enregistré sans rechargement.", false);
+    }).catch(function (error) {
+      rowFeedback(row, error.message, true);
+      showNotice(error.message, true);
+    }).then(function () {
+      setBusy(button, false);
+    });
+  }
+
+  function deleteProduct(row, button) {
+    var name = selectedValue(row, "name") || "ce produit";
+    var confirmed = window.confirm(
+      "Confirmer la suppression de « " + name + " » ?\n\n" +
+      "Si ce produit possède du stock ou un historique, il sera archivé au lieu d'être effacé."
+    );
+    if (!confirmed) return;
+
+    var form = new FormData();
+    form.append("product_id", row.getAttribute("data-product-id") || "");
+    hideNotice();
+    setBusy(button, true, "Suppression…");
+
+    request(productDeleteUrl, form).then(function (payload) {
+      var data = payload.data || {};
+      if (data.deleted) {
+        if (row.parentNode) row.parentNode.removeChild(row);
+        if (!tbody.querySelector(".catalog-product-row")) {
+          var empty = document.getElementById("catalogEmpty");
+          if (!empty) {
+            empty = document.createElement("div");
+            empty.id = "catalogEmpty";
+            empty.className = "catalog-empty";
+            empty.textContent = "Aucun produit pour le moment. Ajoutez votre premier produit.";
+            var tableResponsive = tbody.closest(".table-responsive");
+            if (tableResponsive) tableResponsive.appendChild(empty);
+          }
+        }
+      } else if (data.archived) {
+        row.setAttribute("data-active", "false");
+        var activeField = row.querySelector('[data-field="is_active"]');
+        if (activeField) activeField.value = "false";
+        rowFeedback(row, "Archivé — historique conservé", false);
+      }
+
+      refreshStats();
+      applyFilters();
+      showNotice(payload.message || "Opération terminée.", false);
     }).catch(function (error) {
       rowFeedback(row, error.message, true);
       showNotice(error.message, true);
@@ -521,6 +577,11 @@
 
     if (action === "create-product" || action === "save-product") {
       saveProduct(row, button);
+      return;
+    }
+
+    if (action === "delete-product") {
+      deleteProduct(row, button);
       return;
     }
 
