@@ -127,6 +127,17 @@ def dashboard():
     elif reportable_bars:
         active_bar = next((bar for bar in reportable_bars if bar.status == "ACTIVE"), reportable_bars[0])
 
+    # A newly created bar remains outside day-to-day operations until its
+    # owner has selected categories and configured at least one product.
+    # Existing bars are marked configured by the additive migration.
+    if current_user.category == "OWNER":
+        setup_bar = next(
+            (bar for bar in reportable_bars if bar.status == "ACTIVE" and not bar.catalog_configured),
+            None,
+        )
+        if setup_bar is not None:
+            return redirect(url_for("catalog.setup_categories", bar_id=setup_bar.id))
+
     dashboard_data = dashboard_summary(current_user, active_bar.id) if active_bar else None
     operational_alerts = dashboard_alerts(current_user, active_bar.id) if active_bar else None
     chart_data = dashboard_charts(current_user, active_bar.id) if active_bar else None

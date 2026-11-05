@@ -13,7 +13,6 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
 from app.audit import record
-from app.default_catalog import seed_default_catalog
 from app.extensions import db, limiter
 from app.models import Bar, Plan, Subscription, User, utcnow
 from app.saas_governance_models import BarGovernance, OwnerGovernance
@@ -132,7 +131,6 @@ def register():
             activated_at=now, created_by_id=owner.id,
         )
         db.session.add(subscription)
-        seed_default_catalog(bar.id)
         record(owner, bar.id, "owners.self_register", "bars", bar.id,
                "Inscription et premier essai activés immédiatement",
                changes={"trial_days": TRIAL_DAYS})

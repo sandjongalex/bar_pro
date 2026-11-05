@@ -1,6 +1,8 @@
 from decimal import Decimal, InvalidOperation
+import re
+import unicodedata
 
-from flask import Blueprint, flash, jsonify, redirect, render_template, request, send_from_directory, url_for
+from flask import Blueprint, abort, flash, jsonify, redirect, render_template, request, send_from_directory, url_for
 from sqlalchemy.exc import IntegrityError
 from flask_login import current_user, login_required
 from sqlalchemy import select
@@ -129,6 +131,208 @@ def product_image_map(bar_id):
                 if image_key
             }
         }
+    )
+
+
+
+SETUP_CATEGORY_PRESETS = (
+    ("Bières", "Bières locales, importées et bières pression"),
+    ("Boissons gazeuses", "Sodas, tonic et boissons pétillantes"),
+    ("Jus et boissons", "Jus naturels, nectars et boissons fruitées"),
+    ("Eaux minérales", "Eaux plates et gazeuses"),
+    ("Vins", "Vins rouges, blancs, rosés et mousseux"),
+    ("Whisky et spiritueux", "Whisky, gin, rhum et autres spiritueux"),
+    ("Boissons énergisantes", "Boissons énergétiques et stimulantes"),
+    ("Snacks et accompagnements", "Petite restauration et accompagnements"),
+    ("Autres", "Toutes les autres familles de produits"),
+)
+
+
+def _owned_setup_bar(bar_id):
+    if current_user.category != "OWNER":
+        abort(403)
+    bar = db.session.get(Bar, bar_id)
+    if bar is None or bar.owner_id != current_user.id:
+        abort(404)
+    return bar
+
+
+def _setup_sku(bar_id, product_name):
+    normalized = unicodedata.normalize("NFKD", product_name).encode("ascii", "ignore").decode("ascii")
+    slug = re.sub(r"[^A-Za-z0-9]+", "-", normalized).strip("-").upper() or "PRODUIT"
+    base = ("SET-" + slug)[:64]
+    candidate = base
+    suffix = 2
+    while Product.query.filter(
+        Product.bar_id == bar_id,
+        db.func.lower(Product.sku) == candidate.lower(),
+    ).first():
+        tail = f"-{suffix}"
+        candidate = base[:64 - len(tail)] + tail
+        suffix += 1
+    return candidate
+
+
+def _setup_error_message(error):
+    messages = {
+        "INVALID_CATEGORY_NAME": "Le nom d'une catégorie est invalide.",
+        "CATEGORY_EXISTS": "Une catégorie portant ce nom existe déjà.",
+        "INVALID_CATEGORY": "Sélectionnez une catégorie valide pour chaque produit.",
+        "INVALID_PRODUCT_NAME": "Le nom de chaque produit est obligatoire.",
+        "INVALID_BASE_UNIT": "Sélectionnez une unité de vente valide.",
+        "INVALID_UNITS_PER_CASE": "Le nombre d'unités par casier doit être supérieur à zéro.",
+        "sale_price": "Le prix de vente doit être un nombre positif ou nul.",
+        "valuation_unit_cost": "Le coût d'achat doit être un nombre positif ou nul.",
+        "stock_alert_threshold": "Le seuil d'alerte doit être un nombre positif ou nul.",
+        "SETUP_CATEGORY_REQUIRED": "Sélectionnez ou créez au moins une catégorie.",
+        "SETUP_SALE_PRICE_REQUIRED": "Indiquez le prix de vente de chaque produit.",
+        "SETUP_REQUIRES_PRODUCT": "Ajoutez au moins un produit avant de terminer la configuration.",
+    }
+    if isinstance(error, IntegrityError):
+        return "Une référence produit ou une catégorie existe déjà. Vérifiez les informations saisies."
+    return messages.get(str(error), "La configuration n'a pas pu être enregistrée. Vérifiez les informations.")
+
+
+@catalog_bp.route("/setup", methods=["GET", "POST"])
+@login_required
+def setup_categories(bar_id):
+    bar = _owned_setup_bar(bar_id)
+    if bar.catalog_configured:
+        return redirect(url_for("catalog.web_list", bar_id=bar_id))
+
+    existing_categories = list_categories(current_user, bar_id)
+    selected_categories = [item.name for item in existing_categories]
+    custom_categories = ""
+    error_message = None
+
+    if request.method == "POST":
+        selected_categories = request.form.getlist("category_names")
+        custom_categories = request.form.get("custom_categories", "")
+        requested_names = list(selected_categories)
+        requested_names.extend(
+            name.strip()
+            for name in re.split(r"[\n,;]+", custom_categories)
+            if name.strip()
+        )
+        try:
+            existing_by_name = {item.name.casefold(): item for item in existing_categories}
+            seen = set()
+            for raw_name in requested_names:
+                name = str(raw_name or "").strip()
+                if not name or name.casefold() in seen:
+                    continue
+                seen.add(name.casefold())
+                category = existing_by_name.get(name.casefold())
+                if category is not None:
+                    if not category.is_active:
+                        set_category_active(current_user, bar_id, category.id, True)
+                    continue
+                category = create_category(current_user, bar_id, name)
+                existing_by_name[category.name.casefold()] = category
+
+            active_categories = list_categories(current_user, bar_id, active=True)
+            if not active_categories:
+                raise ValueError("SETUP_CATEGORY_REQUIRED")
+            db.session.commit()
+            return redirect(url_for("catalog.setup_products", bar_id=bar_id))
+        except (PermissionError, LookupError, ValueError, TypeError, IntegrityError) as exc:
+            db.session.rollback()
+            error_message = _setup_error_message(exc)
+            existing_categories = list_categories(current_user, bar_id)
+
+    return render_template(
+        "catalog_setup_categories.html",
+        bar=bar,
+        category_presets=SETUP_CATEGORY_PRESETS,
+        existing_categories=existing_categories,
+        selected_categories=selected_categories,
+        custom_categories=custom_categories,
+        error=error_message,
+    )
+
+
+@catalog_bp.route("/setup/products", methods=["GET", "POST"])
+@login_required
+def setup_products(bar_id):
+    bar = _owned_setup_bar(bar_id)
+    if bar.catalog_configured:
+        return redirect(url_for("catalog.web_list", bar_id=bar_id))
+
+    categories = list_categories(current_user, bar_id, active=True)
+    if not categories:
+        return redirect(url_for("catalog.setup_categories", bar_id=bar_id))
+
+    field_names = (
+        "product_name",
+        "category_id",
+        "sale_price",
+        "valuation_unit_cost",
+        "base_unit",
+        "units_per_case",
+        "stock_alert_threshold",
+    )
+    form_rows = [{
+        "product_name": "",
+        "category_id": str(categories[0].id),
+        "sale_price": "",
+        "valuation_unit_cost": "0",
+        "base_unit": "bouteille",
+        "units_per_case": "",
+        "stock_alert_threshold": "0",
+    }]
+    error_message = None
+
+    if request.method == "POST":
+        values = {name: request.form.getlist(name) for name in field_names}
+        row_count = max((len(items) for items in values.values()), default=0)
+        form_rows = [
+            {name: values[name][index] if index < len(values[name]) else "" for name in field_names}
+            for index in range(row_count)
+        ]
+        created_count = 0
+        try:
+            for row in form_rows:
+                name = str(row["product_name"] or "").strip()
+                if not name:
+                    empty_cost = str(row["valuation_unit_cost"] or "").strip() in {"", "0", "0.0"}
+                    empty_threshold = str(row["stock_alert_threshold"] or "").strip() in {"", "0", "0.0"}
+                    if not row["sale_price"] and not row["units_per_case"] and empty_cost and empty_threshold:
+                        continue
+                    raise ValueError("INVALID_PRODUCT_NAME")
+                if not str(row["sale_price"] or "").strip():
+                    raise ValueError("SETUP_SALE_PRICE_REQUIRED")
+
+                create_product(
+                    current_user,
+                    bar_id,
+                    {
+                        "category_id": row["category_id"],
+                        "sku": _setup_sku(bar_id, name),
+                        "name": name,
+                        "base_unit": row["base_unit"] or "bouteille",
+                        "sale_price": row["sale_price"],
+                        "valuation_unit_cost": row["valuation_unit_cost"] or "0",
+                        "units_per_case": row["units_per_case"] or None,
+                        "stock_alert_threshold": row["stock_alert_threshold"] or "0",
+                    },
+                )
+                created_count += 1
+
+            if created_count == 0:
+                raise ValueError("SETUP_REQUIRES_PRODUCT")
+            bar.catalog_configured = True
+            db.session.commit()
+            return redirect(url_for("web.dashboard", bar_id=bar_id))
+        except (PermissionError, LookupError, ValueError, TypeError, IntegrityError) as exc:
+            db.session.rollback()
+            error_message = _setup_error_message(exc)
+
+    return render_template(
+        "catalog_setup_products.html",
+        bar=bar,
+        categories=categories,
+        form_rows=form_rows,
+        error=error_message,
     )
 
 

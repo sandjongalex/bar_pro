@@ -1,0 +1,50 @@
+{% extends 'layout.html' %}
+{% block title %}Configurer le catalogue · {{ bar.name }}{% endblock %}
+{% block header %}Configuration du catalogue{% endblock %}
+{% block content %}
+<style>
+.catalog-setup-shell{max-width:1120px;margin:0 auto}
+.catalog-setup-step{display:inline-flex;align-items:center;justify-content:center;min-width:48px;height:48px;border-radius:15px;background:var(--bs-primary-bg-subtle,#eaf1ff);color:var(--bs-primary,#2457c5);font-weight:800}
+.catalog-setup-category{height:100%;display:flex;gap:12px;align-items:flex-start;padding:16px;border:1px solid var(--bs-border-color);border-radius:16px;background:var(--bs-body-bg);cursor:pointer;transition:border-color .15s,box-shadow .15s}
+.catalog-setup-category:has(input:checked){border-color:var(--bs-primary);box-shadow:0 0 0 2px rgba(13,110,253,.10)}
+.catalog-setup-category input{margin-top:4px;flex:0 0 auto}
+.catalog-setup-category strong{display:block;margin-bottom:4px}
+.catalog-setup-category small{color:var(--bs-secondary-color);line-height:1.4}
+.catalog-setup-note{border-radius:14px;padding:14px 16px;background:var(--bs-tertiary-bg)}
+@media(max-width:575px){.catalog-setup-category{padding:13px}.catalog-setup-step{min-width:42px;height:42px}}
+</style>
+<div class="catalog-setup-shell">
+  <section class="dashboard-hero">
+    <div><p class="eyebrow mb-2">Configuration initiale · Étape 1 sur 2</p><h1>Choisissez vos catégories</h1><p>{{ bar.name }} : sélectionnez uniquement les familles de produits que votre établissement utilise. Vous pourrez les modifier plus tard.</p></div>
+    <span class="catalog-setup-step">1/2</span>
+  </section>
+  {% if error %}<div class="alert alert-danger mt-3" role="alert">{{ error }}</div>{% endif %}
+  {% if existing_categories %}
+  <div class="catalog-setup-note mt-4">
+    <strong>Catégories déjà présentes</strong>
+    <div class="d-flex flex-wrap gap-2 mt-2">{% for category in existing_categories %}<span class="badge rounded-pill text-bg-light border">{{ category.name }}</span>{% endfor %}</div>
+    <small class="d-block mt-2 text-secondary">Elles seront conservées pendant cette configuration.</small>
+  </div>
+  {% endif %}
+  <form method="post" class="panel-card mt-4 p-3 p-md-4">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="mb-3"><h2 class="h5 mb-1">Catégories proposées</h2><p class="text-secondary small mb-0">Cochez les catégories utiles à votre bar. Aucune n'est imposée.</p></div>
+    <div class="row g-3">
+      {% for category_name, description in category_presets %}
+      <div class="col-12 col-md-6 col-xl-4">
+        <label class="catalog-setup-category">
+          <input class="form-check-input" type="checkbox" name="category_names" value="{{ category_name }}" {% if category_name in selected_categories %}checked{% endif %}>
+          <span><strong>{{ category_name }}</strong><small>{{ description }}</small></span>
+        </label>
+      </div>
+      {% endfor %}
+    </div>
+    <hr class="my-4">
+    <div><label class="form-label fw-semibold" for="custom_categories">Mes propres catégories</label><textarea class="form-control" id="custom_categories" name="custom_categories" rows="3" placeholder="Ex. Cocktails&#10;Petite restauration&#10;Chicha">{{ custom_categories }}</textarea><div class="form-text">Saisissez une catégorie par ligne. Vous pouvez aussi les séparer par des virgules.</div></div>
+    <div class="d-flex flex-column flex-sm-row justify-content-between align-items-stretch gap-2 mt-4">
+      <a class="btn btn-light border" href="{{ url_for('bars.web_detail', bar_id=bar.id) }}">Retour au bar</a>
+      <button class="btn btn-primary btn-lg" type="submit">Continuer vers les produits <span aria-hidden="true">→</span></button>
+    </div>
+  </form>
+</div>
+{% endblock %}

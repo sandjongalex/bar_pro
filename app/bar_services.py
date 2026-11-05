@@ -9,7 +9,6 @@ from app.extensions import db
 from app.models import Bar, Product, ProductCategory, StaffAssignment, StockBalance, User
 from app.permissions import permissions
 from app.audit import record
-from app.default_catalog import seed_default_catalog
 
 
 def require(actor, action, bar_id):
@@ -125,6 +124,7 @@ def create_bar(actor, owner_id, data, copy_from_id=None):
         source = db.session.get(Bar, copy_from_id)
         if not source or source.owner_id != owner.id:
             raise LookupError("NOT_FOUND")
+        bar.catalog_configured = bool(source.catalog_configured)
         categories = {}
         for category in db.session.scalars(select(ProductCategory).where(ProductCategory.bar_id == source.id)):
             clone = ProductCategory(bar_id=bar.id, name=category.name, is_active=category.is_active)
@@ -141,15 +141,18 @@ def create_bar(actor, owner_id, data, copy_from_id=None):
                 base_unit=product.base_unit,
                 sale_price=product.sale_price,
                 valuation_unit_cost=product.valuation_unit_cost,
+                stock_alert_threshold=product.stock_alert_threshold,
+                units_per_case=product.units_per_case,
+                image_key=product.image_key,
                 is_active=product.is_active,
             )
             db.session.add(clone)
             db.session.flush()
             db.session.add(StockBalance(bar_id=bar.id, product_id=clone.id, quantity=0, version=0))
 
-    # Every newly created bar receives the standard catalogue. The seed is
-    # idempotent, so products copied from another bar are not duplicated.
-    seed_default_catalog(bar.id)
+    # New bars start with an empty catalogue. Their owner configures categories
+    # and products during the first guided setup. A copied catalogue keeps its
+    # source configuration state and never imports global defaults.
     from app.warehouse_service import warehouse_service
     warehouse_service.ensure_locations(bar.id)
     return bar

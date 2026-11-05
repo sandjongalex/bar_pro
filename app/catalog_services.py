@@ -1,6 +1,7 @@
 """Tenant-isolated catalogue use cases."""
 from app.extensions import db
 from app.models import (
+    Bar,
     InventoryLine,
     OrderLine,
     OrderReturnLine,
@@ -160,6 +161,9 @@ def create_product(actor, bar_id, data, upload=None):
     db.session.add(item)
     db.session.flush()
     db.session.add(StockBalance(bar_id=bar_id, product_id=item.id, quantity=0, version=0))
+    bar = db.session.get(Bar, bar_id)
+    if bar is not None:
+        bar.catalog_configured = True
     db.session.flush()
     return item
 

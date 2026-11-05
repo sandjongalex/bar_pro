@@ -1,0 +1,80 @@
+{% extends 'layout.html' %}
+{% block title %}Ajouter les produits · {{ bar.name }}{% endblock %}
+{% block header %}Configuration du catalogue{% endblock %}
+{% block content %}
+<style>
+.catalog-setup-shell{max-width:1240px;margin:0 auto}
+.catalog-setup-step{display:inline-flex;align-items:center;justify-content:center;min-width:48px;height:48px;border-radius:15px;background:var(--bs-primary-bg-subtle,#eaf1ff);color:var(--bs-primary,#2457c5);font-weight:800}
+.catalog-setup-product-row{display:grid;grid-template-columns:minmax(150px,1.25fr) minmax(150px,1.1fr) minmax(120px,.8fr) minmax(130px,.9fr) minmax(120px,.8fr) minmax(105px,.65fr) minmax(110px,.7fr) auto;gap:10px;align-items:end;padding:14px;border:1px solid var(--bs-border-color);border-radius:14px;background:var(--bs-body-bg)}
+.catalog-setup-field label{display:block;font-size:.78rem;font-weight:700;color:var(--bs-secondary-color);margin-bottom:6px}
+.catalog-setup-field .form-control,.catalog-setup-field .form-select{min-width:0}
+.catalog-setup-help{border-radius:14px;padding:14px 16px;background:var(--bs-tertiary-bg)}
+.catalog-setup-row-list{display:grid;gap:12px}
+@media(max-width:1050px){.catalog-setup-product-row{grid-template-columns:repeat(4,minmax(0,1fr))}.catalog-setup-product-row .catalog-setup-field:nth-child(1),.catalog-setup-product-row .catalog-setup-field:nth-child(2){grid-column:span 2}}
+@media(max-width:600px){.catalog-setup-product-row{grid-template-columns:repeat(2,minmax(0,1fr));padding:12px}.catalog-setup-product-row .catalog-setup-field:nth-child(1),.catalog-setup-product-row .catalog-setup-field:nth-child(2){grid-column:span 2}.catalog-setup-product-row .catalog-setup-remove{grid-column:span 2}.catalog-setup-product-row .catalog-setup-remove button{width:100%}}
+</style>
+<div class="catalog-setup-shell">
+  <section class="dashboard-hero"><div><p class="eyebrow mb-2">Configuration initiale · Étape 2 sur 2</p><h1>Ajoutez vos produits</h1><p>Créez le catalogue de {{ bar.name }}. Chaque produit aura ses propres prix et paramètres de stock.</p></div><span class="catalog-setup-step">2/2</span></section>
+  {% if error %}<div class="alert alert-danger mt-3" role="alert">{{ error }}</div>{% endif %}
+  <div class="catalog-setup-help mt-4"><strong>À savoir</strong><ul class="small text-secondary mb-0 mt-2"><li>Le prix de vente et le coût d'achat sont saisis pour une unité de base (par exemple une bouteille).</li><li>Le nombre d'unités par casier sert aux achats et à la gestion du stock.</li><li>Le stock initial reste à zéro : vous l'approvisionnerez séparément après la configuration.</li><li>Les références sont générées automatiquement et pourront être modifiées depuis le catalogue.</li></ul></div>
+  <form method="post" class="panel-card mt-4 p-3 p-md-4" id="catalogSetupProductsForm">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="d-flex flex-column flex-sm-row justify-content-between align-items-sm-center gap-2 mb-3"><div><h2 class="h5 mb-1">Liste des produits</h2><p class="text-secondary small mb-0">Ajoutez plusieurs produits en une seule validation.</p></div><span class="badge text-bg-light border">{{ categories|length }} catégorie(s)</span></div>
+    <div class="catalog-setup-row-list" id="catalogSetupProductRows">
+      {% for row in form_rows %}
+      <div class="catalog-setup-product-row">
+        <div class="catalog-setup-field"><label>Produit *</label><input class="form-control" name="product_name" maxlength="160" value="{{ row.product_name }}" placeholder="Ex. 33 Export"></div>
+        <div class="catalog-setup-field"><label>Catégorie *</label><select class="form-select" name="category_id">{% for category in categories %}<option value="{{ category.id }}" {% if row.category_id|string == category.id|string %}selected{% endif %}>{{ category.name }}</option>{% endfor %}</select></div>
+        <div class="catalog-setup-field"><label>Prix de vente ({{ bar.currency }}) *</label><input class="form-control" name="sale_price" type="number" min="0" step="0.01" value="{{ row.sale_price }}"></div>
+        <div class="catalog-setup-field"><label>Coût d'achat unitaire</label><input class="form-control" name="valuation_unit_cost" type="number" min="0" step="0.01" value="{{ row.valuation_unit_cost or '0' }}"></div>
+        <div class="catalog-setup-field"><label>Unité de vente</label><select class="form-select" name="base_unit"><option value="bouteille" {% if row.base_unit == 'bouteille' %}selected{% endif %}>Bouteille</option><option value="canette" {% if row.base_unit == 'canette' %}selected{% endif %}>Canette</option><option value="verre" {% if row.base_unit == 'verre' %}selected{% endif %}>Verre</option><option value="unité" {% if row.base_unit == 'unité' %}selected{% endif %}>Unité</option><option value="pièce" {% if row.base_unit == 'pièce' %}selected{% endif %}>Pièce</option><option value="casier" {% if row.base_unit == 'casier' %}selected{% endif %}>Casier</option></select></div>
+        <div class="catalog-setup-field"><label>Unités / casier</label><input class="form-control" name="units_per_case" type="number" min="1" step="1" value="{{ row.units_per_case }}" placeholder="12"></div>
+        <div class="catalog-setup-field"><label>Seuil d'alerte</label><input class="form-control" name="stock_alert_threshold" type="number" min="0" step="0.001" value="{{ row.stock_alert_threshold or '0' }}"></div>
+        <div class="catalog-setup-remove"><button class="btn btn-outline-danger" type="button" data-remove-product-row aria-label="Retirer ce produit">Retirer</button></div>
+      </div>
+      {% endfor %}
+    </div>
+    <template id="catalogSetupProductRowTemplate">
+      <div class="catalog-setup-product-row">
+        <div class="catalog-setup-field"><label>Produit *</label><input class="form-control" name="product_name" maxlength="160" placeholder="Ex. 33 Export"></div>
+        <div class="catalog-setup-field"><label>Catégorie *</label><select class="form-select" name="category_id">{% for category in categories %}<option value="{{ category.id }}">{{ category.name }}</option>{% endfor %}</select></div>
+        <div class="catalog-setup-field"><label>Prix de vente ({{ bar.currency }}) *</label><input class="form-control" name="sale_price" type="number" min="0" step="0.01"></div>
+        <div class="catalog-setup-field"><label>Coût d'achat unitaire</label><input class="form-control" name="valuation_unit_cost" type="number" min="0" step="0.01" value="0"></div>
+        <div class="catalog-setup-field"><label>Unité de vente</label><select class="form-select" name="base_unit"><option value="bouteille">Bouteille</option><option value="canette">Canette</option><option value="verre">Verre</option><option value="unité">Unité</option><option value="pièce">Pièce</option><option value="casier">Casier</option></select></div>
+        <div class="catalog-setup-field"><label>Unités / casier</label><input class="form-control" name="units_per_case" type="number" min="1" step="1" placeholder="12"></div>
+        <div class="catalog-setup-field"><label>Seuil d'alerte</label><input class="form-control" name="stock_alert_threshold" type="number" min="0" step="0.001" value="0"></div>
+        <div class="catalog-setup-remove"><button class="btn btn-outline-danger" type="button" data-remove-product-row aria-label="Retirer ce produit">Retirer</button></div>
+      </div>
+    </template>
+    <div class="d-flex flex-column flex-sm-row justify-content-between gap-2 mt-3"><button class="btn btn-outline-primary" type="button" id="catalogSetupAddProduct">＋ Ajouter un produit</button><span class="small text-secondary align-self-center">Les produits seront enregistrés ensemble.</span></div>
+    <div class="d-flex flex-column flex-sm-row justify-content-between gap-2 mt-4 pt-3 border-top"><a class="btn btn-light border" href="{{ url_for('catalog.setup_categories', bar_id=bar.id) }}">← Modifier les catégories</a><button class="btn btn-primary btn-lg" type="submit">Enregistrer le catalogue et terminer</button></div>
+  </form>
+</div>
+<script>
+(() => {
+  const list = document.getElementById('catalogSetupProductRows');
+  const template = document.getElementById('catalogSetupProductRowTemplate');
+  const addButton = document.getElementById('catalogSetupAddProduct');
+  if (!list || !template || !addButton) return;
+  function bindRemove(row) {
+    const button = row.querySelector('[data-remove-product-row]');
+    if (!button) return;
+    button.addEventListener('click', () => {
+      if (list.children.length > 1) row.remove();
+      else row.querySelectorAll('input').forEach(input => {
+        if (input.name === 'valuation_unit_cost' || input.name === 'stock_alert_threshold') input.value = '0';
+        else input.value = '';
+      });
+    });
+  }
+  list.querySelectorAll('.catalog-setup-product-row').forEach(bindRemove);
+  addButton.addEventListener('click', () => {
+    const row = template.content.firstElementChild.cloneNode(true);
+    list.appendChild(row);
+    bindRemove(row);
+    const nameInput = row.querySelector('[name="product_name"]');
+    if (nameInput) nameInput.focus();
+  });
+})();
+</script>
+{% endblock %}

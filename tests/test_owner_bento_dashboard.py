@@ -53,6 +53,7 @@ def test_owner_bento_is_isolated_and_uses_actual_paid_sales(env):
         name="Second Owned Bar",
         timezone="Africa/Douala",
         currency="XAF",
+        catalog_configured=True,
     )
     db.session.add(second)
     db.session.commit()
