@@ -7,7 +7,7 @@ import secrets
 
 from flask import Blueprint, flash, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
-from sqlalchemy import select
+from sqlalchemy import and_, or_, select
 from sqlalchemy.exc import IntegrityError, OperationalError
 
 from app.async_ui import wants_async_web_response, web_json_response
@@ -239,6 +239,8 @@ def workspace(bar_id: int):
             )
             if not order:
                 raise LookupError("NOT_FOUND")
+            if order.cashier_assignment_id != assignment.id:
+                raise LookupError("NOT_FOUND")
             if order.status not in {"CONFIRMED", "SERVED"}:
                 raise ValueError("ORDER_NOT_PAYABLE")
             due = Decimal(order_balance(order, locking=True)["amount_due"] or 0)
@@ -452,6 +454,10 @@ def workspace(bar_id: int):
                 Order.bar_id == bar_id,
                 Order.status.in_(["DRAFT", "CONFIRMED", "SERVED"]),
                 Order.payment_status.in_(["UNPAID", "PARTIAL"]),
+                or_(
+                    Order.cashier_assignment_id == assignment.id,
+                    and_(Order.cashier_assignment_id.is_(None), Order.status == "DRAFT"),
+                ),
             )
             .order_by(Order.id.asc())
             .limit(120)

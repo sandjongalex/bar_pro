@@ -207,6 +207,9 @@ def detail(bar_id: int, order_id: int):
     # Return NOT_FOUND instead of exposing whether another server's order exists.
     if is_server and order.assigned_staff_id != assignment.id:
         raise LookupError("NOT_FOUND")
+    if is_cashier and order.cashier_assignment_id != assignment.id:
+        if not (order.status == "DRAFT" and order.cashier_assignment_id is None):
+            raise LookupError("NOT_FOUND")
 
     lines = list(
         db.session.scalars(

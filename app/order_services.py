@@ -37,6 +37,16 @@ class OrderService:
             )
         )
 
+    def _require_cashier_order_access(self, actor, order, *, allow_unassigned_draft=False):
+        assignment = self._active_assignment(actor, order.bar_id)
+        if not assignment or assignment.role != "CASHIER":
+            return None
+        if order.cashier_assignment_id == assignment.id:
+            return assignment
+        if allow_unassigned_draft and order.status == "DRAFT" and order.cashier_assignment_id is None:
+            return assignment
+        raise LookupError("NOT_FOUND")
+
     def create(
         self,
         actor,
@@ -79,6 +89,7 @@ class OrderService:
             table_id=table_id,
             customer_id=customer_id,
             assigned_staff_id=assigned_staff_id,
+            cashier_assignment_id=assignment.id if assignment and assignment.role == "CASHIER" else None,
             status="DRAFT",  # UI: En attente / A livrer
             payment_status="UNPAID",
             notes=(required_text(notes, 500) if notes else None),
@@ -106,6 +117,7 @@ class OrderService:
         if not lines or len({x["product_id"] for x in lines}) != len(lines):
             raise ValueError("INVALID_LINES")
 
+        self._require_cashier_order_access(actor, order)
         assignment = self._active_assignment(actor, order.bar_id)
         if assignment and assignment.role == "SERVER" and order.assigned_staff_id != assignment.id:
             raise PermissionError("FORBIDDEN")
@@ -164,6 +176,7 @@ class OrderService:
         if not order or order.status not in {"DRAFT", "CONFIRMED"}:
             raise ValueError("ORDER_NOT_EDITABLE")
 
+        self._require_cashier_order_access(actor, order)
         assignment = self._active_assignment(actor, bar_id)
         if assignment and assignment.role == "SERVER" and order.assigned_staff_id != assignment.id:
             raise PermissionError("FORBIDDEN")
@@ -185,6 +198,11 @@ class OrderService:
         )
         if not order or order.status != "DRAFT":
             raise ValueError("ORDER_NOT_DRAFT")
+        cashier_assignment = self._require_cashier_order_access(
+            actor, order, allow_unassigned_draft=True,
+        )
+        if cashier_assignment is not None:
+            order.cashier_assignment_id = cashier_assignment.id
         lines = list(db.session.scalars(select(OrderLine).where(OrderLine.order_id == order.id)))
         if not lines:
             raise ValueError("ORDER_EMPTY")
@@ -213,6 +231,7 @@ class OrderService:
         )
         if not order or order.status != "CONFIRMED" or order.payment_status != "UNPAID":
             raise ValueError("ORDER_NOT_EDITABLE")
+        self._require_cashier_order_access(actor, order)
         if not lines or len({x["order_line_id"] for x in lines}) != len(lines):
             raise ValueError("INVALID_LINES")
         indexed = {
@@ -253,6 +272,7 @@ class OrderService:
         order = db.session.get(Order, order_id)
         if not order or order.bar_id != bar_id or order.status != "CONFIRMED":
             raise ValueError("ORDER_NOT_CONFIRMED")
+        self._require_cashier_order_access(actor, order)
         order.status = "SERVED"
         order.closed_at = utcnow()
         return order
@@ -266,6 +286,7 @@ class OrderService:
         )
         if not order or order.status not in {"DRAFT", "CONFIRMED"}:
             raise ValueError("ORDER_NOT_CANCELLABLE")
+        self._require_cashier_order_access(actor, order)
 
         assignment = self._active_assignment(actor, bar_id)
         if assignment and assignment.role == "SERVER":
@@ -313,6 +334,7 @@ class OrderService:
         # SERVED is retained for legacy/API data, so both states are returnable.
         if not order or order.status not in {"CONFIRMED", "SERVED"}:
             raise ValueError("ORDER_NOT_RETURNABLE")
+        self._require_cashier_order_access(actor, order)
         if not lines or len({x["order_line_id"] for x in lines}) != len(lines):
             raise ValueError("INVALID_RETURN")
         originals = {

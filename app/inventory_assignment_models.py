@@ -1,7 +1,7 @@
-"""Immutable ownership of a V2 inventory by an on-duty cashier shift.
+"""Immutable V2 inventory ownership by a cashier, with an optional active shift.
 
-Legacy inventories intentionally have no assignment record. This extension
-does not change the legacy inventory schema or its financial calculations.
+An owner can attribute a manual/off-duty inventory to an assigned cashier.
+Legacy inventories intentionally have no assignment record.
 """
 from sqlalchemy import ForeignKeyConstraint, Index, UniqueConstraint
 

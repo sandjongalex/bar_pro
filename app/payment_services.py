@@ -33,12 +33,27 @@ class PaymentService:
             if not opened:
                 raise ValueError("CASH_SESSION_REQUIRED")
 
+    def _require_cashier_order(self, actor, order):
+        if getattr(actor, "category", None) != "EMPLOYEE":
+            return
+        assignment = db.session.scalar(
+            select(StaffAssignment).where(
+                StaffAssignment.bar_id == order.bar_id,
+                StaffAssignment.user_id == actor.id,
+                StaffAssignment.role == "CASHIER",
+                StaffAssignment.ended_at.is_(None),
+            )
+        )
+        if assignment is not None and order.cashier_assignment_id != assignment.id:
+            raise LookupError("NOT_FOUND")
+
     def record(self, actor, bar_id, order_id, reference, method, presented, applied, change=0, cash_session_id=None, staff_assignment_id=None, provider_code=None, provider_transaction_id=None, voucher_amount=0):
         permissions.require(actor, "payments.record", bar_id)
         self._require_cashier_session(actor, bar_id)
         order = db.session.scalar(select(Order).where(Order.id == order_id, Order.bar_id == bar_id).with_for_update())
         if not order:
             raise LookupError("NOT_FOUND")
+        self._require_cashier_order(actor, order)
         if order.status not in {"CONFIRMED", "SERVED"}:
             raise ValueError("ORDER_NOT_PAYABLE")
         pending_delivery = db.session.scalar(
@@ -132,6 +147,9 @@ class PaymentService:
         if not payment:
             raise LookupError("NOT_FOUND")
         order = db.session.scalar(select(Order).where(Order.id == payment.order_id, Order.bar_id == bar_id).with_for_update())
+        if not order:
+            raise LookupError("NOT_FOUND")
+        self._require_cashier_order(actor, order)
         if order.status not in {"CONFIRMED", "SERVED"}:
             raise ValueError("ORDER_NOT_REFUNDABLE")
         refunded = total(Refund, Refund.amount, locking=True, bar_id=bar_id, payment_id=payment_id)
@@ -200,6 +218,7 @@ class PaymentService:
         order = db.session.scalar(select(Order).where(Order.id == order_id, Order.bar_id == bar_id).with_for_update())
         if not order or order.status != "CONFIRMED":
             raise ValueError("ORDER_NOT_CANCELLABLE")
+        self._require_cashier_order(actor, order)
         reference = required_text(reference, 40)
         reason = required_text(reason)
         for payment in db.session.scalars(

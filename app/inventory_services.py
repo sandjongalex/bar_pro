@@ -14,7 +14,7 @@ from app.inventory_finance_models import InventoryDebtRequest, InventoryExpenseL
 from app.inventory_assignment_models import InventoryCashierAssignment
 from app.inventory_count_models import InventoryLineCountState
 from app.shift_models import EmployeeShift
-from app.shift_service import get_active_shift_for_user
+from app.shift_service import get_active_shift_for_assignment, get_active_shift_for_user
 from app.models import (
     Bar,
     Expense,
@@ -189,19 +189,63 @@ class InventoryService:
         )
         return cursor or 0
 
-    def create(self, actor, bar_id, reference, product_ids=None, reason="Inventaire physique", period_end=None, cashier_shift_id=None):
-        # Legacy owners/admins retain the V1 flow until the V2 approval flow ships.
-        # Cashiers cannot use that legacy path: they always need an active cashier shift.
+    def create(self, actor, bar_id, reference, product_ids=None, reason="Inventaire physique",
+               period_end=None, cashier_shift_id=None, cashier_assignment_id=None):
+        # Cashiers create V2 inventories only for their own active shift.
+        # Owners/managers may attribute a manual inventory to any currently
+        # assigned cashier, whether or not that cashier has an open shift.
         is_cashier = self._is_cashier(actor, bar_id)
         shift = None
-        if is_cashier or cashier_shift_id is not None:
+        assignment = None
+        if is_cashier:
             permissions.require(actor, "inventory.create", bar_id)
-            if is_cashier:
-                shift = get_active_shift_for_user(actor.id, bar_id)
-                if not shift or shift.role_snapshot != "CASHIER":
-                    raise PermissionError("CASHIER_OFF_DUTY")
-                if cashier_shift_id is not None and str(cashier_shift_id) != str(shift.id):
-                    raise LookupError("NOT_FOUND")
+            shift = get_active_shift_for_user(actor.id, bar_id)
+            if not shift or shift.role_snapshot != "CASHIER":
+                raise PermissionError("CASHIER_OFF_DUTY")
+            assignment = db.session.scalar(
+                select(StaffAssignment).where(
+                    StaffAssignment.id == shift.staff_assignment_id,
+                    StaffAssignment.bar_id == bar_id,
+                    StaffAssignment.user_id == actor.id,
+                    StaffAssignment.role == "CASHIER",
+                    StaffAssignment.ended_at.is_(None),
+                )
+            )
+            if not assignment:
+                raise LookupError("CASHIER_SHIFT_NOT_FOUND")
+            if cashier_shift_id is not None and str(cashier_shift_id) != str(shift.id):
+                raise LookupError("NOT_FOUND")
+            if cashier_assignment_id is not None and str(cashier_assignment_id) != str(assignment.id):
+                raise LookupError("NOT_FOUND")
+        elif cashier_assignment_id is not None or cashier_shift_id is not None:
+            permissions.require(actor, "inventory.create", bar_id)
+            if cashier_assignment_id is not None:
+                if (isinstance(cashier_assignment_id, bool)
+                        or not isinstance(cashier_assignment_id, (str, int))
+                        or not str(cashier_assignment_id).isascii()
+                        or not str(cashier_assignment_id).isdigit()
+                        or int(cashier_assignment_id) <= 0):
+                    raise ValueError("INVALID_CASHIER_ASSIGNMENT")
+                assignment = db.session.scalar(
+                    select(StaffAssignment).where(
+                        StaffAssignment.id == int(cashier_assignment_id),
+                        StaffAssignment.bar_id == bar_id,
+                        StaffAssignment.role == "CASHIER",
+                        StaffAssignment.ended_at.is_(None),
+                    ).with_for_update()
+                )
+                if assignment is None:
+                    raise LookupError("CASHIER_ASSIGNMENT_NOT_FOUND")
+                shift = get_active_shift_for_assignment(bar_id, assignment.id, lock=True)
+                if cashier_shift_id is not None:
+                    if (isinstance(cashier_shift_id, bool)
+                            or not isinstance(cashier_shift_id, (str, int))
+                            or not str(cashier_shift_id).isascii()
+                            or not str(cashier_shift_id).isdigit()
+                            or int(cashier_shift_id) <= 0):
+                        raise ValueError("INVALID_CASHIER_SHIFT")
+                    if shift is None or str(shift.id) != str(cashier_shift_id):
+                        raise LookupError("CASHIER_SHIFT_NOT_FOUND")
             else:
                 if (isinstance(cashier_shift_id, bool)
                         or not isinstance(cashier_shift_id, (str, int))
@@ -217,23 +261,20 @@ class InventoryService:
                         EmployeeShift.status == "OPEN",
                     ).with_for_update()
                 )
-            if shift is None or shift.bar_id != bar_id or shift.status != "OPEN":
-                raise LookupError("CASHIER_SHIFT_NOT_FOUND")
-            assignment = db.session.scalar(
-                select(StaffAssignment).where(
-                    StaffAssignment.id == shift.staff_assignment_id,
-                    StaffAssignment.bar_id == bar_id,
-                    StaffAssignment.role == "CASHIER",
-                    StaffAssignment.ended_at.is_(None),
+                if shift is None:
+                    raise LookupError("CASHIER_SHIFT_NOT_FOUND")
+                assignment = db.session.scalar(
+                    select(StaffAssignment).where(
+                        StaffAssignment.id == shift.staff_assignment_id,
+                        StaffAssignment.bar_id == bar_id,
+                        StaffAssignment.role == "CASHIER",
+                        StaffAssignment.ended_at.is_(None),
+                    )
                 )
-            )
-            if not assignment or not assignment.user.is_active:
-                raise LookupError("CASHIER_SHIFT_NOT_FOUND")
-            if is_cashier and assignment.user_id != actor.id:
-                raise LookupError("NOT_FOUND")
+                if assignment is None:
+                    raise LookupError("CASHIER_SHIFT_NOT_FOUND")
         else:
             permissions.require(actor, "inventory.adjust", bar_id)
-            assignment = None
         bar = db.session.get(Bar, bar_id)
         if not bar:
             raise LookupError("NOT_FOUND")
@@ -288,7 +329,7 @@ class InventoryService:
         # All commerce stock movements acquire the same bar write lock as this
         # transaction; the cursor is captured at a consistent ledger boundary.
         opening_checkpoint = (
-            self._latest_stock_movement_cursor(bar_id) if shift is not None else None
+            self._latest_stock_movement_cursor(bar_id) if assignment is not None else None
         )
         inv = Inventory(
             bar_id=bar_id,
@@ -305,7 +346,7 @@ class InventoryService:
                 InventoryCashierAssignment(
                     bar_id=bar_id,
                     inventory_id=inv.id,
-                    cashier_shift_id=shift.id,
+                    cashier_shift_id=shift.id if shift is not None else None,
                     cashier_user_id=assignment.user_id,
                     cashier_name_snapshot=assignment.user.display_name,
                     assigned_by_id=actor.id,
@@ -397,7 +438,7 @@ class InventoryService:
                 raise ValueError("INVENTORY_SUBMITTED_LOCKED")
         if attribution is not None and self._is_cashier(actor, bar_id):
             active = get_active_shift_for_user(actor.id, bar_id)
-            if not active or active.id != attribution.cashier_shift_id:
+            if not active or (attribution.cashier_shift_id is not None and active.id != attribution.cashier_shift_id):
                 raise PermissionError("INVENTORY_SHIFT_CLOSED")
         if not isinstance(quantities, dict) or not quantities:
             raise ValueError("COUNT_REQUIRED")
@@ -507,7 +548,7 @@ class InventoryService:
             raise ValueError("INVENTORY_V2_REQUIRED")
         if self._is_cashier(actor, bar_id):
             active = get_active_shift_for_user(actor.id, bar_id)
-            if not active or active.id != attribution.cashier_shift_id:
+            if not active or (attribution.cashier_shift_id is not None and active.id != attribution.cashier_shift_id):
                 raise PermissionError("INVENTORY_SHIFT_CLOSED")
         if not isinstance(entries, list) or not entries or len(entries) > 500:
             raise ValueError("COUNT_REQUIRED")

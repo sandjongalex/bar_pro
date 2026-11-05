@@ -15,7 +15,7 @@ from sqlalchemy import select
 
 from app.extensions import db
 from app.finance_totals import order_balance
-from app.models import Order
+from app.models import Order, StaffAssignment
 from app.order_suborder_models import OrderSuborder
 from app.payment_services import payment_service
 from app.permissions import permissions
@@ -38,12 +38,21 @@ class OrderMergeService:
         if len(ids) < 2:
             raise ValueError("MERGE_REQUIRES_MULTIPLE_ORDERS")
 
+        stmt = select(Order).where(Order.bar_id == bar_id, Order.id.in_(ids))
+        if getattr(actor, "category", None) == "EMPLOYEE":
+            cashier_assignment = db.session.scalar(
+                select(StaffAssignment).where(
+                    StaffAssignment.bar_id == bar_id,
+                    StaffAssignment.user_id == actor.id,
+                    StaffAssignment.role == "CASHIER",
+                    StaffAssignment.ended_at.is_(None),
+                )
+            )
+            if cashier_assignment is not None:
+                stmt = stmt.where(Order.cashier_assignment_id == cashier_assignment.id)
         orders = list(
             db.session.scalars(
-                select(Order)
-                .where(Order.bar_id == bar_id, Order.id.in_(ids))
-                .order_by(Order.posted_at.asc(), Order.id.asc())
-                .with_for_update()
+                stmt.order_by(Order.posted_at.asc(), Order.id.asc()).with_for_update()
             )
         )
         if len(orders) != len(ids):

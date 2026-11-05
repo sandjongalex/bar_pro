@@ -130,8 +130,39 @@ class Customer(Tenant,db.Model):
 
 # Financial and operational models use the same explicit tenant composite keys.
 class Order(Tenant,db.Model):
-    __tablename__="orders"; id=db.Column(ID,primary_key=True); reference=db.Column(db.String(64),nullable=False); table_id=db.Column(ID); customer_id=db.Column(ID); assigned_staff_id=db.Column(ID); status=db.Column(db.String(16),nullable=False,default="DRAFT"); payment_status=db.Column(db.String(16),nullable=False,default="UNPAID"); notes=db.Column(db.String(500)); currency=db.Column(db.String(3),nullable=False); customer_name_snapshot=db.Column(db.String(160)); table_label_snapshot=db.Column(db.String(64)); subtotal_amount=db.Column(MONEY,nullable=False,default=0); discount_amount=db.Column(MONEY,nullable=False,default=0); tax_amount=db.Column(MONEY,nullable=False,default=0); total_amount=db.Column(MONEY,nullable=False,default=0); posted_at=db.Column(datetime_type(fsp=6)); closed_at=db.Column(datetime_type(fsp=6)); cancelled_at=db.Column(datetime_type(fsp=6)); created_by_id=db.Column(ID,db.ForeignKey("users.id",ondelete="RESTRICT"),nullable=False)
-    __table_args__=tenant_args("orders",ForeignKeyConstraint(["bar_id","table_id"],["bar_tables.bar_id","bar_tables.id"],ondelete="RESTRICT"),ForeignKeyConstraint(["bar_id","customer_id"],["customers.bar_id","customers.id"],ondelete="RESTRICT"),ForeignKeyConstraint(["bar_id","assigned_staff_id"],["staff_assignments.bar_id","staff_assignments.id"],ondelete="RESTRICT"),UniqueConstraint("bar_id","reference",name="uq_orders_reference"),CheckConstraint("status IN ('DRAFT','CONFIRMED','SERVED','CANCELLED')",name="ck_orders_status"),CheckConstraint("payment_status IN ('UNPAID','PARTIAL','PAID')",name="ck_orders_payment_status"),CheckConstraint("subtotal_amount >= 0 AND discount_amount >= 0 AND tax_amount >= 0 AND discount_amount <= subtotal_amount AND total_amount = subtotal_amount-discount_amount+tax_amount",name="ck_orders_amounts"))
+    __tablename__="orders"
+    id=db.Column(ID,primary_key=True)
+    reference=db.Column(db.String(64),nullable=False)
+    table_id=db.Column(ID)
+    customer_id=db.Column(ID)
+    assigned_staff_id=db.Column(ID)
+    cashier_assignment_id=db.Column(ID)
+    status=db.Column(db.String(16),nullable=False,default="DRAFT")
+    payment_status=db.Column(db.String(16),nullable=False,default="UNPAID")
+    notes=db.Column(db.String(500))
+    currency=db.Column(db.String(3),nullable=False)
+    customer_name_snapshot=db.Column(db.String(160))
+    table_label_snapshot=db.Column(db.String(64))
+    subtotal_amount=db.Column(MONEY,nullable=False,default=0)
+    discount_amount=db.Column(MONEY,nullable=False,default=0)
+    tax_amount=db.Column(MONEY,nullable=False,default=0)
+    total_amount=db.Column(MONEY,nullable=False,default=0)
+    posted_at=db.Column(datetime_type(fsp=6))
+    closed_at=db.Column(datetime_type(fsp=6))
+    cancelled_at=db.Column(datetime_type(fsp=6))
+    created_by_id=db.Column(ID,db.ForeignKey("users.id",ondelete="RESTRICT"),nullable=False)
+    __table_args__=tenant_args(
+        "orders",
+        ForeignKeyConstraint(["bar_id","table_id"],["bar_tables.bar_id","bar_tables.id"],ondelete="RESTRICT"),
+        ForeignKeyConstraint(["bar_id","customer_id"],["customers.bar_id","customers.id"],ondelete="RESTRICT"),
+        ForeignKeyConstraint(["bar_id","assigned_staff_id"],["staff_assignments.bar_id","staff_assignments.id"],ondelete="RESTRICT"),
+        ForeignKeyConstraint(["bar_id","cashier_assignment_id"],["staff_assignments.bar_id","staff_assignments.id"],ondelete="RESTRICT"),
+        UniqueConstraint("bar_id","reference",name="uq_orders_reference"),
+        CheckConstraint("status IN ('DRAFT','CONFIRMED','SERVED','CANCELLED')",name="ck_orders_status"),
+        CheckConstraint("payment_status IN ('UNPAID','PARTIAL','PAID')",name="ck_orders_payment_status"),
+        CheckConstraint("subtotal_amount >= 0 AND discount_amount >= 0 AND tax_amount >= 0 AND discount_amount <= subtotal_amount AND total_amount = subtotal_amount-discount_amount+tax_amount",name="ck_orders_amounts"),
+        Index("ix_orders_cashier_queue","bar_id","cashier_assignment_id","status","payment_status","id"),
+    )
 
 class OrderLine(Tenant,db.Model):
     __tablename__="order_lines"; id=db.Column(ID,primary_key=True); order_id=db.Column(ID,nullable=False); product_id=db.Column(ID,nullable=False); line_no=db.Column(integer(unsigned=True),nullable=False); product_name_snapshot=db.Column(db.String(160),nullable=False); unit_snapshot=db.Column(db.String(16),nullable=False); quantity=db.Column(QTY,nullable=False); note=db.Column(db.String(500)); unit_sale_price_snapshot=db.Column(MONEY,nullable=False); unit_cost_snapshot=db.Column(MONEY,nullable=False); subtotal_amount=db.Column(MONEY,nullable=False); discount_amount=db.Column(MONEY,nullable=False,default=0); tax_amount=db.Column(MONEY,nullable=False,default=0); total_amount=db.Column(MONEY,nullable=False)

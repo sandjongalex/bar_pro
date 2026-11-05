@@ -39,14 +39,17 @@
           <div class="col-12"><div class="alert alert-info mb-0">Votre nouvel inventaire V2 sera automatiquement affecté à votre session de travail en cours. Vous pourrez compter les produits sans les valider.</div></div>
           {% else %}
           <div class="col-12">
-            <label class="form-label" for="cashier_shift_id">Caissière en service — inventaire V2</label>
-            <select class="form-select form-select-lg" name="cashier_shift_id" id="cashier_shift_id">
-              <option value="">Parcours historique V1 (sans affectation)</option>
-              {% for shift, user in cashier_shifts %}
-              <option value="{{ shift.id }}" {% if request.form.get('cashier_shift_id') == shift.id|string %}selected{% endif %}>{{ user.display_name }} — session {{ shift.id }}</option>
+            <label class="form-label" for="cashier_assignment_id">Caissière responsable — inventaire V2</label>
+            <select class="form-select form-select-lg" name="cashier_assignment_id" id="cashier_assignment_id">
+              <option value="">Inventaire général — sans affectation</option>
+              {% for assignment, user in cashier_assignments %}
+              {% set active_shift = active_cashier_shifts.get(assignment.id) %}
+              <option value="{{ assignment.id }}" {% if request.form.get('cashier_assignment_id') == assignment.id|string %}selected{% endif %}>
+                {{ user.display_name }} — {{ 'En service' if active_shift else 'Hors service' }}
+              </option>
               {% endfor %}
             </select>
-            <div class="form-text">Sélectionnez une caissière présente pour démarrer le comptage V2. Le parcours V1 reste disponible pendant la transition.</div>
+            <div class="form-text">Vous pouvez sélectionner une caissière en service ou hors service. Si une session est ouverte, elle sera automatiquement liée à l'inventaire. Sinon, le nom de la caissière sera conservé pour l'inventaire manuel.</div>
           </div>
           {% endif %}
           <div class="col-12">

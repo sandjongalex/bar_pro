@@ -110,7 +110,7 @@ def test_cashier_invoices_page_filters_delivery_and_personnel(env):
         invoice_name="Comptoir Ashley",
     )
     db.session.flush()
-    order_service.confirm(cashier, bar.id, other_counter.id)
+    order_service.confirm(other_cashier, bar.id, other_counter.id)
 
     cash_service.open(cashier, bar.id, "INV-UI-CASH", 0)
     db.session.commit()
@@ -132,7 +132,7 @@ def test_cashier_invoices_page_filters_delivery_and_personnel(env):
     assert waiting.reference in page.text
     assert delivered_server.reference in page.text
     assert counter.reference in page.text
-    assert other_counter.reference in page.text
+    assert other_counter.reference not in page.text
     assert f"/bars/{bar.id}/orders/{waiting.id}/detail" in page.text
     assert "✓ Payé" in page.text
     assert "Reste à encaisser" in page.text
@@ -155,7 +155,7 @@ def test_cashier_invoices_page_filters_delivery_and_personnel(env):
     snapshot = client.get(f"/bars/{bar.id}/cashier/invoices?snapshot=1")
     assert snapshot.status_code == 200
     assert snapshot.is_json
-    assert snapshot.get_json()["stats"]["visible"] == 4
+    assert snapshot.get_json()["stats"]["visible"] == 3
     assert 'data-invoice-id="' in snapshot.get_json()["html"]
     assert snapshot.headers.get("ETag")
     assert client.get(
@@ -178,7 +178,7 @@ def test_cashier_invoices_page_filters_delivery_and_personnel(env):
     )
     assert counter_only.status_code == 200
     assert counter.reference in counter_only.text
-    assert other_counter.reference in counter_only.text
+    assert delivered_server.reference not in counter_only.text
     assert delivered_server.reference not in counter_only.text
 
     # Personnel filter distinguishes each cashier even though both orders are
@@ -195,7 +195,7 @@ def test_cashier_invoices_page_filters_delivery_and_personnel(env):
         f"/bars/{bar.id}/cashier/invoices?delivery=delivered&payment=all&origin=person-{other_cashier.id}"
     )
     assert ashley_only.status_code == 200
-    assert other_counter.reference in ashley_only.text
+    assert other_counter.reference not in ashley_only.text
     assert counter.reference not in ashley_only.text
     assert delivered_server.reference not in ashley_only.text
 
@@ -237,6 +237,14 @@ def test_cashier_invoices_page_filters_delivery_and_personnel(env):
     assert paid_server.status_code == 200
     assert delivered_server.reference in paid_server.text
     assert "✓ Payée" in paid_server.text
+
+    other_client = app.test_client()
+    assert _login(other_client, other_cashier.email).status_code == 302
+    other_page = other_client.get(f"/bars/{bar.id}/cashier/invoices")
+    assert other_page.status_code == 200
+    assert other_counter.reference in other_page.text
+    assert counter.reference not in other_page.text
+    assert delivered_server.reference not in other_page.text
 
     workspace = client.get(f"/bars/{bar.id}/cashier/workspace")
     assert workspace.status_code == 200

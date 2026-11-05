@@ -202,6 +202,10 @@ def receipt(bar_id: int, order_id: int):
     order = db.session.scalar(select(Order).where(Order.bar_id == bar_id, Order.id == order_id))
     if not order or order.status == "DRAFT":
         raise LookupError("NOT_FOUND")
+    receipt_assignment = _current_assignment(bar_id)
+    if receipt_assignment and receipt_assignment.role == "CASHIER":
+        if order.cashier_assignment_id != receipt_assignment.id:
+            raise LookupError("NOT_FOUND")
 
     receipt_sections = _receipt_sections(bar_id, order_id)
     lines = [line for section in receipt_sections for line in section["lines"]]
@@ -316,6 +320,8 @@ def checkout(bar_id):
                 select(Order).where(Order.id == order_id, Order.bar_id == bar_id).with_for_update()
             )
             if not order:
+                raise LookupError("NOT_FOUND")
+            if is_cashier and order.cashier_assignment_id != assignment.id:
                 raise LookupError("NOT_FOUND")
             if order.status not in {"CONFIRMED", "SERVED"}:
                 raise ValueError("ORDER_NOT_PAYABLE")

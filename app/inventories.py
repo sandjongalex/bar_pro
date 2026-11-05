@@ -48,6 +48,8 @@ def _message(code):
         "INVENTORY_V2_PENDING_APPROVAL": "Inventaire affecté à une caissière : la validation V2 sera disponible après activation du circuit d'approbation.",
         "INVALID_CASHIER_SHIFT": "Session de caissière invalide.",
         "CASHIER_SHIFT_NOT_FOUND": "Aucune session de caissière active ne correspond à cette sélection.",
+        "INVALID_CASHIER_ASSIGNMENT": "Sélection de caissière invalide.",
+        "CASHIER_ASSIGNMENT_NOT_FOUND": "Cette caissière n'est plus affectée à ce bar.",
         "NOTE_TOO_LONG": "Une note dépasse 500 caractères.",
         "INVENTORY_SUBMITTED_LOCKED": "Ce comptage a été soumis. Demandez un recomptage pour le modifier.",
         "INVENTORY_RECOUNT_REQUIRED": "Des mouvements ou une référence de stock exigent un nouveau comptage.",
@@ -293,7 +295,8 @@ def new(bar_id):
                 None,
                 defaults["reason"],
                 defaults["period_end"],
-                request.form.get("cashier_shift_id") or None,
+                cashier_shift_id=request.form.get("cashier_shift_id") or None,
+                cashier_assignment_id=request.form.get("cashier_assignment_id") or None,
             )
             db.session.commit()
             flash("Inventaire créé. Comptez maintenant les bouteilles réellement présentes.", "success")
@@ -302,23 +305,30 @@ def new(bar_id):
             db.session.rollback()
             flash("Référence déjà utilisée." if isinstance(exc, IntegrityError) else _message(exc), "danger")
 
-    cashier_shifts = db.session.execute(
-        select(EmployeeShift, User)
-        .join(StaffAssignment,
-              (StaffAssignment.bar_id == EmployeeShift.bar_id)
-              & (StaffAssignment.id == EmployeeShift.staff_assignment_id))
+    cashier_assignments = db.session.execute(
+        select(StaffAssignment, User)
         .join(User, User.id == StaffAssignment.user_id)
-        .where(EmployeeShift.bar_id == bar_id,
-               EmployeeShift.status == "OPEN",
-               EmployeeShift.role_snapshot == "CASHIER",
-               StaffAssignment.role == "CASHIER",
-               StaffAssignment.ended_at.is_(None),
-               User.is_active.is_(True))
-        .order_by(EmployeeShift.started_at, EmployeeShift.id)
+        .where(
+            StaffAssignment.bar_id == bar_id,
+            StaffAssignment.role == "CASHIER",
+            StaffAssignment.ended_at.is_(None),
+        )
+        .order_by(User.display_name, StaffAssignment.id)
     ).all()
+    active_cashier_shifts = {
+        shift.staff_assignment_id: shift
+        for shift in db.session.scalars(
+            select(EmployeeShift).where(
+                EmployeeShift.bar_id == bar_id,
+                EmployeeShift.status == "OPEN",
+                EmployeeShift.role_snapshot == "CASHIER",
+            )
+        )
+    }
     return render_template(
         "inventory_new.html",
-        cashier_shifts=cashier_shifts,
+        cashier_assignments=cashier_assignments,
+        active_cashier_shifts=active_cashier_shifts,
         bar=bar,
         bar_id=bar_id,
         defaults=defaults,

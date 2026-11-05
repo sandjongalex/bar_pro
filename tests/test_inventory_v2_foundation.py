@@ -161,3 +161,47 @@ def test_cashier_api_read_is_scoped_to_own_inventory(env):
     assert result.json["data"][0]["cashier_user_id"] == str(cashier_a.id)
     assert client.get(f"{base}/{other.id}", headers=headers).status_code == 404
     assert client.post(f"{base}/{other.id}/post", headers=headers).status_code == 403
+
+
+
+def test_owner_can_assign_v2_inventory_to_cashier_without_open_shift(env):
+    from app.inventory_assignment_models import InventoryCashierAssignment
+
+    owner, bar = env[1], env[2]
+    cashier = User(
+        email="cashier-off-duty-inventory@example.invalid",
+        display_name="Caissière hors service",
+        category="EMPLOYEE",
+    )
+    cashier.set_password("test-password")
+    db.session.add(cashier)
+    db.session.flush()
+    assignment = StaffAssignment(
+        bar_id=bar.id,
+        user_id=cashier.id,
+        role="CASHIER",
+        started_at=utcnow(),
+    )
+    db.session.add(assignment)
+    db.session.flush()
+
+    inventory = inventory_service.create(
+        owner,
+        bar.id,
+        "V2-OFF-DUTY-CASHIER",
+        [env[4].id],
+        "Inventaire réalisé manuellement",
+        cashier_assignment_id=assignment.id,
+    )
+    db.session.commit()
+
+    attribution = db.session.scalar(
+        select(InventoryCashierAssignment).where(
+            InventoryCashierAssignment.bar_id == bar.id,
+            InventoryCashierAssignment.inventory_id == inventory.id,
+        )
+    )
+    assert attribution is not None
+    assert attribution.cashier_shift_id is None
+    assert attribution.cashier_user_id == cashier.id
+    assert attribution.cashier_name_snapshot == cashier.display_name

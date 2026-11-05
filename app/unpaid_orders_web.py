@@ -187,6 +187,8 @@ def _payload(bar_id: int, staff_filter: str | None = None):
     )
     if role == "SERVER":
         query = query.where(Order.assigned_staff_id == assignment.id)
+    elif role == "CASHIER":
+        query = query.where(Order.cashier_assignment_id == assignment.id)
 
     all_orders = list(
         db.session.scalars(
@@ -440,6 +442,15 @@ def confirm_delivery(bar_id: int, order_id: int, suborder_id: int):
     if assignment is None or assignment.role != "CASHIER":
         abort(404)
     permissions.require(current_user, "orders.deliver", bar_id)
+    owned_order = db.session.scalar(
+        select(Order.id).where(
+            Order.bar_id == bar_id,
+            Order.id == order_id,
+            Order.cashier_assignment_id == assignment.id,
+        )
+    )
+    if owned_order is None:
+        abort(404)
 
     opened = db.session.scalar(
         select(CashSession.id).where(

@@ -111,8 +111,8 @@ def test_cashier_unpaid_monitor_shows_all_delivered_orders_and_payment_removes_p
 
     first = order_service.create(server, bar.id, "UNPAID-CASH-1", [{"product_id": product.id, "quantity": 1}])
     second = order_service.create(server, bar.id, "UNPAID-CASH-2", [{"product_id": product.id, "quantity": 2}])
-    order_service.confirm(owner, bar.id, first.id)
-    order_service.confirm(owner, bar.id, second.id)
+    order_service.confirm(cashier, bar.id, first.id)
+    order_service.confirm(cashier, bar.id, second.id)
     db.session.commit()
 
     client = app.test_client()
@@ -177,8 +177,9 @@ def test_cashier_can_filter_unpaid_orders_by_cashier_or_server(env):
         [{"product_id": product.id, "quantity": 1}],
         invoice_name="Comptoir Ashley",
     )
-    for item in (marie_order, alex_order, ashley_order):
-        order_service.confirm(owner, bar.id, item.id)
+    order_service.confirm(alex, bar.id, marie_order.id)
+    order_service.confirm(alex, bar.id, alex_order.id)
+    order_service.confirm(ashley, bar.id, ashley_order.id)
     db.session.commit()
 
     client = app.test_client()
@@ -214,5 +215,11 @@ def test_cashier_can_filter_unpaid_orders_by_cashier_or_server(env):
         f"/bars/{bar.id}/unpaid-orders/data?staff=person-{ashley.id}"
     ).get_json()
     assert ashley_payload["staff_filter"] == f"person-{ashley.id}"
-    assert ashley_payload["stats"]["count"] == 1
-    assert [item["reference"] for item in ashley_payload["orders"]] == ["FILTER-ASHLEY"]
+    assert ashley_payload["stats"]["count"] == 0
+    assert ashley_payload["orders"] == []
+
+    other_client = app.test_client()
+    assert _login(other_client, ashley.email).status_code == 302
+    ashley_own = other_client.get(f"/bars/{bar.id}/unpaid-orders/data").get_json()
+    assert ashley_own["stats"]["count"] == 1
+    assert [item["reference"] for item in ashley_own["orders"]] == ["FILTER-ASHLEY"]

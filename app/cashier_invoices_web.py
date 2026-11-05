@@ -8,7 +8,7 @@ import secrets
 
 from flask import Blueprint, flash, jsonify, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
-from sqlalchemy import or_, select
+from sqlalchemy import and_, or_, select
 from sqlalchemy.exc import IntegrityError, OperationalError
 
 from app.async_ui import wants_async_web_response, web_json_response
@@ -75,7 +75,8 @@ def _redirect_to_filters(bar_id: int):
 @login_required
 def invoices(bar_id: int):
     permissions.require(current_user, "orders.read", bar_id)
-    if _cashier_assignment(bar_id) is None:
+    cashier_assignment = _cashier_assignment(bar_id)
+    if cashier_assignment is None:
         raise PermissionError("FORBIDDEN")
 
     bar = db.session.get(Bar, bar_id)
@@ -103,6 +104,8 @@ def invoices(bar_id: int):
                 .with_for_update()
             )
             if not order:
+                raise LookupError("NOT_FOUND")
+            if order.cashier_assignment_id != cashier_assignment.id:
                 raise LookupError("NOT_FOUND")
             if order.status not in {"CONFIRMED", "SERVED"}:
                 raise ValueError("ORDER_NOT_PAYABLE")
@@ -174,6 +177,10 @@ def invoices(bar_id: int):
             .where(
                 Order.bar_id == bar_id,
                 Order.status.in_(["DRAFT", "CONFIRMED", "SERVED"]),
+                or_(
+                    Order.cashier_assignment_id == cashier_assignment.id,
+                    and_(Order.cashier_assignment_id.is_(None), Order.status == "DRAFT"),
+                ),
             )
             .order_by(Order.id.desc())
             .limit(300)
