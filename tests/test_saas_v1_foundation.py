@@ -40,7 +40,7 @@ def test_five_roles_are_existing_roles_and_multi_bar_access_is_scoped(env):
     _, owner, bar, foreign, _, server, _, _ = env
     assert permissions.evaluate(owner, "bars.read", bar.id).allowed
     assert not permissions.evaluate(owner, "bars.read", foreign.id).allowed
-    second = Bar(owner_id=owner.id, name="Second", timezone="Africa/Douala", currency="XAF")
+    second = Bar(owner_id=owner.id, name="Second", timezone="Africa/Douala", currency="XAF", catalog_configured=True)
     db.session.add(second)
     db.session.flush()
     assert permissions.evaluate(owner, "bars.read", second.id).allowed
@@ -244,7 +244,7 @@ def test_global_notification_endpoints_respect_each_bar_suspension(env):
     app, owner, bar, _, _, _, _, _ = env
     platform = platform_user()
     second = Bar(owner_id=owner.id, name="Second bar accessible",
-                 timezone="Africa/Douala", currency="XAF")
+                 timezone="Africa/Douala", currency="XAF", catalog_configured=True)
     db.session.add(second)
     db.session.flush()
     note = UserNotification(bar_id=bar.id, user_id=owner.id, kind="SYSTEM",

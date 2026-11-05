@@ -28,6 +28,7 @@ def test_owner_can_still_access_multiple_owned_bars(env):
         name="Owner Second Bar",
         timezone="Africa/Douala",
         currency="XAF",
+        catalog_configured=True,
     )
     db.session.add(second_bar)
     db.session.commit()

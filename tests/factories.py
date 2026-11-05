@@ -9,4 +9,4 @@ def owner(email="owner.factory.demo@example.invalid"):
 
 
 def bar(owner_id, name="DEMO Factory Bar"):
-    return Bar(owner_id=owner_id, name=name, timezone="Africa/Douala", currency="XAF")
+    return Bar(owner_id=owner_id, name=name, timezone="Africa/Douala", currency="XAF", catalog_configured=True)

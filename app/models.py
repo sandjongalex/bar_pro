@@ -74,7 +74,7 @@ class Bar(Timestamped, db.Model):
     currency = db.Column(db.String(3), nullable=False, default="XAF")
     stock_alert_threshold = db.Column(QTY, nullable=False, default=Decimal("0"))
     credit_sales_enabled = db.Column(db.Boolean, nullable=False, default=False)
-    catalog_configured = db.Column(db.Boolean, nullable=False, default=False, server_default="0")
+    catalog_configured = db.Column(db.Boolean, nullable=False, default=False)
     suspended_at = db.Column(datetime_type(fsp=6)); suspension_reason = db.Column(db.String(500))
     owner = db.relationship("User", foreign_keys=[owner_id], backref="owned_bars")
     __table_args__ = (CheckConstraint("status IN ('ACTIVE','SUSPENDED')", name="ck_bars_status"), Index("ix_bars_owner_status", "owner_id", "status", "id"))

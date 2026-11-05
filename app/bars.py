@@ -13,7 +13,7 @@ from app.auth import api_required
 bars_bp=Blueprint("bars",__name__,url_prefix="/bars")
 api_bars_bp=Blueprint("api_bars",__name__,url_prefix="/api/v1/bars")
 def deny(reason): return jsonify({"success":False,"error":{"code":reason,"message":"Access denied.","details":None}}),404 if reason=="NOT_FOUND" else 403
-def serialize(bar): return {"id":str(bar.id),"name":bar.name,"status":bar.status,"timezone":bar.timezone,"currency":bar.currency,"address":bar.address,"phone":bar.phone,"logo_key":bar.logo_key,"stock_alert_threshold":str(bar.stock_alert_threshold),"credit_sales_enabled":bar.credit_sales_enabled,"catalog_configured":bar.catalog_configured}
+def serialize(bar): return {"id":str(bar.id),"name":bar.name,"status":bar.status,"timezone":bar.timezone,"currency":bar.currency,"address":bar.address,"phone":bar.phone,"logo_key":bar.logo_key,"stock_alert_threshold":str(bar.stock_alert_threshold),"credit_sales_enabled":bar.credit_sales_enabled}
 
 
 def _active_owners():
