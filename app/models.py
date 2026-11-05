@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from decimal import Decimal
 
 from flask_login import UserMixin
-from sqlalchemy import CheckConstraint, Computed, ForeignKey, ForeignKeyConstraint, Index, UniqueConstraint, false
+from sqlalchemy import CheckConstraint, Computed, ForeignKey, ForeignKeyConstraint, Index, UniqueConstraint, text
 from sqlalchemy.dialects.mysql import BINARY as MYSQL_BINARY, VARBINARY as MYSQL_VARBINARY, DATETIME as MYSQL_DATETIME, INTEGER as MYSQL_INTEGER, SMALLINT as MYSQL_SMALLINT
 from werkzeug.security import check_password_hash, generate_password_hash
 
@@ -74,7 +74,7 @@ class Bar(Timestamped, db.Model):
     currency = db.Column(db.String(3), nullable=False, default="XAF")
     stock_alert_threshold = db.Column(QTY, nullable=False, default=Decimal("0"))
     credit_sales_enabled = db.Column(db.Boolean, nullable=False, default=False)
-    catalog_configured = db.Column(db.Boolean, nullable=False, default=False, server_default=false())
+    catalog_configured = db.Column(db.Boolean, nullable=False, default=False, server_default=text("0"))
     suspended_at = db.Column(datetime_type(fsp=6)); suspension_reason = db.Column(db.String(500))
     owner = db.relationship("User", foreign_keys=[owner_id], backref="owned_bars")
     __table_args__ = (CheckConstraint("status IN ('ACTIVE','SUSPENDED')", name="ck_bars_status"), Index("ix_bars_owner_status", "owner_id", "status", "id"))
