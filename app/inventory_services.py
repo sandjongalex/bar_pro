@@ -168,7 +168,10 @@ class InventoryService:
             *_in_period(StockMovement.occurred_at, start_at, end_at),
         )
         if movement_type:
-            query = query.where(StockMovement.movement_type == movement_type)
+            if isinstance(movement_type, (tuple, list, set, frozenset)):
+                query = query.where(StockMovement.movement_type.in_(movement_type))
+            else:
+                query = query.where(StockMovement.movement_type == movement_type)
         return Decimal(db.session.scalar(query) or 0)
 
     @staticmethod
@@ -341,7 +344,13 @@ class InventoryService:
                 opening = max(opening, ZERO)
             purchases = self._movement_total(bar_id, product.id, end_at, start_at, "PURCHASE")
             purchases = max(purchases, ZERO)
-            theoretical = opening + purchases
+            # Non-sale movements change the quantity available for sale. Keep them
+            # separate from the historical physical count so manual corrections,
+            # losses and restocked returns are not misreported as sales.
+            other_movements = self._movement_total(
+                bar_id, product.id, end_at, start_at, ("RETURN", "LOSS", "ADJUSTMENT")
+            )
+            theoretical = opening + purchases + other_movements
             machine_at_end = self._movement_total(bar_id, product.id, end_at)
             machine_at_end = max(machine_at_end, ZERO)
 
@@ -360,6 +369,7 @@ class InventoryService:
                     inventory_line_id=line.id,
                     opening_quantity=opening,
                     purchase_quantity=purchases,
+                    other_movement_quantity=other_movements,
                     theoretical_quantity=theoretical,
                     sale_price_snapshot=product.sale_price,
                     theoretical_sold_quantity=0,

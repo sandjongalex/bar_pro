@@ -6,6 +6,7 @@ from sqlalchemy import select
 from test_workflows import env, balance
 from app.extensions import db
 from app.models import Inventory, InventoryLine, Product, StockMovement
+from app.inventory_period_models import InventoryLineSnapshot
 from app.inventory_services import inventory_service
 from app.stock_service import stock_service
 from app.auth import issue
@@ -176,3 +177,46 @@ def test_failure_during_stock_adjustment_rolls_back_every_line(env, monkeypatch)
     assert balance(env) == 10
     assert db.session.get(Inventory, inv.id).status == 'DRAFT'
     assert db.session.query(StockMovement).filter(StockMovement.inventory_line_id.is_not(None)).count() == 0
+
+
+def test_non_sale_stock_movements_are_included_in_next_theoretical_inventory(env):
+    first = draft(env)
+    inventory_service.count(env[1], env[2].id, first.id, {str(env[4].id): "20"})
+    inventory_service.post(env[1], env[2].id, first.id)
+    db.session.commit()
+    assert balance(env) == Decimal("20")
+
+    # A manual correction, a recorded loss and a restocked return must all
+    # change the next theoretical stock without being counted as sales.
+    stock_service.move(env[1], env[2].id, env[4].id, "ADJUSTMENT", "-12", "Correction du stock initial")
+    stock_service.move(env[1], env[2].id, env[4].id, "LOSS", "-1", "Bouteille cassée")
+    stock_service.move(env[1], env[2].id, env[4].id, "RETURN", "1", "Retour client remis en stock")
+    db.session.commit()
+    assert balance(env) == Decimal("8")
+
+    next_inventory = inventory_service.create(
+        env[1], env[2].id, "INV-NEXT", [env[4].id], "Physical count"
+    )
+    db.session.commit()
+    line = db.session.scalar(
+        select(InventoryLine).where(InventoryLine.inventory_id == next_inventory.id)
+    )
+    snapshot = db.session.scalar(
+        select(InventoryLineSnapshot).where(
+            InventoryLineSnapshot.inventory_line_id == line.id
+        )
+    )
+
+    # Preserve the actual last physical count, while showing the correction
+    # separately and using its net effect in the theoretical stock.
+    assert snapshot.opening_quantity == Decimal("20")
+    assert snapshot.other_movement_quantity == Decimal("-12")
+    assert snapshot.theoretical_quantity == Decimal("8")
+    assert line.expected_quantity_snapshot == Decimal("8")
+
+    inventory_service.count(
+        env[1], env[2].id, next_inventory.id, {str(env[4].id): "7"}
+    )
+    db.session.commit()
+    assert snapshot.theoretical_sold_quantity == Decimal("1")
+    assert snapshot.theoretical_sales_amount == Decimal("100")

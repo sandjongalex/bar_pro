@@ -7,7 +7,7 @@
     <a class="bar-back" href="{{ url_for('inventories.listing', bar_id=bar.id) }}">← Tous les inventaires</a>
     <p class="eyebrow mt-3 mb-2">Clôture physique</p>
     <h1>Démarrer un inventaire</h1>
-    <p>Choisissez la date de fin. Le système prépare automatiquement le stock du dernier inventaire, les achats, le stock théorique et le stock machine pour chaque produit actif.</p>
+    <p>Choisissez la date de fin. Le système prépare automatiquement le stock du dernier inventaire, les achats, les mouvements hors ventes (ajustements, pertes et retours), le stock théorique et le stock machine pour chaque produit actif.</p>
   </div>
   <span class="inventory-product-count">{{ product_count }} produit{{ 's' if product_count != 1 else '' }}</span>
 </section>

@@ -49,6 +49,8 @@ class InventoryLineSnapshot(Tenant, db.Model):
     inventory_line_id = db.Column(ID, nullable=False)
     opening_quantity = db.Column(QTY, nullable=False, default=0)
     purchase_quantity = db.Column(QTY, nullable=False, default=0)
+    # Signed net of returns, manual adjustments and losses; excludes sales and inventory postings.
+    other_movement_quantity = db.Column(QTY, nullable=False, default=0)
     theoretical_quantity = db.Column(QTY, nullable=False, default=0)
     sale_price_snapshot = db.Column(MONEY, nullable=False, default=0)
     theoretical_sold_quantity = db.Column(QTY, nullable=False, default=0)

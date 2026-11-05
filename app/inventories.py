@@ -147,6 +147,7 @@ def payload(inv):
                 "sale_price": str(snap.sale_price_snapshot if snap else product.sale_price),
                 "opening_quantity": str(snap.opening_quantity if snap else line.expected_quantity_snapshot),
                 "purchase_quantity": str(snap.purchase_quantity if snap else 0),
+                "other_movement_quantity": str(snap.other_movement_quantity if snap else 0),
                 "theoretical_quantity": str(theoretical),
                 "machine_quantity": str(line.expected_quantity_snapshot),
                 "physical_quantity": str(counted) if counted is not None else None,
