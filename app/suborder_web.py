@@ -96,7 +96,7 @@ def _builder_data(bar_id: int):
                 Product.is_active.is_(True),
                 StockBalance.quantity > 0,
             )
-            .order_by(product_order_expression(Product.name), Product.name, Product.id)
+            .order_by(product_order_expression(Product.name, Product.display_order), Product.name, Product.id)
         )
     )
     products = [product for product, _ in available]

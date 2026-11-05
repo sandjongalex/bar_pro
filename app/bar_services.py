@@ -135,6 +135,7 @@ def create_bar(actor, owner_id, data, copy_from_id=None):
             clone = Product(
                 bar_id=bar.id,
                 category_id=categories[product.category_id],
+                display_order=product.display_order,
                 sku=product.sku,
                 name=product.name,
                 base_unit=product.base_unit,

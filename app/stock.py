@@ -116,7 +116,7 @@ def history(bar_id):
             ),
         )
         .where(Product.bar_id == bar_id, Product.is_active.is_(True))
-        .order_by(product_order_expression(Product.name), Product.name, Product.id)
+        .order_by(product_order_expression(Product.name, Product.display_order), Product.name, Product.id)
     ).all()
 
     balances = []

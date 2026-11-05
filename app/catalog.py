@@ -1,20 +1,25 @@
 from decimal import Decimal, InvalidOperation
 
 from flask import Blueprint, flash, jsonify, redirect, render_template, request, send_from_directory, url_for
+from sqlalchemy.exc import IntegrityError
 from flask_login import current_user, login_required
 from sqlalchemy import select
 
 from app.auth import api_required
+from app.async_ui import wants_async_web_response, web_json_response
 from app.catalog_services import (
     create_category,
     create_product,
+    list_all_products,
     list_categories,
     list_products,
+    position_product,
+    rename_category,
     set_category_active,
     update_product,
 )
 from app.extensions import db
-from app.models import Bar, Product, StockBalance
+from app.models import Bar, Product, ProductCategory, StockBalance
 from app.permissions import permissions
 from app.product_images import delete_product_image, product_image_directory
 from app.stock_service import StockError, stock_service
@@ -41,6 +46,7 @@ def output(item):
             if item.image_key
             else None
         ),
+        "display_order": item.display_order,
     }
 
 
@@ -64,6 +70,7 @@ def _message(code):
         "IMAGE_TOO_LARGE": "La photo dépasse la taille maximale de 4 Mo.",
         "FORBIDDEN": "Vous n'êtes pas autorisé à modifier le catalogue.",
         "NOT_FOUND": "Élément introuvable.",
+        "INVALID_PRODUCT_POSITION": "La position choisie pour le produit est invalide.",
     }
     return messages.get(str(code), "Opération impossible. Vérifiez les informations saisies.")
 
@@ -233,19 +240,18 @@ def web_list(bar_id):
     category_id = request.args.get("category_id", type=int)
     active_arg = request.args.get("active")
     active = None if active_arg not in {"true", "false"} else active_arg == "true"
-    products = list_products(
+    products = list_all_products(
         current_user,
         bar_id,
         request.args.get("q"),
         category_id,
         active,
-        request.args.get("page", 1, type=int),
     )
     categories = list_categories(current_user, bar_id)
     active_categories = [category for category in categories if category.is_active]
 
     balances = {}
-    product_ids = [product.id for product in products.items]
+    product_ids = [product.id for product in products]
     if product_ids:
         balances = {
             balance.product_id: balance.quantity
@@ -262,7 +268,7 @@ def web_list(bar_id):
         "categories": sum(1 for category in categories if category.is_active),
         "low_stock": sum(
             1
-            for product in products.items
+            for product in products
             if balances.get(product.id, Decimal("0")) <= product.stock_alert_threshold
         ),
     }
@@ -278,6 +284,135 @@ def web_list(bar_id):
         bar_id=bar_id,
         can_manage=can_manage,
     )
+
+
+@catalog_bp.post("/async/products")
+@login_required
+def async_products(bar_id):
+    """Create or update one product without a page reload; HTML/CSRF session only."""
+    if not wants_async_web_response():
+        return jsonify({"success": False, "message": "Requête asynchrone invalide."}), 400
+
+    created_image_key = None
+    replacement_image_key = None
+    old_image_key = None
+    try:
+        permissions.require(current_user, "catalog.read", bar_id)
+        product_id = request.form.get("product_id")
+        if product_id:
+            existing = Product.query.filter_by(bar_id=bar_id, id=int(product_id)).first()
+            if not existing:
+                raise LookupError("NOT_FOUND")
+            old_image_key = existing.image_key
+            data = request.form.to_dict()
+            for key in ("csrf_token", "product_id", "insert_before_id"):
+                data.pop(key, None)
+            if "is_active" in data:
+                data["is_active"] = str(data["is_active"]).strip().lower() in {"1", "true", "yes", "on"}
+            if data.get("remove_image"):
+                data["remove_image"] = str(data["remove_image"]).strip().lower() in {"1", "true", "yes", "on"}
+            item = update_product(
+                current_user, bar_id, existing.id, data, request.files.get("image")
+            )
+            if item.image_key != old_image_key:
+                replacement_image_key = item.image_key
+            db.session.commit()
+            if old_image_key and old_image_key != item.image_key:
+                delete_product_image(old_image_key)
+            quantity = db.session.scalar(
+                select(StockBalance.quantity).where(
+                    StockBalance.bar_id == bar_id, StockBalance.product_id == item.id
+                )
+            ) or Decimal("0")
+            payload = output(item)
+            payload["quantity"] = str(quantity)
+            return web_json_response(
+                data=payload, message=f"{item.name} a été enregistré."
+            )
+
+        item = create_product(
+            current_user, bar_id, _product_form_data(), request.files.get("image")
+        )
+        created_image_key = item.image_key
+        initial_quantity = _decimal_or_zero(request.form.get("initial_quantity", "0"))
+        if initial_quantity > 0:
+            stock_service.move(
+                current_user, bar_id, item.id, "INITIAL", initial_quantity,
+                "Stock initial lors de la création du produit",
+            )
+        position_product(
+            current_user, bar_id, item.id, request.form.get("insert_before_id") or None
+        )
+        db.session.commit()
+        created_image_key = None
+        quantity = db.session.scalar(
+            select(StockBalance.quantity).where(
+                StockBalance.bar_id == bar_id, StockBalance.product_id == item.id
+            )
+        ) or Decimal("0")
+        category = db.session.get(ProductCategory, item.category_id)
+        payload = output(item)
+        payload["quantity"] = str(quantity)
+        payload["category_name"] = category.name if category else ""
+        return web_json_response(
+            data=payload, message=f"{item.name} a été ajouté au catalogue.", status=201
+        )
+    except (PermissionError, LookupError, ValueError, TypeError, StockError, IntegrityError) as exc:
+        db.session.rollback()
+        if created_image_key:
+            delete_product_image(created_image_key)
+        if replacement_image_key and replacement_image_key != old_image_key:
+            delete_product_image(replacement_image_key)
+        message = (
+            "Une référence identique existe déjà ou une contrainte du catalogue a été rencontrée."
+            if isinstance(exc, IntegrityError) else _message(exc)
+        )
+        status = 403 if isinstance(exc, PermissionError) else 404 if isinstance(exc, LookupError) else 409 if isinstance(exc, IntegrityError) else 422
+        return web_json_response(error=str(exc), status=status, message=message)
+
+
+@catalog_bp.post("/async/categories")
+@login_required
+def async_categories(bar_id):
+    """Create, rename, activate or deactivate a category without a page reload."""
+    if not wants_async_web_response():
+        return jsonify({"success": False, "message": "Requête asynchrone invalide."}), 400
+    try:
+        permissions.require(current_user, "catalog.read", bar_id)
+        category_id = request.form.get("category_id")
+        if category_id:
+            category = ProductCategory.query.filter_by(
+                bar_id=bar_id, id=int(category_id)
+            ).first()
+            if not category:
+                raise LookupError("NOT_FOUND")
+            if "name" in request.form:
+                category = rename_category(
+                    current_user, bar_id, category.id, request.form.get("name")
+                )
+            if "is_active" in request.form:
+                active = str(request.form.get("is_active", "")).strip().lower() in {"1", "true", "yes", "on"}
+                category = set_category_active(current_user, bar_id, category.id, active)
+            db.session.commit()
+            return web_json_response(
+                data={"id": str(category.id), "name": category.name, "is_active": category.is_active},
+                message="Catégorie mise à jour.",
+            )
+
+        category = create_category(current_user, bar_id, request.form.get("name", ""))
+        db.session.commit()
+        return web_json_response(
+            data={"id": str(category.id), "name": category.name, "is_active": category.is_active},
+            message="Catégorie créée.", status=201,
+        )
+    except (PermissionError, LookupError, ValueError, TypeError, IntegrityError) as exc:
+        db.session.rollback()
+        message = (
+            "Cette catégorie existe déjà."
+            if isinstance(exc, IntegrityError) else _message(exc)
+        )
+        status = 403 if isinstance(exc, PermissionError) else 404 if isinstance(exc, LookupError) else 409 if isinstance(exc, IntegrityError) else 422
+        return web_json_response(error=str(exc), status=status, message=message)
 
 
 @api_catalog_bp.get("")

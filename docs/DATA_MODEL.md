@@ -4,7 +4,7 @@ Ce fichier est généré par [`scripts/schema_document.py`](../scripts/schema_do
 Ne pas l'éditer librement : [`tests/test_schema.py`](../tests/test_schema.py) compare exactement
 son contenu à `scripts.schema_document.render()`.
 
-Révision Alembic terminale observée : `d7e3a5b9c2f1`. Le dictionnaire décrit les tables,
+Révision Alembic terminale observée : `a0b1c2d3e4f5`. Le dictionnaire décrit les tables,
 colonnes, clés, contraintes, index et relations dérivables de `app.models`.
 Les types sont compilés pour MySQL et SQLite quand ils diffèrent. Une compilation SQL ou
 un test SQLite ne constitue pas une validation sur serveur MySQL.
@@ -34,6 +34,7 @@ un test SQLite ne constitue pas une validation sur serveur MySQL.
 | `7c2a1b8d9e10` | `6b1599cad0b4` | `7c2a1b8d9e10_bar_settings.py` | bar settings  Revision ID: 7c2a1b8d9e10 Revises: 6b1599cad0b4 |
 | `8d3e2f4a5b6c` | `7c2a1b8d9e10` | `8d3e2f4a5b6c_catalog_product_fields.py` | catalog product fields |
 | `9e4f5a6b7c8d` | `8d3e2f4a5b6c` | `9e4f5a6b7c8d_stock_movement_type.py` | stock movement type |
+| `a0b1c2d3e4f5` | `f9c0d1e2f3a4` | `a0b1c2d3e4f5_product_display_order.py` | Persist the per-bar product display order used by catalogue and operations. |
 | `a1b2c3d4e5f6` | `9e4f5a6b7c8d` | `a1b2c3d4e5f6_order_lifecycle.py` | order confirmation and service lifecycle |
 | `a7b8c9d0e1f2` | `f6a7b8c9d0e1` | `a7b8c9d0e1f2_reconcile_inventory_purchase_schema.py` | Reconcile purchase extensions and inventory-period snapshots after f6.  This migration repairs an earlier revision-id collision: two independent files used revision ``e5f6a7b8c9d0``.  Production databases may therefore have either set of schema changes while reporting the same Alembic ancestry.  The upgrade below is intentionally idempotent and creates whichever pieces are missing. |
 | `b2c3d4e5f6a7` | `a1b2c3d4e5f6` | `b2c3d4e5f6a7_payment_amounts.py` | payment tender amounts |
@@ -52,8 +53,12 @@ un test SQLite ne constitue pas une validation sur serveur MySQL.
 | `e1f2a3b4c5d6` | `d0e1f2a3b4c5` | `e1f2a3b4c5d6_missing_tenant_indexes.py` | Reconcile tenant indexes declared by newer customer and shift ORM models.  Safe for existing deployments: only missing indexes are created. No table, order, stock or payment data is modified. |
 | `e3f4a5b6c7d8` | `d2e3f4a5b6c7` | `e3f4a5b6c7d8_inventory_live_reconciliation.py` | Add non-destructive ledger cursors for V2 live reconciliation.  Older V2 draft inventories deliberately retain NULL cursors and require recount rather than silently assuming an inaccurate inventory start snapshot. |
 | `e5f6a7b8c9d0` | `d4e5f6a7b8c9` | `e5f6a7b8c9d0_purchase_units_supplier_notes.py` | Add supplier notes and purchase unit/conversion metadata.  Revision ID: e5f6a7b8c9d0 Revises: d4e5f6a7b8c9 |
+| `e8f4b6c0d3a2` | `d7e3a5b9c2f1` | `e8f4b6c0d3a2_warehouse_purchase_receipts.py` | Warehouse V2 supplier receipts: MAIN-only receipt evidence and movement types.  Revision ID: e8f4b6c0d3a2 Revises: d7e3a5b9c2f1  Additive migration: purchases, supplier settlements, legacy stock and accounts are never rewritten. The existing warehouse stock journal gets two explicit movement kinds for received/cancelled supplier purchases. |
 | `f4a5b6c7d8e9` | `e3f4a5b6c7d8` | `f4a5b6c7d8e9_inventory_v2_approval.py` | Add per-bar inventory approval policy and per-inventory review transitions. |
 | `f6a7b8c9d0e1` | `e5f6a7b8c9d0` | `f6a7b8c9d0e1_default_case_sizes.py` | Backfill default bottles-per-case values for known catalogue products.  Revision ID: f6a7b8c9d0e1 Revises: e5f6a7b8c9d0 |
+| `f7b8c9d0e1f2` | `e8f4b6c0d3a2` | `f7b8c9d0e1f2_inventory_non_sale_movements.py` | Include non-sale stock movements in V1 inventory theoretical quantities.  Revision ID: f7b8c9d0e1f2 Revises: e8f4b6c0d3a2 |
+| `f8b9c0d1e2f3` | `f7b8c9d0e1f2` | `f8b9c0d1e2f3_inventory_expense_links.py` | Tie late inventory expenses to the inventory financial period.  Revision ID: f8b9c0d1e2f3 Revises: f7b8c9d0e1f2 |
+| `f9c0d1e2f3a4` | `f8b9c0d1e2f3` | `f9c0d1e2f3_inventory_debt_payments.py` | Record previous customer-debt cash collections in the active inventory.  Revision ID: f9c0d1e2f3a4 Revises: f8b9c0d1e2f3 |
 
 ## Migrations structurantes
 
@@ -61,7 +66,8 @@ un test SQLite ne constitue pas une validation sur serveur MySQL.
   `DRAFT`, `CONFIRMED`, `SERVED`, `CANCELLED`, ajoute `payment_status` et conserve le downgrade destructif refusé.
 - Ventilation des paiements : la migration `b2c3d4e5f6a7` ajoute `amount_presented`,
   `amount_applied` et `change_given`, avec reprise des lignes historiques depuis `amount`.
-- Renforcement de l'intégrité : la migration terminale observée ajoute des CHECK de paiement,
+- Ordre du catalogue : la migration `a0b1c2d3e4f5` ajoute un ordre persistant par bar pour conserver les positions des produits dans le catalogue, les commandes, le stock et les approvisionnements.
+- Renforcement de l'intégrité : les migrations de réconciliation ajoutent des CHECK de paiement,
   stock et mouvement, puis des FK composites vers les journaux financiers et les lignes de retour.
 
 ## Variantes SQLite / MySQL
@@ -1620,6 +1626,7 @@ erDiagram
 | --- | --- | --- | --- | --- | --- | --- |
 | `id` | MySQL `BIGINT` / SQLite `INTEGER` | non | oui | — | — | — |
 | `category_id` | MySQL `BIGINT` / SQLite `INTEGER` | non | non | — | — | — |
+| `display_order` | MySQL `INTEGER UNSIGNED` / SQLite `INTEGER` | non | non | 0 | 0 | — |
 | `sku` | VARCHAR(64) | non | non | — | — | — |
 | `name` | VARCHAR(160) | non | non | — | — | — |
 | `base_unit` | VARCHAR(16) | non | non | — | — | — |
@@ -1640,6 +1647,7 @@ erDiagram
 - UNIQUE `uq_products_bar_id_id` : `bar_id, id`.
 - UNIQUE `uq_products_sku` : `bar_id, sku`.
 - INDEX `ix_products_bar_category_active` : `bar_id, category_id, is_active, id`.
+- INDEX `ix_products_bar_display_order` : `bar_id, display_order, id`.
 - INDEX `ix_products_bar_created` : `bar_id, created_at, id`.
 - INDEX `ix_products_bar_id` : `bar_id`.
 

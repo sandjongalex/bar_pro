@@ -102,6 +102,25 @@ def create_category(actor, bar_id, name):
     return category
 
 
+def rename_category(actor, bar_id, category_id, name):
+    require(actor, "catalog.manage", bar_id)
+    category = db.session.get(ProductCategory, category_id)
+    if not category or category.bar_id != bar_id:
+        raise LookupError("NOT_FOUND")
+    normalized = str(name or "").strip()
+    if not normalized or len(normalized) > 100:
+        raise ValueError("INVALID_CATEGORY_NAME")
+    duplicate = ProductCategory.query.filter(
+        ProductCategory.bar_id == bar_id,
+        db.func.lower(ProductCategory.name) == normalized.lower(),
+        ProductCategory.id != category.id,
+    ).first()
+    if duplicate:
+        raise ValueError("CATEGORY_EXISTS")
+    category.name = normalized
+    return category
+
+
 def set_category_active(actor, bar_id, category_id, active):
     require(actor, "catalog.manage", bar_id)
     category = db.session.get(ProductCategory, category_id)
@@ -118,6 +137,7 @@ def create_product(actor, bar_id, data, upload=None):
     item = Product(
         bar_id=bar_id,
         category_id=category.id,
+        display_order=(db.session.query(db.func.max(Product.display_order)).filter_by(bar_id=bar_id).scalar() or 0) + 1000,
         sku=_sku(bar_id, data.get("sku")),
         name=_name(data.get("name")),
         base_unit=_base_unit(data.get("base_unit")),
@@ -135,6 +155,33 @@ def create_product(actor, bar_id, data, upload=None):
     return item
 
 
+def position_product(actor, bar_id, product_id, before_product_id=None):
+    """Insert a product before another product and persist the order for this bar."""
+    require(actor, "catalog.manage", bar_id)
+    items = Product.query.filter_by(bar_id=bar_id).order_by(
+        Product.display_order, Product.name, Product.id
+    ).with_for_update().all()
+    item = next((row for row in items if row.id == product_id), None)
+    if item is None:
+        raise LookupError("NOT_FOUND")
+    items.remove(item)
+    if before_product_id not in (None, ""):
+        try:
+            before_id = int(before_product_id)
+        except (TypeError, ValueError):
+            raise ValueError("INVALID_PRODUCT_POSITION") from None
+        target = next((row for row in items if row.id == before_id), None)
+        if target is None:
+            raise LookupError("NOT_FOUND")
+        items.insert(items.index(target), item)
+    else:
+        items.append(item)
+    for index, row in enumerate(items, start=1):
+        row.display_order = index * 1000
+    db.session.flush()
+    return item
+
+
 def update_product(actor, bar_id, product_id, data, upload=None):
     """Update all editable product catalogue fields, optionally replacing its image."""
     require(actor, "catalog.manage", bar_id)
@@ -143,7 +190,10 @@ def update_product(actor, bar_id, product_id, data, upload=None):
         raise LookupError("NOT_FOUND")
 
     if "category_id" in data:
-        item.category_id = _category(bar_id, data["category_id"]).id
+        selected_category = _category(bar_id, data["category_id"], active_required=False)
+        if selected_category.id != item.category_id and not selected_category.is_active:
+            raise ValueError("INVALID_CATEGORY")
+        item.category_id = selected_category.id
     if "sku" in data:
         item.sku = _sku(bar_id, data["sku"], exclude_product_id=item.id)
     if "name" in data:
@@ -176,8 +226,21 @@ def list_products(actor, bar_id, q=None, category_id=None, active=None, page=1, 
         query = query.filter_by(category_id=category_id)
     if active is not None:
         query = query.filter_by(is_active=active)
-    return query.order_by(product_order_expression(Product.name), Product.name, Product.id).paginate(
+    return query.order_by(product_order_expression(Product.name, Product.display_order), Product.name, Product.id).paginate(
         page=page,
         per_page=min(per_page, 100),
         error_out=False,
     )
+
+
+def list_all_products(actor, bar_id, q=None, category_id=None, active=None):
+    """Return every product for the catalogue manager, without page truncation."""
+    require(actor, "catalog.read", bar_id)
+    query = Product.query.filter_by(bar_id=bar_id)
+    if q:
+        query = query.filter(Product.name.ilike(f"%{q}%") | Product.sku.ilike(f"%{q}%"))
+    if category_id:
+        query = query.filter_by(category_id=category_id)
+    if active is not None:
+        query = query.filter_by(is_active=active)
+    return query.order_by(Product.display_order, Product.name, Product.id).all()

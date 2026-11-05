@@ -3,19 +3,69 @@
 {% block header %}Produits · {{ bar.name }}{% endblock %}
 {% block content %}
 <style>
-.product-photo,.product-avatar{width:48px;height:48px;flex:0 0 48px;border-radius:12px;border:1px solid var(--line);background:#f5f7f6}.product-photo{object-fit:contain;padding:3px}.product-avatar{display:inline-flex;align-items:center;justify-content:center;font-weight:900;color:var(--brand)}.product-cell{display:flex;align-items:center;gap:11px}.product-cell small{display:block;color:var(--muted)}.product-actions{display:flex;justify-content:flex-end;gap:6px;flex-wrap:wrap}.image-preview{width:110px;height:110px;border:1px dashed var(--line);border-radius:16px;background:#f7f9f8;display:flex;align-items:center;justify-content:center;overflow:hidden;color:var(--muted);font-size:.78rem;text-align:center}.image-preview img{width:100%;height:100%;object-fit:contain;padding:5px}.image-upload-row{display:flex;gap:16px;align-items:center}.crud-note{font-size:.78rem;color:var(--muted)}
+.catalog-manager .catalog-toolbar{display:grid;grid-template-columns:minmax(220px,1.5fr) minmax(170px,1fr) minmax(140px,.8fr) auto;gap:10px;padding:14px;border-bottom:1px solid var(--line)}
+.catalog-manager .catalog-toolbar .form-control,.catalog-manager .catalog-toolbar .form-select{min-height:42px}
+.catalog-inline-table{width:100%;min-width:1240px;margin:0}
+.catalog-inline-table th{font-size:.68rem;text-transform:uppercase;letter-spacing:.06em;color:#75817c;background:#fafbfa;white-space:nowrap}
+.catalog-inline-table td{vertical-align:middle;padding:10px 9px;border-bottom:1px solid #edf1ef}
+.catalog-inline-table input.form-control,.catalog-inline-table select.form-select{min-width:78px;min-height:36px;padding:6px 8px;font-size:.82rem;border-color:#dfe7e3}
+.catalog-inline-table .field-product-name{min-width:140px;font-weight:700}
+.catalog-inline-table .field-product-sku{min-width:120px;margin-top:5px;font-size:.74rem}
+.catalog-product-identity{display:flex;align-items:center;gap:9px;min-width:190px}
+.catalog-product-thumb-wrap{width:40px;height:40px;flex:0 0 40px;border:1px solid var(--line);border-radius:10px;background:#f5f7f6;display:flex;align-items:center;justify-content:center;overflow:hidden}
+.catalog-product-thumb{width:100%;height:100%;object-fit:contain;padding:3px}
+.catalog-product-avatar{font-weight:900;color:var(--brand)}
+.catalog-photo-picker{display:inline-flex;align-items:center;margin-top:5px;font-size:.7rem;color:var(--muted);cursor:pointer}
+.catalog-photo-picker input{position:absolute;width:1px;height:1px;opacity:0;overflow:hidden}
+.catalog-remove-photo{display:inline-flex;align-items:center;gap:4px;margin-left:7px;font-size:.68rem;color:var(--muted)}
+.catalog-actions{display:flex;gap:5px;flex-wrap:wrap;min-width:128px}
+.catalog-actions .btn{font-size:.73rem;white-space:nowrap}
+.catalog-row-feedback{display:block;min-height:15px;margin-top:4px;font-size:.68rem;color:#267451}
+.catalog-row-feedback.is-error{color:#b42318}
+.catalog-new-product-row{background:#f0f7ff}
+.catalog-new-product-row td{border-top:2px solid #9bc5f3}
+.catalog-stock-pill{display:inline-flex;padding:5px 9px;border-radius:9px;background:#edf6f2;color:#267451;font-weight:800}
+.catalog-stock-pill.is-low{background:#fff0e7;color:#b25d2a}
+.catalog-category-create{display:flex;gap:7px;padding:14px 18px;border-bottom:1px solid var(--line)}
+.catalog-category-create input{min-width:0;flex:1}
+.catalog-category-row{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:11px 0;border-bottom:1px solid #eef2f0}
+.catalog-category-row:last-child{border-bottom:0}
+.catalog-category-row input{min-width:0;max-width:100%;font-weight:700}
+.catalog-category-status{display:block;font-size:.7rem;color:var(--muted);margin-top:3px}
+.catalog-category-actions{display:flex;gap:5px;flex:0 0 auto}
+.catalog-category-actions .btn{font-size:.72rem}
+.catalog-notice{display:none;margin:12px 0 0}
+.catalog-notice.is-visible{display:block}
+.catalog-empty{padding:34px 18px;text-align:center;color:var(--muted)}
+.catalog-count{font-size:.72rem;color:var(--muted);padding:10px 16px;border-top:1px solid var(--line)}
+@media(max-width:1180px){.catalog-manager .catalog-toolbar{grid-template-columns:1fr 1fr}.catalog-manager .catalog-layout{grid-template-columns:1fr}.catalog-manager .category-panel{position:static}}
+@media(max-width:920px){
+ .catalog-manager .catalog-main-panel .table-responsive{overflow:visible}
+ .catalog-inline-table{min-width:0;display:block}
+ .catalog-inline-table thead{display:none}
+ .catalog-inline-table tbody{display:grid;grid-template-columns:1fr;gap:10px;padding:10px;background:#f7f9f8}
+ .catalog-inline-table tbody tr{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));background:#fff;border:1px solid var(--line);border-radius:14px;overflow:hidden}
+ .catalog-inline-table tbody td{display:flex;flex-direction:column;align-items:stretch;justify-content:center;gap:5px;min-width:0;padding:9px 10px;border:0;border-top:1px solid #eef2f0}
+ .catalog-inline-table tbody td:before{content:attr(data-label);font-size:.65rem;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:#7a8782}
+ .catalog-inline-table tbody td:first-child{grid-column:1/-1;border-top:0;background:#fcfdfc}
+ .catalog-inline-table tbody td:last-child{grid-column:1/-1}
+ .catalog-product-identity{min-width:0}
+ .catalog-inline-table .field-product-name,.catalog-inline-table .field-product-sku{min-width:0;width:100%}
+ .catalog-actions{min-width:0}
+}
+@media(max-width:560px){.catalog-manager .catalog-toolbar{grid-template-columns:1fr}.catalog-category-row{align-items:flex-start;flex-direction:column}.catalog-category-actions{width:100%}.catalog-category-actions .btn{flex:1}.catalog-inline-table tbody{padding:7px}.catalog-inline-table tbody tr{grid-template-columns:1fr 1fr}.catalog-product-identity{align-items:flex-start}}
 </style>
+
 <section class="catalog-hero">
   <div>
     <a class="bar-back" href="{{ url_for('bars.web_detail', bar_id=bar.id) }}">← Retour à {{ bar.name }}</a>
     <p class="eyebrow mt-3 mb-2">Catalogue produits</p>
     <h1>Produits de {{ bar.name }}</h1>
-    <p>Créez, consultez, modifiez et archivez les produits. Ajoutez une photo pour les identifier rapidement.</p>
+    <p>Modifier les produits, les prix et les catégories directement dans le tableau. Les changements sont enregistrés sans recharger la page.</p>
   </div>
   {% if can_manage %}
   <div class="catalog-hero-actions">
-    <button class="btn btn-outline-primary" type="button" data-bs-toggle="modal" data-bs-target="#categoryModal">＋ Catégorie</button>
-    <button class="btn btn-primary" type="button" data-bs-toggle="modal" data-bs-target="#productModal" {% if not active_categories %}disabled{% endif %}>＋ Produit</button>
+    <button class="btn btn-primary" type="button" id="addCatalogProduct" {% if not active_categories %}disabled{% endif %}>＋ Ajouter un produit</button>
   </div>
   {% endif %}
 </section>
@@ -27,145 +77,165 @@
 {% endwith %}
 
 <section class="catalog-stats mt-4">
-  <article><span>Produits actifs</span><strong>{{ stats.products }}</strong><small>Disponibles dans le catalogue</small></article>
-  <article><span>Catégories actives</span><strong>{{ stats.categories }}</strong><small>Familles de produits</small></article>
-  <article><span>Alertes stock</span><strong>{{ stats.low_stock }}</strong><small>Au seuil ou en dessous</small></article>
+  <article><span>Produits actifs</span><strong data-stat="products">{{ stats.products }}</strong><small>Disponibles dans le catalogue</small></article>
+  <article><span>Catégories actives</span><strong data-stat="categories">{{ stats.categories }}</strong><small>Familles de produits</small></article>
+  <article><span>Alertes stock</span><strong data-stat="low-stock">{{ stats.low_stock }}</strong><small>Au seuil ou en dessous</small></article>
 </section>
 
 {% if can_manage and not active_categories %}
-<div class="catalog-onboarding mt-4">
+<div class="catalog-onboarding mt-4" id="catalogOnboarding">
   <div class="catalog-onboarding-number">1</div>
   <div><strong>Commencez par créer une catégorie</strong><p>Par exemple : Bières, Eaux, Jus, Vins, Spiritueux ou Repas.</p></div>
-  <button class="btn btn-primary ms-auto" type="button" data-bs-toggle="modal" data-bs-target="#categoryModal">Créer une catégorie</button>
 </div>
 {% endif %}
 
-<div class="catalog-layout mt-4">
-  <section class="panel-card catalog-main-panel">
-    <div class="catalog-toolbar">
-      <form method="get" class="catalog-filter-form">
-        <div class="catalog-search"><span>⌕</span><input class="form-control" name="q" value="{{ request.args.get('q','') }}" placeholder="Rechercher un produit ou une référence"></div>
-        <select class="form-select" name="category_id"><option value="">Toutes les catégories</option>{% for category in categories %}<option value="{{ category.id }}" {% if request.args.get('category_id')|int == category.id %}selected{% endif %}>{{ category.name }}</option>{% endfor %}</select>
-        <select class="form-select" name="active"><option value="">Tous les états</option><option value="true" {% if request.args.get('active') == 'true' %}selected{% endif %}>Actifs</option><option value="false" {% if request.args.get('active') == 'false' %}selected{% endif %}>Archivés</option></select>
-        <button class="btn btn-light border" type="submit">Filtrer</button>
-        {% if request.args %}<a class="btn btn-link" href="{{ url_for('catalog.web_list', bar_id=bar.id) }}">Réinitialiser</a>{% endif %}
+<div id="catalogManager"
+     class="catalog-manager"
+     data-products-url="{{ url_for('catalog.async_products', bar_id=bar.id) }}"
+     data-categories-url="{{ url_for('catalog.async_categories', bar_id=bar.id) }}">
+  {% if can_manage %}<input type="hidden" name="csrf_token" data-catalog-csrf value="{{ csrf_token() }}">{% endif %}
+  <div class="catalog-notice alert" id="catalogNotice" role="status" aria-live="polite"></div>
+
+  <div class="catalog-layout mt-4">
+    <section class="panel-card catalog-main-panel">
+      <div class="catalog-toolbar">
+        <input class="form-control" id="catalogSearch" type="search" placeholder="Rechercher un produit ou une référence">
+        <select class="form-select" id="catalogCategoryFilter">
+          <option value="">Toutes les catégories</option>
+          {% for category in categories %}<option value="{{ category.id }}">{{ category.name }}</option>{% endfor %}
+        </select>
+        <select class="form-select" id="catalogActiveFilter">
+          <option value="">Tous les états</option><option value="true">Actifs</option><option value="false">Archivés</option>
+        </select>
+        <button class="btn btn-light border" type="button" id="catalogClearFilters">Réinitialiser</button>
+      </div>
+
+      <div class="table-responsive">
+        <table class="table catalog-inline-table align-middle">
+          <thead><tr><th>Produit / référence</th><th>Catégorie</th><th>Prix vente</th><th>Coût achat</th><th>Unité</th><th>Unités/casier</th><th>Stock</th><th>Seuil alerte</th><th>État</th>{% if can_manage %}<th>Actions</th>{% endif %}</tr></thead>
+          <tbody id="catalogProductRows">
+          {% for p in products %}
+            {% set quantity = balances.get(p.id, 0) %}
+            {% set image_url = url_for('catalog.product_image', bar_id=bar.id, key=p.image_key) if p.image_key else '' %}
+            <tr class="catalog-product-row" data-product-id="{{ p.id }}" data-category-id="{{ p.category_id }}" data-active="{{ 'true' if p.is_active else 'false' }}" data-quantity="{{ quantity }}">
+              <td data-label="Produit / référence">
+                <div class="catalog-product-identity">
+                  <div class="catalog-product-thumb-wrap">
+                    {% if p.image_key %}<img class="catalog-product-thumb" src="{{ image_url }}" alt="{{ p.name }}" loading="lazy">{% else %}<span class="catalog-product-avatar">{{ p.name[0]|upper }}</span>{% endif %}
+                  </div>
+                  <div class="flex-grow-1 min-w-0">
+                    {% if can_manage %}
+                      <input class="form-control field-product-name" data-field="name" value="{{ p.name|e }}" maxlength="160" aria-label="Nom du produit">
+                      <input class="form-control field-product-sku" data-field="sku" value="{{ p.sku|e }}" maxlength="64" aria-label="Référence produit">
+                      <label class="catalog-photo-picker">Photo du produit <input type="file" data-field="image" accept="image/jpeg,image/png,image/webp"></label>
+                      <label class="catalog-remove-photo"><input type="checkbox" data-field="remove_image" value="yes"> Retirer la photo</label>
+                    {% else %}
+                      <strong>{{ p.name }}</strong><small class="d-block text-secondary">{{ p.sku }}</small>
+                    {% endif %}
+                  </div>
+                </div>
+              </td>
+              <td data-label="Catégorie">
+                {% if can_manage %}
+                <select class="form-select" data-field="category_id" data-allow-inactive="true" aria-label="Catégorie">
+                  {% for category in categories %}<option value="{{ category.id }}" {% if category.id == p.category_id %}selected{% endif %} {% if not category.is_active and category.id != p.category_id %}disabled{% endif %}>{{ category.name }}</option>{% endfor %}
+                </select>
+                {% else %}{% for category in categories %}{% if category.id == p.category_id %}<span class="category-chip">{{ category.name }}</span>{% endif %}{% endfor %}{% endif %}
+              </td>
+              <td data-label="Prix de vente">
+                {% if can_manage %}<input class="form-control" data-field="sale_price" type="number" min="0" step="0.01" value="{{ p.sale_price }}" aria-label="Prix de vente">{% else %}<strong>{{ "{:,.0f}".format(p.sale_price) }} {{ bar.currency }}</strong>{% endif %}
+              </td>
+              <td data-label="Coût d'achat">
+                {% if can_manage %}<input class="form-control" data-field="valuation_unit_cost" type="number" min="0" step="0.01" value="{{ p.valuation_unit_cost }}" aria-label="Coût d'achat">{% else %}{{ "{:,.0f}".format(p.valuation_unit_cost) }} {{ bar.currency }}{% endif %}
+              </td>
+              <td data-label="Unité">
+                {% if can_manage %}
+                <select class="form-select" data-field="base_unit" aria-label="Unité">
+                  {% for unit in ['bouteille','canette','unité','plat','verre','portion'] %}<option value="{{ unit }}" {% if p.base_unit == unit %}selected{% endif %}>{{ unit }}</option>{% endfor %}
+                </select>
+                {% else %}{{ p.base_unit }}{% endif %}
+              </td>
+              <td data-label="Unités/casier">
+                {% if can_manage %}<input class="form-control" data-field="units_per_case" type="number" min="1" step="1" value="{{ p.units_per_case or '' }}" aria-label="Unités par casier">{% else %}{{ p.units_per_case or '—' }}{% endif %}
+              </td>
+              <td data-label="Stock" data-stock-cell><span class="catalog-stock-pill {% if quantity <= p.stock_alert_threshold %}is-low{% endif %}">{{ quantity }}</span></td>
+              <td data-label="Seuil d'alerte">
+                {% if can_manage %}<input class="form-control" data-field="stock_alert_threshold" type="number" min="0" step="0.001" value="{{ p.stock_alert_threshold }}" aria-label="Seuil d'alerte">{% else %}{{ p.stock_alert_threshold }}{% endif %}
+              </td>
+              <td data-label="État">
+                {% if can_manage %}<select class="form-select" data-field="is_active" aria-label="État"><option value="true" {% if p.is_active %}selected{% endif %}>Actif</option><option value="false" {% if not p.is_active %}selected{% endif %}>Archivé</option></select>{% else %}<span class="status-pill {% if p.is_active %}status-active{% else %}status-suspended{% endif %}">{{ 'Actif' if p.is_active else 'Archivé' }}</span>{% endif %}
+              </td>
+              {% if can_manage %}
+              <td data-label="Actions"><div class="catalog-actions" data-actions>
+                <button class="btn btn-sm btn-primary" type="button" data-action="save-product">Enregistrer</button>
+                <button class="btn btn-sm btn-light border" type="button" data-action="insert-after" title="Insérer un produit après celui-ci">＋</button>
+              </div><small class="catalog-row-feedback" data-row-feedback></small></td>
+              {% endif %}
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+        {% if not products %}<div class="catalog-empty" id="catalogEmpty">Aucun produit pour le moment. Ajoutez votre premier produit.</div>{% endif %}
+      </div>
+      <div class="catalog-count"><span data-stat="all-products">{{ products|length }}</span> produit(s) affiché(s) · Aucun produit masqué par une pagination.</div>
+    </section>
+
+    <aside class="panel-card category-panel">
+      <div class="panel-header"><div><p class="eyebrow mb-1">Organisation</p><h2>Catégories</h2></div></div>
+      {% if can_manage %}
+      <form class="catalog-category-create" id="categoryCreateForm">
+        <input class="form-control" name="name" maxlength="100" placeholder="Nouvelle catégorie" required aria-label="Nom de la catégorie">
+        <button class="btn btn-primary" type="submit">＋</button>
       </form>
-    </div>
-
-    {% if products.items %}
-    <div class="table-responsive">
-      <table class="table catalog-table align-middle mb-0">
-        <thead><tr><th>Produit</th><th>Catégorie</th><th>Prix de vente</th><th>Stock</th><th>Seuil</th><th>État</th>{% if can_manage %}<th class="text-end">Actions</th>{% endif %}</tr></thead>
-        <tbody>
-        {% for p in products.items %}
-          {% set quantity = balances.get(p.id, 0) %}
-          {% set image_url = url_for('catalog.product_image', bar_id=bar.id, key=p.image_key) if p.image_key else '' %}
-          <tr>
-            <td><div class="product-cell">{% if p.image_key %}<img class="product-photo" src="{{ image_url }}" alt="{{ p.name }}" loading="lazy">{% else %}<span class="product-avatar">{{ p.name[0]|upper }}</span>{% endif %}<div><strong>{{ p.name }}</strong><small>{{ p.sku }} · {{ p.base_unit }}</small></div></div></td>
-            <td>{% for category in categories %}{% if category.id == p.category_id %}<span class="category-chip">{{ category.name }}</span>{% endif %}{% endfor %}</td>
-            <td><strong>{{ "{:,.0f}".format(p.sale_price) }} {{ bar.currency }}</strong><small class="d-block text-secondary">Coût : {{ "{:,.0f}".format(p.valuation_unit_cost) }}</small></td>
-            <td><span class="stock-value {% if quantity <= p.stock_alert_threshold %}stock-low{% endif %}">{{ quantity }}</span></td>
-            <td>{{ p.stock_alert_threshold }}</td>
-            <td><span class="status-pill {% if p.is_active %}status-active{% else %}status-suspended{% endif %}">{{ 'Actif' if p.is_active else 'Archivé' }}</span></td>
-            {% if can_manage %}
-            <td class="text-end"><div class="product-actions">
-              <button class="btn btn-sm btn-outline-primary edit-product" type="button" data-bs-toggle="modal" data-bs-target="#editProductModal"
-                data-id="{{ p.id }}" data-name="{{ p.name|e }}" data-sku="{{ p.sku|e }}" data-category="{{ p.category_id }}"
-                data-sale-price="{{ p.sale_price }}" data-cost="{{ p.valuation_unit_cost }}" data-unit="{{ p.base_unit|e }}"
-                data-units-per-case="{{ p.units_per_case or '' }}" data-threshold="{{ p.stock_alert_threshold }}" data-image-url="{{ image_url }}">Modifier</button>
-              <form method="post" class="d-inline" onsubmit="return confirm('{{ 'Archiver ce produit ? Son historique sera conservé.' if p.is_active else 'Réactiver ce produit ?' }}')">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="product_id" value="{{ p.id }}"><input type="hidden" name="action" value="{{ 'product_disable' if p.is_active else 'product_enable' }}">
-                <button class="btn btn-sm btn-light border" type="submit">{{ 'Archiver' if p.is_active else 'Réactiver' }}</button>
-              </form>
-            </div></td>
-            {% endif %}
-          </tr>
-        {% endfor %}
-        </tbody>
-      </table>
-    </div>
-
-    {% if products.pages > 1 %}<div class="catalog-pagination"><span>Page {{ products.page }} sur {{ products.pages }}</span><div>{% if products.has_prev %}<a class="btn btn-sm btn-light border" href="{{ url_for('catalog.web_list', bar_id=bar.id, page=products.prev_num, q=request.args.get('q',''), category_id=request.args.get('category_id',''), active=request.args.get('active','')) }}">← Précédent</a>{% endif %}{% if products.has_next %}<a class="btn btn-sm btn-light border" href="{{ url_for('catalog.web_list', bar_id=bar.id, page=products.next_num, q=request.args.get('q',''), category_id=request.args.get('category_id',''), active=request.args.get('active','')) }}">Suivant →</a>{% endif %}</div></div>{% endif %}
-    {% else %}
-    <div class="empty-state"><div class="empty-icon">▦</div><h3>Aucun produit trouvé</h3><p>{% if categories %}Ajoutez votre premier produit ou modifiez les filtres de recherche.{% else %}Créez d'abord une catégorie, puis ajoutez les produits de {{ bar.name }}.{% endif %}</p>{% if can_manage and active_categories %}<button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#productModal">Ajouter un produit</button>{% endif %}</div>
-    {% endif %}
-  </section>
-
-  <aside class="panel-card category-panel">
-    <div class="panel-header"><div><p class="eyebrow mb-1">Organisation</p><h2>Catégories</h2></div>{% if can_manage %}<button class="btn btn-sm btn-light border" data-bs-toggle="modal" data-bs-target="#categoryModal">＋</button>{% endif %}</div>
-    <div class="category-list">{% for category in categories %}<div class="category-row"><div><strong>{{ category.name }}</strong><small>{{ 'Active' if category.is_active else 'Désactivée' }}</small></div>{% if can_manage %}<form method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="category_id" value="{{ category.id }}"><input type="hidden" name="action" value="{{ 'category_disable' if category.is_active else 'category_enable' }}"><button class="btn btn-sm btn-link" type="submit">{{ 'Désactiver' if category.is_active else 'Activer' }}</button></form>{% endif %}</div>{% else %}<div class="p-4 text-secondary small">Aucune catégorie pour le moment.</div>{% endfor %}</div>
-  </aside>
+      {% endif %}
+      <div class="category-list" id="catalogCategoryList">
+        {% for category in categories %}
+        <div class="catalog-category-row" data-category-id="{{ category.id }}" data-active="{{ 'true' if category.is_active else 'false' }}">
+          <div class="flex-grow-1 min-w-0">
+            {% if can_manage %}<input class="form-control form-control-sm" data-category-name value="{{ category.name|e }}" maxlength="100" aria-label="Nom de la catégorie">{% else %}<strong>{{ category.name }}</strong>{% endif %}
+            <small class="catalog-category-status" data-category-status>{{ 'Active' if category.is_active else 'Désactivée' }}</small>
+          </div>
+          {% if can_manage %}
+          <div class="catalog-category-actions">
+            <button class="btn btn-sm btn-outline-primary" type="button" data-action="save-category">Enregistrer</button>
+            <button class="btn btn-sm btn-light border" type="button" data-action="toggle-category">{{ 'Désactiver' if category.is_active else 'Activer' }}</button>
+          </div>
+          {% endif %}
+        </div>
+        {% else %}<div class="p-4 text-secondary small">Aucune catégorie pour le moment.</div>{% endfor %}
+      </div>
+    </aside>
+  </div>
 </div>
 
 {% if can_manage %}
-<div class="modal fade" id="categoryModal" tabindex="-1" aria-hidden="true"><div class="modal-dialog modal-dialog-centered"><div class="modal-content catalog-modal"><form method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="category_create"><div class="modal-header"><div><p class="eyebrow mb-1">Nouvelle catégorie</p><h2 class="modal-title h5">Organiser le catalogue</h2></div><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><label class="form-label" for="category_name">Nom de la catégorie</label><input class="form-control form-control-lg" id="category_name" name="category_name" placeholder="Ex. Bières" maxlength="100" required><div class="form-text">Une catégorie permet de regrouper les produits similaires.</div></div><div class="modal-footer"><button type="button" class="btn btn-light border" data-bs-dismiss="modal">Annuler</button><button class="btn btn-primary" type="submit">Créer la catégorie</button></div></form></div></div></div>
-
-<div class="modal fade" id="productModal" tabindex="-1" aria-hidden="true"><div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable"><div class="modal-content catalog-modal">
-  <form method="post" enctype="multipart/form-data"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="product_create">
-    <div class="modal-header"><div><p class="eyebrow mb-1">Nouveau produit</p><h2 class="modal-title h5">Ajouter au catalogue de {{ bar.name }}</h2></div><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
-    <div class="modal-body">
-      <div class="mb-4"><label class="form-label">Photo du produit</label><input class="form-control" name="image" type="file" accept="image/jpeg,image/png,image/webp"><div class="form-text">JPG, PNG ou WebP · maximum 4 Mo.</div></div>
-      <div class="product-form-grid">
-        <div class="field-span-2"><label class="form-label">Catégorie</label><select class="form-select form-select-lg" name="category_id" required><option value="">Sélectionner...</option>{% for category in active_categories %}<option value="{{ category.id }}">{{ category.name }}</option>{% endfor %}</select></div>
-        <div><label class="form-label">Nom du produit</label><input class="form-control" name="name" placeholder="Ex. 33 Export" maxlength="160" required></div>
-        <div><label class="form-label">Référence / SKU</label><input class="form-control" name="sku" placeholder="Ex. BIERE-33-65" maxlength="64" required></div>
-        <div><label class="form-label">Prix de vente</label><div class="input-group"><input class="form-control" name="sale_price" type="number" min="0" step="1" placeholder="800" required><span class="input-group-text">{{ bar.currency }}</span></div></div>
-        <div><label class="form-label">Coût d'achat unitaire</label><div class="input-group"><input class="form-control" name="valuation_unit_cost" type="number" min="0" step="1" placeholder="600" required><span class="input-group-text">{{ bar.currency }}</span></div></div>
-        <div><label class="form-label">Unité de vente</label><select class="form-select" name="base_unit"><option value="bouteille">Bouteille</option><option value="canette">Canette</option><option value="unité">Unité</option><option value="plat">Plat</option><option value="verre">Verre</option><option value="portion">Portion</option></select></div>
-        <div><label class="form-label">Unités par casier/carton</label><input class="form-control" name="units_per_case" type="number" min="1" step="1" placeholder="12"></div>
-        <div><label class="form-label">Stock initial</label><input class="form-control" name="initial_quantity" type="number" min="0" step="0.001" value="0"><div class="form-text">Quantité disponible actuellement.</div></div>
-        <div><label class="form-label">Seuil d'alerte</label><input class="form-control" name="stock_alert_threshold" type="number" min="0" step="0.001" value="0"><div class="form-text">Alerte lorsque le stock atteint ce niveau.</div></div>
+<template id="catalogNewProductTemplate">
+  <tr class="catalog-new-product-row" data-before-id="">
+    <td data-label="Nouveau produit">
+      <div class="catalog-product-identity">
+        <div class="catalog-product-thumb-wrap"><span class="catalog-product-avatar">N</span></div>
+        <div class="flex-grow-1 min-w-0">
+          <input class="form-control field-product-name" data-field="name" maxlength="160" placeholder="Nom du produit" required aria-label="Nom du produit">
+          <input class="form-control field-product-sku" data-field="sku" maxlength="64" placeholder="Référence / SKU" required aria-label="Référence produit">
+          <label class="catalog-photo-picker">Photo <input type="file" data-field="image" accept="image/jpeg,image/png,image/webp"></label>
+        </div>
       </div>
-      <div class="info-box mt-4"><strong>Stock initial :</strong> cette quantité sera enregistrée comme premier mouvement de stock et restera traçable dans l'historique.</div>
-    </div>
-    <div class="modal-footer"><button type="button" class="btn btn-light border" data-bs-dismiss="modal">Annuler</button><button class="btn btn-primary" type="submit">Créer le produit</button></div>
-  </form>
-</div></div></div>
-
-<div class="modal fade" id="editProductModal" tabindex="-1" aria-hidden="true"><div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable"><div class="modal-content catalog-modal">
-  <form method="post" enctype="multipart/form-data" id="editProductForm"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="product_update"><input type="hidden" name="product_id" id="editProductId">
-    <div class="modal-header"><div><p class="eyebrow mb-1">Modifier un produit</p><h2 class="modal-title h5" id="editProductTitle">Produit</h2></div><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
-    <div class="modal-body">
-      <div class="image-upload-row mb-4"><div class="image-preview" id="editImagePreview"><span>Aucune photo</span></div><div class="flex-grow-1"><label class="form-label">Remplacer la photo</label><input class="form-control" name="image" type="file" accept="image/jpeg,image/png,image/webp"><div class="form-text">JPG, PNG ou WebP · maximum 4 Mo.</div><div class="form-check mt-2"><input class="form-check-input" type="checkbox" value="yes" name="remove_image" id="removeProductImage"><label class="form-check-label" for="removeProductImage">Supprimer la photo actuelle</label></div></div></div>
-      <div class="product-form-grid">
-        <div class="field-span-2"><label class="form-label">Catégorie</label><select class="form-select form-select-lg" name="category_id" id="editCategory" required>{% for category in active_categories %}<option value="{{ category.id }}">{{ category.name }}</option>{% endfor %}</select></div>
-        <div><label class="form-label">Nom du produit</label><input class="form-control" name="name" id="editName" maxlength="160" required></div>
-        <div><label class="form-label">Référence / SKU</label><input class="form-control" name="sku" id="editSku" maxlength="64" required></div>
-        <div><label class="form-label">Prix de vente</label><div class="input-group"><input class="form-control" name="sale_price" id="editSalePrice" type="number" min="0" step="1" required><span class="input-group-text">{{ bar.currency }}</span></div></div>
-        <div><label class="form-label">Coût d'achat unitaire</label><div class="input-group"><input class="form-control" name="valuation_unit_cost" id="editCost" type="number" min="0" step="1" required><span class="input-group-text">{{ bar.currency }}</span></div></div>
-        <div><label class="form-label">Unité de vente</label><select class="form-select" name="base_unit" id="editUnit"><option value="bouteille">Bouteille</option><option value="canette">Canette</option><option value="unité">Unité</option><option value="plat">Plat</option><option value="verre">Verre</option><option value="portion">Portion</option></select></div>
-        <div><label class="form-label">Unités par casier/carton</label><input class="form-control" name="units_per_case" id="editUnitsPerCase" type="number" min="1" step="1"></div>
-        <div><label class="form-label">Seuil d'alerte</label><input class="form-control" name="stock_alert_threshold" id="editThreshold" type="number" min="0" step="0.001" required></div>
-      </div>
-      <p class="crud-note mt-3 mb-0">La quantité de stock n'est pas modifiée depuis cette fiche : utilisez les mouvements de stock ou l'inventaire afin de conserver la traçabilité.</p>
-    </div>
-    <div class="modal-footer"><button type="button" class="btn btn-light border" data-bs-dismiss="modal">Annuler</button><button class="btn btn-primary" type="submit">Enregistrer les modifications</button></div>
-  </form>
-</div></div></div>
-
-<script>
-(function(){
-  const modal=document.getElementById('editProductModal');
-  if(!modal) return;
-  modal.addEventListener('show.bs.modal', function(event){
-    const b=event.relatedTarget; if(!b) return;
-    document.getElementById('editProductId').value=b.dataset.id||'';
-    document.getElementById('editProductTitle').textContent=b.dataset.name||'Produit';
-    document.getElementById('editName').value=b.dataset.name||'';
-    document.getElementById('editSku').value=b.dataset.sku||'';
-    document.getElementById('editCategory').value=b.dataset.category||'';
-    document.getElementById('editSalePrice').value=b.dataset.salePrice||'0';
-    document.getElementById('editCost').value=b.dataset.cost||'0';
-    document.getElementById('editUnit').value=b.dataset.unit||'unité';
-    document.getElementById('editUnitsPerCase').value=b.dataset.unitsPerCase||'';
-    document.getElementById('editThreshold').value=b.dataset.threshold||'0';
-    const preview=document.getElementById('editImagePreview');
-    const remove=document.getElementById('removeProductImage');
-    remove.checked=false;
-    remove.disabled=!b.dataset.imageUrl;
-    preview.innerHTML=b.dataset.imageUrl?'<img src="'+b.dataset.imageUrl+'" alt="Photo produit">':'<span>Aucune photo</span>';
-  });
-})();
-</script>
+    </td>
+    <td data-label="Catégorie">
+      <select class="form-select" data-field="category_id" required aria-label="Catégorie"><option value="">Choisir...</option>
+        {% for category in active_categories %}<option value="{{ category.id }}">{{ category.name }}</option>{% endfor %}
+      </select>
+    </td>
+    <td data-label="Prix de vente"><input class="form-control" data-field="sale_price" type="number" min="0" step="0.01" value="0" required aria-label="Prix de vente"></td>
+    <td data-label="Coût d'achat"><input class="form-control" data-field="valuation_unit_cost" type="number" min="0" step="0.01" value="0" required aria-label="Coût d'achat"></td>
+    <td data-label="Unité"><select class="form-select" data-field="base_unit"><option value="bouteille">bouteille</option><option value="canette">canette</option><option value="unité" selected>unité</option><option value="plat">plat</option><option value="verre">verre</option><option value="portion">portion</option></select></td>
+    <td data-label="Unités/casier"><input class="form-control" data-field="units_per_case" type="number" min="1" step="1" placeholder="Ex. 12" aria-label="Unités par casier"></td>
+    <td data-label="Stock initial" data-stock-cell><input class="form-control" data-field="initial_quantity" type="number" min="0" step="0.001" value="0" aria-label="Stock initial"></td>
+    <td data-label="Seuil d'alerte"><input class="form-control" data-field="stock_alert_threshold" type="number" min="0" step="0.001" value="0" aria-label="Seuil d'alerte"></td>
+    <td data-label="État"><select class="form-select" data-field="is_active"><option value="true" selected>Actif</option></select></td>
+    <td data-label="Actions"><div class="catalog-actions" data-actions><button class="btn btn-sm btn-primary" type="button" data-action="create-product">Créer</button><button class="btn btn-sm btn-light border" type="button" data-action="cancel-new">Annuler</button></div><small class="catalog-row-feedback" data-row-feedback></small></td>
+  </tr>
+</template>
 {% endif %}
+<script src="{{ url_for('static', filename='catalog_async.js') }}" defer></script>
 {% endblock %}

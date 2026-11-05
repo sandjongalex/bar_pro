@@ -89,8 +89,10 @@ def product_display_rank(name: str | None) -> int:
     return _PRODUCT_RANK.get(normalized, len(PRODUCT_DISPLAY_ORDER))
 
 
-def product_order_expression(column):
-    """SQLAlchemy expression matching :func:`product_display_rank` for DB lists."""
+def product_order_expression(column, display_order=None):
+    """Use persisted per-bar ordering when supplied; otherwise use the legacy Kape order."""
+    if display_order is not None:
+        return display_order.asc()
     sql_ranks = {name.lower(): rank for name, rank in _PRODUCT_RANK.items()}
     return case(
         sql_ranks,

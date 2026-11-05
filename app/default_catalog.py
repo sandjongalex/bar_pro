@@ -15,6 +15,7 @@ from sqlalchemy import select
 from app.extensions import db
 from app.models import Bar, Product, ProductCategory, StockBalance
 from app.purchase_defaults import default_units_per_case
+from app.product_display_order import product_display_rank
 
 DEFAULT_CATALOG_CURRENCY = "XOF"
 
@@ -161,6 +162,7 @@ def seed_default_catalog(bar_id: int) -> dict[str, int]:
             product = Product(
                 bar_id=bar_id,
                 category_id=category.id,
+                display_order=product_display_rank(product_name) * 1000,
                 sku=sku,
                 name=product_name,
                 base_unit="bouteille",

@@ -167,7 +167,7 @@ def product_meta(bar_id):
         db.session.scalars(
             select(Product)
             .where(Product.bar_id == bar_id, Product.is_active.is_(True))
-            .order_by(product_order_expression(Product.name), Product.name, Product.id)
+            .order_by(product_order_expression(Product.name, Product.display_order), Product.name, Product.id)
         )
     )
     return jsonify(
@@ -476,7 +476,7 @@ def manage(bar_id):
         db.session.scalars(
             select(Product)
             .where(Product.bar_id == bar_id, Product.is_active.is_(True))
-            .order_by(product_order_expression(Product.name), Product.name, Product.id)
+            .order_by(product_order_expression(Product.name, Product.display_order), Product.name, Product.id)
         )
     )
     products = [
