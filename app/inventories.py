@@ -136,10 +136,16 @@ def payload(inv):
         sales_amount = _decimal(snap.theoretical_sales_amount) if snap and counted is not None else None
         difference = _decimal(counted) - _decimal(line.expected_quantity_snapshot) if counted is not None else None
         case_size = product.units_per_case if product.units_per_case and product.units_per_case > 1 else None
-        counted_cases = (int(Decimal(counted) // case_size)
-                         if counted is not None and case_size else None)
-        counted_units = (Decimal(counted) - counted_cases * case_size
-                         if counted is not None and case_size else counted)
+        if cashier_assignment is not None:
+            # A cashier counts bottles one by one; never reinterpret a saved
+            # cashier quantity as a number of cases when reopening the draft.
+            counted_cases = None
+            counted_units = counted
+        else:
+            counted_cases = (int(Decimal(counted) // case_size)
+                             if counted is not None and case_size else None)
+            counted_units = (Decimal(counted) - counted_cases * case_size
+                             if counted is not None and case_size else counted)
         lines.append(
             {
                 "line_id": str(line.id),

@@ -63,19 +63,31 @@ def test_blank_stays_uncounted_and_zero_is_real(env):
     )) is None
 
 
-def test_cases_and_loose_units_are_converted_once(env):
+def test_cashier_inventory_counts_bottles_without_case_conversion(env):
     cashier, _, _ = on_duty_cashier(env)
     env[4].units_per_case = 12
     db.session.commit()
-    inv = create_v2(env, cashier, "CASES")
-    save(env, cashier, inv, cases="2", units="3", note="Deux casiers et trois bouteilles")
+    inv = create_v2(env, cashier, "BOTTLES")
+    save(env, cashier, inv, units="27", note="27 bouteilles comptées")
     db.session.commit()
     current = payload(inv)["lines"][0]
     assert current["physical_quantity"] == "27.000000"
-    assert current["counted_cases"] == "2"
-    assert Decimal(current["counted_units"]) == 3
-    assert current["note"] == "Deux casiers et trois bouteilles"
+    assert current["counted_cases"] is None
+    assert Decimal(current["counted_units"]) == 27
+    assert current["note"] == "27 bouteilles comptées"
     assert current["count_revision"] == 1
+    assert balance(env) == 10
+
+
+def test_cashier_inventory_rejects_case_quantities(env):
+    cashier, _, _ = on_duty_cashier(env)
+    env[4].units_per_case = 12
+    db.session.commit()
+    inv = create_v2(env, cashier, "NO-CASES")
+    with pytest.raises(ValueError, match="INVALID_COUNT"):
+        save(env, cashier, inv, cases="2", units="3")
+    db.session.rollback()
+    assert line(env, inv).counted_quantity is None
     assert balance(env) == 10
 
 

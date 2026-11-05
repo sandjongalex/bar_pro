@@ -25,7 +25,7 @@
 
 <div class="inventory-warning mt-4" role="note">
   <div class="inventory-warning-icon">!</div>
-  <div><strong>Comptage : une case vide n'est pas zéro.</strong><p class="mb-0">Saisissez <strong>0</strong> pour un stock réellement nul. Les casiers complets sont convertis en bouteilles ; un brouillon ne modifie jamais le stock machine.</p></div>
+  <div><strong>Comptage : une case vide n'est pas zéro.</strong><p class="mb-0">Saisissez <strong>0</strong> pour un stock réellement nul. Au comptoir, comptez chaque bouteille individuellement, y compris celles des casiers entamés ; un brouillon ne modifie jamais le stock machine.</p></div>
 </div>
 
 <section class="inventory-stats inventory-live-stats mt-4" id="inv2-live-calculation"
@@ -70,7 +70,7 @@
       <thead><tr><th>Produit</th><th>Dernier inventaire</th><th>Achats</th><th title="Ajustements, pertes et retours">Mouvements hors ventes</th><th>Stock théorique</th><th>Stock machine</th><th>Stock physique réel</th><th>Qté vendue</th><th>Montant ventes</th><th>Écart machine</th><th>Observation</th></tr></thead>
       <tbody>
       {% for line in inventory.lines %}
-      <tr class="inventory-line {% if editable_count %}inv2-product{% endif %}" {% if editable_count %}data-product-id="{{ line.product_id }}" data-theoretical="{{ line.theoretical_quantity|inventory_qty }}" data-machine="{{ line.machine_quantity|inventory_qty }}" data-price="{{ line.sale_price }}" data-case-size="{{ line.units_per_case or 1 }}"{% endif %}>
+      <tr class="inventory-line {% if editable_count %}inv2-product{% endif %}" {% if editable_count %}data-product-id="{{ line.product_id }}" data-theoretical="{{ line.theoretical_quantity|inventory_qty }}" data-machine="{{ line.machine_quantity|inventory_qty }}" data-price="{{ line.sale_price }}"{% endif %}>
         <td data-label="Produit">
           <div class="inventory-item-heading">
             <div class="inventory-item-title">
@@ -91,10 +91,7 @@
         <td data-label="Stock physique réel">
           {% if editable_count %}
           <div class="inventory-unified-count-controls">
-            {% if line.units_per_case %}
-              <div><label for="inv2-cases-{{ line.product_id }}">Casiers ({{ line.units_per_case }}/casier)</label><input class="form-control inv2-cases" id="inv2-cases-{{ line.product_id }}" name="cases_{{ line.product_id }}" type="number" min="0" step="1" inputmode="numeric" value="{{ line.counted_cases|inventory_qty if line.counted_cases is not none else '' }}" placeholder="—"></div>
-            {% endif %}
-            <div><label for="inv2-units-{{ line.product_id }}">{{ 'Bouteilles hors casier' if line.units_per_case else 'Unités physiques' }}</label><input class="form-control inventory-count-input inv2-units" id="inv2-units-{{ line.product_id }}" name="units_{{ line.product_id }}" type="number" min="0" step="0.000001" inputmode="decimal" value="{{ line.counted_units|inventory_qty if line.counted_units is not none else '' }}" placeholder="Non compté"></div>
+            <div><label for="inv2-units-{{ line.product_id }}">{{ 'Bouteilles comptées' if line.units_per_case else 'Unités physiques comptées' }}</label><input class="form-control inventory-count-input inv2-units" id="inv2-units-{{ line.product_id }}" name="units_{{ line.product_id }}" type="number" min="0" step="0.000001" inputmode="decimal" value="{{ line.counted_units|inventory_qty if line.counted_units is not none else '' }}" placeholder="{{ 'Nombre de bouteilles' if line.units_per_case else 'Quantité physique' }}"></div>
           </div>
           <input type="hidden" class="inv2-revision" name="revision_{{ line.product_id }}" value="{{ line.count_revision }}">
           <small class="inv2-saved-hint">{{ 'Comptage sauvegardé' if line.last_counted_at else 'Aucune quantité enregistrée' }}</small>
@@ -207,7 +204,7 @@
 </section>
 
 <p class="inv2-footer mt-3">Le stock ne sera ajusté qu'après approbation du responsable. Les ventes, dépenses et dettes sont suivies séparément.</p>
-<script defer src="{{ url_for('static',filename='inventory_count_v2.js', v='20261105-live-calculation-v2') }}"></script>
+<script defer src="{{ url_for('static',filename='inventory_count_v2.js', v='20261105-cashier-bottle-count-v1') }}"></script>
 <script>
 document.addEventListener('click', function(event) {
   const toggle = event.target.closest('.inventory-v1-unified .inventory-details-toggle');

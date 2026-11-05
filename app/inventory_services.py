@@ -607,20 +607,17 @@ class InventoryService:
             raw_units = entry.get("units")
             has_cases = raw_cases is not None and str(raw_cases).strip() != ""
             has_units = raw_units is not None and str(raw_units).strip() != ""
-            if not has_cases and not has_units:
+            # V2 is the cashier's counter inventory: the physical quantity is
+            # entered directly in base units (bottles). Case conversion belongs
+            # to the separate MAIN warehouse workflow, never to this endpoint.
+            if has_cases:
+                raise ValueError("INVALID_COUNT")
+            if not has_units:
                 quantity = None
             else:
-                cases = 0
-                if has_cases:
-                    if (isinstance(raw_cases, bool) or not isinstance(raw_cases, (int, str))
-                            or not str(raw_cases).isascii() or not str(raw_cases).isdigit()
-                            or not product.units_per_case or product.units_per_case <= 1):
-                        raise ValueError("INVALID_COUNT")
-                    cases = int(raw_cases)
-                units = number(raw_units, 6) if has_units else ZERO
-                if units < 0:
+                quantity = number(raw_units, 6)
+                if quantity < 0:
                     raise ValueError("INVALID_COUNT")
-                quantity = number(units + Decimal(cases) * Decimal(product.units_per_case or 1), 6)
             note = entry.get("note", "")
             if not isinstance(note, str) or len(note.strip()) > 500:
                 raise ValueError("NOTE_TOO_LONG")

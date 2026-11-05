@@ -60,6 +60,8 @@ def test_responsive_v2_source_has_no_unbounded_grid_children():
     assert "@media(max-width:520px)" in css
     assert 'class="table-responsive inv2-table-scroll"' in report
     assert 'class="inv2-reconcile"' in count
+    assert "inv2-cases" not in count
+    assert "Bouteilles comptées" in count
     assert "if (!form) return;" in js
     assert js.index('refreshBtn.addEventListener("click", refreshPreview)') < js.index("if (!form) return;")
     assert "qty(line.current_machine)" in js
