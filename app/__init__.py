@@ -41,6 +41,7 @@ from app.staff import bp as staff_web_bp
 from app.shifts_web import bp as shifts_web_bp
 from app.reports_web import bp as reports_web_bp
 from app.warehouse_web import bp as warehouse_web_bp
+from app.warehouse_transfer_api import bp as warehouse_transfer_api_bp
 
 
 def create_app(config_name: str | None = None, test_config: dict[str, Any] | None = None) -> Flask:
@@ -175,6 +176,7 @@ def _register_blueprints(app: Flask) -> None:
     app.register_blueprint(cashier_history_web_bp)
     app.register_blueprint(reports_web_bp)
     app.register_blueprint(warehouse_web_bp)
+    app.register_blueprint(warehouse_transfer_api_bp)
     app.register_blueprint(expenses_web_bp)
     app.register_blueprint(finance_bp)
     app.register_blueprint(reports_bp)

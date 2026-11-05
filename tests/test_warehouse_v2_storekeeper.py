@@ -124,8 +124,11 @@ def test_delegation_denies_cross_bar_self_escalation_and_non_owner(env):
         set_warehouse_grant(foreign_owner, env[2].id, assignment.id, "warehouse.main.read", True)
     with pytest.raises(LookupError):
         set_warehouse_grant(env[1], env[2].id, 99999999, "warehouse.main.read", True)
-    with pytest.raises(ValueError):
-        set_warehouse_grant(env[1], env[2].id, assignment.id, "warehouse.discrepancies.resolve", True)
+    # PROMPT 4: only an owner may delegate dispute resolution to BAR_ADMIN.
+    grant = set_warehouse_grant(env[1], env[2].id, assignment.id, "warehouse.discrepancies.resolve", True)
+    assert grant is not None and grant.enabled
+    db.session.commit()
+    assert permissions.evaluate(admin, "warehouse.discrepancies.resolve", env[2].id).allowed
     with pytest.raises(ValueError):
         set_warehouse_grant(env[1], env[2].id, assignment.id, "payments.record", True)
 

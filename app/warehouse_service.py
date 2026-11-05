@@ -129,6 +129,23 @@ class WarehouseService:
         """Internal paired ledger write: caller holds the bar row lock."""
         if delta == 0:
             return None
+        if (kind in {"TRANSFER_OUT", "TRANSIT_OUT", "PURCHASE_REVERSAL"} and delta >= 0
+                or kind in {"TRANSFER_IN", "TRANSIT_IN", "PURCHASE_IN", "OPENING"} and delta <= 0):
+            raise WarehouseError("INVALID_TRANSFER_DIRECTION")
+        allowed_destination = {
+            "TRANSFER_OUT": "MAIN",
+            "TRANSFER_IN": "CASHIER",
+            "PURCHASE_IN": "MAIN",
+            "PURCHASE_REVERSAL": "MAIN",
+        }.get(kind)
+        if allowed_destination is not None:
+            location_code = db.session.scalar(select(WarehouseLocation.code).where(
+                WarehouseLocation.bar_id == bar_id,
+                WarehouseLocation.id == location_id,
+            ))
+            if location_code != allowed_destination:
+                # No path can ever move CASHIER stock back to MAIN.
+                raise WarehouseError("INVALID_TRANSFER_DIRECTION")
         if kind.startswith("TRANSIT_"):
             if location_id is not None:
                 raise WarehouseError("INVALID_LOCATION")
@@ -308,135 +325,35 @@ class WarehouseService:
             item["TOTAL"] = item["MAIN"] + item["CASHIER"] + item["TRANSIT"]
         return data
 
-    def dispatch(self, actor, bar_id, reference, quantities):
-        """Internal engine only: no route calls this until the complete cutover."""
+    def dispatch(self, actor, bar_id, reference, quantities, *, recipient_user_id=None):
+        """Compatibility facade: audited voucher for the original dispatch API.
+
+        Older callers supplied no recipient. Assign those vouchers to the owner
+        (never the shipping storekeeper) until an explicit cashier is supplied.
+        The new transfer UI requires a selected cashier for storekeeper requests.
+        """
+        from app.warehouse_transfer_service import warehouse_transfer_service
         permissions.require(actor, "warehouse.transfers.dispatch", bar_id)
-        self._bar(bar_id)
+        bar = self._bar(bar_id)
         self._live(bar_id)
-        lines = _normalized_lines(quantities, positive=True)
-        if not lines:
-            raise WarehouseError("TRANSFER_EMPTY")
-        reference = required_text(reference, 64)
-        if db.session.scalar(select(WarehouseTransfer.id).where(
-            WarehouseTransfer.bar_id == bar_id, WarehouseTransfer.reference == reference,
-        )):
-            raise WarehouseError("TRANSFER_REFERENCE_EXISTS")
-        locations = self.ensure_locations(bar_id)
-        transfer = WarehouseTransfer(
-            bar_id=bar_id, reference=reference, status="IN_TRANSIT",
-            dispatched_by_id=actor.id, dispatched_at=utcnow(),
+        voucher = warehouse_transfer_service.create_request(
+            actor, bar_id, reference, quantities,
+            recipient_user_id=recipient_user_id or bar.owner_id,
         )
-        db.session.add(transfer)
-        db.session.flush()
-        products = {
-            item.id: item for item in db.session.scalars(
-                select(Product).where(Product.bar_id == bar_id, Product.id.in_(lines)).with_for_update()
-            )
-        }
-        if set(products) != set(lines):
-            raise LookupError("NOT_FOUND")
-        for product_id in sorted(lines):
-            quantity = lines[product_id]
-            cost = Decimal(products[product_id].valuation_unit_cost)
-            line = WarehouseTransferLine(
-                bar_id=bar_id, transfer_id=transfer.id, product_id=product_id,
-                quantity_dispatched=quantity, quantity_received=0, quantity_disputed=0,
-                unit_cost_snapshot=cost,
-            )
-            db.session.add(line)
-            db.session.flush()
-            self._move(actor=actor, bar_id=bar_id, product_id=product_id,
-                       location_id=locations["MAIN"].id, kind="TRANSFER_OUT",
-                       delta=-quantity, cost=cost, transfer_line_id=line.id,
-                       reason=f"Expédition {reference}")
-            self._move(actor=actor, bar_id=bar_id, product_id=product_id,
-                       location_id=None, kind="TRANSIT_IN", delta=quantity,
-                       cost=cost, transfer_line_id=line.id, reason=f"Transit {reference}")
-        db.session.flush()
-        record(
-            actor, bar_id, "warehouse.transfer.dispatch",
-            "warehouse_transfers", transfer.id,
-            f"Expédition MAIN vers TRANSIT : {reference}",
-        )
-        return transfer
+        warehouse_transfer_service.prepare(actor, bar_id, voucher.id, quantities)
+        shipped = warehouse_transfer_service.ship(actor, bar_id, voucher.id)
+        # Preserve the historical audit code consumed by existing integrations.
+        record(actor, bar_id, "warehouse.transfer.dispatch",
+               "warehouse_transfers", shipped.id,
+               f"Expédition MAIN vers TRANSIT : {shipped.reference}")
+        return shipped
 
     def receive(self, actor, bar_id, transfer_id, received_quantities, idempotency_key):
-        """Accept dispatched quantities at CASHIER; concurrent/repeated receipt safe."""
-        permissions.require(actor, "warehouse.transfers.receive", bar_id)
-        self._bar(bar_id)
-        self._live(bar_id)
-        lines = _normalized_lines(received_quantities, positive=True)
-        if not lines:
-            raise WarehouseError("RECEIPT_EMPTY")
-        key = required_text(idempotency_key, 80)
-        if len(key) < 8:
-            raise WarehouseError("INVALID_IDEMPOTENCY_KEY")
-        payload = {str(pid): str(quantity) for pid, quantity in sorted(lines.items())}
-        digest = hashlib.sha256(json.dumps(
-            {"transfer_id": transfer_id, "quantities": payload},
-            sort_keys=True, separators=(",", ":"),
-        ).encode()).hexdigest()
-        previous = db.session.scalar(
-            select(WarehouseTransferReceipt).where(
-                WarehouseTransferReceipt.bar_id == bar_id,
-                WarehouseTransferReceipt.idempotency_key == key,
-            ).with_for_update()
+        """Compatibility facade; receipt and idempotency now have one owner."""
+        from app.warehouse_transfer_service import warehouse_transfer_service
+        return warehouse_transfer_service.receive(
+            actor, bar_id, transfer_id, received_quantities, idempotency_key,
         )
-        if previous:
-            if previous.payload_hash != digest or previous.transfer_id != transfer_id:
-                raise WarehouseError("IDEMPOTENCY_CONFLICT")
-            return previous
-        transfer = db.session.scalar(select(WarehouseTransfer).where(
-            WarehouseTransfer.bar_id == bar_id, WarehouseTransfer.id == transfer_id,
-        ).with_for_update())
-        if not transfer:
-            raise LookupError("NOT_FOUND")
-        if transfer.status == "RECEIVED":
-            raise WarehouseError("TRANSFER_ALREADY_RECEIVED")
-        transfer_lines = {
-            row.product_id: row for row in db.session.scalars(
-                select(WarehouseTransferLine).where(
-                    WarehouseTransferLine.bar_id == bar_id,
-                    WarehouseTransferLine.transfer_id == transfer_id,
-                ).with_for_update()
-            )
-        }
-        if set(lines) - set(transfer_lines):
-            raise LookupError("NOT_FOUND")
-        for pid, quantity in lines.items():
-            line = transfer_lines[pid]
-            available = Decimal(line.quantity_dispatched) - Decimal(line.quantity_received) - Decimal(line.quantity_disputed)
-            if quantity > available:
-                raise WarehouseError("RECEIPT_EXCEEDS_TRANSIT")
-        receipt = WarehouseTransferReceipt(
-            bar_id=bar_id, transfer_id=transfer.id, idempotency_key=key,
-            payload_hash=digest, quantities=payload, received_by_id=actor.id,
-            received_at=utcnow(),
-        )
-        db.session.add(receipt)
-        db.session.flush()
-        cashier = self.ensure_locations(bar_id)["CASHIER"]
-        for product_id in sorted(lines):
-            quantity = lines[product_id]
-            line = transfer_lines[product_id]
-            self._move(actor=actor, bar_id=bar_id, product_id=product_id,
-                       location_id=None, kind="TRANSIT_OUT", delta=-quantity,
-                       cost=line.unit_cost_snapshot, transfer_line_id=line.id,
-                       receipt_id=receipt.id, reason=f"Réception {transfer.reference}")
-            self._move(actor=actor, bar_id=bar_id, product_id=product_id,
-                       location_id=cashier.id, kind="TRANSFER_IN", delta=quantity,
-                       cost=line.unit_cost_snapshot, transfer_line_id=line.id,
-                       receipt_id=receipt.id, reason=f"Réception {transfer.reference}")
-            line.quantity_received = Decimal(line.quantity_received) + quantity
-        transfer.status = (
-            "RECEIVED" if all(
-                Decimal(line.quantity_received) == Decimal(line.quantity_dispatched)
-                for line in transfer_lines.values()
-            ) else "PARTIAL"
-        )
-        db.session.flush()
-        record(actor, bar_id, "warehouse.transfer.receive", "warehouse_transfer_receipts", receipt.id, transfer.reference)
-        return receipt
 
 
 warehouse_service = WarehouseService()

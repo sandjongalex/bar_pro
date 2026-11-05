@@ -9,6 +9,9 @@
       <h1 class="h3 mb-2">Espace magasin</h1>
       <p class="text-secondary mb-0">Consultation sécurisée du magasin principal, des besoins de la caisse et des transferts.</p>
     </div>
+    {% if nav_can('warehouse.transfers.read', bar.id) %}
+      <a class="btn btn-primary" href="{{ url_for('warehouse_web.manage_transfers', bar_id=bar.id) }}">Bons de transfert</a>
+    {% endif %}
     {% if nav_can('warehouse.permissions.manage', bar.id) %}
       <a class="btn btn-outline-primary" href="{{ url_for('warehouse_web.grants', bar_id=bar.id) }}">Droits des gérants</a>
     {% endif %}
@@ -86,7 +89,7 @@
 <section class="panel-card mt-3 p-3 p-md-4">
   <h2 class="h5">Historique des transferts</h2>
   <div class="table-responsive"><table class="table"><thead><tr><th>Référence</th><th>État</th><th>Date d'expédition</th></tr></thead>
-  <tbody>{% for t in transfers %}<tr><td>{{ t.reference }}</td><td>{{ t.status }}</td><td>{{ t.dispatched_at.strftime('%d/%m/%Y %H:%M') }}</td></tr>
+  <tbody>{% for t in transfers %}<tr><td>{{ t.reference }}</td><td>{{ t.status }}</td><td>{{ t.dispatched_at.strftime('%d/%m/%Y %H:%M') if t.dispatched_at else 'Non expédié' }}</td></tr>
   {% else %}<tr><td colspan="3" class="text-secondary">Aucun transfert enregistré.</td></tr>{% endfor %}</tbody></table></div>
 </section>
 {% endif %}

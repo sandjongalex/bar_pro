@@ -74,7 +74,7 @@ ROLE_ACTIONS.update({
     "warehouse.transfers.receive": {"OWNER", "BAR_ADMIN", "CASHIER"},
     "warehouse.main.inventory.count": {"OWNER", "BAR_ADMIN", "STOREKEEPER"},
     "warehouse.discrepancies.read": {"OWNER", "BAR_ADMIN", "STOREKEEPER", "SUPER_ADMIN"},
-    "warehouse.discrepancies.resolve": {"OWNER"},
+    "warehouse.discrepancies.resolve": {"OWNER", "BAR_ADMIN"},
     "warehouse.purchases.manage": {"OWNER", "BAR_ADMIN", "STOREKEEPER"},
     "warehouse.purchases.receive": {"OWNER", "BAR_ADMIN", "STOREKEEPER"},
     "warehouse.permissions.manage": {"OWNER"},
