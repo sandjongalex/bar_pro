@@ -1,0 +1,338 @@
+/* BAR_PRO order entry: distinguish products from the basket.
+   Applied only to the server order form and cashier counter-sale area. */
+
+.server-pos-layout,
+.cashier-sale-panel .cashier-sale-layout {
+  --order-catalog-edge: #a9cdbd;
+  --order-catalog-canvas: #f1f7f3;
+  --order-basket-edge: #d7ae62;
+  --order-basket-canvas: #fffaf0;
+  --order-basket-heading: #fff0c9;
+}
+
+/* The cashier sale is a workspace with two independent surfaces, not one
+   seamless block of identical white cards. */
+.cashier-sale-panel .cashier-sale-layout {
+  gap: 16px;
+  padding: 14px;
+  align-items: start;
+  background: #edf3f0;
+}
+.cashier-sale-panel .cashier-sale-head {
+  border-bottom: 1px solid #d8e5de;
+  background: #fff;
+}
+.server-pos-layout {
+  column-gap: clamp(15px, 2vw, 24px);
+  row-gap: 14px;
+}
+
+/* PRODUCT ZONE — cool backdrop and clearly outlined individual products. */
+.server-pos-layout .pos-catalog.panel-card,
+.cashier-sale-panel .cashier-sale-catalog {
+  min-width: 0;
+  background: #fff;
+  border: 2px solid var(--order-catalog-edge);
+  border-radius: 17px;
+  box-shadow: 0 8px 24px rgba(20, 72, 52, .07);
+  overflow: hidden;
+}
+.cashier-sale-panel .cashier-sale-catalog {
+  border-right: 2px solid var(--order-catalog-edge);
+  border-bottom: 2px solid var(--order-catalog-edge);
+}
+.server-pos-layout .pos-catalog .pos-toolbar,
+.cashier-sale-panel .cashier-sale-catalog .pos-toolbar {
+  background: #e8f4ed;
+  border-bottom: 1px solid #bedacb;
+}
+.server-pos-layout .server-section-label strong {
+  color: #174c3a;
+  font-size: .9rem;
+}
+.server-pos-layout .pos-catalog .pos-products,
+.cashier-sale-panel .cashier-sale-catalog .pos-products {
+  background: var(--order-catalog-canvas);
+}
+.server-pos-layout .pos-catalog .pos-product,
+.cashier-sale-panel .cashier-sale-catalog .pos-product {
+  min-width: 0;
+  border: 1px solid #c7ded2;
+  background: #fff;
+  box-shadow: 0 2px 6px rgba(15, 66, 45, .05);
+}
+.server-pos-layout .pos-catalog .pos-product:hover:not(:disabled),
+.cashier-sale-panel .cashier-sale-catalog .pos-product:hover:not(:disabled) {
+  border-color: #278569;
+  box-shadow: 0 6px 15px rgba(20, 89, 63, .13);
+}
+.server-pos-layout .pos-catalog .pos-product:focus-visible,
+.cashier-sale-panel .cashier-sale-catalog .pos-product:focus-visible {
+  outline: 3px solid #f1ba51;
+  outline-offset: 2px;
+}
+.server-pos-layout .pos-catalog .pos-product.is-selected {
+  border: 2px solid #19845c;
+  background: #edf9f1;
+}
+.server-pos-layout .pos-catalog .pos-product.out-of-stock,
+.cashier-sale-panel .cashier-sale-catalog .pos-product.out-of-stock {
+  background: #eef0ef;
+  border-style: dashed;
+  opacity: .65;
+}
+.server-pos-layout .pos-catalog .pos-product-price,
+.cashier-sale-panel .cashier-sale-catalog .pos-product-price {
+  color: #0d6a48;
+  font-weight: 900;
+}
+
+/* BASKET ZONE — warm outline, distinct title bar and emphasized total. */
+.server-pos-layout .pos-cart-panel.panel-card,
+.cashier-sale-panel .cashier-sale-cart {
+  min-width: 0;
+  background: var(--order-basket-canvas);
+  border: 2px solid var(--order-basket-edge);
+  border-radius: 17px;
+  box-shadow: 0 8px 25px rgba(110, 77, 26, .12);
+  overflow: hidden;
+}
+.server-pos-layout .pos-cart-panel .pos-cart-header,
+.cashier-sale-panel .cashier-sale-cart .pos-cart-header {
+  background: var(--order-basket-heading);
+  border-bottom: 1px solid #e4c98c;
+}
+.server-pos-layout .pos-cart-panel .pos-cart-header h2,
+.cashier-sale-panel .cashier-sale-cart .pos-cart-header h2 {
+  color: #61410e;
+  font-weight: 900;
+  font-size: 1.12rem;
+}
+.server-pos-layout .pos-cart-panel .pos-cart-header::before,
+.cashier-sale-panel .cashier-sale-cart .pos-cart-header::before {
+  content: "";
+  flex: 0 0 5px;
+  width: 5px;
+  height: 25px;
+  border-radius: 6px;
+  background: #b17b19;
+}
+.server-pos-layout .pos-cart-panel .pos-cart-header h2,
+.cashier-sale-panel .cashier-sale-cart .pos-cart-header h2 {
+  margin-right: auto;
+}
+.server-pos-layout .pos-cart-panel .pos-cart-empty,
+.cashier-sale-panel .cashier-sale-cart .pos-cart-empty {
+  background: #fffaf0;
+}
+.server-pos-layout .pos-cart-panel .pos-cart-line,
+.cashier-sale-panel .cashier-sale-cart .pos-cart-line {
+  margin: 6px 8px;
+  padding: 10px 11px;
+  border: 1px solid #efe0be;
+  border-radius: 10px;
+  background: #fff;
+}
+.server-pos-layout .pos-cart-panel .pos-cart-copy strong,
+.cashier-sale-panel .cashier-sale-cart .pos-cart-copy strong {
+  color: #283a32;
+}
+.server-pos-layout .pos-cart-panel .pos-order-meta,
+.cashier-sale-panel .cashier-sale-cart .pos-order-meta {
+  background: #fffbf3;
+  border-top-color: #ebd8ae;
+}
+.server-pos-layout .pos-cart-panel .server-order-identity-summary {
+  background: #fff;
+  border-color: #e4d3a9;
+}
+.server-pos-layout .pos-cart-panel .pos-total-box,
+.cashier-sale-panel .cashier-sale-cart .pos-total-box {
+  margin: 9px 10px;
+  padding: 11px 13px;
+  border: 0;
+  border-radius: 12px;
+  background: #164e40;
+  color: #fff;
+}
+.server-pos-layout .pos-cart-panel .pos-total-box span,
+.cashier-sale-panel .cashier-sale-cart .pos-total-box span {
+  color: #d4eadf;
+}
+.server-pos-layout .pos-cart-panel .pos-total-box strong,
+.cashier-sale-panel .cashier-sale-cart .pos-total-box strong,
+.server-pos-layout .pos-cart-panel .pos-grand-total strong,
+.cashier-sale-panel .cashier-sale-cart .pos-grand-total strong {
+  color: #fff;
+}
+.server-pos-layout .pos-cart-panel .pos-grand-total,
+.cashier-sale-panel .cashier-sale-cart .pos-grand-total {
+  border-top-color: rgba(255,255,255,.38);
+}
+.server-pos-layout .pos-cart-panel .pos-confirm {
+  border: 0;
+  border-radius: 11px;
+  margin: 0 10px 10px;
+  width: calc(100% - 20px) !important;
+}
+.cashier-sale-panel .cashier-sale-actions {
+  border-top: 0;
+  background: transparent;
+  padding: 5px 10px 10px;
+}
+.cashier-sale-panel .cashier-sale-actions .btn {
+  border-radius: 11px;
+}
+
+/* Below desktop widths the two cards stay physically separated. On phones
+   the catalog uses page scrolling instead of trapping products in a tiny grid. */
+@media (max-width: 1100px) {
+  .server-pos-layout,
+  .cashier-sale-panel .cashier-sale-layout {
+    row-gap: 15px;
+  }
+  .cashier-sale-panel .cashier-sale-layout {
+    padding: 12px;
+  }
+  .server-pos-layout .pos-cart-panel.panel-card,
+  .cashier-sale-panel .cashier-sale-cart {
+    margin-top: 0;
+    position: static;
+  }
+}
+@media (max-width: 767px) {
+  .server-pos-layout,
+  .cashier-sale-panel .cashier-sale-layout {
+    row-gap: 12px;
+  }
+  .cashier-sale-panel .cashier-sale-layout {
+    padding: 10px;
+  }
+  .server-pos-layout .pos-catalog.panel-card,
+  .server-pos-layout .pos-cart-panel.panel-card,
+  .cashier-sale-panel .cashier-sale-catalog,
+  .cashier-sale-panel .cashier-sale-cart {
+    border-radius: 14px;
+  }
+  .server-pos-layout .pos-catalog .pos-products,
+  .cashier-sale-panel .cashier-sale-catalog .pos-products {
+    max-height: none;
+    overflow: visible;
+  }
+  .server-pos-layout .pos-cart-panel .pos-cart-lines,
+  .cashier-sale-panel .cashier-sale-cart .pos-cart-lines {
+    max-height: none;
+  }
+  .server-pos-layout .pos-cart-panel .pos-cart-line,
+  .cashier-sale-panel .cashier-sale-cart .pos-cart-line {
+    margin: 5px 6px;
+    padding: 9px;
+  }
+  .server-pos-layout .pos-cart-panel .pos-cart-header h2,
+  .cashier-sale-panel .cashier-sale-cart .pos-cart-header h2 {
+    font-size: 1.06rem;
+  }
+}
+
+/* Night shift: retain strong visual separation without light-only surfaces.
+   The existing global theme marks some generic panels with !important. */
+html[data-bs-theme="dark"] .cashier-sale-panel .cashier-sale-layout {
+  background: #18292a;
+}
+html[data-bs-theme="dark"] .cashier-sale-panel .cashier-sale-head {
+  background: #202f30;
+  border-color: #385a50;
+}
+html[data-bs-theme="dark"] .server-pos-layout .pos-catalog.panel-card,
+html[data-bs-theme="dark"] .cashier-sale-panel .cashier-sale-catalog {
+  background: #21352f !important;
+  border-color: #4e8970 !important;
+}
+html[data-bs-theme="dark"] .server-pos-layout .pos-catalog .pos-toolbar,
+html[data-bs-theme="dark"] .cashier-sale-panel .cashier-sale-catalog .pos-toolbar {
+  background: #29473b !important;
+  border-color: #4e8970 !important;
+}
+html[data-bs-theme="dark"] .server-pos-layout .pos-catalog .pos-products,
+html[data-bs-theme="dark"] .cashier-sale-panel .cashier-sale-catalog .pos-products {
+  background: #172a25;
+}
+html[data-bs-theme="dark"] .server-pos-layout .pos-catalog .pos-product,
+html[data-bs-theme="dark"] .cashier-sale-panel .cashier-sale-catalog .pos-product {
+  background: #273d34 !important;
+  border-color: #52745f !important;
+  color: #f3f8f5;
+}
+html[data-bs-theme="dark"] .server-pos-layout .pos-catalog .pos-product.is-selected {
+  background: #2a5741 !important;
+  border-color: #8bdeae !important;
+}
+html[data-bs-theme="dark"] .server-pos-layout .pos-catalog .pos-product.out-of-stock,
+html[data-bs-theme="dark"] .cashier-sale-panel .cashier-sale-catalog .pos-product.out-of-stock {
+  background: #222d2b !important;
+  border-color: #485951 !important;
+}
+html[data-bs-theme="dark"] .server-pos-layout .pos-catalog .pos-product-price,
+html[data-bs-theme="dark"] .cashier-sale-panel .cashier-sale-catalog .pos-product-price,
+html[data-bs-theme="dark"] .server-pos-layout .server-section-label strong {
+  color: #a9efd0;
+}
+html[data-bs-theme="dark"] .server-pos-layout .pos-cart-panel.panel-card,
+html[data-bs-theme="dark"] .cashier-sale-panel .cashier-sale-cart {
+  background: #302a22 !important;
+  border-color: #c49c5f !important;
+  color: #f5f1e8;
+}
+html[data-bs-theme="dark"] .server-pos-layout .pos-cart-panel .pos-cart-header,
+html[data-bs-theme="dark"] .cashier-sale-panel .cashier-sale-cart .pos-cart-header {
+  background: #443621;
+  border-color: #896b3c;
+}
+html[data-bs-theme="dark"] .server-pos-layout .pos-cart-panel .pos-cart-header h2,
+html[data-bs-theme="dark"] .cashier-sale-panel .cashier-sale-cart .pos-cart-header h2 {
+  color: #ffde9d;
+}
+html[data-bs-theme="dark"] .server-pos-layout .pos-cart-panel .pos-cart-empty,
+html[data-bs-theme="dark"] .cashier-sale-panel .cashier-sale-cart .pos-cart-empty {
+  background: #302a22;
+  color: #dfd0b7;
+}
+html[data-bs-theme="dark"] .server-pos-layout .pos-cart-panel .pos-cart-line,
+html[data-bs-theme="dark"] .cashier-sale-panel .cashier-sale-cart .pos-cart-line {
+  background: #3c352b;
+  border-color: #755f3c;
+}
+html[data-bs-theme="dark"] .server-pos-layout .pos-cart-panel .pos-cart-copy strong,
+html[data-bs-theme="dark"] .cashier-sale-panel .cashier-sale-cart .pos-cart-copy strong {
+  color: #fff9ed;
+}
+html[data-bs-theme="dark"] .server-pos-layout .pos-cart-panel .pos-order-meta,
+html[data-bs-theme="dark"] .cashier-sale-panel .cashier-sale-cart .pos-order-meta {
+  background: #332d25 !important;
+  border-color: #755f3c !important;
+}
+html[data-bs-theme="dark"] .server-pos-layout .pos-cart-panel .server-order-identity-summary {
+  background: #3d352a !important;
+  border-color: #826a44 !important;
+}
+html[data-bs-theme="dark"] .server-pos-layout .pos-cart-panel .pos-total-box,
+html[data-bs-theme="dark"] .cashier-sale-panel .cashier-sale-cart .pos-total-box {
+  background: #104836;
+  color: #fff;
+}
+html[data-bs-theme="dark"] .server-pos-layout .pos-cart-panel .pos-total-box span,
+html[data-bs-theme="dark"] .cashier-sale-panel .cashier-sale-cart .pos-total-box span {
+  color: #d9f0e5;
+}
+html[data-bs-theme="dark"] .server-pos-layout .pos-cart-panel .pos-total-box strong,
+html[data-bs-theme="dark"] .cashier-sale-panel .cashier-sale-cart .pos-total-box strong {
+  color: #fff;
+}
+@media (forced-colors: active) {
+  .server-pos-layout .pos-catalog.panel-card,
+  .server-pos-layout .pos-cart-panel.panel-card,
+  .cashier-sale-panel .cashier-sale-catalog,
+  .cashier-sale-panel .cashier-sale-cart {
+    border: 2px solid CanvasText;
+  }
+}
