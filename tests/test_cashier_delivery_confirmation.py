@@ -72,7 +72,7 @@ def test_server_addition_requires_cashier_delivery_confirmation_before_payment(e
         "DELIVERY-CONFIRM-PARENT",
         [{"product_id": product.id, "quantity": 1}],
     )
-    order_service.confirm(owner, bar.id, order.id)
+    order_service.confirm(cashier, bar.id, order.id)
     db.session.commit()
 
     stock_after_initial_delivery = db.session.scalar(

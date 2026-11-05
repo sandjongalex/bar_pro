@@ -37,13 +37,17 @@ class OrderService:
             )
         )
 
-    def _require_cashier_order_access(self, actor, order, *, allow_unassigned_draft=False):
+    def _require_cashier_order_access(
+        self, actor, order, *, allow_unassigned_draft=False, claim_unassigned_draft=False,
+    ):
         assignment = self._active_assignment(actor, order.bar_id)
         if not assignment or assignment.role != "CASHIER":
             return None
         if order.cashier_assignment_id == assignment.id:
             return assignment
         if allow_unassigned_draft and order.status == "DRAFT" and order.cashier_assignment_id is None:
+            if claim_unassigned_draft:
+                order.cashier_assignment_id = assignment.id
             return assignment
         raise LookupError("NOT_FOUND")
 
@@ -117,7 +121,9 @@ class OrderService:
         if not lines or len({x["product_id"] for x in lines}) != len(lines):
             raise ValueError("INVALID_LINES")
 
-        self._require_cashier_order_access(actor, order)
+        self._require_cashier_order_access(
+            actor, order, allow_unassigned_draft=True, claim_unassigned_draft=True,
+        )
         assignment = self._active_assignment(actor, order.bar_id)
         if assignment and assignment.role == "SERVER" and order.assigned_staff_id != assignment.id:
             raise PermissionError("FORBIDDEN")
@@ -176,7 +182,9 @@ class OrderService:
         if not order or order.status not in {"DRAFT", "CONFIRMED"}:
             raise ValueError("ORDER_NOT_EDITABLE")
 
-        self._require_cashier_order_access(actor, order)
+        self._require_cashier_order_access(
+            actor, order, allow_unassigned_draft=True, claim_unassigned_draft=True,
+        )
         assignment = self._active_assignment(actor, bar_id)
         if assignment and assignment.role == "SERVER" and order.assigned_staff_id != assignment.id:
             raise PermissionError("FORBIDDEN")
@@ -199,7 +207,7 @@ class OrderService:
         if not order or order.status != "DRAFT":
             raise ValueError("ORDER_NOT_DRAFT")
         cashier_assignment = self._require_cashier_order_access(
-            actor, order, allow_unassigned_draft=True,
+            actor, order, allow_unassigned_draft=True, claim_unassigned_draft=True,
         )
         if cashier_assignment is not None:
             order.cashier_assignment_id = cashier_assignment.id

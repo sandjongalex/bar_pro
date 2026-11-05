@@ -172,6 +172,24 @@ def test_cashier_invoices_page_filters_delivery_and_personnel(env):
     assert counter.reference not in waiting_only.text
     assert other_counter.reference not in waiting_only.text
 
+    # A cashier cannot inspect or pay an invoice assigned to another cashier.
+    assert client.get(f"/bars/{bar.id}/orders/{other_counter.id}/detail").status_code == 404
+    cross_cashier_payment = client.post(
+        f"/bars/{bar.id}/cashier/invoices",
+        data={
+            "csrf_token": _csrf(page),
+            "action": "pay_cash",
+            "order_id": str(other_counter.id),
+            "delivery": "delivered",
+            "payment": "all",
+            "origin": "all",
+        },
+        follow_redirects=False,
+    )
+    assert cross_cashier_payment.status_code == 302
+    db.session.refresh(other_counter)
+    assert other_counter.payment_status == "UNPAID"
+
     # Generic counter view remains available.
     counter_only = client.get(
         f"/bars/{bar.id}/cashier/invoices?delivery=delivered&payment=all&origin=cashier"

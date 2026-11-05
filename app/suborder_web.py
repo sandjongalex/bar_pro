@@ -8,7 +8,7 @@ from flask import Blueprint, abort, flash, jsonify, redirect, render_template, r
 from sqlalchemy.exc import IntegrityError
 from app.async_ui import wants_async_web_response, web_json_response
 from flask_login import current_user, login_required
-from sqlalchemy import select
+from sqlalchemy import and_, or_, select
 
 from app.extensions import db
 from app.models import (
@@ -164,6 +164,9 @@ def new_suborder(bar_id: int, order_id: int):
                 )
             flash(message, "info")
             return redirect(url_for("cashier_web.session", bar_id=bar_id))
+        if order.cashier_assignment_id != assignment.id:
+            if not (order.status == "DRAFT" and order.cashier_assignment_id is None):
+                abort(404)
         if order.assigned_staff_id is None:
             abort(404)
         server_assignment = db.session.scalar(
@@ -321,10 +324,18 @@ def cashier_queue(bar_id: int):
     pending = list(
         db.session.scalars(
             select(OrderSuborder)
+            .join(
+                Order,
+                (Order.id == OrderSuborder.order_id) & (Order.bar_id == OrderSuborder.bar_id),
+            )
             .where(
                 OrderSuborder.bar_id == bar_id,
                 OrderSuborder.status == "VALIDATED",
                 OrderSuborder.delivery_status == "PENDING",
+                or_(
+                    Order.cashier_assignment_id == assignment.id,
+                    and_(Order.cashier_assignment_id.is_(None), Order.status == "DRAFT"),
+                ),
             )
             .order_by(OrderSuborder.id.asc())
             .limit(100)
@@ -380,6 +391,10 @@ def cashier_queue(bar_id: int):
                 Order.assigned_staff_id.is_not(None),
                 Order.status.in_(["DRAFT", "CONFIRMED", "SERVED"]),
                 Order.payment_status.in_(["UNPAID", "PARTIAL"]),
+                or_(
+                    Order.cashier_assignment_id == assignment.id,
+                    and_(Order.cashier_assignment_id.is_(None), Order.status == "DRAFT"),
+                ),
             )
             .order_by(Order.id.desc())
             .limit(80)
@@ -450,6 +465,9 @@ def order_suborders_data(bar_id: int, order_id: int):
         permissions.require(current_user, "orders.deliver", bar_id)
         if _open_cash_session(bar_id) is None or order.assigned_staff_id is None:
             abort(404)
+        if order.cashier_assignment_id != assignment.id:
+            if not (order.status == "DRAFT" and order.cashier_assignment_id is None):
+                abort(404)
     suborders = list(db.session.scalars(
         select(OrderSuborder).where(
             OrderSuborder.bar_id == bar_id, OrderSuborder.order_id == order.id,
@@ -472,10 +490,19 @@ def cashier_suborders_data(bar_id: int):
     if _open_cash_session(bar_id) is None:
         abort(404)
     suborders = list(db.session.scalars(
-        select(OrderSuborder).where(
+        select(OrderSuborder)
+        .join(
+            Order,
+            (Order.id == OrderSuborder.order_id) & (Order.bar_id == OrderSuborder.bar_id),
+        )
+        .where(
             OrderSuborder.bar_id == bar_id,
             OrderSuborder.status == "VALIDATED",
             OrderSuborder.delivery_status == "PENDING",
+            or_(
+                Order.cashier_assignment_id == assignment.id,
+                and_(Order.cashier_assignment_id.is_(None), Order.status == "DRAFT"),
+            ),
         ).order_by(OrderSuborder.id.asc()).limit(100)
     ))
     lines = _live_lines(bar_id, [item.id for item in suborders])
@@ -512,6 +539,10 @@ def cashier_suborders_data(bar_id: int):
             Order.assigned_staff_id.is_not(None),
             Order.status.in_(["DRAFT", "CONFIRMED", "SERVED"]),
             Order.payment_status.in_(["UNPAID", "PARTIAL"]),
+            or_(
+                Order.cashier_assignment_id == assignment.id,
+                and_(Order.cashier_assignment_id.is_(None), Order.status == "DRAFT"),
+            ),
         ).order_by(Order.id.desc()).limit(80)
     ))
     return _live_json({

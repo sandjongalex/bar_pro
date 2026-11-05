@@ -25,7 +25,7 @@ def setup(env):
     cashier = _cashier(bar)
     order = order_service.create(
         server, bar.id, "ROUND-EDIT-PARENT", [{"product_id": product.id, "quantity": 1}])
-    order_service.confirm(owner, bar.id, order.id)
+    order_service.confirm(cashier, bar.id, order.id)
     db.session.commit()
     return app, owner, bar, product, server, cashier, order
 

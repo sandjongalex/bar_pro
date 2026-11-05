@@ -152,6 +152,12 @@ class OrderSuborderService:
             raise ValueError("ORDER_NOT_EDITABLE")
         if order.payment_status == "PAID":
             raise ValueError("ORDER_PAID")
+        if assignment and assignment.role == "CASHIER":
+            if order.cashier_assignment_id != assignment.id:
+                if order.status == "DRAFT" and order.cashier_assignment_id is None:
+                    order.cashier_assignment_id = assignment.id
+                else:
+                    raise LookupError("NOT_FOUND")
         if order.assigned_staff_id is None:
             raise ValueError("ORDER_SERVER_REQUIRED")
 
@@ -319,6 +325,12 @@ class OrderSuborderService:
             raise ValueError("ORDER_NOT_EDITABLE")
         if order.payment_status == "PAID":
             raise ValueError("ORDER_PAID")
+        if assignment and assignment.role == "CASHIER":
+            if order.cashier_assignment_id != assignment.id:
+                if order.status == "DRAFT" and order.cashier_assignment_id is None:
+                    order.cashier_assignment_id = assignment.id
+                else:
+                    raise LookupError("NOT_FOUND")
 
         suborder = db.session.scalar(
             select(OrderSuborder)

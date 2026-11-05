@@ -73,6 +73,10 @@ def _form_lines():
 
 
 def _can_view_and_edit(order: Order, assignment) -> tuple[bool, bool]:
+    if assignment and assignment.role == "CASHIER":
+        if order.cashier_assignment_id != assignment.id:
+            if not (order.status == "DRAFT" and order.cashier_assignment_id is None):
+                return False, False
     if assignment and assignment.role == "SERVER":
         if order.assigned_staff_id != assignment.id:
             return False, False

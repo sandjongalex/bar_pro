@@ -97,6 +97,9 @@ class OrderEditService:
         if order.status not in {"DRAFT", "CONFIRMED", "SERVED"}:
             raise ValueError("ORDER_NOT_EDITABLE")
 
+        order_service._require_cashier_order_access(
+            actor, order, allow_unassigned_draft=True, claim_unassigned_draft=True,
+        )
         assignment = self._active_assignment(actor, bar_id)
         if assignment and assignment.role == "SERVER":
             if order.assigned_staff_id != assignment.id or order.status != "DRAFT":

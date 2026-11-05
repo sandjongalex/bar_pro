@@ -12,6 +12,7 @@ from app.permissions import permissions
 from app.stock_service import stock_service
 from app.validation import number, required_text
 from app.order_suborder_service import order_suborder_service
+from app.order_services import order_service
 
 
 def edit_cashier_suborder(actor, bar_id, order_id, suborder_id, lines,
@@ -34,6 +35,9 @@ def edit_cashier_suborder(actor, bar_id, order_id, suborder_id, lines,
         raise ValueError("ORDER_PAID")
     if order.status not in {"DRAFT", "CONFIRMED", "SERVED"}:
         raise ValueError("ORDER_NOT_EDITABLE")
+    order_service._require_cashier_order_access(
+        actor, order, allow_unassigned_draft=True, claim_unassigned_draft=True,
+    )
 
     sub = db.session.scalar(select(OrderSuborder).where(
         OrderSuborder.bar_id == bar_id, OrderSuborder.order_id == order_id,
