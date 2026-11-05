@@ -11,6 +11,7 @@ from app.expense_services import expense_service
 from app.extensions import db
 from app.inventory_services import inventory_service
 from app.inventory_finance_models import InventoryCashReconciliation, InventoryDebtRequest
+from app.inventory_period_models import InventoryPeriodSnapshot
 from app.inventory_finance_services import (
     view, count_cash, add_expense, request_debt, decide_debt,
 )
@@ -346,3 +347,64 @@ def test_ajax_debt_preserves_stock_and_returns_new_finance_fragment(env):
     assert "350" in result.json["html"]
     assert balance(env) == 10
     assert db.session.query(InventoryDebtRequest).count() == 1
+
+
+def test_live_handover_subtracts_late_expenses_and_only_approved_inventory_debts(env):
+    from datetime import timedelta
+
+    inv = setup_inventory(env, reference="LIVE-HANDOVER")
+    inventory_service.count(env[1], env[2].id, inv.id, {str(env[4].id): "8"})
+    db.session.commit()
+
+    period = db.session.scalar(select(InventoryPeriodSnapshot).where(
+        InventoryPeriodSnapshot.bar_id == env[2].id,
+        InventoryPeriodSnapshot.inventory_id == inv.id,
+    ))
+    assert period.theoretical_sales_amount == Decimal("200")
+
+    category = ExpenseCategory(bar_id=env[2].id, name="Dépense oubliée")
+    db.session.add(category)
+    db.session.commit()
+    expense = add_expense(
+        env[1], env[2].id, inv.id, category_id=category.id,
+        amount="50", description="Achat oublié après démarrage inventaire",
+        method="MOBILE_MONEY", nonce="lateExpense12345",
+    )
+    expense.incurred_at = period.period_end_at + timedelta(minutes=2)
+    db.session.commit()
+
+    cust = customer(env)
+    req = request_debt(
+        env[1], env[2].id, inv.id, customer_id=cust.id,
+        order_id=None, amount="75", reason="Client parti à crédit",
+        nonce="lateDebt123456",
+    )
+    db.session.commit()
+
+    pending_summary = view(env[1], env[2].id, inv.id)
+    assert pending_summary["expenses_amount"] == Decimal("50")
+    assert pending_summary["approved_debt_amount"] == 0
+    assert pending_summary["pending_debt_amount"] == Decimal("75")
+    assert pending_summary["expected_handover_amount"] == Decimal("150")
+
+    decide_debt(
+        env[1], env[2].id, inv.id, req.id,
+        decision="approve", reason="Dette vérifiée",
+    )
+    db.session.commit()
+
+    approved_summary = view(env[1], env[2].id, inv.id)
+    assert approved_summary["approved_debt_amount"] == Decimal("75")
+    assert approved_summary["pending_debt_amount"] == 0
+    assert approved_summary["expected_handover_amount"] == Decimal("75")
+
+    inventory_service.post(env[1], env[2].id, inv.id)
+    db.session.commit()
+    saved_period = db.session.scalar(select(InventoryPeriodSnapshot).where(
+        InventoryPeriodSnapshot.bar_id == env[2].id,
+        InventoryPeriodSnapshot.inventory_id == inv.id,
+    ))
+    assert saved_period.theoretical_sales_amount == Decimal("200")
+    assert saved_period.expenses_amount == Decimal("50")
+    assert saved_period.credit_sales_amount == Decimal("75")
+    assert saved_period.expected_cash_amount == Decimal("75")

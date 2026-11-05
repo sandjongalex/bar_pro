@@ -1,3 +1,15 @@
+<h2>Montant théorique à remettre</h2>
+{% if finance.has_period_financials %}
+<p><strong>{{ '{:,.0f}'.format(finance.expected_handover_amount|float) }} {{ bar.currency }}</strong> =
+   ventes théoriques {{ '{:,.0f}'.format(finance.theoretical_sales_amount|float) }} −
+   dépenses imputées {{ '{:,.0f}'.format(finance.expenses_amount|float) }} −
+   dettes/crédits approuvés {{ '{:,.0f}'.format(finance.credit_sales_amount|float) }}.</p>
+{% else %}
+<p>Calcul théorique indisponible pour cet ancien inventaire.</p>
+{% endif %}
+{% if finance.pending_debt_amount > 0 %}
+<p><strong>Dettes en attente non déduites :</strong> {{ '{:,.0f}'.format(finance.pending_debt_amount|float) }} {{ bar.currency }}.</p>
+{% endif %}
 <h2>Relevé physique de caisse</h2>
 {% if finance.saved %}
 <p><strong>Session :</strong> {{ finance.session.reference if finance.session else finance.saved.cash_session_id }} ·
@@ -21,5 +33,5 @@
 {% endfor %}
 {% endif %}
 <p class="note">Les montants calculés depuis le stock sont des indicateurs distincts.
-  Les dettes manuelles hors facture ne diminuent pas la recette attendue.
+  Les dettes approuvées diminuent le montant théorique à remettre ; les demandes en attente ne sont pas déduites.
   Ce relevé ne clôture pas automatiquement la session de caisse.</p>
