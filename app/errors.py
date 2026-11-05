@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+from traceback import extract_tb
+
 from flask import Flask, jsonify, render_template, request
 from flask_login import current_user
 from werkzeug.exceptions import Forbidden, InternalServerError, NotFound
@@ -89,5 +92,18 @@ def register_error_handlers(app: Flask) -> None:
 
     @app.errorhandler(InternalServerError)
     def internal_error(error: InternalServerError):
-        app.logger.error("Unhandled application error: %s", type(error.original_exception).__name__)
+        # Log only exception type and code locations: never SQL parameters,
+        # HTTP payloads or exception messages that might contain private data.
+        original = error.original_exception
+        frames = extract_tb(original.__traceback__) if original is not None else []
+        location = " -> ".join(
+            f"{Path(frame.filename).name}:{frame.lineno}:{frame.name}"
+            for frame in frames[-8:]
+        ) or "unknown"
+        app.logger.error(
+            "Unhandled application error: type=%s endpoint=%s trace=%s",
+            type(original).__name__ if original is not None else "Unknown",
+            request.endpoint or "unknown",
+            location,
+        )
         return _response(500, "INTERNAL_SERVER_ERROR", "Erreur interne")
