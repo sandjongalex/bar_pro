@@ -48,6 +48,11 @@ def upgrade():
         ),
     )
     op.create_index(
+        "ix_inventory_expense_links_bar_id",
+        "inventory_expense_links",
+        ["bar_id"],
+    )
+    op.create_index(
         "ix_inventory_expense_links_bar_created",
         "inventory_expense_links",
         ["bar_id", "created_at", "id"],
@@ -92,6 +97,10 @@ def upgrade():
 def downgrade():
     op.drop_index(
         "ix_inventory_expense_link_inventory",
+        table_name="inventory_expense_links",
+    )
+    op.drop_index(
+        "ix_inventory_expense_links_bar_id",
         table_name="inventory_expense_links",
     )
     op.drop_index(
