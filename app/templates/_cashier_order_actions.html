@@ -17,7 +17,7 @@
     <a class="btn btn-sm btn-outline-primary" href="{{ url_for('checkout_web.receipt', bar_id=bar_id, order_id=order.id) }}" target="_blank" rel="noopener">Imprimer</a>
   {% endif %}
   <a class="btn btn-sm btn-light border" href="{{ url_for('orders_web.detail', bar_id=bar_id, order_id=order.id) }}">Détails / aperçu</a>
-  {% if order.assigned_staff_id %}
+  {% if order.assigned_staff_id or (order.cashier_assignment_id and order.status in ['CONFIRMED', 'SERVED']) %}
   <a class="btn btn-sm btn-light border" data-cashier-add-suborder href="{{ url_for('suborders_web.new_suborder', bar_id=bar_id, order_id=order.id) }}">＋ Sous-commande</a>
   {% endif %}
 </div>

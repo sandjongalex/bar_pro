@@ -158,19 +158,28 @@ class OrderSuborderService:
                     order.cashier_assignment_id = assignment.id
                 else:
                     raise LookupError("NOT_FOUND")
-        if order.assigned_staff_id is None:
+        cashier_own_invoice = (
+            order.assigned_staff_id is None
+            and assignment is not None
+            and assignment.role == "CASHIER"
+            and order.cashier_assignment_id == assignment.id
+            and order.status in {"CONFIRMED", "SERVED"}
+        )
+        if order.assigned_staff_id is None and not cashier_own_invoice:
             raise ValueError("ORDER_SERVER_REQUIRED")
 
-        server_assignment = db.session.scalar(
-            select(StaffAssignment).where(
-                StaffAssignment.id == order.assigned_staff_id,
-                StaffAssignment.bar_id == bar_id,
-                StaffAssignment.role == "SERVER",
-                StaffAssignment.ended_at.is_(None),
+        server_assignment = None
+        if order.assigned_staff_id is not None:
+            server_assignment = db.session.scalar(
+                select(StaffAssignment).where(
+                    StaffAssignment.id == order.assigned_staff_id,
+                    StaffAssignment.bar_id == bar_id,
+                    StaffAssignment.role == "SERVER",
+                    StaffAssignment.ended_at.is_(None),
+                )
             )
-        )
-        if not server_assignment:
-            raise ValueError("ORDER_SERVER_REQUIRED")
+            if not server_assignment:
+                raise ValueError("ORDER_SERVER_REQUIRED")
 
         validated, total = self._validated_lines(bar_id, lines)
         sequence_no = self._next_sequence(bar_id, order.id)
@@ -180,8 +189,8 @@ class OrderSuborderService:
             bar_id=bar_id,
             order_id=order.id,
             sequence_no=sequence_no,
-            assigned_staff_id=server_assignment.id,
-            status="PENDING_VALIDATION",
+            assigned_staff_id=server_assignment.id if server_assignment else None,
+            status="VALIDATED" if cashier_own_invoice else "PENDING_VALIDATION",
             delivery_status="DELIVERED",
             currency=order.currency,
             subtotal_amount=number(total),
@@ -190,6 +199,8 @@ class OrderSuborderService:
             total_amount=number(total),
             note=(required_text(note, 500) if note else None),
             created_by_id=actor.id,
+            validated_by_id=actor.id if cashier_own_invoice else None,
+            validated_at=now if cashier_own_invoice else None,
             delivered_by_id=actor.id,
             delivered_at=now,
         )
@@ -208,10 +219,28 @@ class OrderSuborderService:
                 unit_cost_snapshot=line.unit_cost_snapshot,
             )
 
+        if cashier_own_invoice:
+            # An own-counter invoice has no assigned server to confirm the
+            # addition. Keep its lines separate but bill the amount now.
+            order.subtotal_amount = number(
+                Decimal(order.subtotal_amount) + Decimal(suborder.subtotal_amount)
+            )
+            order.discount_amount = number(
+                Decimal(order.discount_amount) + Decimal(suborder.discount_amount)
+            )
+            order.tax_amount = number(
+                Decimal(order.tax_amount) + Decimal(suborder.tax_amount)
+            )
+            order.total_amount = number(
+                Decimal(order.total_amount) + Decimal(suborder.total_amount)
+            )
+            order_balance(order, update=True)
+
         record(
             actor,
             bar_id,
-            "orders.suborder.create",
+            "orders.suborder.create_cashier_own" if cashier_own_invoice
+            else "orders.suborder.create",
             "order_suborders",
             suborder.id,
             f"Sous-commande {sequence_no} de {order.reference}",

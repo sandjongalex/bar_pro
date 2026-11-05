@@ -11,7 +11,7 @@
 <div class="suborder-shell">
   <section class="suborder-top">
     <div>
-      <span class="suborder-badge">{% if mode == 'server' %}Serveuse · ajout client{% else %}Caissière · service direct{% endif %}</span>
+      <span class="suborder-badge">{% if mode == 'server' %}Serveuse · ajout client{% elif mode == 'cashier_own' %}Caissière · ma facture{% else %}Caissière · service direct{% endif %}</span>
       <h1>Ajouter une sous-commande</h1>
       <p>Les produits ajoutés restent dans un bloc séparé de la commande initiale.</p>
     </div>
@@ -35,6 +35,9 @@
       {% if mode == 'server' %}
         <strong>La serveuse envoie, la caissière livre.</strong>
         <small>Le montant rejoint la facture immédiatement. Le stock sera déduit seulement lorsque la caissière confirmera la livraison de cette sous-commande.</small>
+      {% elif mode == 'cashier_own' %}
+        <strong>Ajout direct sur votre facture.</strong>
+        <small>Les produits sont servis, le stock est déduit et le total à encaisser est actualisé immédiatement. L'ajout reste séparé sur le ticket.</small>
       {% else %}
         <strong>La caissière sert immédiatement, la serveuse valide ensuite.</strong>
         <small>Le stock sera déduit au moment de cet ajout. La sous-commande restera séparée et apparaîtra chez la serveuse pour validation.</small>
@@ -76,7 +79,7 @@
         <div class="suborder-note"><label class="form-label" for="suborderNote">Note facultative</label><textarea class="form-control" id="suborderNote" name="note" rows="2" maxlength="500" placeholder="Ex. sans glaçons, table VIP, client pressé..."></textarea></div>
         <div class="suborder-total"><span>Total de l'ajout</span><strong><span id="suborderTotal">0</span> {{ bar.currency }}</strong></div>
         <button class="btn btn-primary btn-lg w-100 suborder-submit" id="suborderSubmit" type="submit" disabled>{% if mode == 'server' %}Envoyer à la caisse{% else %}Servir cet ajout{% endif %}</button>
-        <p class="suborder-help">{% if mode == 'server' %}La sous-commande sera marquée « à livrer » côté caisse.{% else %}La sous-commande sera marquée « servie · à valider » côté serveuse.{% endif %}</p>
+        <p class="suborder-help">{% if mode == 'server' %}La sous-commande sera marquée « à livrer » côté caisse.{% elif mode == 'cashier_own' %}L'ajout est directement pris en compte dans le montant dû.{% else %}La sous-commande sera marquée « servie · à valider » côté serveuse.{% endif %}</p>
       </div>
     </aside>
   </form>

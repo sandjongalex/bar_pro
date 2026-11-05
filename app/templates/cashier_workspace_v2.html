@@ -92,7 +92,7 @@ document.addEventListener('DOMContentLoaded', () => {
     head.insertBefore(link, head.children[2] || null);
   }
 
-  {% if selected_order and selected_server_assignment and selected_order.payment_status != 'PAID' %}
+  {% if selected_order and selected_order.payment_status != 'PAID' and (selected_server_assignment or (selected_order.cashier_assignment_id and selected_order.status in ['CONFIRMED', 'SERVED'])) %}
   const addUrl = {{ url_for('suborders_web.new_suborder', bar_id=bar.id, order_id=selected_order.id)|tojson }};
   const paymentPanel = document.getElementById('paymentPanel');
   const summary = paymentPanel?.querySelector('.cashier-order-summary');
@@ -101,7 +101,7 @@ document.addEventListener('DOMContentLoaded', () => {
     cta.href = addUrl;
     cta.className = 'cashier-selected-suborder-cta';
     cta.dataset.selectedSuborderAdd = '1';
-    cta.innerHTML = '<div><strong>Ajouter une sous-commande</strong><small>Servir un ajout maintenant sur cette facture, sans fusionner les lignes.</small></div><span class="cashier-selected-suborder-plus">＋</span>';
+    cta.innerHTML = '<div><strong>Ajouter une sous-commande</strong><small>{% if selected_server_assignment %}Servir un ajout sur cette facture, à valider par la serveuse.{% else %}Ajouter des produits à ma facture et actualiser le montant dû.{% endif %}</small></div><span class="cashier-selected-suborder-plus">＋</span>';
     summary.insertAdjacentElement('beforebegin', cta);
   }
   {% endif %}

@@ -168,18 +168,21 @@ def new_suborder(bar_id: int, order_id: int):
             if not (order.status == "DRAFT" and order.cashier_assignment_id is None):
                 abort(404)
         if order.assigned_staff_id is None:
-            abort(404)
-        server_assignment = db.session.scalar(
-            select(StaffAssignment).where(
-                StaffAssignment.id == order.assigned_staff_id,
-                StaffAssignment.bar_id == bar_id,
-                StaffAssignment.role == "SERVER",
-                StaffAssignment.ended_at.is_(None),
+            if order.cashier_assignment_id != assignment.id or order.status not in {"CONFIRMED", "SERVED"}:
+                abort(404)
+            mode = "cashier_own"
+        else:
+            server_assignment = db.session.scalar(
+                select(StaffAssignment).where(
+                    StaffAssignment.id == order.assigned_staff_id,
+                    StaffAssignment.bar_id == bar_id,
+                    StaffAssignment.role == "SERVER",
+                    StaffAssignment.ended_at.is_(None),
+                )
             )
-        )
-        if not server_assignment:
-            abort(404)
-        mode = "cashier"
+            if not server_assignment:
+                abort(404)
+            mode = "cashier"
         back_url = url_for("cashier_workspace_web.workspace", bar_id=bar_id, order_id=order.id)
 
     if request.method == "POST":
@@ -199,7 +202,11 @@ def new_suborder(bar_id: int, order_id: int):
                     current_user, bar_id, order.id, _cart_lines(),
                     note=(request.form.get("note") or "").strip() or None,
                 )
-                message = f"Sous-commande {suborder.sequence_no} servie. La serveuse doit maintenant la valider."
+                message = (
+                    f"Sous-commande {suborder.sequence_no} servie et ajoutée à votre facture."
+                    if mode == "cashier_own" else
+                    f"Sous-commande {suborder.sequence_no} servie. La serveuse doit maintenant la valider."
+                )
             db.session.commit()
             if async_web:
                 return web_json_response(
@@ -463,7 +470,12 @@ def order_suborders_data(bar_id: int, order_id: int):
             abort(404)
     else:
         permissions.require(current_user, "orders.deliver", bar_id)
-        if _open_cash_session(bar_id) is None or order.assigned_staff_id is None:
+        if _open_cash_session(bar_id) is None:
+            abort(404)
+        if order.assigned_staff_id is None and not (
+            order.cashier_assignment_id == assignment.id
+            and order.status in {"CONFIRMED", "SERVED"}
+        ):
             abort(404)
         if order.cashier_assignment_id != assignment.id:
             if not (order.status == "DRAFT" and order.cashier_assignment_id is None):

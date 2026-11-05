@@ -99,7 +99,7 @@
       <a class="btn btn-outline-primary" href="{{ url_for('checkout_web.receipt', bar_id=bar.id, order_id=order.id) }}" target="_blank" rel="noopener">🖨 Imprimer</a>
       {% endif %}
 
-      {% if is_cashier and order.assigned_staff_id and active_order and order.payment_status != 'PAID' %}
+      {% if is_cashier and active_order and order.payment_status != 'PAID' and (order.assigned_staff_id or (order.cashier_assignment_id and order.status in ['CONFIRMED', 'SERVED'])) %}
       <a class="btn btn-light border" href="{{ url_for('suborders_web.new_suborder', bar_id=bar.id, order_id=order.id) }}">＋ Ajouter une sous-commande</a>
       {% endif %}
 
