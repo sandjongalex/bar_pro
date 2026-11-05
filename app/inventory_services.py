@@ -341,7 +341,7 @@ class InventoryService:
         )
         db.session.add(inv)
         db.session.flush()
-        if shift is not None:
+        if assignment is not None:
             db.session.add(
                 InventoryCashierAssignment(
                     bar_id=bar_id,

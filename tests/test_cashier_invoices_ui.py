@@ -179,7 +179,6 @@ def test_cashier_invoices_page_filters_delivery_and_personnel(env):
     assert counter_only.status_code == 200
     assert counter.reference in counter_only.text
     assert delivered_server.reference not in counter_only.text
-    assert delivered_server.reference not in counter_only.text
 
     # Personnel filter distinguishes each cashier even though both orders are
     # counter sales with assigned_staff_id=None.
