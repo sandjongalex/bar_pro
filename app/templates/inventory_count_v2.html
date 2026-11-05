@@ -11,7 +11,7 @@
       <span class="inventory-status inventory-status-{{ 'posted' if approval.status == 'POSTED' else 'draft' }}">{{ {'DRAFT':'Comptage en cours','SUBMITTED':'En contrôle','RECOUNT':'Recomptage demandé','POSTED':'Validé'}.get(approval.status,approval.status) }}</span>
     </div>
     <p>{{ inventory.reason }}</p>
-    <p class="text-secondary mb-0">Caissière responsable : <strong>{{ inventory.cashier_name }}</strong> · ventes autorisées pendant le comptage.</p>
+    <p class="text-secondary mb-0">Caissière responsable : <strong>{{ inventory.cashier_name }}</strong> · fin de période : {{ inventory.period_end_at[:10] if inventory.period_end_at else '—' }}. Les ventes continuent pendant le comptage.</p>
   </div>
   <div class="d-flex align-items-center gap-2 flex-wrap">
     <a class="btn btn-outline-primary" href="{{ url_for('inventories.v2_report',bar_id=bar_id,inventory_id=inventory.id) }}">Voir le rapport</a>
@@ -28,12 +28,30 @@
   <div><strong>Comptage : une case vide n'est pas zéro.</strong><p class="mb-0">Saisissez <strong>0</strong> pour un stock réellement nul. Les casiers complets sont convertis en bouteilles ; un brouillon ne modifie jamais le stock machine.</p></div>
 </div>
 
-<section class="inventory-stats mt-4" aria-label="Résumé de l'inventaire">
-  <article><span>Fin de période</span><strong>{{ inventory.period_end_at[:10] if inventory.period_end_at else '—' }}</strong><small>Depuis {{ inventory.period_start_at[:10] if inventory.period_start_at else 'la première période' }}</small></article>
-  <article><span>Produits</span><strong>{{ inventory.lines|length }}</strong><small>À vérifier physiquement</small></article>
-  <article><span>Comptage</span><strong id="inv2-progress">{{ inventory.lines|selectattr('physical_quantity','ne',none)|list|length }} / {{ inventory.lines|length }}</strong><small>Enregistrement progressif</small></article>
-  <article><span>Validation</span><strong>{{ {'DRAFT':'En cours','SUBMITTED':'Soumis','RECOUNT':'À recompter','POSTED':'Terminé'}.get(approval.status,approval.status) }}</strong><small>Soumise au contrôle</small></article>
+<section class="inventory-stats inventory-live-stats mt-4" id="inv2-live-calculation"
+         data-currency="{{ bar.currency }}" aria-label="Calcul automatique de l'inventaire">
+  <article>
+    <span>Produits comptés</span>
+    <strong id="inv2-progress">{{ inventory.lines|selectattr('physical_quantity','ne',none)|list|length }} / {{ inventory.lines|length }}</strong>
+    <small>Sur {{ inventory.lines|length }} produits</small>
+  </article>
+  <article>
+    <span>Quantité vendue estimée</span>
+    <strong id="inv2-live-sold">—</strong>
+    <small>Stock théorique − physique</small>
+  </article>
+  <article class="inventory-live-sales-card">
+    <span>Ventes calculées</span>
+    <strong id="inv2-live-sales">—</strong>
+    <small>Sur les produits déjà comptés</small>
+  </article>
+  <article class="inventory-live-handover-card">
+    <span>À remettre (estimé)</span>
+    <strong id="inv2-live-handover">—</strong>
+    <small>Ventes + dettes encaissées − dépenses − crédits</small>
+  </article>
 </section>
+<p class="inventory-live-caption" id="inv2-live-caption" role="status" aria-live="polite">Les montants seront calculés dès la saisie du stock physique. Les valeurs définitives restent celles enregistrées par le serveur.</p>
 
 {% set editable_count = approval.status in ('DRAFT','RECOUNT') %}
 {% if editable_count %}
@@ -52,7 +70,7 @@
       <thead><tr><th>Produit</th><th>Dernier inventaire</th><th>Achats</th><th title="Ajustements, pertes et retours">Mouvements hors ventes</th><th>Stock théorique</th><th>Stock machine</th><th>Stock physique réel</th><th>Qté vendue</th><th>Montant ventes</th><th>Écart machine</th><th>Observation</th></tr></thead>
       <tbody>
       {% for line in inventory.lines %}
-      <tr class="inventory-line {% if editable_count %}inv2-product{% endif %}" {% if editable_count %}data-product-id="{{ line.product_id }}" data-theoretical="{{ line.theoretical_quantity|inventory_qty }}" data-machine="{{ line.machine_quantity|inventory_qty }}" data-price="{{ line.sale_price }}"{% endif %}>
+      <tr class="inventory-line {% if editable_count %}inv2-product{% endif %}" {% if editable_count %}data-product-id="{{ line.product_id }}" data-theoretical="{{ line.theoretical_quantity|inventory_qty }}" data-machine="{{ line.machine_quantity|inventory_qty }}" data-price="{{ line.sale_price }}" data-case-size="{{ line.units_per_case or 1 }}"{% endif %}>
         <td data-label="Produit">
           <div class="inventory-item-heading">
             <div class="inventory-item-title">
@@ -189,7 +207,7 @@
 </section>
 
 <p class="inv2-footer mt-3">Le stock ne sera ajusté qu'après approbation du responsable. Les ventes, dépenses et dettes sont suivies séparément.</p>
-<script defer src="{{ url_for('static',filename='inventory_count_v2.js', v='20261105-inventory-unified-v1') }}"></script>
+<script defer src="{{ url_for('static',filename='inventory_count_v2.js', v='20261105-live-calculation-v2') }}"></script>
 <script>
 document.addEventListener('click', function(event) {
   const toggle = event.target.closest('.inventory-v1-unified .inventory-details-toggle');

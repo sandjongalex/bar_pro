@@ -403,3 +403,109 @@ html[data-bs-theme="dark"] .inventory-v1-unified .inventory-unified-count-contro
 html[data-bs-theme="dark"] .inventory-v1-unified .inv2-saved-hint {
   color:var(--muted);
 }
+
+
+/* Inventaire unifié : calcul instantané et colonne des résultats visibles. */
+.inventory-live-stats {
+  gap: 10px;
+}
+.inventory-live-stats article {
+  min-width: 0;
+  border-color: #cfdfd6;
+  padding: 13px 15px;
+}
+.inventory-live-stats article strong {
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+  font-size: clamp(1.02rem, 2vw, 1.28rem);
+}
+.inventory-live-stats article small {
+  font-size: .67rem;
+  line-height: 1.4;
+}
+.inventory-live-stats .inventory-live-sales-card {
+  background: #eef9f2;
+  border-color: #add4bb;
+}
+.inventory-live-stats .inventory-live-handover-card {
+  background: #173f35;
+  border-color: #173f35;
+}
+.inventory-live-stats .inventory-live-handover-card span,
+.inventory-live-stats .inventory-live-handover-card strong {
+  color: #fff;
+}
+.inventory-live-stats .inventory-live-handover-card small {
+  color: #d7f0df;
+}
+.inventory-live-caption {
+  font-size: .75rem;
+  color: var(--muted);
+  margin: 7px 2px 0;
+  line-height: 1.5;
+}
+.inventory-live-caption.inventory-live-alert {
+  color: #b42318;
+  font-weight: 700;
+}
+.inventory-v1-unified .inventory-table tbody tr.inventory-live-difference .inventory-gap {
+  font-weight: 900;
+}
+.inventory-v1-unified .inventory-table tbody tr .inventory-sold,
+.inventory-v1-unified .inventory-table tbody tr .inventory-sales {
+  font-variant-numeric: tabular-nums;
+}
+.inventory-v1-unified .inventory-unified-count-controls input:focus {
+  outline: 2px solid #268d67;
+  outline-offset: 1px;
+  background: #fff;
+}
+@media (max-width: 1199px) {
+  /* The selling calculation is primary information, not hidden in Details. */
+  .inventory-table-card.inventory-v1-unified .inventory-table tbody tr td:nth-child(8),
+  .inventory-table-card.inventory-v1-unified .inventory-table tbody tr td:nth-child(9) {
+    display: block;
+    order: 3;
+    background: #eef8f3;
+    border-radius: 8px;
+    padding: 7px 9px;
+  }
+  .inventory-table-card.inventory-v1-unified .inventory-table tbody tr td:nth-child(10) {
+    order: 4;
+  }
+  .inventory-table-card.inventory-v1-unified .inventory-table tbody tr td:nth-child(11) {
+    order: 5;
+  }
+  .inventory-live-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 470px) {
+  .inventory-live-stats article {
+    padding: 10px 11px;
+    border-radius: 13px;
+  }
+  .inventory-live-stats article strong {
+    font-size: 1.03rem;
+  }
+  .inventory-live-stats article span,
+  .inventory-live-stats article small {
+    font-size: .65rem;
+  }
+}
+html[data-bs-theme="dark"] .inventory-live-stats .inventory-live-sales-card {
+  background: #243d34;
+  border-color: #4b785f;
+}
+html[data-bs-theme="dark"] .inventory-live-stats .inventory-live-sales-card strong,
+html[data-bs-theme="dark"] .inventory-live-stats .inventory-live-sales-card span {
+  color: #c3efcf;
+}
+html[data-bs-theme="dark"] .inventory-live-stats .inventory-live-handover-card {
+  background: #124534;
+  border-color: #5d9b79;
+}
+html[data-bs-theme="dark"] .inventory-table-card.inventory-v1-unified .inventory-table tbody tr td:nth-child(8),
+html[data-bs-theme="dark"] .inventory-table-card.inventory-v1-unified .inventory-table tbody tr td:nth-child(9) {
+  background: #253b31;
+}

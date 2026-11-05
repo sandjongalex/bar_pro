@@ -85,6 +85,121 @@
   var csrf = form.querySelector('input[name="csrf_token"]').value;
   var url = form.getAttribute("data-count-url");
 
+  var liveRoot = document.getElementById("inv2-live-calculation");
+  var liveSold = document.getElementById("inv2-live-sold");
+  var liveSales = document.getElementById("inv2-live-sales");
+  var liveHandover = document.getElementById("inv2-live-handover");
+  var liveCaption = document.getElementById("inv2-live-caption");
+  var currency = liveRoot ? liveRoot.getAttribute("data-currency") : "";
+  var countFormatter = typeof Intl !== "undefined"
+    ? new Intl.NumberFormat("fr-FR", {maximumFractionDigits: 6})
+    : null;
+  var moneyFormatter = typeof Intl !== "undefined"
+    ? new Intl.NumberFormat("fr-FR", {maximumFractionDigits: 0})
+    : null;
+
+  function formatQty(value) {
+    var rounded = Math.round(value * 1000000) / 1000000;
+    if (Math.abs(rounded) < 0.0000005) rounded = 0;
+    return countFormatter ? countFormatter.format(rounded) : String(rounded);
+  }
+
+  function formatMoney(value) {
+    return (moneyFormatter ? moneyFormatter.format(value) : String(Math.round(value)))
+      + " " + currency;
+  }
+
+  function readQuantity(row) {
+    var cases = row.querySelector(".inv2-cases");
+    var units = row.querySelector(".inv2-units");
+    if (!units) return {kind:"invalid"};
+    var rawCases = cases ? cases.value.trim() : "";
+    var rawUnits = units.value.trim();
+    if (rawCases === "" && rawUnits === "") return {kind:"empty"};
+    if ((cases && rawCases !== "" && !cases.checkValidity()) ||
+        (rawUnits !== "" && !units.checkValidity())) {
+      return {kind:"invalid"};
+    }
+    var caseNumber = rawCases === "" ? 0 : Number(rawCases);
+    var unitNumber = rawUnits === "" ? 0 : Number(rawUnits);
+    if (!isFinite(caseNumber) || !isFinite(unitNumber) ||
+        caseNumber < 0 || unitNumber < 0 ||
+        Math.floor(caseNumber) !== caseNumber) return {kind:"invalid"};
+    var caseSize = Number(row.getAttribute("data-case-size") || "1");
+    if (!isFinite(caseSize) || caseSize < 1) return {kind:"invalid"};
+    var physical = caseNumber * caseSize + unitNumber;
+    if (!isFinite(physical)) return {kind:"invalid"};
+    return {kind:"counted", physical:physical};
+  }
+
+  function recalculate() {
+    if (!liveRoot) return;
+    var counted = 0, soldTotal = 0, salesTotal = 0;
+    var invalid = 0, differences = 0;
+    rows.forEach(function (row) {
+      var result = readQuantity(row);
+      var soldNode = row.querySelector(".inventory-sold");
+      var saleNode = row.querySelector(".inventory-sales");
+      var gapNode = row.querySelector(".inventory-gap");
+      var theoretical = Number(row.getAttribute("data-theoretical") || "0");
+      var machine = Number(row.getAttribute("data-machine") || "0");
+      var price = Number(row.getAttribute("data-price") || "0");
+      var countedValid = result.kind === "counted" &&
+        isFinite(theoretical) && isFinite(machine) && isFinite(price);
+      if (!countedValid) {
+        if (result.kind === "invalid") invalid++;
+        if (soldNode) soldNode.textContent = "—";
+        if (saleNode) saleNode.textContent = "—";
+        if (gapNode) gapNode.textContent = "—";
+        row.classList.remove("inventory-live-difference");
+        if (gapNode) gapNode.classList.remove("text-danger", "text-warning", "text-success");
+        return;
+      }
+      counted++;
+      var sold = theoretical - result.physical;
+      var sale = sold * price;
+      var gap = result.physical - machine;
+      soldTotal += sold;
+      salesTotal += sale;
+      if (soldNode) soldNode.textContent = formatQty(sold);
+      if (saleNode) saleNode.textContent = formatMoney(sale);
+      if (gapNode) {
+        gapNode.textContent = formatQty(gap);
+        gapNode.classList.remove("text-danger", "text-warning", "text-success");
+        gapNode.classList.add(gap < -0.0000005 ? "text-danger" :
+          gap > 0.0000005 ? "text-warning" : "text-success");
+      }
+      if (Math.abs(gap) > 0.0000005) differences++;
+      row.classList.toggle("inventory-live-difference", Math.abs(gap) > 0.0000005);
+    });
+    if (progress) progress.textContent = counted + " / " + rows.length;
+    if (liveSold) liveSold.textContent = counted ? formatQty(soldTotal) : "—";
+    if (liveSales) liveSales.textContent = counted ? formatMoney(salesTotal) : "—";
+    var financePanel = document.getElementById("finance-inventory");
+    var available = financePanel && financePanel.getAttribute("data-finance-available") === "1";
+    var debt = financePanel ? Number(financePanel.getAttribute("data-debt-repayments") || "0") : 0;
+    var expenses = financePanel ? Number(financePanel.getAttribute("data-expenses") || "0") : 0;
+    var credit = financePanel ? Number(financePanel.getAttribute("data-credit-sales") || "0") : 0;
+    if (liveHandover) {
+      liveHandover.textContent = counted && available &&
+        isFinite(debt) && isFinite(expenses) && isFinite(credit)
+          ? formatMoney(salesTotal + debt - expenses - credit)
+          : "—";
+    }
+    if (liveCaption) {
+      liveCaption.textContent = invalid
+        ? invalid + " quantité(s) invalide(s). Corrigez-les avant l'enregistrement."
+        : counted < rows.length
+          ? "Estimation partielle : " + counted + " produit(s) compté(s) sur " + rows.length +
+            ". Les autres produits ne sont pas considérés comme vendus."
+          : differences
+            ? "Calcul automatique terminé. " + differences +
+              " écart(s) de stock à contrôler. Sauvegardez puis vérifiez les mouvements avant validation."
+            : "Calcul automatique terminé. Sauvegardez le comptage pour confirmer les montants.";
+      liveCaption.classList.toggle("inventory-live-alert", invalid > 0);
+    }
+  }
+
 
   function status(row, kind, message) {
     row.setAttribute("data-state", kind);
@@ -116,6 +231,7 @@
   }
 
   function schedule(row) {
+    recalculate();
     row._inv2Dirty = true;
     status(row, "saving", "Non sauvegardé");
     if (row._inv2Timer) clearTimeout(row._inv2Timer);
@@ -154,7 +270,10 @@
       })[0];
       if (!saved) throw new Error("Réponse de comptage incomplète");
       row.querySelector(".inv2-revision").value = saved.count_revision;
-      progress.textContent = data.counted + " / " + data.total;
+      recalculate();
+      var savedHint = row.querySelector(".inv2-saved-hint");
+      if (savedHint) savedHint.textContent = saved.physical_quantity === null
+        ? "Non compté" : "Comptage sauvegardé";
       if (!row._inv2Dirty) {
         status(row, "saved", saved.physical_quantity === null ? "Non compté · enregistré" : "Enregistré");
       }
@@ -207,6 +326,9 @@
       saveAllButton.disabled = false;
     });
   });
+
+  document.addEventListener("barpro:inventory-finance-updated", recalculate);
+  recalculate();
 
   window.addEventListener("beforeunload", function (event) {
     var dirty = rows.some(function (row) { return row._inv2Dirty || row._inv2Busy; });

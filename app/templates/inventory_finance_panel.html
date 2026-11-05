@@ -1,6 +1,11 @@
 {# Inventory cash and debts: read-only after stock posting; V1 and V2 share
    the same server-authorized actions but never write inventory stock. #}
-<section id="finance-inventory" class="panel-card inv-finance mt-4 p-3 p-md-4" aria-labelledby="inv-finance-title">
+<section id="finance-inventory" class="panel-card inv-finance mt-4 p-3 p-md-4"
+         data-finance-available="{{ '1' if finance.has_period_financials else '0' }}"
+         data-debt-repayments="{{ finance.debt_repayments_amount }}"
+         data-expenses="{{ finance.expenses_amount }}"
+         data-credit-sales="{{ finance.credit_sales_amount }}"
+         aria-labelledby="inv-finance-title">
   <div class="d-flex align-items-start justify-content-between gap-3 flex-wrap mb-3">
     <div>
       <p class="eyebrow mb-1">Clôture du service</p>

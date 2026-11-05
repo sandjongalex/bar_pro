@@ -215,6 +215,13 @@
         var updatedPanel = replacePanel(panel, data.html);
         if (updatedPanel) {
           notify(updatedPanel, data.message || "Enregistrement effectué.", "success");
+          // Let the open stock count update its projected handover without
+          // replacing stock inputs or refreshing the page.
+          if (document.createEvent) {
+            var updatedEvent = document.createEvent("Event");
+            updatedEvent.initEvent("barpro:inventory-finance-updated", true, false);
+            updatedPanel.dispatchEvent(updatedEvent);
+          }
         } else {
           buttons.forEach(function (button) { button.disabled = true; });
           notify(panel, (data.message || "Enregistrement effectué.") +
