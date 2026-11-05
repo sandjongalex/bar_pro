@@ -143,7 +143,6 @@ def create_bar(actor, owner_id, data, copy_from_id=None):
                 valuation_unit_cost=product.valuation_unit_cost,
                 stock_alert_threshold=product.stock_alert_threshold,
                 units_per_case=product.units_per_case,
-                image_key=product.image_key,
                 is_active=product.is_active,
             )
             db.session.add(clone)
