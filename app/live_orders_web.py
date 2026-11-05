@@ -11,7 +11,7 @@ from decimal import Decimal
 
 from flask import Blueprint, jsonify, render_template
 from flask_login import current_user, login_required
-from sqlalchemy import select
+from sqlalchemy import and_, or_, select
 
 from app.extensions import db, limiter
 from app.finance_totals import order_balance
@@ -165,16 +165,28 @@ def orders(bar_id: int):
             }
         )
 
+    active_orders_query = select(Order).where(
+        Order.bar_id == bar_id,
+        Order.status.in_(["DRAFT", "CONFIRMED", "SERVED"]),
+        Order.payment_status.in_(["UNPAID", "PARTIAL"]),
+    )
+    # Keep the live polling feed aligned with the server-rendered cashier
+    # workspace: each cashier sees only orders claimed by their assignment.
+    # Unassigned drafts remain shared until a cashier confirms delivery.
+    if role == "CASHIER":
+        active_orders_query = active_orders_query.where(
+            or_(
+                Order.cashier_assignment_id == assignment.id,
+                and_(
+                    Order.cashier_assignment_id.is_(None),
+                    Order.status == "DRAFT",
+                ),
+            )
+        )
+
     active_orders = list(
         db.session.scalars(
-            select(Order)
-            .where(
-                Order.bar_id == bar_id,
-                Order.status.in_(["DRAFT", "CONFIRMED", "SERVED"]),
-                Order.payment_status.in_(["UNPAID", "PARTIAL"]),
-            )
-            .order_by(Order.id.asc())
-            .limit(120)
+            active_orders_query.order_by(Order.id.asc()).limit(120)
         )
     )
     lines_by_order = effective_lines_by_order(bar_id, [order.id for order in active_orders])

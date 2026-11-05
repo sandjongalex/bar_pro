@@ -198,3 +198,70 @@ def test_order_actions_survive_live_refresh_and_delivery(env):
     assert f'/orders/{order.id}/receipt' in actions
     receipt_url = re.search(r'href="([^"]+/receipt)"', actions).group(1)
     assert client.get(receipt_url).status_code == 200
+
+
+
+def test_cashier_live_feed_and_workspace_are_isolated_by_assignment(env):
+    from app.order_services import order_service
+
+    app, owner, bar, _, product, _, _, _ = env
+    cashier_a = _cashier(bar)
+
+    cashier_b = User(
+        email="workspace-cashier-b@example.invalid",
+        display_name="Caisse B",
+        category="EMPLOYEE",
+    )
+    cashier_b.set_password("test-password")
+    db.session.add(cashier_b)
+    db.session.flush()
+    assignment_b = StaffAssignment(
+        bar_id=bar.id,
+        user_id=cashier_b.id,
+        role="CASHIER",
+        started_at=utcnow(),
+    )
+    db.session.add(assignment_b)
+    db.session.flush()
+    start_shift(owner, bar.id, assignment_b.id)
+    db.session.commit()
+
+    # Two unpaid delivered orders in the same bar, each claimed by a different cashier.
+    order_a = order_service.create(
+        owner, bar.id, "LIVE-ISOLATION-A",
+        [{"product_id": product.id, "quantity": 1}],
+        invoice_name="Client A",
+    )
+    order_b = order_service.create(
+        owner, bar.id, "LIVE-ISOLATION-B",
+        [{"product_id": product.id, "quantity": 1}],
+        invoice_name="Client B",
+    )
+    order_service.confirm(cashier_a, bar.id, order_a.id)
+    order_service.confirm(cashier_b, bar.id, order_b.id)
+    cash_service.open(cashier_a, bar.id, "LIVE-ISOLATION-CASH", 0)
+    db.session.commit()
+
+    client_a = app.test_client()
+    assert _login(client_a, cashier_a.email).status_code == 302
+    page_a = client_a.get(f"/bars/{bar.id}/cashier/workspace")
+    assert page_a.status_code == 200
+    assert order_a.reference in page_a.text
+    assert order_b.reference not in page_a.text
+    live_a = client_a.get(f"/bars/{bar.id}/live/orders")
+    assert live_a.status_code == 200
+    ids_a = {item["id"] for item in live_a.get_json()["orders"]}
+    assert order_a.id in ids_a
+    assert order_b.id not in ids_a
+
+    client_b = app.test_client()
+    assert _login(client_b, cashier_b.email).status_code == 302
+    page_b = client_b.get(f"/bars/{bar.id}/cashier/workspace")
+    assert page_b.status_code == 200
+    assert order_b.reference in page_b.text
+    assert order_a.reference not in page_b.text
+    live_b = client_b.get(f"/bars/{bar.id}/live/orders")
+    assert live_b.status_code == 200
+    ids_b = {item["id"] for item in live_b.get_json()["orders"]}
+    assert order_b.id in ids_b
+    assert order_a.id not in ids_b
