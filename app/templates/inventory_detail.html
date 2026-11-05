@@ -20,7 +20,7 @@
 {% for category, message in get_flashed_messages(with_categories=true) %}<div class="alert alert-{{ category }} mt-3">{{ message }}</div>{% endfor %}
 
 {% if inventory.v2_assigned and inventory.status == 'DRAFT' %}
-<div class="mt-3"><a class="btn btn-primary" href="{{ url_for('inventories.v2_count', bar_id=bar_id, inventory_id=inventory.id) }}">Ouvrir le comptage V2 →</a></div>
+<div class="mt-3"><a class="btn btn-primary" href="{{ url_for('inventories.v2_count', bar_id=bar_id, inventory_id=inventory.id) }}">Ouvrir le comptage →</a></div>
 {% endif %}
 <div class="inventory-warning mt-4">
   <div class="inventory-warning-icon">!</div>
@@ -70,7 +70,7 @@
     <div><strong id="inventoryReady">Les cases vides seront enregistrées à 0 bouteille.</strong><small>Vous pouvez enregistrer un brouillon avant la validation définitive.</small></div>
     <div class="d-flex gap-2 flex-wrap">
       <button class="btn btn-light border" name="action" value="counts" type="submit">Enregistrer le comptage</button>
-{% if can_adjust and not inventory.v2_assigned %}      <button class="btn btn-success" id="postInventory" name="action" value="post" type="submit">Valider inventaire et ajuster stock</button>{% elif inventory.v2_assigned %}<span class="text-secondary">La validation V2 attend le circuit d’approbation.</span>{% endif %}
+{% if can_adjust and not inventory.v2_assigned %}      <button class="btn btn-success" id="postInventory" name="action" value="post" type="submit">Valider inventaire et ajuster stock</button>{% elif inventory.v2_assigned %}<span class="text-secondary">La validation attend le circuit d’approbation.</span>{% endif %}
     </div>
   </div>
 </form>
@@ -94,13 +94,13 @@
 
 {% if inventory.v2_assigned and inventory.status == 'POSTED' %}
 <section class="panel-card mt-4 p-4">
-  <h2>Inventaire V2 validé</h2>
+  <h2>Inventaire validé</h2>
   <p>L'approbation a enregistré les mouvements correctifs du stock. Les montants de caisse, crédits et paiements restent gérés séparément.</p>
 </section>
 {% endif %}
 {% if inventory.status == 'POSTED' and not inventory.v2_assigned %}
 <section class="panel-card mt-4 inventory-reconciliation">
-  <div class="panel-header"><div><p class="eyebrow mb-1">Clôture</p><h2>Rapprochement théorique V1 — stock et écritures</h2></div></div>
+  <div class="panel-header"><div><p class="eyebrow mb-1">Clôture</p><h2>Rapprochement théorique — stock et écritures</h2></div></div>
   <div class="inventory-finance-grid">
     <article><span>Ventes théoriques</span><strong>{{ "{:,.0f}".format(inventory.theoretical_sales_amount|float) }} {{ bar.currency }}</strong><small>Calculées à partir du stock physique</small></article>
     <article><span>Crédits validés</span><strong>− {{ "{:,.0f}".format(inventory.credit_sales_amount|float) }} {{ bar.currency }}</strong><small>Ventes financées sur compte client</small></article>

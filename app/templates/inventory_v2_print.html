@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="fr"><head><meta charset="utf-8">
-<title>Rapport Inventaire V2 {{ report.reference }}</title>
+<title>Rapport d'inventaire {{ report.reference }}</title>
 <style>
 @page{size:A4 portrait;margin:12mm}
 body{font:11px/1.4 Arial,sans-serif;color:#172033;margin:24px;overflow-wrap:anywhere}
@@ -14,7 +14,7 @@ th{background:#eef2f5}tr{break-inside:avoid}small{display:block;color:#666}
 @media print{body{margin:0}.no-print{display:none}}
 </style></head><body>
 <button class="no-print" onclick="window.print()">Imprimer</button>
-<h1>Inventaire V2 — {{ report.reference }}</h1>
+<h1>Inventaire — {{ report.reference }}</h1>
 <p><strong>{{ bar.name }}</strong> · État : {{ report.status_label }}</p>
 <p>Caissière : {{ report.cashier_name }}{% if report.shift_id %} · Session {{ report.shift_id }}{% else %} · Attribution manuelle, sans session BAR_PRO{% endif %}</p>
 {% if report.posted_at %}<p>Approuvé le {{ report.posted_at[:19]|replace("T"," ") }} UTC{% if report.decided_by %} par {{ report.decided_by }}{% endif %}</p>{% endif %}

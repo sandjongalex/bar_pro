@@ -1,11 +1,11 @@
 {% extends "layout.html" %}
-{% block title %}Rapport V2 · {{ report.reference }}{% endblock %}
+{% block title %}Rapport d'inventaire · {{ report.reference }}{% endblock %}
 {% block header %}Rapport inventaire · {{ bar.name }}{% endblock %}
 {% block content %}
 <section class="inventory-hero">
   <div>
     <a class="bar-back" href="{{ url_for('inventories.listing',bar_id=bar_id) }}">← Historique des inventaires</a>
-    <p class="eyebrow mt-3">Rapport de stock · Inventaire V2</p>
+    <p class="eyebrow mt-3">Rapport de stock · Inventaire</p>
     <h1>{{ report.reference }}</h1>
     <p>{{ bar.name }} · Caissière responsable : <strong>{{ report.cashier_name }}</strong>
       {% if report.shift_id %}· Session {{ report.shift_id }}{% else %}· Attribution manuelle, sans session BAR_PRO{% endif %}
