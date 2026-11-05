@@ -1,17 +1,21 @@
 {% extends 'layout.html' %}
-{% block title %}Comptage V2 · {{ inventory.reference }}{% endblock %}
-{% block header %}Comptage physique · {{ bar.name }}{% endblock %}
+{% block title %}Inventaire {{ inventory.reference }} · {{ bar.name }}{% endblock %}
+{% block header %}Inventaire · {{ bar.name }}{% endblock %}
 {% block content %}
-<section class="inventory-hero">
+<section class="inventory-hero inventory-unified-hero">
   <div>
-    <a class="bar-back" href="{{ url_for('inventories.listing',bar_id=bar_id) }}">← Mes inventaires</a>
-    <p class="eyebrow mt-3 mb-2">Inventaire V2 · comptage physique</p>
-    <h1>{{ inventory.reference }}</h1>
-    <p>Caissière responsable : <strong>{{ inventory.cashier_name }}</strong>. Les ventes continuent normalement pendant le comptage.</p>
+    <a class="bar-back" href="{{ url_for('inventories.listing',bar_id=bar_id) }}">← Tous les inventaires</a>
+    <p class="eyebrow mt-3 mb-2">Inventaire physique</p>
+    <div class="d-flex gap-2 flex-wrap align-items-center">
+      <h1>{{ inventory.reference }}</h1>
+      <span class="inventory-status inventory-status-{{ 'posted' if approval.status == 'POSTED' else 'draft' }}">{{ {'DRAFT':'Comptage en cours','SUBMITTED':'En contrôle','RECOUNT':'Recomptage demandé','POSTED':'Validé'}.get(approval.status,approval.status) }}</span>
+    </div>
+    <p>{{ inventory.reason }}</p>
+    <p class="text-secondary mb-0">Caissière responsable : <strong>{{ inventory.cashier_name }}</strong> · ventes autorisées pendant le comptage.</p>
   </div>
   <div class="d-flex align-items-center gap-2 flex-wrap">
-    <span class="inventory-status inventory-status-{{ 'posted' if approval.status == 'POSTED' else 'draft' }}">{{ {'DRAFT':'Comptage en cours','SUBMITTED':'En contrôle · saisie verrouillée','RECOUNT':'Recomptage demandé','POSTED':'Approuvé'}.get(approval.status,approval.status) }}</span>
-    <a class="btn btn-sm btn-outline-primary" href="{{ url_for('inventories.v2_report',bar_id=bar_id,inventory_id=inventory.id) }}">Voir le rapport</a>
+    <a class="btn btn-outline-primary" href="{{ url_for('inventories.v2_report',bar_id=bar_id,inventory_id=inventory.id) }}">Voir le rapport</a>
+    <a class="btn btn-light border" href="{{ url_for('inventories.printable',bar_id=bar_id,inventory_id=inventory.id) }}" target="_blank" rel="noopener">Imprimer</a>
   </div>
 </section>
 
@@ -19,17 +23,129 @@
 <div class="alert alert-{{ category }} mt-3" role="alert">{{ message }}</div>
 {% endfor %}
 
-<section class="inv2-summary" aria-label="Progression du comptage">
-  <div><span>Produits comptés</span><strong id="inv2-progress">{{ inventory.lines|selectattr('physical_quantity','ne',none)|list|length }} / {{ inventory.lines|length }}</strong></div>
-  <div><span>État du stock</span><strong>Non ajusté</strong></div>
-  <div><span>Validation définitive</span><strong>Réservée au responsable</strong></div>
+<div class="inventory-warning mt-4" role="note">
+  <div class="inventory-warning-icon">!</div>
+  <div><strong>Comptage : une case vide n'est pas zéro.</strong><p class="mb-0">Saisissez <strong>0</strong> pour un stock réellement nul. Les casiers complets sont convertis en bouteilles ; un brouillon ne modifie jamais le stock machine.</p></div>
+</div>
+
+<section class="inventory-stats mt-4" aria-label="Résumé de l'inventaire">
+  <article><span>Fin de période</span><strong>{{ inventory.period_end_at[:10] if inventory.period_end_at else '—' }}</strong><small>Depuis {{ inventory.period_start_at[:10] if inventory.period_start_at else 'la première période' }}</small></article>
+  <article><span>Produits</span><strong>{{ inventory.lines|length }}</strong><small>À vérifier physiquement</small></article>
+  <article><span>Comptage</span><strong id="inv2-progress">{{ inventory.lines|selectattr('physical_quantity','ne',none)|list|length }} / {{ inventory.lines|length }}</strong><small>Enregistrement progressif</small></article>
+  <article><span>Validation</span><strong>{{ {'DRAFT':'En cours','SUBMITTED':'Soumis','RECOUNT':'À recompter','POSTED':'Terminé'}.get(approval.status,approval.status) }}</strong><small>Soumise au contrôle</small></article>
 </section>
 
-<div class="inv2-info" role="note">
-  <strong>Important : case vide ≠ zéro.</strong>
-  Une case laissée vide reste « non comptée ». Pour signaler un stock nul, saisissez explicitement <strong>0</strong>.
-  Les casiers complets sont convertis automatiquement en unités. Aucun comptage ne modifie le stock ou les ventes à cette étape.
+{% set editable_count = approval.status in ('DRAFT','RECOUNT') %}
+{% if editable_count %}
+<form id="inv2-form" class="inventory-unified-form mt-4" method="post"
+      action="{{ url_for('inventories.v2_count',bar_id=bar_id,inventory_id=inventory.id) }}"
+      data-count-url="{{ url_for('inventories.v2_count',bar_id=bar_id,inventory_id=inventory.id) }}">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+{% endif %}
+<section class="panel-card inventory-table-card inventory-v1-unified {% if not editable_count %}mt-4{% endif %}">
+  <div class="panel-header inventory-table-head">
+    <div><p class="eyebrow mb-1">Comptage physique</p><h2>Stock par produit</h2></div>
+    <div class="inventory-legend"><span><i class="legend-machine"></i> Machine</span><span><i class="legend-physical"></i> Physique</span></div>
+  </div>
+  <div class="table-responsive inventory-table-scroll" tabindex="0" role="region" aria-label="Tableau de l'inventaire">
+    <table class="table inventory-table align-middle mb-0">
+      <thead><tr><th>Produit</th><th>Dernier inventaire</th><th>Achats</th><th title="Ajustements, pertes et retours">Mouvements hors ventes</th><th>Stock théorique</th><th>Stock machine</th><th>Stock physique réel</th><th>Qté vendue</th><th>Montant ventes</th><th>Écart machine</th><th>Observation</th></tr></thead>
+      <tbody>
+      {% for line in inventory.lines %}
+      <tr class="inventory-line {% if editable_count %}inv2-product{% endif %}" {% if editable_count %}data-product-id="{{ line.product_id }}" data-theoretical="{{ line.theoretical_quantity|inventory_qty }}" data-machine="{{ line.machine_quantity|inventory_qty }}" data-price="{{ line.sale_price }}"{% endif %}>
+        <td data-label="Produit">
+          <div class="inventory-item-heading">
+            <div class="inventory-item-title">
+              <strong>{{ line.product_name }}</strong>
+              <small class="d-block text-secondary">{{ line.sku }} · {{ line.unit }} · {{ "{:,.0f}".format(line.sale_price|float) }} {{ bar.currency }}</small>
+              {% if editable_count %}
+              <span class="inv2-row-state" data-status role="status">{{ 'Non compté' if line.physical_quantity is none else 'Enregistré' }}</span>
+              {% endif %}
+            </div>
+            <button class="btn btn-sm btn-outline-secondary inventory-details-toggle" type="button" aria-expanded="false" aria-label="Afficher les détails de {{ line.product_name }}">Détails <span aria-hidden="true">⌄</span></button>
+          </div>
+        </td>
+        <td data-label="Dernier inventaire">{{ line.opening_quantity|inventory_qty }}</td>
+        <td data-label="Achats" class="text-primary fw-semibold">+{{ line.purchase_quantity|inventory_qty }}</td>
+        <td data-label="Mouvements hors ventes" class="text-secondary fw-semibold">{{ '+' if line.other_movement_quantity|float > 0 else '' }}{{ line.other_movement_quantity|inventory_qty }}</td>
+        <td data-label="Stock théorique"><strong>{{ line.theoretical_quantity|inventory_qty }}</strong></td>
+        <td data-label="Stock machine"><span class="inventory-machine">{{ line.machine_quantity|inventory_qty }}</span></td>
+        <td data-label="Stock physique réel">
+          {% if editable_count %}
+          <div class="inventory-unified-count-controls">
+            {% if line.units_per_case %}
+              <div><label for="inv2-cases-{{ line.product_id }}">Casiers ({{ line.units_per_case }}/casier)</label><input class="form-control inv2-cases" id="inv2-cases-{{ line.product_id }}" name="cases_{{ line.product_id }}" type="number" min="0" step="1" inputmode="numeric" value="{{ line.counted_cases|inventory_qty if line.counted_cases is not none else '' }}" placeholder="—"></div>
+            {% endif %}
+            <div><label for="inv2-units-{{ line.product_id }}">{{ 'Bouteilles hors casier' if line.units_per_case else 'Unités physiques' }}</label><input class="form-control inventory-count-input inv2-units" id="inv2-units-{{ line.product_id }}" name="units_{{ line.product_id }}" type="number" min="0" step="0.000001" inputmode="decimal" value="{{ line.counted_units|inventory_qty if line.counted_units is not none else '' }}" placeholder="Non compté"></div>
+          </div>
+          <input type="hidden" class="inv2-revision" name="revision_{{ line.product_id }}" value="{{ line.count_revision }}">
+          <small class="inv2-saved-hint">{{ 'Comptage sauvegardé' if line.last_counted_at else 'Aucune quantité enregistrée' }}</small>
+          {% else %}
+          <strong>{{ line.physical_quantity|inventory_qty if line.physical_quantity is not none else '—' }}</strong>
+          {% endif %}
+        </td>
+        <td data-label="Quantité vendue"><strong class="inventory-sold">{{ line.sold_quantity|inventory_qty if line.sold_quantity is not none else '—' }}</strong></td>
+        <td data-label="Montant ventes"><strong class="inventory-sales">{{ "{:,.0f}".format(line.theoretical_sales_amount|float) if line.theoretical_sales_amount is not none else '—' }}</strong></td>
+        <td data-label="Écart machine"><span class="inventory-gap {% if line.difference_quantity is not none and line.difference_quantity|float < 0 %}text-danger{% elif line.difference_quantity is not none and line.difference_quantity|float > 0 %}text-warning{% endif %}">{{ line.difference_quantity|inventory_qty if line.difference_quantity is not none else '—' }}</span></td>
+        <td data-label="Observation">
+          {% if editable_count %}
+          <input class="form-control form-control-sm inv2-comment" name="note_{{ line.product_id }}" maxlength="500" value="{{ line.note or '' }}" placeholder="Écart, casse, remarque…">
+          {% else %}{{ line.note or '—' }}{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+{% if editable_count %}
+<div class="inventory-actions mt-3">
+  <div><strong id="inv2-global-state" aria-live="polite">Les quantités sont enregistrées progressivement.</strong><small>Pour un produit non compté, laissez ses champs de quantité vides. Vérifiez avant de soumettre.</small></div>
+  <button type="submit" class="btn btn-primary btn-lg" id="inv2-save-all">Enregistrer le comptage</button>
 </div>
+</form>
+{% else %}
+<div class="alert alert-info mt-3">Comptage soumis : les quantités sont verrouillées jusqu'à un éventuel recomptage.</div>
+{% endif %}
+
+<section class="panel-card mt-4 p-3 p-md-4 inv2-approval" aria-labelledby="inv2-approval-title">
+  <h2 id="inv2-approval-title">Validation du comptage</h2>
+  <p>Le comptage doit être terminé et les écarts justifiés avant soumission. La validation est indépendante des encaissements et dettes clients.</p>
+  <div class="inv2-summary">
+    <div><span>État du dossier</span><strong>{{ {"DRAFT":"Brouillon", "SUBMITTED":"En contrôle", "RECOUNT":"Recomptage demandé", "POSTED":"Validé"}.get(approval.status, approval.status) }}</strong></div>
+    <div><span>Valeur absolue des écarts</span><strong>{{ approval.total_absolute_value|inventory_qty }} {{ bar.currency }}</strong></div>
+    <div><span>Approbateur requis</span><strong>{% if approval.owner_required %}Propriétaire{% else %}Administrateur ou propriétaire{% endif %}</strong></div>
+  </div>
+  {% if approval.error %}<div class="alert alert-warning">Élément à corriger avant validation : {{ approval.error }}</div>{% endif %}
+  {% if approval.status in ('DRAFT','RECOUNT') and can_submit %}
+  <form method="post" action="{{ url_for('inventories.v2_submit',bar_id=bar_id,inventory_id=inventory.id) }}" class="mt-3">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <button class="btn btn-success" type="submit">Soumettre le comptage au responsable</button>
+    <span class="text-secondary small ms-2">Vérifiez que toutes les saisies ont bien été enregistrées.</span>
+  </form>
+  {% endif %}
+  {% if approval.status == 'SUBMITTED' %}
+    <p class="alert alert-info">Les quantités sont figées pendant le contrôle. Le responsable peut demander un recomptage, sans ajustement du stock.</p>
+    {% if approval.can_approve %}
+    <form method="post" action="{{ url_for('inventories.v2_decision',bar_id=bar_id,inventory_id=inventory.id) }}" class="mt-3">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <label for="inv2-decision-reason" class="form-label">Motif et résultat du contrôle (obligatoire)</label>
+      <textarea id="inv2-decision-reason" class="form-control" name="reason" rows="2" required maxlength="400" placeholder="Vérification des bouteilles manquantes, retours, casse, etc."></textarea>
+      <div class="d-flex gap-2 flex-wrap mt-2">
+        <button class="btn btn-outline-primary" type="submit" name="decision" value="recount">Demander un recomptage</button>
+        <button class="btn btn-success" type="submit" name="decision" value="approve" {% if approval.error or (approval.owner_required and not approval.is_owner) %}disabled{% endif %}>Approuver et ajuster le stock</button>
+      </div>
+    </form>
+    {% endif %}
+  {% endif %}
+  {% if approval.is_owner %}
+  <p class="mt-3 mb-0"><a href="{{ url_for('inventories.v2_policy',bar_id=bar_id) }}">Configurer les plafonds d'approbation de ce bar →</a></p>
+  {% endif %}
+  <p class="text-secondary small mt-2">La caisse, les paiements et les dettes ne sont pas modifiés par cette validation.</p>
+</section>
+
+{% include 'inventory_finance_panel.html' %}
 
 <section class="inv2-reconcile" aria-labelledby="inv2-reconcile-title" data-preview-url="{{ url_for('inventories.v2_reconciliation',bar_id=bar_id,inventory_id=inventory.id) }}">
   <div class="inv2-reconcile-head">
@@ -72,94 +188,17 @@
   </div>
 </section>
 
-{% include 'inventory_finance_panel.html' %}
-
-<section class="panel-card mt-4 p-3 p-md-4 inv2-approval" aria-labelledby="inv2-approval-title">
-  <h2 id="inv2-approval-title">Validation du comptage</h2>
-  <p>Le comptage doit être terminé et les écarts justifiés avant soumission. La validation est indépendante des encaissements et dettes clients.</p>
-  <div class="inv2-summary">
-    <div><span>État du dossier</span><strong>{{ {"DRAFT":"Brouillon", "SUBMITTED":"En contrôle", "RECOUNT":"Recomptage demandé", "POSTED":"Validé"}.get(approval.status, approval.status) }}</strong></div>
-    <div><span>Valeur absolue des écarts</span><strong>{{ approval.total_absolute_value|inventory_qty }} {{ bar.currency }}</strong></div>
-    <div><span>Approbateur requis</span><strong>{% if approval.owner_required %}Propriétaire{% else %}Administrateur ou propriétaire{% endif %}</strong></div>
-  </div>
-  {% if approval.error %}<div class="alert alert-warning">Élément à corriger avant validation : {{ approval.error }}</div>{% endif %}
-  {% if approval.status in ('DRAFT','RECOUNT') and can_submit %}
-  <form method="post" action="{{ url_for('inventories.v2_submit',bar_id=bar_id,inventory_id=inventory.id) }}" class="mt-3">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <button class="btn btn-success" type="submit">Soumettre le comptage au responsable</button>
-    <span class="text-secondary small ms-2">Vérifiez que toutes les saisies ont bien été enregistrées.</span>
-  </form>
-  {% endif %}
-  {% if approval.status == 'SUBMITTED' %}
-    <p class="alert alert-info">Les quantités sont figées pendant le contrôle. Le responsable peut demander un recomptage, sans ajustement du stock.</p>
-    {% if approval.can_approve %}
-    <form method="post" action="{{ url_for('inventories.v2_decision',bar_id=bar_id,inventory_id=inventory.id) }}" class="mt-3">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <label for="inv2-decision-reason" class="form-label">Motif et résultat du contrôle (obligatoire)</label>
-      <textarea id="inv2-decision-reason" class="form-control" name="reason" rows="2" required maxlength="400" placeholder="Vérification des bouteilles manquantes, retours, casse, etc."></textarea>
-      <div class="d-flex gap-2 flex-wrap mt-2">
-        <button class="btn btn-outline-primary" type="submit" name="decision" value="recount">Demander un recomptage</button>
-        <button class="btn btn-success" type="submit" name="decision" value="approve" {% if approval.error or (approval.owner_required and not approval.is_owner) %}disabled{% endif %}>Approuver et ajuster le stock</button>
-      </div>
-    </form>
-    {% endif %}
-  {% endif %}
-  {% if approval.is_owner %}
-  <p class="mt-3 mb-0"><a href="{{ url_for('inventories.v2_policy',bar_id=bar_id) }}">Configurer les plafonds d'approbation de ce bar →</a></p>
-  {% endif %}
-  <p class="text-secondary small mt-2">La caisse, les paiements et les dettes ne sont pas modifiés par cette validation.</p>
-</section>
-
-{% if approval.status in ('DRAFT','RECOUNT') %}
-<form id="inv2-form" class="inv2-form" method="post" action="{{ url_for('inventories.v2_count',bar_id=bar_id,inventory_id=inventory.id) }}"
-      data-count-url="{{ url_for('inventories.v2_count',bar_id=bar_id,inventory_id=inventory.id) }}">
-  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-  <div class="inv2-items">
-  {% for line in inventory.lines %}
-    <article class="inv2-product" data-product-id="{{ line.product_id }}">
-      <div class="inv2-head">
-        <div>
-          <h2>{{ line.product_name }}</h2>
-          <small>{{ line.sku }} · {{ line.unit }}</small>
-        </div>
-        <span class="inv2-row-state" data-status role="status">{% if line.physical_quantity is none %}Non compté{% else %}Enregistré{% endif %}</span>
-      </div>
-      <div class="inv2-fields">
-        {% if line.units_per_case %}
-          <div>
-            <label for="inv2-cases-{{ line.product_id }}">Casiers complets ({{ line.units_per_case }} unités/casier)</label>
-            <input class="form-control inv2-cases" id="inv2-cases-{{ line.product_id }}"
-                   name="cases_{{ line.product_id }}" type="number" inputmode="numeric" min="0" step="1"
-                   value="{{ line.counted_cases|inventory_qty if line.counted_cases is not none else '' }}"
-                   placeholder="Non compté" autocomplete="off">
-          </div>
-        {% endif %}
-        <div>
-          <label for="inv2-units-{{ line.product_id }}">{% if line.units_per_case %}Unités hors casier{% else %}Quantité physique ({{ line.unit }}){% endif %}</label>
-          <input class="form-control inv2-units" id="inv2-units-{{ line.product_id }}"
-                 name="units_{{ line.product_id }}" type="number" inputmode="decimal" min="0" step="0.000001"
-                 value="{{ line.counted_units|inventory_qty if line.counted_units is not none else '' }}"
-                 placeholder="Non compté" autocomplete="off">
-        </div>
-      </div>
-      <div class="inv2-note">
-        <label for="inv2-note-{{ line.product_id }}">Observation (facultative)</label>
-        <input class="form-control inv2-comment" id="inv2-note-{{ line.product_id }}"
-               name="note_{{ line.product_id }}" type="text" maxlength="500"
-               value="{{ line.note or '' }}" placeholder="Casse, erreur de comptage, etc.">
-      </div>
-      <input type="hidden" class="inv2-revision" name="revision_{{ line.product_id }}" value="{{ line.count_revision }}">
-      <small class="inv2-saved-hint">{% if line.last_counted_at %}Comptage sauvegardé{% else %}Aucune quantité enregistrée{% endif %}</small>
-    </article>
-  {% endfor %}
-  </div>
-  <div class="inv2-actions">
-    <div class="inv2-global-state" id="inv2-global-state" aria-live="polite">Les modifications sont sauvegardées progressivement lorsque la connexion est disponible.</div>
-    <button type="submit" class="btn btn-primary btn-lg" id="inv2-save-all">Enregistrer le comptage</button>
-  </div>
-</form>
-{% endif %}
-
-<p class="inv2-footer">Ce rapprochement est indicatif : il ne certifie pas l'instant réel de la sortie physique d'une boisson. Le contrôle et l'approbation s'effectuent selon les plafonds définis par le propriétaire. Ne pas utiliser ce brouillon comme clôture définitive.</p>
-<script defer src="{{ url_for('static',filename='inventory_count_v2.js') }}"></script>
+<p class="inv2-footer mt-3">Le stock ne sera ajusté qu'après approbation du responsable. Les ventes, dépenses et dettes sont suivies séparément.</p>
+<script defer src="{{ url_for('static',filename='inventory_count_v2.js', v='20261105-inventory-unified-v1') }}"></script>
+<script>
+document.addEventListener('click', function(event) {
+  const toggle = event.target.closest('.inventory-v1-unified .inventory-details-toggle');
+  if (!toggle) return;
+  const row = toggle.closest('tr');
+  if (!row) return;
+  const expanded = row.classList.toggle('inventory-details-open');
+  toggle.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+  toggle.innerHTML = expanded ? 'Masquer <span aria-hidden="true">⌃</span>' : 'Détails <span aria-hidden="true">⌄</span>';
+});
+</script>
 {% endblock %}

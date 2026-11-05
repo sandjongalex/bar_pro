@@ -7,7 +7,7 @@
     <a class="bar-back" href="{{ url_for('cashier_web.session', bar_id=bar.id) if nav_role(bar_id) == 'CASHIER' else url_for('bars.web_detail', bar_id=bar.id) }}">← {{ 'Ma session de caisse' if nav_role(bar_id) == 'CASHIER' else 'Retour à ' ~ bar.name }}</a>
     <p class="eyebrow mt-3 mb-2">Contrôle physique</p>
     <h1>Inventaires</h1>
-    <p>Retrouvez les comptages en cours, les demandes de recomptage et les rapports de stock validés. Les rapprochements financiers historiques V1 sont présentés séparément des inventaires V2.</p>
+    <p>Retrouvez les comptages en cours, les demandes de recomptage et les rapports de stock validés. Les stocks, montants de caisse, écarts et validations sont accessibles depuis chaque inventaire.</p>
   </div>
   {% if can_create or can_adjust %}<a class="btn btn-primary" href="{{ url_for('inventories.new',bar_id=bar_id) }}">＋ Nouvel inventaire</a>{% endif %}
 </section>
@@ -17,7 +17,7 @@
   {% if rows.items %}
   <div class="table-responsive">
     <table class="table inventory-history-table align-middle mb-0">
-      <thead><tr><th>Référence</th><th>Fin de période</th><th>État</th><th>Ventes théoriques V1</th><th>Écart caisse V1</th><th class="text-end">Actions</th></tr></thead>
+      <thead><tr><th>Référence</th><th>Fin de période</th><th>État</th><th>Ventes théoriques</th><th>Écart caisse</th><th class="text-end">Actions</th></tr></thead>
       <tbody>
       {% for row in rows.items %}
         {% set period = period_by_inventory.get(row.id) %}
@@ -26,8 +26,8 @@
         {% set is_v2 = assignment is not none %}
         <tr>
           <td><a class="fw-semibold text-decoration-none" href="{{ url_for('inventories.v2_report' if is_v2 and row.status != 'DRAFT' else 'inventories.detail',bar_id=bar_id,inventory_id=row.id) }}">{{ row.reference }}</a>
-            {% if is_v2 %}<span class="badge text-bg-info ms-1">V2</span><small class="d-block text-secondary">Caissière : {{ assignment.cashier_name_snapshot }}</small>
-            {% else %}<small class="d-block text-secondary">Inventaire historique V1</small>{% endif %}
+            {% if is_v2 %}<small class="d-block text-secondary">Caissière : {{ assignment.cashier_name_snapshot }}</small>
+            {% else %}<small class="d-block text-secondary">Inventaire général</small>{% endif %}
             <small class="d-block text-secondary">{{ row.reason }}</small></td>
           <td>{{ period.period_end_at.strftime('%d/%m/%Y') if period else row.counted_at.strftime('%d/%m/%Y') }}</td>
           <td>{% if is_v2 %}

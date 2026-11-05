@@ -36,10 +36,10 @@
             <input class="form-control form-control-lg" id="reference" name="reference" maxlength="64" value="{{ defaults.reference }}" required>
           </div>
           {% if nav_role(bar_id) == 'CASHIER' %}
-          <div class="col-12"><div class="alert alert-info mb-0">Votre nouvel inventaire V2 sera automatiquement affecté à votre session de travail en cours. Vous pourrez compter les produits sans les valider.</div></div>
+          <div class="col-12"><div class="alert alert-info mb-0">Cet inventaire sera associé à votre session. Les quantités seront enregistrées progressivement et validées selon les droits définis.</div></div>
           {% else %}
           <div class="col-12">
-            <label class="form-label" for="cashier_assignment_id">Caissière responsable — inventaire V2</label>
+            <label class="form-label" for="cashier_assignment_id">Caissière responsable</label>
             <select class="form-select form-select-lg" name="cashier_assignment_id" id="cashier_assignment_id">
               <option value="">Inventaire général — sans affectation</option>
               {% for assignment, user in cashier_assignments %}

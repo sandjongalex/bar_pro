@@ -313,3 +313,93 @@
   .inv-finance-form>.btn { width:100%; }
   .inv-finance-requests .form-control { width:100%; }
 }
+
+
+/* One inventory screen based on the clear V1 table; retain secure V2 counting. */
+.inventory-v1-unified .inventory-table tbody tr.inv2-product {
+  background:var(--surface);
+  border-radius:0;
+  padding:0;
+  max-width:none;
+}
+.inventory-v1-unified .inventory-table tbody tr.inv2-product .inv2-row-state {
+  display:inline-block;
+  margin-top:6px;
+  padding:3px 7px;
+  font-size:.62rem;
+  white-space:normal;
+}
+.inventory-v1-unified .inventory-unified-count-controls {
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(82px,1fr));
+  gap:7px;
+  min-width:165px;
+}
+.inventory-v1-unified .inventory-unified-count-controls > div {min-width:0}
+.inventory-v1-unified .inventory-unified-count-controls label {
+  display:block;
+  margin-bottom:3px;
+  font-size:.62rem;
+  font-weight:750;
+  line-height:1.3;
+  color:var(--muted);
+}
+.inventory-v1-unified .inventory-unified-count-controls input {
+  min-height:43px;
+  min-width:0;
+  width:100%;
+  font-size:16px;
+  padding:7px;
+  font-variant-numeric:tabular-nums;
+}
+.inventory-v1-unified .inv2-saved-hint {
+  display:block;
+  margin-top:4px;
+  color:var(--muted);
+  font-size:.62rem;
+}
+.inventory-unified-form .inventory-actions {
+  position:static;
+  flex-wrap:wrap;
+  gap:10px;
+}
+.inventory-unified-form #inv2-global-state {
+  overflow-wrap:anywhere;
+}
+.inventory-v1-unified .inventory-table-scroll {max-width:100%}
+.inventory-v1-unified .inventory-table-scroll table {
+  width:100%;
+  min-width:0;
+}
+.inventory-v1-unified .inventory-table td {overflow-wrap:anywhere}
+.inventory-v1-unified .inventory-details-toggle {min-height:36px}
+.inventory-unified-hero .inventory-status {align-self:center}
+@media(max-width:767px){
+  .inventory-v1-unified .inventory-unified-count-controls {
+    grid-template-columns:repeat(2,minmax(0,1fr));
+    min-width:0;
+    width:100%;
+  }
+  .inventory-v1-unified .inventory-unified-count-controls > div:only-child {
+    grid-column:1/-1;
+  }
+  .inventory-v1-unified .inventory-table tbody td[data-label="Stock physique réel"] {
+    min-width:0;
+  }
+  .inventory-unified-form .inventory-actions {
+    align-items:stretch;
+  }
+  .inventory-unified-form .inventory-actions .btn {
+    min-height:48px;
+    flex:1 1 100%;
+  }
+}
+@media(max-width:380px){
+  .inventory-v1-unified .inventory-unified-count-controls {
+    gap:5px;
+  }
+}
+html[data-bs-theme="dark"] .inventory-v1-unified .inventory-unified-count-controls label,
+html[data-bs-theme="dark"] .inventory-v1-unified .inv2-saved-hint {
+  color:var(--muted);
+}
