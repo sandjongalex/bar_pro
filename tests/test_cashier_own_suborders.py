@@ -151,7 +151,7 @@ def test_cashier_can_add_suborders_to_own_counter_invoice_but_not_colleagues(env
     # Paid invoices are immutable: no further addition through the UI or service.
     payment_service.record(
         cashier_a, bar.id, parent.id, "OWN-SUB-PAID",
-        "CASH", 300, 300, cash_session.id,
+        "CASH", 300, 300, cash_session_id=cash_session.id,
     )
     db.session.commit()
     db.session.refresh(parent)
