@@ -1,6 +1,7 @@
-"""Immutable V2 inventory ownership by a cashier, with an optional active shift.
+"""Immutable V2 inventory attribution with optional cashier account and shift.
 
-An owner can attribute a manual/off-duty inventory to an assigned cashier.
+An owner can attribute an inventory to an assigned cashier or record a manual
+cashier name when the service was performed outside BAR_PRO.
 Legacy inventories intentionally have no assignment record.
 """
 from sqlalchemy import ForeignKeyConstraint, Index, UniqueConstraint

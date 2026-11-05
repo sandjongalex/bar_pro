@@ -7,7 +7,9 @@
     <a class="bar-back" href="{{ url_for('inventories.listing',bar_id=bar_id) }}">← Historique des inventaires</a>
     <p class="eyebrow mt-3">Rapport de stock · Inventaire V2</p>
     <h1>{{ report.reference }}</h1>
-    <p>{{ bar.name }} · Caissière responsable : <strong>{{ report.cashier_name }}</strong> · Session {{ report.shift_id }}</p>
+    <p>{{ bar.name }} · Caissière responsable : <strong>{{ report.cashier_name }}</strong>
+      {% if report.shift_id %}· Session {{ report.shift_id }}{% else %}· Attribution manuelle, sans session BAR_PRO{% endif %}
+    </p>
   </div>
   <div class="d-flex align-items-center gap-2 flex-wrap">
     <span class="inventory-status inventory-status-{{ 'posted' if report.status == 'POSTED' else 'draft' }}">{{ report.status_label }}</span>

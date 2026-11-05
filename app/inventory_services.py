@@ -190,13 +190,15 @@ class InventoryService:
         return cursor or 0
 
     def create(self, actor, bar_id, reference, product_ids=None, reason="Inventaire physique",
-               period_end=None, cashier_shift_id=None, cashier_assignment_id=None):
+               period_end=None, cashier_shift_id=None, cashier_assignment_id=None,
+               cashier_name_snapshot=None):
         # Cashiers create V2 inventories only for their own active shift.
         # Owners/managers may attribute a manual inventory to any currently
         # assigned cashier, whether or not that cashier has an open shift.
         is_cashier = self._is_cashier(actor, bar_id)
         shift = None
         assignment = None
+        manual_cashier_name = None
         if is_cashier:
             permissions.require(actor, "inventory.create", bar_id)
             shift = get_active_shift_for_user(actor.id, bar_id)
@@ -217,7 +219,8 @@ class InventoryService:
                 raise LookupError("NOT_FOUND")
             if cashier_assignment_id is not None and str(cashier_assignment_id) != str(assignment.id):
                 raise LookupError("NOT_FOUND")
-        elif cashier_assignment_id is not None or cashier_shift_id is not None:
+        elif (cashier_assignment_id is not None or cashier_shift_id is not None
+              or cashier_name_snapshot is not None):
             permissions.require(actor, "inventory.create", bar_id)
             if cashier_assignment_id is not None:
                 if (isinstance(cashier_assignment_id, bool)
@@ -246,7 +249,7 @@ class InventoryService:
                         raise ValueError("INVALID_CASHIER_SHIFT")
                     if shift is None or str(shift.id) != str(cashier_shift_id):
                         raise LookupError("CASHIER_SHIFT_NOT_FOUND")
-            else:
+            elif cashier_shift_id is not None:
                 if (isinstance(cashier_shift_id, bool)
                         or not isinstance(cashier_shift_id, (str, int))
                         or not str(cashier_shift_id).isascii()
@@ -273,6 +276,8 @@ class InventoryService:
                 )
                 if assignment is None:
                     raise LookupError("CASHIER_SHIFT_NOT_FOUND")
+            else:
+                manual_cashier_name = required_text(cashier_name_snapshot, 120)
         else:
             permissions.require(actor, "inventory.adjust", bar_id)
         bar = db.session.get(Bar, bar_id)
@@ -328,8 +333,9 @@ class InventoryService:
 
         # All commerce stock movements acquire the same bar write lock as this
         # transaction; the cursor is captured at a consistent ledger boundary.
+        has_cashier_attribution = assignment is not None or manual_cashier_name is not None
         opening_checkpoint = (
-            self._latest_stock_movement_cursor(bar_id) if assignment is not None else None
+            self._latest_stock_movement_cursor(bar_id) if has_cashier_attribution else None
         )
         inv = Inventory(
             bar_id=bar_id,
@@ -341,14 +347,16 @@ class InventoryService:
         )
         db.session.add(inv)
         db.session.flush()
-        if assignment is not None:
+        if has_cashier_attribution:
             db.session.add(
                 InventoryCashierAssignment(
                     bar_id=bar_id,
                     inventory_id=inv.id,
                     cashier_shift_id=shift.id if shift is not None else None,
-                    cashier_user_id=assignment.user_id,
-                    cashier_name_snapshot=assignment.user.display_name,
+                    cashier_user_id=assignment.user_id if assignment is not None else None,
+                    cashier_name_snapshot=(
+                        assignment.user.display_name if assignment is not None else manual_cashier_name
+                    ),
                     assigned_by_id=actor.id,
                     assigned_at=utcnow(),
                     movement_checkpoint_id=opening_checkpoint,

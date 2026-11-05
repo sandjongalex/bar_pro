@@ -50,6 +50,7 @@ def _message(code):
         "CASHIER_SHIFT_NOT_FOUND": "Aucune session de caissière active ne correspond à cette sélection.",
         "INVALID_CASHIER_ASSIGNMENT": "Sélection de caissière invalide.",
         "CASHIER_ASSIGNMENT_NOT_FOUND": "Cette caissière n'est plus affectée à ce bar.",
+        "INVALID_TEXT": "Le nom de la caissière est invalide ou trop long.",
         "NOTE_TOO_LONG": "Une note dépasse 500 caractères.",
         "INVENTORY_SUBMITTED_LOCKED": "Ce comptage a été soumis. Demandez un recomptage pour le modifier.",
         "INVENTORY_RECOUNT_REQUIRED": "Des mouvements ou une référence de stock exigent un nouveau comptage.",
@@ -297,6 +298,7 @@ def new(bar_id):
                 defaults["period_end"],
                 cashier_shift_id=request.form.get("cashier_shift_id") or None,
                 cashier_assignment_id=request.form.get("cashier_assignment_id") or None,
+                cashier_name_snapshot=request.form.get("cashier_name_snapshot") or None,
             )
             db.session.commit()
             flash("Inventaire créé. Comptez maintenant les bouteilles réellement présentes.", "success")

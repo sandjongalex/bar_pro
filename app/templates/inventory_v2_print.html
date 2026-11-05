@@ -16,7 +16,7 @@ th{background:#eef2f5}tr{break-inside:avoid}small{display:block;color:#666}
 <button class="no-print" onclick="window.print()">Imprimer</button>
 <h1>Inventaire V2 — {{ report.reference }}</h1>
 <p><strong>{{ bar.name }}</strong> · État : {{ report.status_label }}</p>
-<p>Caissière : {{ report.cashier_name }} · Session {{ report.shift_id }}</p>
+<p>Caissière : {{ report.cashier_name }}{% if report.shift_id %} · Session {{ report.shift_id }}{% else %} · Attribution manuelle, sans session BAR_PRO{% endif %}</p>
 {% if report.posted_at %}<p>Approuvé le {{ report.posted_at[:19]|replace("T"," ") }} UTC{% if report.decided_by %} par {{ report.decided_by }}{% endif %}</p>{% endif %}
 <div class="totals">
   <div>Produits comptés : <strong>{{ report.counted_count }}/{{ report.product_count }}</strong></div>

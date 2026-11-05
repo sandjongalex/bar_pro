@@ -205,3 +205,28 @@ def test_owner_can_assign_v2_inventory_to_cashier_without_open_shift(env):
     assert attribution.cashier_shift_id is None
     assert attribution.cashier_user_id == cashier.id
     assert attribution.cashier_name_snapshot == cashier.display_name
+
+
+
+def test_owner_can_record_manual_cashier_name_without_barpro_account(env):
+    owner, bar = env[1], env[2]
+    inventory = inventory_service.create(
+        owner,
+        bar.id,
+        "V2-MANUAL-CASHIER-NAME",
+        [env[4].id],
+        "Service effectué sans application",
+        cashier_name_snapshot="Nancy",
+    )
+    db.session.commit()
+
+    attribution = db.session.scalar(
+        select(InventoryCashierAssignment).where(
+            InventoryCashierAssignment.bar_id == bar.id,
+            InventoryCashierAssignment.inventory_id == inventory.id,
+        )
+    )
+    assert attribution is not None
+    assert attribution.cashier_shift_id is None
+    assert attribution.cashier_user_id is None
+    assert attribution.cashier_name_snapshot == "Nancy"

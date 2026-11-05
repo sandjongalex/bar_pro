@@ -163,7 +163,10 @@ def inventory_v2_report(actor, bar_id, inventory_id):
         "read_only": True,
         "cash_reconciliation_included": False,
         "cashier_name": assignment.cashier_name_snapshot,
-        "shift_id": str(assignment.cashier_shift_id),
+        "shift_id": (
+            str(assignment.cashier_shift_id)
+            if assignment.cashier_shift_id is not None else None
+        ),
         "submitted_at": _date(approval.submitted_at) if approval else None,
         "submitted_by": users.get(approval.submitted_by_id) if approval else None,
         "decided_at": _date(approval.decided_at) if approval else None,

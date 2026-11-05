@@ -49,7 +49,13 @@
               </option>
               {% endfor %}
             </select>
-            <div class="form-text">Vous pouvez sélectionner une caissière en service ou hors service. Si une session est ouverte, elle sera automatiquement liée à l'inventaire. Sinon, le nom de la caissière sera conservé pour l'inventaire manuel.</div>
+            <div class="form-text">Sélectionnez une caissière enregistrée, qu'elle soit en service ou non. Si elle n'a pas encore de compte BAR_PRO ou si le service a été fait sans application, renseignez son nom ci-dessous.</div>
+            <label class="form-label mt-3" for="cashier_name_snapshot">Nom de la caissière — service sans application</label>
+            <input class="form-control" type="text" id="cashier_name_snapshot" name="cashier_name_snapshot"
+                   maxlength="120" autocomplete="off"
+                   value="{{ request.form.get('cashier_name_snapshot', '') }}"
+                   placeholder="Ex. Nancy">
+            <div class="form-text">Si une caissière enregistrée est sélectionnée, son nom de compte sera conservé en priorité. Sinon, le nom saisi sera enregistré comme attribution manuelle.</div>
           </div>
           {% endif %}
           <div class="col-12">
