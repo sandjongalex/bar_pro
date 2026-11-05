@@ -583,7 +583,6 @@
       if (!window.matchMedia('(max-width: 980px)').matches) return;
       window.setTimeout(() => {
         search?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        if (window.matchMedia('(min-width: 768px)').matches) search?.focus({ preventScroll: true });
       }, 120);
     });
   });

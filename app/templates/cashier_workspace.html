@@ -256,7 +256,7 @@
   const search = document.getElementById('cashierProductSearch');
   const openers = [document.getElementById('openQuickSale'), document.getElementById('emptyQuickSale'), document.getElementById('mobileQuickSale')].filter(Boolean);
   const closer = document.getElementById('closeQuickSale');
-  function openSale(){ salePanel.hidden = false; salePanel.scrollIntoView({behavior:'smooth', block:'start'}); setTimeout(() => search && search.focus(), 250); }
+  function openSale(){ salePanel.hidden = false; salePanel.scrollIntoView({behavior:'smooth', block:'start'}); }
   function closeSale(){ salePanel.hidden = true; }
   openers.forEach(x => x.addEventListener('click', openSale));
   if (closer) closer.addEventListener('click', closeSale);
@@ -427,7 +427,6 @@
       .catch(() => {});
   });
 
-  {% if sale_mode %}setTimeout(() => search && search.focus(), 150);{% endif %}
   {% if focus_payment %}setTimeout(() => document.getElementById('paymentPanel')?.scrollIntoView({behavior:'smooth',block:'start'}), 150);{% endif %}
   document.addEventListener('keydown', e=>{ if(e.key==='F2'){e.preventDefault();openSale();} });
 })();
