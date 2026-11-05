@@ -348,7 +348,7 @@
       }
       const categoryOk = activeCategory === 'all' || card.dataset.category === activeCategory;
       const searchOk = !query || (card.dataset.name || '').toLocaleLowerCase('fr').includes(query);
-      card.hidden = !(available && categoryOk && searchOk);
+      card.hidden = !(categoryOk && searchOk);
     });
   }
 

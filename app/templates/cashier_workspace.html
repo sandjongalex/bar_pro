@@ -31,13 +31,55 @@
 .cashier-panel-collapse{display:none;margin-bottom:12px}
 @media(max-width:1050px){.cashier-pay-panel:not(.is-open){display:none!important}.cashier-panel-collapse{display:inline-flex;align-items:center;min-height:42px}}
 @media(max-width:400px){.cashier-order-card{margin:8px}.cashier-order-card .cashier-order-link{padding:11px 10px}.cashier-order-card .cashier-order-actions{padding:9px;gap:7px}}
+/* Product-first checkout: a compact, accessible basket on each screen size. */
+.cashier-sale-panel{overflow:visible;scroll-margin-top:85px}
+.cashier-sale-head{gap:9px;flex-wrap:wrap;padding:11px 14px}
+.cashier-sale-head h2{font-size:1.12rem}
+.cashier-sale-head .btn{min-height:40px}
+.cashier-cart-jump{margin-left:auto}
+.cashier-sale-layout{grid-template-columns:minmax(0,1fr) minmax(290px,345px)}
+.cashier-sale-catalog,.cashier-sale-cart{min-width:0}
+.cashier-sale-catalog .pos-toolbar{gap:9px;padding:11px 12px}
+.cashier-sale-catalog .pos-search input{min-height:44px;font-size:16px}
+.cashier-sale-catalog .pos-category{min-height:39px}
+.cashier-sale-catalog .pos-products{grid-template-columns:repeat(auto-fill,minmax(142px,1fr));gap:8px;padding:11px;max-height:min(70vh,710px);overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
+.cashier-sale-catalog .pos-product{min-height:120px;padding:10px;gap:.28rem}
+.cashier-sale-catalog .pos-product>strong{font-size:.85rem;overflow-wrap:anywhere}
+.cashier-sale-catalog .pos-product>small{display:none}
+.cashier-sale-cart{position:sticky;top:80px;align-self:start;scroll-margin-top:88px}
+.cashier-sale-cart .pos-cart-header{padding:12px 14px}
+.cashier-sale-cart .pos-cart-lines{max-height:40vh;overflow-y:auto}
+.cashier-sale-cart .pos-order-meta{padding:10px 13px}
+.cashier-sale-cart .pos-qty-control{grid-template-columns:38px 43px 38px}
+.cashier-sale-cart .pos-qty-control button{height:40px}
+.cashier-sale-cart .pos-qty-control input{width:43px;height:40px;font-size:16px}
+.cashier-sale-cart .pos-cart-line{grid-template-columns:minmax(0,1fr) auto;gap:7px;padding:10px 12px}
+.cashier-sale-cart .pos-line-total{grid-column:2;text-align:right}
+.cashier-sale-options{padding:9px;border:1px solid var(--line);border-radius:10px}
+.cashier-sale-options summary{cursor:pointer;font-size:.76rem;font-weight:800;color:var(--brand)}
+.cashier-sale-actions{padding:12px}
+.cashier-sale-actions .btn{min-height:50px}
+@media(max-width:1050px){
+  .cashier-sale-layout{grid-template-columns:1fr}
+  .cashier-sale-catalog{border-right:0;border-bottom:1px solid var(--line)}
+  .cashier-sale-cart{position:static}
+  .cashier-sale-catalog .pos-products{max-height:min(52vh,510px)}
+}
+@media(max-width:700px){
+  .cashier-sale-head{padding:10px}
+  .cashier-sale-head .cashier-cart-jump{font-size:.76rem}
+  .cashier-sale-catalog .pos-products{grid-template-columns:repeat(2,minmax(0,1fr));max-height:min(52vh,460px);padding:9px}
+  .cashier-sale-catalog .pos-product{min-height:118px;padding:9px}
+  .cashier-sale-catalog .pos-product>strong{font-size:.8rem}
+  .cashier-sale-cart .pos-cart-header{padding:10px 12px}
+}
 </style>
 
 <section class="cashier-workspace-head">
   <div>
     <div class="d-flex align-items-center gap-2 flex-wrap"><span class="cashier-open-pill">Caisse ouverte</span><span class="small text-secondary">{{ session.reference }}</span></div>
     <h1 class="mt-2">Poste de caisse</h1>
-    <p>Traitez les commandes et ventes comptoir sans changer d'écran.</p>
+    
   </div>
   <div class="cashier-head-actions">
     <button class="btn btn-primary" id="openQuickSale" type="button">＋ Vente comptoir</button>
@@ -62,7 +104,8 @@
 
 <section class="panel-card cashier-sale-panel" id="quickSalePanel" {% if not sale_mode %}hidden{% endif %}>
   <div class="cashier-sale-head">
-    <div><p class="eyebrow mb-1">Vente comptoir</p><h2>Sélection rapide des produits</h2></div>
+    <div><h2>Produits</h2></div>
+    <button class="btn btn-outline-primary cashier-cart-jump" id="cashierCartJump" type="button">Panier · <span id="cashierCartJumpCount">0</span></button>
     <button class="btn btn-sm btn-light border" id="closeQuickSale" type="button">Fermer</button>
   </div>
   <form method="post" id="quickSaleForm" data-bp-ajax="json" data-cashier-async="1">
@@ -89,15 +132,15 @@
           {% endfor %}
         </div>
       </div>
-      <aside class="cashier-sale-cart">
-        <div class="pos-cart-header"><div><p class="eyebrow mb-1">Panier</p><h2>Vente en cours</h2></div><button class="btn btn-sm btn-light border" id="cashierClearCart" type="button">Vider</button></div>
-        <div class="pos-cart-empty" id="cashierCartEmpty"><div>🧾</div><strong>Panier vide</strong><small>Touchez un produit.</small></div>
+      <aside class="cashier-sale-cart" id="cashierSaleCart">
+        <div class="pos-cart-header"><h2>Panier</h2><button class="btn btn-sm btn-light border" id="cashierClearCart" type="button">Vider</button></div>
+        <div class="pos-cart-empty" id="cashierCartEmpty"><div>🧾</div><strong>Panier vide</strong><small>Sélectionnez un produit.</small></div>
         <div class="pos-cart-lines" id="cashierCartLines"></div>
         <div class="pos-order-meta">
-          <div><label class="form-label" for="counterNotes">Note facultative</label><input class="form-control" id="counterNotes" name="notes" maxlength="500" placeholder="Ex. à emporter"></div>
+          <details class="cashier-sale-options"><summary>Note (facultative)</summary><input class="form-control mt-2" id="counterNotes" name="notes" maxlength="500" placeholder="Ex. à emporter"></details>
         </div>
         <div class="pos-total-box"><div><span>Articles</span><strong id="cashierCartCount">0</strong></div><div class="pos-grand-total"><span>Total</span><strong><span id="cashierCartTotal">0</span> {{ bar.currency }}</strong></div></div>
-        <div class="cashier-sale-actions"><button class="btn btn-primary btn-lg w-100" id="cashierCreateSale" type="submit" disabled>Valider & encaisser</button><div class="form-text text-center mt-2">Le stock est déduit immédiatement puis le paiement s'affiche.</div></div>
+        <div class="cashier-sale-actions"><button class="btn btn-primary btn-lg w-100" id="cashierCreateSale" type="submit" disabled>Valider & encaisser</button></div>
       </aside>
     </div>
   </form>
@@ -269,6 +312,9 @@
   const cartTotal = document.getElementById('cashierCartTotal');
   const cartCount = document.getElementById('cashierCartCount');
   const saleSubmit = document.getElementById('cashierCreateSale');
+  const cartJump = document.getElementById('cashierCartJump');
+  const cartJumpCount = document.getElementById('cashierCartJumpCount');
+  cartJump?.addEventListener('click', () => document.getElementById('cashierSaleCart')?.scrollIntoView({behavior:'smooth',block:'start'}));
   let activeCategory = 'all';
   const money = n => new Intl.NumberFormat('fr-FR',{maximumFractionDigits:0}).format(n);
   const esc = v => String(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -280,7 +326,7 @@
       row.innerHTML=`<input type="hidden" name="product_id" value="${item.id}"><div class="pos-cart-copy"><strong>${esc(item.name)}</strong><small>${money(item.price)} ${esc(currency)} · stock ${item.stock}</small></div><div class="pos-qty-control"><button type="button" class="minus">−</button><input name="quantity" type="number" min="1" max="${item.stock}" step="1" value="${item.quantity}"><button type="button" class="plus">+</button></div><strong class="pos-line-total">${money(item.price*item.quantity)}</strong>`;
       row.querySelector('.minus').onclick=()=>changeQty(item.id,item.quantity-1); row.querySelector('.plus').onclick=()=>changeQty(item.id,item.quantity+1); row.querySelector('input[name="quantity"]').onchange=e=>changeQty(item.id,Number(e.target.value)); cartLines.appendChild(row);
     }
-    cartEmpty.hidden=cart.size>0; cartTotal.textContent=money(total); cartCount.textContent=count; saleSubmit.disabled=cart.size===0;
+    cartEmpty.hidden=cart.size>0; cartTotal.textContent=money(total); cartCount.textContent=count; if (cartJumpCount) cartJumpCount.textContent=count; saleSubmit.disabled=cart.size===0;
   }
   function changeQty(id,qty){ const item=cart.get(id); if(!item)return; if(!Number.isFinite(qty)||qty<=0)cart.delete(id); else item.quantity=Math.min(qty,item.stock); renderCart(); }
   if(grid) grid.querySelectorAll('.pos-product').forEach(btn=>btn.addEventListener('click',()=>{ const id=btn.dataset.productId,stock=Number(btn.dataset.stock); if(stock<=0)return; const existing=cart.get(id); if(existing) existing.quantity=Math.min(existing.quantity+1,stock); else cart.set(id,{id,name:btn.dataset.name,price:Number(btn.dataset.price),stock,quantity:1}); renderCart(); }));

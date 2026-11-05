@@ -11,14 +11,7 @@
     <a class="bar-back" href="{{ url_for('bars.web_detail', bar_id=bar.id) }}">← Retour à {{ bar.name }}</a>
     <p class="eyebrow mt-3 mb-2">{% if is_server %}Espace serveuse{% else %}Commandes{% endif %}</p>
     <h1>{% if is_server %}Prendre une commande{% else %}Point de vente{% endif %}</h1>
-    {% if is_server %}
-      <p>Donnez à la facture un nom facile à reconnaître, choisissez la table, ajoutez les produits puis envoyez à la caisse.</p>
-      <div class="server-flow-hint" aria-label="Parcours de prise de commande">
-        <span><strong>1</strong> Nom / table</span><span aria-hidden="true">→</span><span><strong>2</strong> Produits</span><span aria-hidden="true">→</span><span><strong>3</strong> Envoyer</span>
-      </div>
-    {% else %}
-      <p>Identifiez la facture, sélectionnez la table, les produits et les quantités puis envoyez la commande à la caisse. Le stock ne sera déduit que lorsque la caissière confirmera « Livrée ».</p>
-    {% endif %}
+    {% if not is_server %}<p>Sélectionnez les produits, vérifiez le panier et envoyez la commande.</p>{% endif %}
   </div>
   {% if is_server %}<a class="btn btn-outline-primary" href="{{ url_for('orders_web.mine', bar_id=bar.id) }}">▤ Mes commandes →</a>{% elif can_pay %}<a class="btn btn-outline-primary" href="{{ url_for('checkout_web.checkout', bar_id=bar.id) }}">Caisse commandes →</a>{% endif %}
 </section>
@@ -29,18 +22,11 @@
 
 {% include '_server_pending_suborders.html' %}
 
-{% if is_server and stats.paid %}
-<div class="alert alert-success mt-3" role="status">
-  <strong>{{ stats.paid }} commande{{ 's' if stats.paid != 1 else '' }} payée{{ 's' if stats.paid != 1 else '' }}.</strong>
-  Les paiements validés par la caisse apparaissent en vert dans « Mes commandes ».
-</div>
-{% endif %}
-
 {% if is_server %}
 <section class="pos-stats server-pos-stats mt-4" aria-label="Résumé de mes commandes">
-  <article><span>En attente</span><strong>{{ stats.waiting }}</strong><small>À traiter par la caisse</small></article>
-  <article><span>À payer</span><strong>{{ stats.to_pay }}</strong><small>Déjà livrées</small></article>
-  <article><span>Payées</span><strong>{{ stats.paid }}</strong><small>Terminées</small></article>
+  <article><span>En attente</span><strong>{{ stats.waiting }}</strong></article>
+  <article><span>À payer</span><strong>{{ stats.to_pay }}</strong></article>
+  <article><span>Payées</span><strong>{{ stats.paid }}</strong></article>
 </section>
 {% else %}
 <section class="pos-stats mt-4">
@@ -61,22 +47,20 @@
     <div class="server-step-head">
       <span class="server-step-number">1</span>
       <div>
-        <p class="eyebrow mb-1">Identifier le client rapidement</p>
-        <h2 id="serverIdentifyHeading">Nom de la facture & table</h2>
-        <p>Le nom de facture est le repère principal affiché à la serveuse et à la caisse.</p>
+        <h2 id="serverIdentifyHeading">Client et table</h2>
       </div>
     </div>
 
     <div class="server-invoice-identify">
       <div class="server-invoice-field">
         <label for="invoice_name">Nom de la facture <span class="server-invoice-optional">facultatif</span></label>
-        <input class="form-control form-control-lg" id="invoice_name" name="invoice_name" maxlength="120" autocomplete="off" placeholder="Ex. Léo, VIP Jean, Anniversaire Paul">
-        <small class="server-invoice-help">Si vous laissez ce champ vide, le nom de la table sera utilisé. Sans nom ni table, la facture apparaîtra comme « COMPTOIR ».</small>
+        <input class="form-control form-control-lg" id="invoice_name" name="invoice_name" maxlength="120" autocomplete="off" placeholder="Ex. Client terrasse, Paul">
       </div>
     </div>
 
     <input type="hidden" name="table_id" id="table_id" value="">
     <div class="server-table-grid" id="serverTableGrid" role="group" aria-label="Choisir la table">
+      <button class="server-table-chip active" type="button" data-table-id="" data-table-label="Sans table" aria-pressed="true"><strong>Sans table</strong></button>
       {% for table in tables %}
       <button class="server-table-chip" type="button" data-table-id="{{ table.id }}" data-table-label="{{ table.label }}" aria-pressed="false">
         <strong>{{ table.label }}</strong>{% if table.capacity %}<small>{{ table.capacity }} places</small>{% endif %}
@@ -89,7 +73,7 @@
   <section class="panel-card pos-catalog">
     <div class="pos-toolbar">
       {% if is_server %}<div class="server-section-label"><span>2</span><strong>Ajouter les produits</strong></div>{% endif %}
-      <div class="pos-search"><span>⌕</span><input id="posSearch" class="form-control" type="search" placeholder="Rechercher 33 Export, Guinness, Coca..."></div>
+      <div class="pos-search"><span>⌕</span><input id="posSearch" class="form-control" type="search" placeholder="Rechercher un produit" autocomplete="off" aria-label="Rechercher un produit"></div>
       <div class="pos-category-tabs" id="categoryTabs">
         <button class="pos-category active" type="button" data-category="all">Tous</button>
         {% for category in categories %}<button class="pos-category" type="button" data-category="{{ category.id }}">{{ category.name }}</button>{% endfor %}
@@ -116,14 +100,14 @@
   </section>
 
   <aside class="panel-card pos-cart-panel">
-    <div class="pos-cart-header"><div><p class="eyebrow mb-1">{% if is_server %}Étape 3{% else %}Commande en cours{% endif %}</p><h2>Panier</h2></div><button class="btn btn-sm btn-light border" id="clearCart" type="button">Vider</button></div>
-    <div class="pos-cart-empty" id="cartEmpty"><div>🧾</div><strong>Le panier est vide</strong><small>Touchez un produit pour l'ajouter.</small></div>
+    <div class="pos-cart-header"><h2>Panier</h2><button class="btn btn-sm btn-light border" id="clearCart" type="button">Vider</button></div>
+    <div class="pos-cart-empty" id="cartEmpty"><div>🧾</div><strong>Panier vide</strong><small>Sélectionnez un produit.</small></div>
     <div class="pos-cart-lines" id="cartLines"></div>
     <div class="pos-order-meta">
       {% if is_server %}
       <div class="server-order-identity-summary">
         <div><span>Facture</span><strong id="serverInvoiceCurrent">COMPTOIR</strong></div>
-        <div><span>Table</span><strong id="serverTableCurrent">—</strong></div>
+        <div><span>Table</span><strong id="serverTableCurrent">Sans table</strong></div>
         <button type="button" id="changeTableButton">Modifier</button>
       </div>
       {% else %}
@@ -132,12 +116,14 @@
       <div><label class="form-label" for="table_id">Table</label><select class="form-select" name="table_id" id="table_id"><option value="">Sans table</option>{% for table in tables %}<option value="{{ table.id }}">{{ table.label }}{% if table.capacity %} · {{ table.capacity }} places{% endif %}</option>{% endfor %}</select></div>
       {% endif %}
       {% endif %}
-      <div><label class="form-label" for="notes">Note de service</label><textarea class="form-control" name="notes" id="notes" rows="2" maxlength="500" placeholder="Ex. sans glaçons, client pressé, précision de service..."></textarea></div>
-      <details class="pos-reference"><summary>Référence système personnalisée</summary><input class="form-control mt-2" name="reference" maxlength="64" placeholder="Automatique si vide"></details>
+      {% if is_server %}<details class="pos-extra-options"><summary>Note ou référence (facultatif)</summary>{% endif %}
+      <div><label class="form-label" for="notes">Note</label><textarea class="form-control" name="notes" id="notes" rows="2" maxlength="500" placeholder="Ex. sans glaçons"></textarea></div>
+      <details class="pos-reference"><summary>Référence personnalisée</summary><input class="form-control mt-2" name="reference" maxlength="64" placeholder="Automatique si vide"></details>
+      {% if is_server %}</details>{% endif %}
     </div>
     <div class="pos-total-box"><div><span>Articles</span><strong id="cartCount">0</strong></div><div class="pos-grand-total"><span>Total</span><strong><span id="cartTotal">0</span> {{ bar.currency }}</strong></div></div>
-    <button class="btn btn-primary btn-lg w-100 pos-confirm" id="confirmOrder" type="submit" disabled>{% if is_server %}3. Envoyer à la caisse{% else %}Envoyer à la caisse{% endif %}</button>
-    <p class="pos-stock-note">Statut après envoi : « En attente / À livrer ». Aucun stock n'est encore déduit.</p>
+    <button class="btn btn-primary btn-lg w-100 pos-confirm" id="confirmOrder" type="submit" disabled>Envoyer à la caisse</button>
+    {% if not is_server %}<p class="pos-stock-note">La caisse confirmera la livraison.</p>{% endif %}
   </aside>
 </form>
 
@@ -145,9 +131,9 @@
 <section class="panel-card mt-4 server-orders-panel" id="mes-commandes">
   <div class="panel-header">
     <div><p class="eyebrow mb-1">Suivi personnel</p><h2>Mes commandes</h2>
-      <p class="text-secondary mb-0">Les commandes disposent désormais d'une page dédiée avec filtres et mise à jour automatique.</p>
+
     </div>
-    <a class="btn btn-primary" href="{{ url_for('orders_web.mine', bar_id=bar.id) }}">Voir mes commandes →</a>
+    <a class="btn btn-outline-primary" href="{{ url_for('orders_web.mine', bar_id=bar.id) }}">Ouvrir</a>
   </div>
 </section>
 {% else %}
@@ -224,7 +210,7 @@
   const tableCurrent = document.getElementById('serverTableCurrent');
   const invoiceNameInput = document.getElementById('invoice_name');
   const invoiceCurrent = document.getElementById('serverInvoiceCurrent');
-  let selectedTableLabel = '';
+  let selectedTableLabel = 'Sans table';
   let activeCategory = 'all';
   const formatMoney = value => new Intl.NumberFormat('fr-FR', {maximumFractionDigits: 0}).format(value);
   const escapeHtml = value => String(value).replace(/[&<>'"]/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
