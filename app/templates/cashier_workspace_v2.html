@@ -66,7 +66,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const orderMeta = document.querySelector('#quickSaleForm .pos-order-meta');
   if (orderMeta && !orderMeta.querySelector('[name="invoice_name"]')) {
     const wrapper = document.createElement('div');
-    wrapper.innerHTML = '<label class="form-label" for="counterInvoiceName">Nom du client / repère <span class="text-secondary">(facultatif)</span></label><input class="form-control" id="counterInvoiceName" name="invoice_name" maxlength="120" autocomplete="off" placeholder="Ex. Paul, Client terrasse, Chemise rouge"><small class="cashier-counter-name-help">Ce nom sert uniquement à reconnaître rapidement la commande comptoir.</small>';
+    wrapper.className = 'cashier-counter-name';
+    wrapper.innerHTML = '<label class="form-label" for="counterInvoiceName">Nom (facultatif)</label><input class="form-control" id="counterInvoiceName" name="invoice_name" maxlength="120" autocomplete="off" placeholder="Client ou repère">';
     orderMeta.prepend(wrapper);
   }
 

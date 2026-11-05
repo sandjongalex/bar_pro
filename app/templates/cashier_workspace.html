@@ -133,13 +133,13 @@
         </div>
       </div>
       <aside class="cashier-sale-cart" id="cashierSaleCart">
-        <div class="pos-cart-header"><h2>Panier</h2><button class="btn btn-sm btn-light border" id="cashierClearCart" type="button">Vider</button></div>
+        <div class="pos-cart-header"><h2>Panier <span class="pos-cart-counter" id="cashierCartCount" aria-label="Nombre d'articles">0</span></h2><button class="btn btn-sm btn-light border" id="cashierClearCart" type="button">Vider</button></div>
         <div class="pos-cart-empty" id="cashierCartEmpty"><div>🧾</div><strong>Panier vide</strong><small>Sélectionnez un produit.</small></div>
         <div class="pos-cart-lines" id="cashierCartLines"></div>
         <div class="pos-order-meta">
-          <details class="cashier-sale-options"><summary>Note (facultative)</summary><input class="form-control mt-2" id="counterNotes" name="notes" maxlength="500" placeholder="Ex. à emporter"></details>
+          <details class="cashier-sale-options"><summary>Note</summary><input class="form-control mt-2" id="counterNotes" name="notes" maxlength="500" placeholder="Ex. à emporter"></details>
         </div>
-        <div class="pos-total-box"><div><span>Articles</span><strong id="cashierCartCount">0</strong></div><div class="pos-grand-total"><span>Total</span><strong><span id="cashierCartTotal">0</span> {{ bar.currency }}</strong></div></div>
+        <div class="pos-total-box"><div class="pos-grand-total"><span>Total</span><strong><span id="cashierCartTotal">0</span> {{ bar.currency }}</strong></div></div>
         <div class="cashier-sale-actions"><button class="btn btn-primary btn-lg w-100" id="cashierCreateSale" type="submit" disabled>Valider & encaisser</button></div>
       </aside>
     </div>

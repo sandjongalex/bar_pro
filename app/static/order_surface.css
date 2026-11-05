@@ -336,3 +336,140 @@ html[data-bs-theme="dark"] .cashier-sale-panel .cashier-sale-cart .pos-total-box
     border: 2px solid CanvasText;
   }
 }
+
+
+
+/* Basket density: item count lives in the header, total fits on one line.
+   Names and optional notes stay fully functional but take less vertical space. */
+.server-pos-layout .pos-cart-header h2,
+.cashier-sale-panel .cashier-sale-cart .pos-cart-header h2 {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+}
+.server-pos-layout .pos-cart-counter,
+.cashier-sale-panel .pos-cart-counter {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 26px;
+  height: 26px;
+  padding: 0 7px;
+  border-radius: 8px;
+  background: rgba(110, 70, 9, .12);
+  color: #61410e;
+  font-size: .8rem;
+  font-weight: 900;
+}
+.server-pos-layout .pos-cart-panel .pos-order-meta {
+  gap: 5px;
+  padding: 6px 10px 3px;
+  border-top: 0;
+}
+.server-pos-layout .pos-cart-panel .server-order-identity-summary {
+  gap: 6px;
+  padding: 7px 9px;
+}
+.server-pos-layout .pos-cart-panel .server-order-identity-summary span {
+  font-size: .6rem;
+}
+.server-pos-layout .pos-cart-panel .server-order-identity-summary strong {
+  font-size: .75rem;
+}
+.server-pos-layout .pos-cart-panel .server-order-identity-summary button {
+  min-height: 34px;
+  padding: 4px 6px;
+}
+.server-pos-layout .pos-cart-panel .pos-extra-options {
+  padding: 4px 8px;
+  border-color: #eadcbb;
+}
+.server-pos-layout .pos-cart-panel .pos-extra-options>summary {
+  padding: 3px 0;
+  line-height: 1.4;
+}
+.server-pos-layout .pos-cart-panel .pos-extra-options[open] {
+  padding-bottom: 9px;
+}
+.cashier-sale-panel .cashier-sale-cart .pos-order-meta {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 6px 10px 3px;
+  border-top: 0;
+}
+.cashier-sale-panel .cashier-sale-cart .cashier-counter-name {
+  flex: 1 1 165px;
+  min-width: 0;
+}
+.cashier-sale-panel .cashier-sale-cart .cashier-counter-name .form-label {
+  margin-bottom: 2px;
+  font-size: .68rem;
+}
+.cashier-sale-panel .cashier-sale-cart #counterInvoiceName {
+  min-height: 36px;
+  padding: 5px 9px;
+  font-size: 16px;
+}
+.cashier-sale-panel .cashier-sale-cart .cashier-sale-options {
+  flex: 0 0 auto;
+  min-height: 36px;
+  display: block;
+  padding: 6px 8px;
+  border-color: #eadcbb;
+}
+.cashier-sale-panel .cashier-sale-cart .cashier-sale-options>summary {
+  font-size: .72rem;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+.cashier-sale-panel .cashier-sale-cart .cashier-sale-options[open] {
+  flex: 1 1 100%;
+  min-width: 0;
+}
+.server-pos-layout .pos-cart-panel .pos-total-box,
+.cashier-sale-panel .cashier-sale-cart .pos-total-box {
+  margin: 5px 10px;
+  padding: 8px 12px;
+}
+.server-pos-layout .pos-cart-panel .pos-grand-total,
+.cashier-sale-panel .cashier-sale-cart .pos-grand-total {
+  min-height: 31px;
+  padding-top: 0;
+  border-top: 0;
+  gap: 10px;
+}
+.server-pos-layout .pos-cart-panel .pos-grand-total span,
+.cashier-sale-panel .cashier-sale-cart .pos-grand-total span {
+  font-weight: 750;
+}
+.server-pos-layout .pos-cart-panel .pos-grand-total strong,
+.cashier-sale-panel .cashier-sale-cart .pos-grand-total strong {
+  font-size: clamp(1.12rem, 2vw, 1.34rem);
+  white-space: nowrap;
+}
+.cashier-sale-panel .cashier-sale-actions {
+  padding-top: 3px;
+}
+@media (max-width: 767px) {
+  .server-pos-layout .pos-cart-panel .pos-order-meta,
+  .cashier-sale-panel .cashier-sale-cart .pos-order-meta {
+    padding: 5px 8px 2px;
+  }
+  .server-pos-layout .pos-cart-panel .pos-total-box,
+  .cashier-sale-panel .cashier-sale-cart .pos-total-box {
+    margin: 4px 7px;
+    padding: 7px 10px;
+  }
+}
+html[data-bs-theme="dark"] .server-pos-layout .pos-cart-counter,
+html[data-bs-theme="dark"] .cashier-sale-panel .pos-cart-counter {
+  background: #614b29;
+  color: #ffdf9b;
+}
+html[data-bs-theme="dark"] .server-pos-layout .pos-cart-panel .pos-extra-options,
+html[data-bs-theme="dark"] .cashier-sale-panel .cashier-sale-cart .cashier-sale-options {
+  border-color: #80653a;
+}

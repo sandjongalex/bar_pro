@@ -100,7 +100,7 @@
   </section>
 
   <aside class="panel-card pos-cart-panel">
-    <div class="pos-cart-header"><h2>Panier</h2><button class="btn btn-sm btn-light border" id="clearCart" type="button">Vider</button></div>
+    <div class="pos-cart-header"><h2>Panier <span class="pos-cart-counter" id="cartCount" aria-label="Nombre d'articles">0</span></h2><button class="btn btn-sm btn-light border" id="clearCart" type="button">Vider</button></div>
     <div class="pos-cart-empty" id="cartEmpty"><div>🧾</div><strong>Panier vide</strong><small>Sélectionnez un produit.</small></div>
     <div class="pos-cart-lines" id="cartLines"></div>
     <div class="pos-order-meta">
@@ -116,12 +116,12 @@
       <div><label class="form-label" for="table_id">Table</label><select class="form-select" name="table_id" id="table_id"><option value="">Sans table</option>{% for table in tables %}<option value="{{ table.id }}">{{ table.label }}{% if table.capacity %} · {{ table.capacity }} places{% endif %}</option>{% endfor %}</select></div>
       {% endif %}
       {% endif %}
-      {% if is_server %}<details class="pos-extra-options"><summary>Note ou référence (facultatif)</summary>{% endif %}
+      {% if is_server %}<details class="pos-extra-options"><summary>Note / options</summary>{% endif %}
       <div><label class="form-label" for="notes">Note</label><textarea class="form-control" name="notes" id="notes" rows="2" maxlength="500" placeholder="Ex. sans glaçons"></textarea></div>
       <details class="pos-reference"><summary>Référence personnalisée</summary><input class="form-control mt-2" name="reference" maxlength="64" placeholder="Automatique si vide"></details>
       {% if is_server %}</details>{% endif %}
     </div>
-    <div class="pos-total-box"><div><span>Articles</span><strong id="cartCount">0</strong></div><div class="pos-grand-total"><span>Total</span><strong><span id="cartTotal">0</span> {{ bar.currency }}</strong></div></div>
+    <div class="pos-total-box"><div class="pos-grand-total"><span>Total</span><strong><span id="cartTotal">0</span> {{ bar.currency }}</strong></div></div>
     <button class="btn btn-primary btn-lg w-100 pos-confirm" id="confirmOrder" type="submit" disabled>Envoyer à la caisse</button>
     {% if not is_server %}<p class="pos-stock-note">La caisse confirmera la livraison.</p>{% endif %}
   </aside>
