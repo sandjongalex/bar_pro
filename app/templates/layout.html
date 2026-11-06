@@ -43,6 +43,7 @@
   <link href="{{ url_for('static', filename='employee_ui_review.css') }}" rel="stylesheet">
   <link href="{{ url_for('static', filename='browser_compat.css', v='1') }}" rel="stylesheet">
   <link href="{{ url_for('static', filename='order_surface.css', v='20261105-order-surfaces-v3') }}" rel="stylesheet">
+  <link href="{{ url_for('static', filename='order_category_filters.css', v='20261106-v1') }}" rel="stylesheet">
 </head>
 <body class="app-body" data-employee-role="{{ nav_role(request.view_args.get('bar_id')) if request.view_args and request.view_args.get('bar_id') else 'OTHER' }}">
 <div id="browserCompatNotice" class="bp-browser-compat-notice" role="alert" hidden>
@@ -216,6 +217,7 @@
 <script src="{{ url_for('static', filename='product_images_ui.js') }}" defer></script>
 <script src="{{ url_for('static', filename='barpro_async.js') }}" defer></script>
 <script src="{{ url_for('static', filename='skeleton_loading.js') }}" defer></script>
+<script src="{{ url_for('static', filename='order_category_filters.js', v='20261106-v1') }}" defer></script>
 <script src="{{ url_for('static', filename='server_pos_ui.js', v='20261105-order-ux-v2') }}" defer></script>
 <script src="{{ url_for('static', filename='server_order_animations.js') }}" defer></script>
 <script src="{{ url_for('static', filename='cashier_live_ui.js') }}" defer></script>
