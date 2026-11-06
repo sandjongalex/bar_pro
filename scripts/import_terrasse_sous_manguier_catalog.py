@@ -237,15 +237,31 @@ def apply_catalog(bar_id: int):
     old_category_names = {category.id: category.name for category in categories}
     for item in archival:
         item.is_active = False
-    for item in deletable:
-        balance = db.session.scalar(select(StockBalance).where(
+
+    # IMPORTANT: the composite FK stock_balances -> products uses RESTRICT.
+    # Deleting a StockBalance and its Product in a single ORM flush can make
+    # MySQL delete the parent first. Remove ALL zero balances and flush first.
+    # Also avoid per-product queries here, which otherwise trigger autoflush
+    # while parent deletions are already pending.
+    deletable_ids = [item.id for item in deletable]
+    if deletable_ids:
+        balances = list(db.session.scalars(select(StockBalance).where(
             StockBalance.bar_id == bar_id,
-            StockBalance.product_id == item.id,
-        ))
-        if balance is not None:
+            StockBalance.product_id.in_(deletable_ids),
+        )))
+        for balance in balances:
+            if Decimal(balance.quantity) != 0:
+                raise ValueError(
+                    "Stock non nul détecté pendant la suppression. "
+                    "Importation annulée."
+                )
             db.session.delete(balance)
-        db.session.delete(item)
-    db.session.flush()
+        db.session.flush()  # Child rows must be gone BEFORE deleting parents.
+        for item in deletable:
+            db.session.delete(item)
+        db.session.flush()
+    else:
+        db.session.flush()
 
     # SECOND: create or activate exactly the desired six categories. Existing
     # categories with the same names are reused; no duplicate names or IDs.
