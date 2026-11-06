@@ -361,7 +361,7 @@ def workspace(bar_id: int):
             cash_session_id = None
             staff_assignment_id = None
             if method == "CASH":
-                presented = _decimal(request.form.get("amount_presented") or applied)
+                presented = _decimal(request.form.get("amount_presented"))
                 if presented < applied:
                     raise ValueError("INVALID_PAYMENT_AMOUNTS")
                 change = presented - applied
