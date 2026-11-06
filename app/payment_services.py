@@ -47,7 +47,7 @@ class PaymentService:
         if assignment is not None and order.cashier_assignment_id != assignment.id:
             raise LookupError("NOT_FOUND")
 
-    def record(self, actor, bar_id, order_id, reference, method, presented, applied, change=0, cash_session_id=None, staff_assignment_id=None, provider_code=None, provider_transaction_id=None, voucher_amount=0):
+    def record(self, actor, bar_id, order_id, reference, method, presented, applied, change=0, cash_session_id=None, staff_assignment_id=None, provider_code=None, provider_transaction_id=None, voucher_amount=0, cash_received_from=None):
         permissions.require(actor, "payments.record", bar_id)
         self._require_cashier_session(actor, bar_id)
         order = db.session.scalar(select(Order).where(Order.id == order_id, Order.bar_id == bar_id).with_for_update())
@@ -106,6 +106,10 @@ class PaymentService:
         if provider_code is not None:
             provider_code = required_text(provider_code, 32)
             provider_transaction_id = required_text(provider_transaction_id, 128)
+        if cash_received_from is not None:
+            if method != "CASH" or cash_session_id is None or staff_assignment_id is not None:
+                raise ValueError("INVALID_CASH_SOURCE")
+            cash_received_from = required_text(cash_received_from, 120)
         if method == "CASH":
             if provider_code is not None:
                 raise ValueError("INVALID_CASH_PROVIDER")
@@ -145,7 +149,7 @@ class PaymentService:
                 bar_id,
                 applied,
                 order.currency,
-                f"Paiement {reference}",
+                f"Paiement {reference}" + (f" · remis par {cash_received_from}" if cash_received_from else ""),
                 session_id=cash_session_id,
                 staff_id=staff_assignment_id,
                 payment_id=item.id,
