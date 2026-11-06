@@ -148,6 +148,7 @@
     if (key) activeRequests.set(key, controller);
     const timeout = Math.max(1, Number(options.timeout) || DEFAULT_TIMEOUT);
     let timedOut = false;
+    let businessRequestSent = false;
     const timeoutId = root.setTimeout(() => { timedOut = true; controller.abort(); }, timeout);
     const externalAbort = () => controller.abort();
     options.signal?.addEventListener('abort', externalAbort, { once: true });
@@ -165,6 +166,7 @@
           options.body.set('csrf_token', csrf);
         }
       }
+      businessRequestSent = true;
       const response = await root.fetch(target.href, {
         method, credentials: 'same-origin', redirect: 'follow', cache: 'no-store',
         body: options.body, headers, signal: controller.signal
@@ -199,13 +201,15 @@
     } catch (error) {
       if (error?.name === 'AbortError') {
         throw Object.assign(new Error(timedOut
-          ? (mutation ? 'Délai dépassé : résultat incertain. Vérifiez la caisse avant toute nouvelle tentative.' : 'Délai réseau dépassé.')
+          ? (mutation && businessRequestSent
+            ? 'Délai dépassé : résultat incertain. Vérifiez la caisse avant toute nouvelle tentative.'
+            : 'Délai réseau dépassé avant envoi. Aucune opération effectuée par cette requête.')
           : 'Requête remplacée ou annulée.'), { code: timedOut ? 'TIMEOUT' : 'ABORT' });
       }
       if (error instanceof TypeError) {
-        throw Object.assign(new Error(mutation
+        throw Object.assign(new Error(mutation && businessRequestSent
           ? 'Réseau indisponible : vérifiez si l’opération a été enregistrée avant de la répéter.'
-          : 'Connexion réseau indisponible.'), { code: 'NETWORK' });
+          : 'Connexion indisponible avant envoi. Aucune opération envoyée.'), { code: 'NETWORK' });
       }
       throw error;
     } finally {
