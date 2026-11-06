@@ -176,3 +176,49 @@ def test_empty_inline_amount_keeps_existing_unpaid_invoice_flow(env):
     assert db.session.scalar(select(Payment.id).where(
         Payment.bar_id == bar.id, Payment.order_id == order.id
     )) is None
+
+
+def test_cashier_can_receive_from_waitress_after_creating_own_invoice(env):
+    app, _, bar, _, product, server, _, _ = env
+    client, session, csrf = _cashier_client(env)
+    staff = db.session.scalar(select(StaffAssignment).where(
+        StaffAssignment.bar_id == bar.id, StaffAssignment.user_id == server.id
+    ))
+    db.session.commit()
+    url = f"/bars/{bar.id}/cashier/workspace"
+    create = client.post(url, data={
+        "csrf_token": csrf, "action": "create_sale",
+        "reference": "INLINE-CASH-LATER-STAFF",
+        "product_id": str(product.id), "quantity": "1",
+    }, headers=_async_headers(csrf))
+    assert create.status_code == 200
+    order = db.session.scalar(select(Order).where(
+        Order.bar_id == bar.id, Order.reference == "INLINE-CASH-LATER-STAFF"
+    ))
+    assert order.payment_status == "UNPAID"
+    page = client.get(f"{url}?order_id={order.id}")
+    assert 'id="cashierPaymentReceiptSource"' in page.text
+    assert 'id="cashierPaymentReceiptServer"' in page.text
+    due = Decimal(order_balance(order)["amount_due"])
+    amount = due + Decimal("500")
+    paid = client.post(url, data={
+        "csrf_token": csrf, "action": "payment",
+        "order_id": str(order.id), "method": "CASH",
+        "reference": "INLINE-CASH-LATER-PAY",
+        "amount_applied": str(due),
+        "amount_presented": str(amount),
+        "cash_receipt_source": "SERVER",
+        "cash_receipt_server_id": str(staff.id),
+    }, headers=_async_headers(csrf))
+    assert paid.status_code == 200, paid.text
+    assert db.session.get(Order, order.id).payment_status == "PAID"
+    payment = db.session.scalar(select(Payment).where(
+        Payment.bar_id == bar.id, Payment.order_id == order.id
+    ))
+    assert Decimal(payment.change_given) == Decimal("500")
+    assert payment.cash_session_id == session.id
+    assert payment.staff_assignment_id is None
+    movement = db.session.scalar(select(CashMovement).where(
+        CashMovement.bar_id == bar.id, CashMovement.payment_id == payment.id
+    ))
+    assert "serveuse #" + str(staff.id) in movement.reason
