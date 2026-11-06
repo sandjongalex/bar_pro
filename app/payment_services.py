@@ -54,6 +54,30 @@ class PaymentService:
         if not order:
             raise LookupError("NOT_FOUND")
         self._require_cashier_order(actor, order)
+        if getattr(actor, "category", None) == "EMPLOYEE":
+            active_assignment = db.session.scalar(
+                select(StaffAssignment).where(
+                    StaffAssignment.bar_id == bar_id,
+                    StaffAssignment.user_id == actor.id,
+                    StaffAssignment.ended_at.is_(None),
+                )
+            )
+            if active_assignment is None:
+                raise PermissionError("FORBIDDEN")
+            if active_assignment.role == "SERVER":
+                # A waitress may only receive cash for her own order. The
+                # receipt is held in her staff ledger, never in the drawer.
+                if order.assigned_staff_id != active_assignment.id:
+                    raise LookupError("NOT_FOUND")
+                if (
+                    method != "CASH"
+                    or cash_session_id is not None
+                    or staff_assignment_id != active_assignment.id
+                    or provider_code is not None
+                    or provider_transaction_id is not None
+                    or voucher_amount != 0
+                ):
+                    raise PermissionError("FORBIDDEN")
         if order.status not in {"CONFIRMED", "SERVED"}:
             raise ValueError("ORDER_NOT_PAYABLE")
         pending_delivery = db.session.scalar(
