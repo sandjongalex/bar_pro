@@ -116,10 +116,11 @@
       <div class="cashier-sale-catalog">
         <div class="pos-toolbar">
           <div class="pos-search"><span>⌕</span><input id="cashierProductSearch" class="form-control" type="search" placeholder="Rechercher un produit..." autocomplete="off"></div>
-          <div class="pos-category-tabs" id="cashierCategoryTabs">
-            <button class="pos-category active" type="button" data-category="all">Tous</button>
-            {% for category in categories %}<button class="pos-category" type="button" data-category="{{ category.id }}">{{ category.name }}</button>{% endfor %}
+          <div class="pos-category-tabs" id="cashierCategoryTabs" data-pos-filter="cashierProductGrid" data-pos-search="cashierProductSearch" data-pos-count="cashierProductFilterStatus" data-pos-empty="cashierProductFilterEmpty" role="group" aria-label="Filtrer les produits par catégorie">
+            <button class="pos-category active" type="button" data-category="all" aria-pressed="true" aria-controls="cashierProductGrid">Tous <span class="pos-filter-number" data-filter-count aria-hidden="true"></span></button>
+            {% for category in categories %}<button class="pos-category" type="button" data-category="{{ category.id }}" aria-pressed="false" aria-controls="cashierProductGrid">{{ category.name }} <span class="pos-filter-number" data-filter-count aria-hidden="true"></span></button>{% endfor %}
           </div>
+          <p class="pos-filter-status" id="cashierProductFilterStatus" role="status" aria-live="polite"></p>
         </div>
         <div class="pos-products" id="cashierProductGrid">
           {% for product in products %}
@@ -130,6 +131,7 @@
               <strong>{{ product.name }}</strong><small>{{ category.name if category else 'Produit' }}</small><span class="pos-product-price">{{ "{:,.0f}".format(product.sale_price) }} {{ bar.currency }}</span>
             </button>
           {% endfor %}
+          <div class="pos-filter-empty" id="cashierProductFilterEmpty" hidden><strong>Aucun produit ne correspond à ce filtre.</strong><button type="button" class="btn btn-sm btn-outline-primary" data-pos-filter-reset>Tout afficher</button></div>
         </div>
       </div>
       <aside class="cashier-sale-cart" id="cashierSaleCart">
@@ -296,7 +298,6 @@
 <script>
 (() => {
   const salePanel = document.getElementById('quickSalePanel');
-  const search = document.getElementById('cashierProductSearch');
   const openers = [document.getElementById('openQuickSale'), document.getElementById('emptyQuickSale'), document.getElementById('mobileQuickSale')].filter(Boolean);
   const closer = document.getElementById('closeQuickSale');
   function openSale(){ salePanel.hidden = false; salePanel.scrollIntoView({behavior:'smooth', block:'start'}); }
@@ -315,7 +316,6 @@
   const cartJump = document.getElementById('cashierCartJump');
   const cartJumpCount = document.getElementById('cashierCartJumpCount');
   cartJump?.addEventListener('click', () => document.getElementById('cashierSaleCart')?.scrollIntoView({behavior:'smooth',block:'start'}));
-  let activeCategory = 'all';
   const money = n => new Intl.NumberFormat('fr-FR',{maximumFractionDigits:0}).format(n);
   const esc = v => String(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   function renderCart(){
@@ -331,9 +331,6 @@
   function changeQty(id,qty){ const item=cart.get(id); if(!item)return; if(!Number.isFinite(qty)||qty<=0)cart.delete(id); else item.quantity=Math.min(qty,item.stock); renderCart(); }
   if(grid) grid.querySelectorAll('.pos-product').forEach(btn=>btn.addEventListener('click',()=>{ const id=btn.dataset.productId,stock=Number(btn.dataset.stock); if(stock<=0)return; const existing=cart.get(id); if(existing) existing.quantity=Math.min(existing.quantity+1,stock); else cart.set(id,{id,name:btn.dataset.name,price:Number(btn.dataset.price),stock,quantity:1}); renderCart(); }));
   const clear=document.getElementById('cashierClearCart'); if(clear)clear.onclick=()=>{cart.clear();renderCart();};
-  if(search) search.addEventListener('input',filterProducts);
-  document.querySelectorAll('#cashierCategoryTabs .pos-category').forEach(btn=>btn.addEventListener('click',()=>{document.querySelectorAll('#cashierCategoryTabs .pos-category').forEach(x=>x.classList.remove('active'));btn.classList.add('active');activeCategory=btn.dataset.category;filterProducts();}));
-  function filterProducts(){ const q=(search?.value||'').trim().toLowerCase(); grid?.querySelectorAll('.pos-product').forEach(btn=>{const matchCategory=activeCategory==='all'||btn.dataset.category===activeCategory;const matchText=!q||btn.dataset.name.toLowerCase().includes(q);btn.hidden=!(matchCategory&&matchText);}); }
 
   function initCashierPaymentForm(){
     const paymentForm=document.getElementById('cashierPaymentForm');
