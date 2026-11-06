@@ -74,10 +74,11 @@
     <div class="pos-toolbar">
       {% if is_server %}<div class="server-section-label"><span>2</span><strong>Ajouter les produits</strong></div>{% endif %}
       <div class="pos-search"><span>⌕</span><input id="posSearch" class="form-control" type="search" placeholder="Rechercher un produit" autocomplete="off" aria-label="Rechercher un produit"></div>
-      <div class="pos-category-tabs" id="categoryTabs">
-        <button class="pos-category active" type="button" data-category="all">Tous</button>
-        {% for category in categories %}<button class="pos-category" type="button" data-category="{{ category.id }}">{{ category.name }}</button>{% endfor %}
+      <div class="pos-category-tabs" id="categoryTabs" data-pos-filter="productGrid" data-pos-search="posSearch" data-pos-count="serverProductFilterStatus" data-pos-empty="serverProductFilterEmpty" role="group" aria-label="Filtrer les produits par catégorie">
+        <button class="pos-category active" type="button" data-category="all" aria-pressed="true" aria-controls="productGrid">Tous <span class="pos-filter-number" data-filter-count aria-hidden="true"></span></button>
+        {% for category in categories %}<button class="pos-category" type="button" data-category="{{ category.id }}" aria-pressed="false" aria-controls="productGrid">{{ category.name }} <span class="pos-filter-number" data-filter-count aria-hidden="true"></span></button>{% endfor %}
       </div>
+      <p class="pos-filter-status" id="serverProductFilterStatus" role="status" aria-live="polite"></p>
     </div>
 
     <div class="pos-products" id="productGrid">
@@ -96,6 +97,7 @@
       {% else %}
         <div class="empty-state grid-empty"><div class="empty-icon">P</div><h3>Aucun produit actif</h3><p>Ajoutez des produits au catalogue avant de prendre des commandes.</p></div>
       {% endfor %}
+      <div class="pos-filter-empty" id="serverProductFilterEmpty" hidden><strong>Aucun produit ne correspond à ce filtre.</strong><button type="button" class="btn btn-sm btn-outline-primary" data-pos-filter-reset>Tout afficher</button></div>
     </div>
   </section>
 
@@ -205,13 +207,11 @@
   const totalNode = document.getElementById('cartTotal');
   const countNode = document.getElementById('cartCount');
   const confirmButton = document.getElementById('confirmOrder');
-  const search = document.getElementById('posSearch');
   const tableInput = document.getElementById('table_id');
   const tableCurrent = document.getElementById('serverTableCurrent');
   const invoiceNameInput = document.getElementById('invoice_name');
   const invoiceCurrent = document.getElementById('serverInvoiceCurrent');
   let selectedTableLabel = 'Sans table';
-  let activeCategory = 'all';
   const formatMoney = value => new Intl.NumberFormat('fr-FR', {maximumFractionDigits: 0}).format(value);
   const escapeHtml = value => String(value).replace(/[&<>'"]/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
 
@@ -247,7 +247,6 @@
   }
   function changeQty(id, quantity) { const item = cart.get(id); if (!item) return; quantity = Number(quantity); if (!Number.isFinite(quantity) || quantity <= 0) cart.delete(id); else item.quantity = Math.min(quantity, item.stock); renderCart(); }
   function addProduct(button) { const id = button.dataset.productId; const stock = Number(button.dataset.stock); if (stock <= 0) return; const existing = cart.get(id); if (existing) existing.quantity = Math.min(existing.quantity + 1, stock); else cart.set(id, {id, name: button.dataset.name, price: Number(button.dataset.price), stock, quantity: 1}); renderCart(); }
-  function filterProducts() { const term = (search.value || '').trim().toLocaleLowerCase('fr'); document.querySelectorAll('.pos-product').forEach(card => { const categoryOk = activeCategory === 'all' || card.dataset.category === activeCategory; const searchOk = !term || card.dataset.name.toLocaleLowerCase('fr').includes(term); card.hidden = !(categoryOk && searchOk); }); }
   function chooseTable(button) {
     document.querySelectorAll('.server-table-chip').forEach(chip => { chip.classList.remove('active'); chip.setAttribute('aria-pressed', 'false'); });
     button.classList.add('active');
@@ -259,9 +258,7 @@
   }
   grid?.querySelectorAll('.pos-product').forEach(button => button.addEventListener('click', () => addProduct(button)));
   document.getElementById('clearCart')?.addEventListener('click', () => { cart.clear(); renderCart(); });
-  search?.addEventListener('input', filterProducts);
   invoiceNameInput?.addEventListener('input', refreshInvoiceIdentity);
-  document.querySelectorAll('.pos-category').forEach(button => button.addEventListener('click', () => { document.querySelectorAll('.pos-category').forEach(x => x.classList.remove('active')); button.classList.add('active'); activeCategory = button.dataset.category; filterProducts(); }));
   document.querySelectorAll('.server-table-chip').forEach(button => button.addEventListener('click', () => chooseTable(button)));
   document.getElementById('changeTableButton')?.addEventListener('click', () => document.querySelector('[data-server-table-step]')?.scrollIntoView({behavior:'smooth', block:'center'}));
   document.getElementById('posForm')?.addEventListener('submit', event => {
