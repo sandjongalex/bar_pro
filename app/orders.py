@@ -14,7 +14,7 @@ from app.server_order_idempotency import create_once, lookup as lookup_order_int
 from app.cashier_payment_idempotency import claim as claim_payment_intent, complete as complete_payment_intent
 from app.extensions import db
 from app.finance_totals import order_balance
-from app.models import Bar, BarTable, Order, OrderLine, Product, ProductCategory, StaffAssignment, StockBalance, User
+from app.models import Bar, BarTable, Order, OrderLine, Payment, Product, ProductCategory, StaffAssignment, StockBalance, User
 from app.order_services import order_service
 from app.payment_services import payment_service
 from app.order_line_views import effective_lines_by_order
@@ -83,7 +83,6 @@ def _message(code):
         "INVALID_PAYMENT_AMOUNTS": "Montant remis invalide. Saisissez la somme réellement reçue.",
         "ORDER_NOT_PAYABLE": "Cette commande doit être livrée et rester impayée pour être encaissée.",
         "PAYMENT_ALREADY_PROCESSED": "Encaissement déjà enregistré. Vérifiez le solde avant toute nouvelle tentative.",
-        "IDEMPOTENCY_KEY_REQUIRED": "Identifiant d'encaissement manquant. Actualisez la commande.",
         "INVALID_NUMBER": "Montant remis invalide.",
         "INVALID_PRECISION": "Utilisez une valeur monétaire sans décimales pour les FCFA.",
         "POSITIVE_NUMBER_REQUIRED": "Le montant remis doit être supérieur à zéro.",
@@ -340,6 +339,19 @@ def detail(bar_id: int, order_id: int):
                 assigned_staff_name = assigned_user.display_name
 
     balance = order_balance(order)
+    cash_payments = list(
+        db.session.scalars(
+            select(Payment).where(
+                Payment.bar_id == bar_id,
+                Payment.order_id == order.id,
+                Payment.method == "CASH",
+            ).order_by(Payment.id.desc()).limit(10)
+        )
+    )
+    server_cash_pending_delivery = any(
+        item.status == "VALIDATED" and item.delivery_status == "PENDING"
+        for item in suborders
+    )
     if is_cashier:
         return_url = url_for("cashier_workspace_web.workspace", bar_id=bar_id, order_id=order.id)
     else:
@@ -355,6 +367,8 @@ def detail(bar_id: int, order_id: int):
         suborder_lines_by_id=suborder_lines_by_id,
         assigned_staff_name=assigned_staff_name,
         balance=balance,
+        cash_payments=cash_payments,
+        server_cash_pending_delivery=server_cash_pending_delivery,
         status_labels=STATUS_LABELS,
         payment_status_labels=PAYMENT_STATUS_LABELS,
         suborder_status_labels=SUBORDER_STATUS_LABELS,
