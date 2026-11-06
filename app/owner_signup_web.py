@@ -109,6 +109,12 @@ def register():
         )
         db.session.add(bar)
         db.session.flush()
+        # Self-registered establishments use XAF and get the same independent
+        # editable starter catalog as Super Admin-created bars.
+        from app.default_catalog import seed_default_catalog
+
+        seed_default_catalog(bar.id)
+        bar.catalog_configured = True
         # Approval is immediate for registration; the Super Admin retains
         # the power to suspend a suspicious account or bar afterwards.
         db.session.add(OwnerGovernance(
