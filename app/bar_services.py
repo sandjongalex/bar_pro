@@ -149,9 +149,16 @@ def create_bar(actor, owner_id, data, copy_from_id=None):
             db.session.flush()
             db.session.add(StockBalance(bar_id=bar.id, product_id=clone.id, quantity=0, version=0))
 
-    # New bars start with an empty catalogue. Their owner configures categories
-    # and products during the first guided setup. A copied catalogue keeps its
-    # source configuration state and never imports global defaults.
+    elif bar.currency == "XAF":
+        # A new XAF bar starts ready to sell with an independent editable copy
+        # of the starter catalog. Existing bars and explicit copies are untouched.
+        from app.default_catalog import seed_default_catalog
+
+        seed_default_catalog(bar.id)
+        bar.catalog_configured = True
+
+    # Non-XAF bars use the existing manual guided setup to avoid treating
+    # FCFA price numbers as prices in a different currency.
     from app.warehouse_service import warehouse_service
     warehouse_service.ensure_locations(bar.id)
     return bar
