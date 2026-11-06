@@ -31,59 +31,8 @@ from app.models import Bar, Product, ProductCategory, StockBalance, User
 from app.warehouse_models import WarehouseStockBalance, WarehouseTransitBalance
 
 
-# The user-provided names/prices, with Fanta/Coca and Elvino blanc/rouge separated.
-CATALOG = (
-    ("Bières en bouteille", "bouteille", (
-        ("33 Export", 900), ("Mutzig", 900), ("Castel", 900),
-        ("Doppel", 900), ("Smooth GM", 1500), ("Smooth PM", 900),
-        ("Kadji", 1000), ("Beaufort ordinaire", 900),
-        ("Beaufort Light", 900), ("Isembeck", 1000),
-        ("Guinness GM", 1500), ("Guinness OPM", 900),
-        ("Harp", 900), ("Chill", 750), ("Castlé", 900),
-        ("Doppol Lader", 1000), ("Manyan", 700),
-        ("Doppel Munich", 900), ("K44", 800), ("Heineken", 1000),
-        ("Desperado", 1000), ("Scolt bouteille", 1000),
-        ("Booster Gin", 900), ("Booster Kola", 900),
-        ("Ice GM", 900), ("Ice PM", 900), ("Orijin", 900),
-    )),
-    ("Bières en canette", "canette", (
-        ("Beaufort canette", 1000), ("Isembeck canette", 1000),
-        ("Castel canette", 1000), ("33 canette", 1000),
-        ("Vody", 1000), ("Bavaria", 1000), ("3X énergie", 1000),
-    )),
-    ("Jus et boissons fruitées", "bouteille", (
-        ("Jus spécial Razzl", 800), ("Jus UCB bouteille", 500),
-        ("Extra Fresco", 500), ("Malta", 900),
-        ("Petit Top Bt", 400), ("Top bouteille", 500),
-        ("Top plastique", 600), ("Orangina plastique", 800),
-        ("Djino plastique", 800), ("Tonic", 500), ("Soda", 500),
-        ("Fanta", 800), ("Coca-Cola", 800), ("Sweppers GM", 800),
-        ("Djino bouteille", 500), ("Vinto bouteille", 500),
-        ("Sprite GM", 500), ("Reactor", 500), ("Vinto plastique", 800),
-    )),
-    ("Eaux", "bouteille", (
-        ("Supermon", 500), ("Vital", 500), ("Madiba", 500),
-        ("Tangui", 500), ("Eau Pur", 400),
-    )),
-    ("Vins et mousseux", "bouteille", (
-        ("Elvino blanc", 1500), ("Elvino rouge", 1500),
-        ("Cantoulou rouge", 4000), ("Cantoulou blanc", 4000),
-        ("Cuve de Roi", 1500), ("Perlado", 2000),
-        ("Louis Eschauner", 8000), ("Château des Matineaux", 4000),
-        ("Mont Meyrac", 4000), ("Vieux Moulin", 4000),
-        ("Moscato", 10000), ("Isabel de France", 4000),
-    )),
-    ("Whiskies et spiritueux", "bouteille", (
-        ("Jack Daniel", 20000), ("Black Label", 25000),
-        ("Red Label", 15000), ("Grants GM", 15000),
-        ("Grants PM", 13000), ("Imperial Blue", 8000),
-        ("Monkey", 40000), ("Chivas", 25000),
-        ("J&B", 12000), ("Black & White", 8000),
-        ("Andy Player", 8000), ("St Henry", 8000),
-        ("Royal Circle", 10000), ("Baletine", 10000),
-        ("Martin Ricman", 8000), ("Martini", 15000),
-    )),
-)
+# Reuse the exact canonical starter manifest; do not maintain divergent copies.
+from app.default_catalog import DEFAULT_CATALOG as CATALOG
 
 
 def normalize(value: str) -> str:
