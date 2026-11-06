@@ -166,6 +166,7 @@
           <button class="btn btn-sm btn-light border" type="button" data-bs-toggle="modal" data-bs-target="#noteOrder{{ order.id }}">＋ Note</button>
           {% if order.status == 'DRAFT' %}<button class="btn btn-sm btn-outline-danger" type="button" data-bs-toggle="modal" data-bs-target="#cancelOrder{{ order.id }}">Annuler</button>{% endif %}
           {% if can_pay and order.status == 'CONFIRMED' %}<a class="btn btn-sm btn-outline-primary" href="{{ url_for('checkout_web.checkout', bar_id=bar.id, order_id=order.id) }}">Encaisser</a>{% endif %}
+          {% if is_server and order.status == 'CONFIRMED' %}<a class="btn btn-sm btn-success" href="{{ url_for('orders_web.detail', bar_id=bar.id, order_id=order.id) }}#serverCashPanel">💵 Espèces reçues</a>{% endif %}
         </div>
         {% else %}<span class="text-secondary small">—</span>{% endif %}
       </td>
