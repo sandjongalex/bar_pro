@@ -35,6 +35,7 @@ from app.cashier_order_rounds import cashier_rounds_by_order, pending_rounds
 from app.payment_services import payment_service
 from app.permissions import permissions
 from app.product_display_order import product_order_expression
+from app.validation import number
 
 bp = Blueprint("cashier_workspace_web", __name__, url_prefix="/bars/<int:bar_id>/cashier")
 
@@ -115,6 +116,10 @@ def _message(code) -> str:
         "PAYMENT_ALREADY_PROCESSED": "Cette opération a déjà été enregistrée. Vérifiez le solde avant une nouvelle saisie.",
         "IDEMPOTENCY_CONFLICT": "Cette référence a déjà été utilisée avec des montants différents.",
         "IDEMPOTENCY_KEY_REQUIRED": "Référence de paiement manquante. Rechargez la facture avant de réessayer.",
+        "INVALID_CASH_SOURCE": "Sélectionnez correctement la personne qui remet les espèces à la caisse.",
+        "INVALID_NUMBER": "Montant remis invalide.",
+        "INVALID_PRECISION": "Le montant remis doit respecter l'unité monétaire du bar.",
+        "POSITIVE_NUMBER_REQUIRED": "Le montant remis doit être supérieur à zéro.",
     }
     return messages.get(str(code), "Opération refusée. Vérifiez les informations saisies.")
 
@@ -138,6 +143,37 @@ def _cash_destination(order: Order, session: CashSession):
     if not assignment:
         raise ValueError("INVALID_STAFF_CASH_HOLDER")
     return None, assignment.id
+
+
+def _receipt_source_label(bar_id: int) -> str:
+    """Trace who physically handed money to the cash drawer.
+
+    This is not the custody setting: handing cash over to the cashier credits the
+    cash session, never the waitress ledger. An existing staff-held payment must
+    instead be handed over through the separate cash-handover workflow.
+    """
+    source = (request.form.get("cash_receipt_source") or "CLIENT").strip().upper()
+    if source == "CLIENT":
+        return "client"
+    if source != "SERVER":
+        raise ValueError("INVALID_CASH_SOURCE")
+    assignment_id = request.form.get("cash_receipt_server_id", type=int)
+    if assignment_id is None:
+        raise ValueError("INVALID_CASH_SOURCE")
+    assignment = db.session.scalar(
+        select(StaffAssignment).where(
+            StaffAssignment.bar_id == bar_id,
+            StaffAssignment.id == assignment_id,
+            StaffAssignment.role == "SERVER",
+            StaffAssignment.ended_at.is_(None),
+        )
+    )
+    if assignment is None:
+        raise ValueError("INVALID_CASH_SOURCE")
+    user = db.session.get(User, assignment.user_id)
+    if user is None:
+        raise ValueError("INVALID_CASH_SOURCE")
+    return f"serveuse #{assignment.id} ({user.display_name})"[:120]
 
 
 @bp.before_app_request
@@ -200,6 +236,10 @@ def workspace(bar_id: int):
                     request.form, require_key=async_web,
                 )
             if action == "create_sale":
+                # Cash tender is optional: an empty field creates an unpaid invoice.
+                # When provided, invoice, stock movement and payment commit together.
+                tender_text = (request.form.get("cash_presented") or "").strip()
+                cash_source = _receipt_source_label(bar_id) if tender_text else None
                 order = order_service.create(
                     current_user,
                     bar_id,
@@ -210,12 +250,55 @@ def workspace(bar_id: int):
                 )
                 # A counter sale is physically delivered by the cashier at creation time.
                 order_service.confirm(current_user, bar_id, order.id)
+                due = Decimal(order_balance(order, locking=True)["amount_due"] or 0)
+                payment_data = None
+                if tender_text:
+                    received = number(
+                        tender_text,
+                        scale=0 if order.currency in {"XAF", "XOF"} else 2,
+                        positive=True,
+                    )
+                    if due <= 0:
+                        raise ValueError("INVALID_PAYMENT_AMOUNTS")
+                    applied = min(received, due)
+                    change = max(Decimal("0"), received - due)
+                    payment_service.record(
+                        current_user, bar_id, order.id, _reference("PAY"), "CASH",
+                        received, applied, change,
+                        cash_session_id=session.id,
+                        cash_received_from=cash_source,
+                    )
+                    remaining = Decimal(order_balance(order)["amount_due"] or 0)
+                    payment_data = {
+                        "amount_presented": str(received),
+                        "amount_applied": str(applied),
+                        "change_given": str(change),
+                        "remaining": str(remaining),
+                    }
+                else:
+                    remaining = due
                 db.session.commit()
-                message = f"Vente comptoir prête à encaisser · {order.total_amount:,.0f} {order.currency}."
-                refresh_url = url_for("cashier_workspace_web.workspace", bar_id=bar_id, order_id=order.id, focus="payment")
+                if payment_data:
+                    message = (
+                        f"Vente enregistrée · {payment_data['amount_applied']} {order.currency} encaissés "
+                        f"(remis par {cash_source}). "
+                        f"Monnaie à rendre : {payment_data['change_given']} {order.currency}. "
+                        f"Reste à payer : {payment_data['remaining']} {order.currency}."
+                    )
+                else:
+                    message = f"Facture créée sans paiement · {order.total_amount:,.0f} {order.currency} à encaisser."
+                refresh_url = (
+                    url_for("cashier_workspace_web.workspace", bar_id=bar_id, order_id=order.id, focus="payment")
+                    if remaining > 0 else url_for("cashier_workspace_web.workspace", bar_id=bar_id)
+                )
                 if async_web:
                     return web_json_response(
-                        data={"refresh_url": refresh_url, "reset_cart": True, "close_sale_panel": True},
+                        data={
+                            "refresh_url": refresh_url,
+                            "reset_cart": True,
+                            "close_sale_panel": True,
+                            "cash_summary": payment_data,
+                        },
                         message=message,
                     )
                 flash(message, "success")
@@ -319,6 +402,9 @@ def workspace(bar_id: int):
                 if not provider_code or not provider_transaction_id:
                     raise ValueError("PROVIDER_REFERENCE_REQUIRED")
                 cash_session_id, staff_assignment_id = _cash_destination(order, session)
+                cash_source = _receipt_source_label(bar_id)
+                if staff_assignment_id is not None and cash_source != "client":
+                    raise ValueError("INVALID_CASH_SOURCE")
                 payment_service.record(
                     current_user,
                     bar_id,
@@ -330,6 +416,7 @@ def workspace(bar_id: int):
                     presented - cash_part,
                     cash_session_id=cash_session_id,
                     staff_assignment_id=staff_assignment_id,
+                    cash_received_from=cash_source if cash_session_id is not None else None,
                 )
                 payment_service.record(
                     current_user,
@@ -366,7 +453,11 @@ def workspace(bar_id: int):
                     raise ValueError("INVALID_PAYMENT_AMOUNTS")
                 change = presented - applied
                 cash_session_id, staff_assignment_id = _cash_destination(order, session)
+                cash_source = _receipt_source_label(bar_id)
+                if staff_assignment_id is not None and cash_source != "client":
+                    raise ValueError("INVALID_CASH_SOURCE")
             else:
+                cash_source = None
                 presented = applied
                 change = Decimal("0")
                 if method == "MOBILE_MONEY":
@@ -388,6 +479,7 @@ def workspace(bar_id: int):
                 staff_assignment_id=staff_assignment_id,
                 provider_code=provider_code,
                 provider_transaction_id=provider_transaction_id,
+                cash_received_from=cash_source if cash_session_id is not None else None,
             )
             complete_payment_intent(payment_intent, order_id=order.id)
             db.session.commit()
@@ -535,6 +627,18 @@ def workspace(bar_id: int):
         "expected": Decimal(cash_service.expected(session) or 0),
     }
 
+    server_assignments = list(db.session.execute(
+        select(StaffAssignment, User)
+        .join(User, StaffAssignment.user_id == User.id)
+        .where(
+            StaffAssignment.bar_id == bar_id,
+            StaffAssignment.role == "SERVER",
+            StaffAssignment.ended_at.is_(None),
+        )
+        .order_by(User.display_name, StaffAssignment.id)
+        .limit(100)
+    ))
+
     return render_template(
         "cashier_workspace_v2.html",
         bar=bar,
@@ -554,6 +658,7 @@ def workspace(bar_id: int):
         categories_by_id=categories_by_id,
         stock_balances=stock_balances,
         customers=customers,
+        server_assignments=server_assignments,
         payment_labels=PAYMENT_LABELS,
         stats=stats,
         sale_mode=request.args.get("sale") == "1",
