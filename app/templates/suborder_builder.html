@@ -50,10 +50,11 @@
     <section class="suborder-catalog">
       <div class="suborder-toolbar">
         <div class="suborder-search"><span>⌕</span><input class="form-control" id="suborderSearch" type="search" placeholder="Rechercher bière, eau, jus..." autocomplete="off"></div>
-        <div class="suborder-tabs" id="suborderTabs">
-          <button class="suborder-tab active" type="button" data-category="all">Tous</button>
-          {% for category in categories %}<button class="suborder-tab" type="button" data-category="{{ category.id }}">{{ category.name }}</button>{% endfor %}
+        <div class="suborder-tabs" id="suborderTabs" data-pos-filter="suborderProducts" data-pos-search="suborderSearch" data-pos-count="suborderProductFilterStatus" data-pos-empty="suborderProductFilterEmpty" role="group" aria-label="Filtrer les produits par catégorie">
+          <button class="suborder-tab active" type="button" data-category="all" aria-pressed="true" aria-controls="suborderProducts">Tous <span class="pos-filter-number" data-filter-count aria-hidden="true"></span></button>
+          {% for category in categories %}<button class="suborder-tab" type="button" data-category="{{ category.id }}" aria-pressed="false" aria-controls="suborderProducts">{{ category.name }} <span class="pos-filter-number" data-filter-count aria-hidden="true"></span></button>{% endfor %}
         </div>
+        <p class="pos-filter-status" id="suborderProductFilterStatus" role="status" aria-live="polite"></p>
       </div>
       <div class="suborder-products" id="suborderProducts">
         {% for product in products %}
@@ -68,6 +69,7 @@
         {% else %}
           <div class="suborder-empty" role="status"><strong>Aucun produit en stock</strong><small>Les produits épuisés sont masqués. Contactez la caisse ou le responsable pour un réapprovisionnement.</small></div>
         {% endfor %}
+        <div class="pos-filter-empty" id="suborderProductFilterEmpty" hidden><strong>Aucun produit ne correspond à ce filtre.</strong><button type="button" class="btn btn-sm btn-outline-primary" data-pos-filter-reset>Tout afficher</button></div>
       </div>
     </section>
 
@@ -110,8 +112,6 @@
   const mobileTotal = document.getElementById('suborderMobileTotal');
   const submit = document.getElementById('suborderSubmit');
   const mobileSubmit = document.getElementById('suborderMobileSubmit');
-  const search = document.getElementById('suborderSearch');
-  let category = 'all';
   const money = value => new Intl.NumberFormat('fr-FR', {maximumFractionDigits:0}).format(value);
   const esc = value => String(value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
@@ -153,21 +153,6 @@
     render();
   }));
 
-  function filter(){
-    const term = (search?.value || '').trim().toLocaleLowerCase('fr');
-    grid?.querySelectorAll('.suborder-product').forEach(button => {
-      const categoryOk = category === 'all' || button.dataset.category === category;
-      const textOk = !term || button.dataset.name.toLocaleLowerCase('fr').includes(term);
-      button.hidden = !(categoryOk && textOk);
-    });
-  }
-  search?.addEventListener('input', filter);
-  document.querySelectorAll('.suborder-tab').forEach(button => button.addEventListener('click', () => {
-    document.querySelectorAll('.suborder-tab').forEach(x => x.classList.remove('active'));
-    button.classList.add('active');
-    category = button.dataset.category;
-    filter();
-  }));
   document.getElementById('suborderClear')?.addEventListener('click', () => { cart.clear(); render(); });
   mobileSubmit?.addEventListener('click', () => { if(cart.size) document.getElementById('suborderForm').requestSubmit(); });
   document.getElementById('suborderForm')?.addEventListener('submit', event => {
