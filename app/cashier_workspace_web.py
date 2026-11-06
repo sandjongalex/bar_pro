@@ -270,10 +270,10 @@ def workspace(bar_id: int):
                     )
                     remaining = Decimal(order_balance(order)["amount_due"] or 0)
                     payment_data = {
-                        "amount_presented": str(received),
-                        "amount_applied": str(applied),
-                        "change_given": str(change),
-                        "remaining": str(remaining),
+                        "amount_presented": format(received.normalize(), "f"),
+                        "amount_applied": format(applied.normalize(), "f"),
+                        "change_given": format(change.normalize(), "f"),
+                        "remaining": format(remaining.normalize(), "f"),
                         "source": cash_source,
                         "currency": order.currency,
                     }
