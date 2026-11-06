@@ -31,7 +31,11 @@ class BaseConfig:
         "memory://",
     )
 
-    RATELIMIT_DEFAULT = "200 per day;50 per hour"
+    # Active POS users make many legitimate requests; login has its own 5/min limit.
+    # The live orders feed is separately exempted from the default quota.
+    RATELIMIT_DEFAULT = os.getenv(
+        "RATELIMIT_DEFAULT", "12000 per day;1200 per hour"
+    )
     RATELIMIT_HEADERS_ENABLED = True
 
     LOGIN_RATE_LIMIT = os.getenv(
