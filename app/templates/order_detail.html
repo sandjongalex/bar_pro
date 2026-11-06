@@ -71,6 +71,27 @@
     <div class="order-detail-stat"><span>Sous-commandes</span><strong>{{ suborders|length }}</strong></div>
   </section>
 
+  {% if (is_server or is_cashier) and cash_payments %}
+  <section class="order-detail-card" aria-label="Historique des encaissements en espèces">
+    <div class="order-detail-card-head"><div><h2>Espèces enregistrées</h2><p>Montants réellement reçus et monnaie rendue pour cette commande.</p></div></div>
+    <div class="order-detail-lines">
+      {% for payment in cash_payments %}
+      <div class="order-detail-line">
+        <div class="order-detail-line-copy">
+          <strong>{{ 'Serveuse' if payment.cash_holder == 'STAFF' else 'Caisse' }} · {{ payment.received_at.strftime('%d/%m/%Y %H:%M') if payment.received_at else '' }}</strong>
+          <small>Montant remis : {{ "{:,.0f}".format(payment.amount_presented) }} {{ display_currency }}</small>
+          <small>Monnaie rendue : {{ "{:,.0f}".format(payment.change_given) }} {{ display_currency }}</small>
+        </div>
+        <div class="order-detail-line-money">
+          <strong>{{ "{:,.0f}".format(payment.amount_applied) }} {{ display_currency }}</strong>
+          <small>Encaissé</small>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+
   {% if is_server or is_cashier %}
   <div class="server-invoice-launch">
     <button class="btn btn-outline-primary" type="button" data-server-invoice-open aria-controls="serverInvoicePreview" aria-expanded="false">👁 Aperçu de la facture</button>
@@ -140,7 +161,12 @@
   </section>
   {% endif %}
 
-  {% if is_server and order.status in ['CONFIRMED', 'SERVED'] and balance.amount_due > 0 %}
+  {% if is_server and server_cash_pending_delivery and order.status in ['CONFIRMED', 'SERVED'] and balance.amount_due > 0 %}
+  <section class="order-detail-card" id="serverCashPanel" role="status">
+    <strong>Livraison en attente</strong>
+    <p class="mb-0 text-secondary small">Faites confirmer la livraison des sous-commandes avant d'enregistrer les espèces reçues.</p>
+  </section>
+  {% elif is_server and order.status in ['CONFIRMED', 'SERVED'] and balance.amount_due > 0 %}
   <section class="order-detail-card server-cash-entry" id="serverCashPanel">
     <h2 class="server-cash-title">Espèces reçues du client</h2>
     <p class="server-cash-explain">Saisissez le montant que le client vous remet. La monnaie à rendre ou le reste à payer se calcule automatiquement.</p>
