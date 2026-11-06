@@ -551,6 +551,15 @@
           ' · reste : '+money(Number(summary.remaining))+' '+currency+'.';
         feedback.hidden=false;
       } else if (feedback) feedback.hidden=true;
+      // A successful sale starts a completely new invoice. Keep the fields
+      // untouched on rejected/uncertain requests so the cashier can recover.
+      const saleForm=document.getElementById('quickSaleForm');
+      const previousInvoiceName=saleForm?.querySelector('[name="invoice_name"]');
+      const previousNotes=saleForm?.querySelector('[name="notes"]');
+      if(previousInvoiceName)previousInvoiceName.value='';
+      if(previousNotes)previousNotes.value='';
+      const notesSection=previousNotes?.closest('details');
+      if(notesSection)notesSection.open=false;
       cart.clear();
       if(tenderInput)tenderInput.value='';
       if(tenderSource)tenderSource.value='CLIENT';
