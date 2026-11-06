@@ -39,6 +39,9 @@
         <small>{{ order.created_at.strftime('%d/%m/%Y %H:%M') if order.created_at else '' }}</small>
         <div class="server-order-actions">
           <a class="btn btn-sm btn-light border" href="{{ url_for('orders_web.detail', bar_id=bar.id, order_id=order.id) }}">Détails</a>
+          {% if state == 'to_pay' and balance.amount_due > 0 %}
+          <a class="btn btn-sm btn-success" href="{{ url_for('orders_web.detail', bar_id=bar.id, order_id=order.id) }}#serverCashPanel">💵 Espèces reçues</a>
+          {% endif %}
           {% if state in ['waiting', 'to_pay'] and order.payment_status != 'PAID' %}
           <a class="btn btn-sm btn-outline-primary" href="{{ url_for('suborders_web.new_suborder', bar_id=bar.id, order_id=order.id) }}">＋ Ajouter</a>
           {% endif %}
