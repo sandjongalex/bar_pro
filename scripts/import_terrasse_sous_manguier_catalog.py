@@ -1,6 +1,7 @@
-"""One-off, tenant-scoped catalog import for Terrasse sous manguier.
+"""One-off, tenant-scoped REPLACEMENT catalog for Terrasse sous manguier.
 
-Preview by default. This does not reset transactions or stock.
+Preview by default. Deletes unused legacy rows or archives linked rows BEFORE
+inserting a clean, fresh set of 86 products. Does not reset sales or stock.
 Run from the BAR_PRO repository root:
     python -m scripts.import_terrasse_sous_manguier_catalog --list-bars
     python -m scripts.import_terrasse_sous_manguier_catalog --bar-id 123
@@ -9,12 +10,13 @@ Run from the BAR_PRO repository root:
 
 The --confirm-name value must match the name displayed in the preview.
 No casier size is guessed: units_per_case remains NULL for new products.
+Existing old products are NEVER reused, even if their name matches a new one.
+A repeated run updates only products previously imported by this script.
 """
 from __future__ import annotations
 
 import argparse
 import os
-import re
 import unicodedata
 from decimal import Decimal
 
@@ -115,8 +117,38 @@ def expected_rows():
     return rows
 
 
+SKU_PREFIX = "TSM2026-"
+
+
+def product_references(bar_id: int, ids: list[int]) -> set[int]:
+    """Products referenced by any table besides removable zero StockBalance.
+
+    This includes historical sales, purchases, inventories and warehouse tables.
+    Detect references from SQLAlchemy metadata, not a partial hard-coded list.
+    """
+    if not ids:
+        return set()
+    linked = set()
+    for table in db.metadata.tables.values():
+        if table.name in {"products", "stock_balances"}:
+            continue
+        product_columns = {
+            foreign_key.parent
+            for foreign_key in table.foreign_keys
+            if foreign_key.target_fullname == "products.id"
+        }
+        for column in product_columns:
+            condition = [column.in_(ids)]
+            if "bar_id" in table.c:
+                condition.append(table.c.bar_id == bar_id)
+            linked.update(db.session.scalars(
+                select(column).where(*condition).distinct()
+            ).all())
+    return linked
+
+
 def inspect(bar_id: int):
-    """Read-only scope and stock checks; rejects ambiguous product matches."""
+    """Read-only catalog scope, links, and stock preflight."""
     bar = db.session.get(Bar, bar_id)
     if bar is None or not is_target_bar(bar.name):
         raise ValueError("Bar introuvable ou nom inattendu : aucune modification.")
@@ -125,41 +157,92 @@ def inspect(bar_id: int):
         raise ValueError("Le propriétaire du bar n'a pas pu être vérifié.")
 
     rows = expected_rows()
-    wanted = {name.casefold() for _, _, name, _ in rows}
-    existing = list(db.session.scalars(select(Product).where(Product.bar_id == bar_id)))
+    existing = list(db.session.scalars(
+        select(Product).where(Product.bar_id == bar_id)
+    ))
     categories = list(db.session.scalars(
         select(ProductCategory).where(ProductCategory.bar_id == bar_id)
     ))
-    by_name = {}
-    for product in existing:
-        if product.name.casefold() in wanted:
-            if product.name.casefold() in by_name:
-                raise ValueError(f"Nom ambigu dans le catalogue existant : {product.name}")
-            by_name[product.name.casefold()] = product
 
-    obsolete = [item for item in existing if item.name.casefold() not in wanted]
-    obsolete_ids = [item.id for item in obsolete]
-    if obsolete_ids:
-        balances = []
-        for model in (StockBalance, WarehouseStockBalance, WarehouseTransitBalance):
-            balances.extend(db.session.scalars(
-                select(model).where(model.bar_id == bar_id, model.product_id.in_(obsolete_ids))
-            ).all())
-        if any(Decimal(balance.quantity) != 0 for balance in balances):
+    # Only script-generated SKUs can qualify as already imported on reruns.
+    # Same-name OLD products must be removed, NOT updated in place.
+    imported = {}
+    for item in existing:
+        if item.sku.casefold().startswith(SKU_PREFIX.casefold()):
+            imported[item.sku.casefold()] = item
+    expected_skus = {
+        f"{SKU_PREFIX}{rank:03d}".casefold(): name
+        for rank, (_, _, name, _) in enumerate(rows, start=1)
+    }
+    for sku, item in imported.items():
+        if sku not in expected_skus or item.name.casefold() != expected_skus[sku].casefold():
             raise ValueError(
-                "Un ancien produit possède du stock (comptoir, magasin principal "
-                "ou transit). Effectuez d'abord une vérification de stock. "
-                "Aucune quantité ne sera supprimée ou remise à zéro."
+                f"SKU réservé incompatible : {item.sku} ({item.name}). "
+                "Aucune modification."
             )
-    return bar, owner, categories, existing, by_name, obsolete, rows
+
+    legacy = [item for item in existing if item.id not in {p.id for p in imported.values()}]
+    legacy_ids = [item.id for item in legacy]
+    if legacy_ids:
+        for model in (StockBalance, WarehouseStockBalance, WarehouseTransitBalance):
+            balances = db.session.scalars(
+                select(model).where(
+                    model.bar_id == bar_id, model.product_id.in_(legacy_ids)
+                )
+            ).all()
+            if any(Decimal(balance.quantity) != 0 for balance in balances):
+                raise ValueError(
+                    "Un ancien produit possède encore du stock (comptoir, "
+                    "magasin principal ou transit). Aucun produit ne sera effacé. "
+                    "Contrôlez le stock avant l'import."
+                )
+
+    linked_ids = product_references(bar_id, legacy_ids)
+    deletable = [item for item in legacy if item.id not in linked_ids]
+    archival = [item for item in legacy if item.id in linked_ids]
+    return bar, owner, categories, existing, imported, legacy, rows, deletable, archival
 
 
 def apply_catalog(bar_id: int):
-    """Archive unwanted catalog rows and upsert the manifest atomically."""
-    # Serialize cooperating import attempts for the same bar.
+    """Remove old products first; then insert 86 new products atomically."""
     db.session.scalar(select(Bar).where(Bar.id == bar_id).with_for_update())
-    bar, _, categories, existing, by_name, obsolete, rows = inspect(bar_id)
-    by_category = {c.name.casefold(): c for c in categories}
+    bar, _, categories, existing, imported, legacy, rows, deletable, archival = inspect(bar_id)
+
+    # FIRST PHASE: physically remove unlinked old products and their zero stock
+    # balances, archiving linked products instead so FKs/history remain valid.
+    for item in archival:
+        item.is_active = False
+    for item in deletable:
+        balance = db.session.scalar(select(StockBalance).where(
+            StockBalance.bar_id == bar_id,
+            StockBalance.product_id == item.id,
+        ))
+        if balance is not None:
+            db.session.delete(balance)
+        db.session.delete(item)
+    db.session.flush()
+
+    # Remove obsolete categories if now empty; otherwise hide them from sales.
+    wanted_categories = {category.casefold() for category, _, _ in CATALOG}
+    by_category = {category.name.casefold(): category for category in categories}
+    deleted_categories = 0
+    for category in categories:
+        if category.name.casefold() in wanted_categories:
+            continue
+        has_product = db.session.scalar(
+            select(Product.id).where(
+                Product.bar_id == bar_id,
+                Product.category_id == category.id,
+            ).limit(1)
+        )
+        if has_product is None:
+            db.session.delete(category)
+            deleted_categories += 1
+        else:
+            category.is_active = False
+    db.session.flush()
+
+    # SECOND PHASE: create/re-enable 6 categories after old data is removed.
     category_ids = {}
     for category_name, _, _ in CATALOG:
         category = by_category.get(category_name.casefold())
@@ -171,19 +254,14 @@ def apply_catalog(bar_id: int):
             category.is_active = True
         category_ids[category_name] = category.id
 
-    used_skus = {product.sku.casefold() for product in existing}
-    new_count = 0
-    updated_count = 0
+    # THIRD PHASE: every old product has been removed/archived. Import 86 rows
+    # with deterministic, dedicated SKUs; on rerun only these are updated.
+    created = 0
+    updated = 0
     for rank, (category_name, unit, name, price) in enumerate(rows, start=1):
-        product = by_name.get(name.casefold())
+        sku = f"{SKU_PREFIX}{rank:03d}"
+        product = imported.get(sku.casefold())
         if product is None:
-            sku_base = f"TSM-{rank:03d}"
-            sku = sku_base
-            suffix = 2
-            while sku.casefold() in used_skus:
-                sku = f"{sku_base}-{suffix}"
-                suffix += 1
-            used_skus.add(sku.casefold())
             product = Product(
                 bar_id=bar_id, category_id=category_ids[category_name],
                 sku=sku, name=name, base_unit=unit, sale_price=price,
@@ -197,24 +275,36 @@ def apply_catalog(bar_id: int):
                 bar_id=bar_id, product_id=product.id,
                 quantity=Decimal("0"), version=0,
             ))
-            new_count += 1
+            created += 1
         else:
-            product.name = name
             product.category_id = category_ids[category_name]
+            product.name = name
             product.sale_price = price
             product.display_order = rank * 1000
             product.is_active = True
-            # Preserve base unit, cost, packaging and historical stock of existing rows.
-            updated_count += 1
-    for product in obsolete:
-        product.is_active = False
-    wanted_categories = {category.casefold() for category, _, _ in CATALOG}
-    for category in categories:
-        if category.name.casefold() not in wanted_categories:
-            category.is_active = False
+            updated += 1
+
     bar.catalog_configured = True
     db.session.flush()
-    return {"created": new_count, "updated": updated_count, "archived": len(obsolete)}
+    active_products = list(db.session.scalars(select(Product).where(
+        Product.bar_id == bar_id, Product.is_active.is_(True)
+    )))
+    active_skus = {item.sku.casefold() for item in active_products}
+    if len(active_products) != 86 or active_skus != set(expected_sku.casefold()
+            for expected_sku in (f"{SKU_PREFIX}{rank:03d}" for rank in range(1, 87))):
+        raise ValueError("Vérification finale échouée : 86 nouveaux produits actifs attendus.")
+    active_categories = list(db.session.scalars(select(ProductCategory).where(
+        ProductCategory.bar_id == bar_id, ProductCategory.is_active.is_(True)
+    )))
+    if len(active_categories) != 6:
+        raise ValueError("Vérification finale échouée : 6 catégories actives attendues.")
+    return {
+        "created": created,
+        "updated_on_rerun": updated,
+        "old_deleted": len(deletable),
+        "old_archived_with_history": len(archival),
+        "old_categories_deleted": deleted_categories,
+    }
 
 
 def main():
@@ -239,12 +329,13 @@ def main():
                         print(f"Bar ID={bar.id} | {bar.name} | propriétaire ID={bar.owner_id} "
                               f"({owner.display_name if owner else 'introuvable'})")
                 return
-            bar, owner, categories, products, matches, obsolete, rows = inspect(args.bar_id)
+            bar, owner, categories, products, imported, legacy, rows, deletable, archival = inspect(args.bar_id)
             print(f"Bar : {bar.id} - {bar.name}")
             print(f"Propriétaire : {owner.id} - {owner.display_name}")
             print(f"Catégories cibles : {len(CATALOG)} | produits cibles : {len(rows)}")
-            print(f"À créer : {len(rows) - len(matches)} | à mettre à jour : {len(matches)} "
-                  f"| anciens produits à archiver : {len(obsolete)}")
+            print(f"À créer : {len(rows) - len(imported)} | à mettre à jour (réexécution) : {len(imported)}")
+            print(f"Anciens produits : {len(legacy)} | supprimables : {len(deletable)} "
+                  f"| à archiver (références conservées) : {len(archival)}")
             print(f"Anciennes catégories hors catalogue : "
                   f"{sum(normalize(c.name) not in {normalize(n) for n, _, _ in CATALOG} for c in categories)}")
             if not args.apply:
