@@ -274,6 +274,8 @@ def workspace(bar_id: int):
                         "amount_applied": str(applied),
                         "change_given": str(change),
                         "remaining": str(remaining),
+                        "source": cash_source,
+                        "currency": order.currency,
                     }
                 else:
                     remaining = due
