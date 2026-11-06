@@ -4,6 +4,7 @@ import hashlib, secrets, uuid
 import jwt
 from flask import Blueprint, abort, current_app, jsonify, request, render_template, redirect, session, g, url_for
 from flask_login import current_user, login_required, login_user, logout_user
+from flask_wtf.csrf import generate_csrf
 from functools import wraps
 from sqlalchemy import select
 from app.employee_context import get_current_employee_context
@@ -188,6 +189,24 @@ def web_login():
     except LookupError:
         return render_template("login.html",error="Aucune affectation active n'est disponible pour ce compte employé.",email=email),403
     session.clear(); g.pop("csrf_token",None); login_user(user); session["credentials_version"]=user.credentials_version; _bind_employee_session(context); return "",302,{"Location":destination}
+@auth_bp.get("/session/csrf")
+@login_required
+def refresh_web_csrf():
+    """Provide a fresh, session-bound CSRF token to active web forms.
+
+    This is a read-only endpoint. It never processes or retries business
+    mutations, and returns no token for an unauthenticated session.
+    """
+    response = jsonify(
+        success=True,
+        data={"csrf_token": generate_csrf()},
+        meta={},
+    )
+    response.headers["Cache-Control"] = "private, no-store, max-age=0"
+    response.headers["Vary"] = "Cookie"
+    return response
+
+
 @auth_bp.post("/logout")
 @login_required
 def web_logout(): logout_user(); return "",302,{"Location":"/login"}
