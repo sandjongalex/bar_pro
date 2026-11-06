@@ -23,6 +23,49 @@
       doc.querySelector('input[name="csrf_token"]')?.value || '';
   }
 
+  async function renewCsrf(signal) {
+    // A cashier may keep this page open beyond WTF_CSRF_TIME_LIMIT (one hour).
+    // Always retrieve a fresh token before a write; do not retry the write on
+    // failure. Updating the DOM alone would not fix FormData captured earlier.
+    const response = await root.fetch('/session/csrf', {
+      method: 'GET', credentials: 'same-origin', redirect: 'follow',
+      cache: 'no-store', headers: { 'Accept': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest' }, signal
+    });
+    const destination = new URL(response.url || '/session/csrf', root.location.href);
+    if (response.redirected && destination.origin === root.location.origin &&
+        destination.pathname === '/login') {
+      redirectExpiredSession();
+      throw Object.assign(new Error('Session expirée : reconnectez-vous avant de continuer.'), {
+        code: 'SESSION_EXPIRED', status: 401
+      });
+    }
+    if (!response.ok || !response.headers.get('Content-Type')?.includes('application/json')) {
+      if (response.status === 401) {
+        redirectExpiredSession();
+        throw Object.assign(new Error('Session expirée : reconnexion nécessaire.'), {
+          code: 'SESSION_EXPIRED', status: 401
+        });
+      }
+      throw Object.assign(new Error('Impossible de renouveler la sécurité du formulaire. Aucune opération envoyée.'), {
+        code: 'CSRF_REFRESH_FAILED', status: response.status
+      });
+    }
+    const payload = await response.json();
+    if (!payload?.success || typeof payload.data?.csrf_token !== 'string' ||
+        payload.data.csrf_token.length < 8) {
+      throw Object.assign(new Error('Jeton de sécurité indisponible. Aucune opération envoyée.'), {
+        code: 'CSRF_REFRESH_FAILED'
+      });
+    }
+    const token = payload.data.csrf_token;
+    // Keep every existing form (including AJAX-loaded fragments) in sync.
+    doc.querySelectorAll('input[name="csrf_token"]').forEach(input => {
+      input.value = token;
+    });
+    return token;
+  }
+
   function messageFor(payload, status) {
     if (payload && typeof payload.message === 'string' && payload.message.trim()) return payload.message;
     if (payload && typeof payload.error === 'string' && payload.error.trim()) return payload.error;
@@ -114,9 +157,13 @@
       headers.set('X-Requested-With', 'XMLHttpRequest');
       headers.set('X-BarPro-Async', '1');
       if (mutation) {
-        const csrf = csrfToken(options.form);
-        if (!csrf) throw Object.assign(new Error('Jeton CSRF manquant.'), { code: 'CSRF' });
+        const csrf = await renewCsrf(controller.signal);
         headers.set('X-CSRFToken', csrf);
+        // Flask-WTF checks form data before headers. Without this update the
+        // stale hidden csrf_token would still be rejected after refresh.
+        if (options.body instanceof FormData || options.body instanceof URLSearchParams) {
+          options.body.set('csrf_token', csrf);
+        }
       }
       const response = await root.fetch(target.href, {
         method, credentials: 'same-origin', redirect: 'follow', cache: 'no-store',
