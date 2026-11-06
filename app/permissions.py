@@ -55,7 +55,7 @@ ROLE_ACTIONS = {
     "reports.read": {"SUPER_ADMIN", "OWNER", "BAR_ADMIN"},
     "subscriptions.read": {"SUPER_ADMIN", "OWNER"},
     "subscriptions.manage": {"SUPER_ADMIN"},
-    "payments.record": {"SUPER_ADMIN", "OWNER", "BAR_ADMIN", "CASHIER"},
+    "payments.record": {"SUPER_ADMIN", "OWNER", "BAR_ADMIN", "CASHIER", "SERVER"},
     "bars.reactivate": {"SUPER_ADMIN"},
     "bars.suspend": {"SUPER_ADMIN"},
 }
