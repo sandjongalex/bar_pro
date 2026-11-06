@@ -180,3 +180,24 @@ def test_partial_cash_payment_async_uses_stable_reference_and_prevents_duplicate
     db.session.refresh(order)
     assert order.payment_status == "PARTIAL"
     assert cash_service.expected(session) == 1040
+
+
+
+def test_cashier_sale_success_clears_previous_invoice_name_and_note_only_on_success():
+    """The next sale must not reuse the preceding customer's name or note."""
+    from pathlib import Path
+
+    template = Path("app/templates/cashier_workspace.html").read_text(encoding="utf-8")
+    injected_name = Path("app/templates/cashier_workspace_v2.html").read_text(encoding="utf-8")
+
+    assert 'name="invoice_name"' in injected_name
+    assert "document.addEventListener('barpro:async-success'" in template
+    successful_sale_branch = template.split("if (data.reset_cart) {", 1)[1].split(
+        "if (data.close_sale_panel)", 1
+    )[0]
+    assert "querySelector('[name=\"invoice_name\"]')" in successful_sale_branch
+    assert "previousInvoiceName.value='';" in successful_sale_branch
+    assert "querySelector('[name=\"notes\"]')" in successful_sale_branch
+    assert "previousNotes.value='';" in successful_sale_branch
+    assert "cart.clear();" in successful_sale_branch
+    assert "renderCart();" in successful_sale_branch
