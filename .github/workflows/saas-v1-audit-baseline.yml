@@ -1,0 +1,42 @@
+name: SaaS V1 audit baseline (no deployment)
+on:
+  push:
+    branches:
+      - feature/saas-v1-audit
+    paths:
+      - 'docs/saas_v1/**'
+      - 'tests/test_saas_v1_baseline.py'
+      - '.github/workflows/saas-v1-audit-baseline.yml'
+  pull_request:
+    paths:
+      - 'docs/saas_v1/**'
+      - 'tests/test_saas_v1_baseline.py'
+      - '.github/workflows/saas-v1-audit-baseline.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  baseline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install existing requirements
+        run: python -m pip install -r requirements.txt
+      - name: Python baseline tests, isolation, customer debt
+        run: python -m pytest -q tests/test_saas_v1_baseline.py tests/test_employee_tenant_auth.py tests/test_owner_multibar_tenant_regression.py
+      - name: JavaScript syntax and existing frontend tests
+        run: |
+          node --check app/static/barpro_async.js
+          node --check app/static/suborders_live.js
+          node --check app/static/pwa_install.js
+          node --test tests/*.test.cjs
+      - name: Full Python regression suite (do not hide failures)
+        run: python -m pytest -q
