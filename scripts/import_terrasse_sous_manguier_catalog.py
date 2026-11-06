@@ -1,7 +1,9 @@
 """One-off, tenant-scoped REPLACEMENT catalog for Terrasse sous manguier.
 
-Preview by default. Deletes unused legacy rows or archives linked rows BEFORE
-inserting a clean, fresh set of 86 products. Does not reset sales or stock.
+Preview by default. Physically removes all former product-category rows.
+Unreferenced old products are deleted; historically referenced ones are archived
+and linked to one of the six new categories, while preserving their old name,
+ID and history. Then imports 86 clean products. Does not reset sales or stock.
 Run from the BAR_PRO repository root:
     python -m scripts.import_terrasse_sous_manguier_catalog --list-bars
     python -m scripts.import_terrasse_sous_manguier_catalog --bar-id 123
@@ -203,13 +205,36 @@ def inspect(bar_id: int):
     return bar, owner, categories, existing, imported, legacy, rows, deletable, archival
 
 
+def archived_category_for(product: Product, old_categories: dict[int, str]) -> str:
+    """Choose a safe existing category for an INACTIVE historical product.
+
+    Archived products cannot retain an old category FK if its row is deleted.
+    These choices only organize the hidden archival records; none become saleable.
+    """
+    name = normalize(product.name)
+    category = normalize(old_categories.get(product.category_id, ""))
+    candidate = f"{name} {category}"
+    if "canette" in candidate:
+        return "Bières en canette"
+    if any(word in candidate for word in ("whisky", "spiritueux", "liqueur", "gin", "vodka", "rhum")):
+        return "Whiskies et spiritueux"
+    if any(word in candidate for word in ("vin", "mousseux", "champagne", "moscato", "chateau")):
+        return "Vins et mousseux"
+    if any(word in candidate for word in ("eau", "water", "tangui", "vital")):
+        return "Eaux"
+    if any(word in candidate for word in ("biere", "beer", "export", "guinness", "castel", "mutzig")):
+        return "Bières en bouteille"
+    return "Jus et boissons fruitées"
+
+
 def apply_catalog(bar_id: int):
-    """Remove old products first; then insert 86 new products atomically."""
+    """Clear all old categories and safely create the six-category catalog."""
     db.session.scalar(select(Bar).where(Bar.id == bar_id).with_for_update())
     bar, _, categories, existing, imported, legacy, rows, deletable, archival = inspect(bar_id)
 
-    # FIRST PHASE: physically remove unlinked old products and their zero stock
-    # balances, archiving linked products instead so FKs/history remain valid.
+    # FIRST: permanently remove unreferenced old products; historical products
+    # are never destroyed. Zero balances attached to deleted rows go too.
+    old_category_names = {category.id: category.name for category in categories}
     for item in archival:
         item.is_active = False
     for item in deletable:
@@ -222,27 +247,10 @@ def apply_catalog(bar_id: int):
         db.session.delete(item)
     db.session.flush()
 
-    # Remove obsolete categories if now empty; otherwise hide them from sales.
-    wanted_categories = {category.casefold() for category, _, _ in CATALOG}
+    # SECOND: create or activate exactly the desired six categories. Existing
+    # categories with the same names are reused; no duplicate names or IDs.
+    wanted_categories = {category_name.casefold() for category_name, _, _ in CATALOG}
     by_category = {category.name.casefold(): category for category in categories}
-    deleted_categories = 0
-    for category in categories:
-        if category.name.casefold() in wanted_categories:
-            continue
-        has_product = db.session.scalar(
-            select(Product.id).where(
-                Product.bar_id == bar_id,
-                Product.category_id == category.id,
-            ).limit(1)
-        )
-        if has_product is None:
-            db.session.delete(category)
-            deleted_categories += 1
-        else:
-            category.is_active = False
-    db.session.flush()
-
-    # SECOND PHASE: create/re-enable 6 categories after old data is removed.
     category_ids = {}
     for category_name, _, _ in CATALOG:
         category = by_category.get(category_name.casefold())
@@ -252,10 +260,41 @@ def apply_catalog(bar_id: int):
             db.session.flush()
         else:
             category.is_active = True
+            category.name = category_name
         category_ids[category_name] = category.id
 
-    # THIRD PHASE: every old product has been removed/archived. Import 86 rows
-    # with deterministic, dedicated SKUs; on rerun only these are updated.
+    # THIRD: reclassify only INACTIVE old products still referenced by history.
+    # This breaks their FK to removed categories without losing sales records.
+    archived_reclassified = 0
+    for item in archival:
+        old_name = old_category_names.get(item.category_id, "")
+        new_category_name = archived_category_for(item, old_category_names)
+        item.category_id = category_ids[new_category_name]
+        if normalize(old_name) != normalize(new_category_name):
+            archived_reclassified += 1
+    db.session.flush()
+
+    # FOURTH: there must be no product FK left pointing to an old category.
+    # Deleting historical category rows is safe only after the reclassification.
+    old_categories = [
+        category for category in categories
+        if category.name.casefold() not in wanted_categories
+    ]
+    for category in old_categories:
+        remaining = db.session.scalar(select(Product.id).where(
+            Product.bar_id == bar_id,
+            Product.category_id == category.id,
+        ).limit(1))
+        if remaining is not None:
+            raise ValueError(
+                f"La catégorie {category.name} est toujours utilisée ; "
+                "importation annulée sans suppression partielle."
+            )
+        db.session.delete(category)
+    db.session.flush()
+
+    # FIFTH: insert 86 independent new products (not reused old records).
+    # Re-executions only update rows from the reserved dedicated SKU prefix.
     created = 0
     updated = 0
     for rank, (category_name, unit, name, price) in enumerate(rows, start=1):
@@ -289,21 +328,29 @@ def apply_catalog(bar_id: int):
     active_products = list(db.session.scalars(select(Product).where(
         Product.bar_id == bar_id, Product.is_active.is_(True)
     )))
+    expected_skus = {f"{SKU_PREFIX}{rank:03d}".casefold() for rank in range(1, 87)}
     active_skus = {item.sku.casefold() for item in active_products}
-    if len(active_products) != 86 or active_skus != set(expected_sku.casefold()
-            for expected_sku in (f"{SKU_PREFIX}{rank:03d}" for rank in range(1, 87))):
+    if len(active_products) != 86 or active_skus != expected_skus:
         raise ValueError("Vérification finale échouée : 86 nouveaux produits actifs attendus.")
-    active_categories = list(db.session.scalars(select(ProductCategory).where(
-        ProductCategory.bar_id == bar_id, ProductCategory.is_active.is_(True)
+    all_categories = list(db.session.scalars(select(ProductCategory).where(
+        ProductCategory.bar_id == bar_id
     )))
-    if len(active_categories) != 6:
-        raise ValueError("Vérification finale échouée : 6 catégories actives attendues.")
+    category_names = {category.name.casefold() for category in all_categories}
+    if len(all_categories) != 6 or category_names != wanted_categories or not all(
+        category.is_active for category in all_categories
+    ):
+        raise ValueError(
+            "Vérification finale échouée : exactement six catégories, "
+            "aucune ancienne catégorie, même inactive."
+        )
     return {
         "created": created,
         "updated_on_rerun": updated,
         "old_deleted": len(deletable),
         "old_archived_with_history": len(archival),
-        "old_categories_deleted": deleted_categories,
+        "archived_reclassified": archived_reclassified,
+        "old_categories_deleted": len(old_categories),
+        "categories_remaining_total": len(all_categories),
     }
 
 
@@ -336,7 +383,7 @@ def main():
             print(f"À créer : {len(rows) - len(imported)} | à mettre à jour (réexécution) : {len(imported)}")
             print(f"Anciens produits : {len(legacy)} | supprimables : {len(deletable)} "
                   f"| à archiver (références conservées) : {len(archival)}")
-            print(f"Anciennes catégories hors catalogue : "
+            print(f"Anciennes catégories à supprimer définitivement : "
                   f"{sum(normalize(c.name) not in {normalize(n) for n, _, _ in CATALOG} for c in categories)}")
             if not args.apply:
                 print("APERÇU UNIQUEMENT : aucune écriture.")
