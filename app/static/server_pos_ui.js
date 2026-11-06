@@ -333,8 +333,6 @@
   }
 
   function syncLiveStock(stock) {
-    const activeCategory = document.querySelector('#categoryTabs .pos-category.active')?.dataset.category || 'all';
-    const query = (search?.value || '').trim().toLocaleLowerCase('fr');
     grid.querySelectorAll('.pos-product[data-product-id]').forEach((card) => {
       const quantity = Number(stock?.[String(card.dataset.productId)] || 0);
       const available = Number.isFinite(quantity) && quantity > 0;
@@ -346,10 +344,9 @@
         stockBadge.textContent = available ? `Stock ${formatQuantity(quantity)}` : 'Rupture';
         stockBadge.classList.toggle('danger', !available);
       }
-      const categoryOk = activeCategory === 'all' || card.dataset.category === activeCategory;
-      const searchOk = !query || (card.dataset.name || '').toLocaleLowerCase('fr').includes(query);
-      card.hidden = !(categoryOk && searchOk);
     });
+    // Keep the category, search and visible count selected by the user.
+    window.BarProProductCategoryFilters?.refreshByGrid('productGrid');
   }
 
   let lastServerSnapshotMs = 0;
