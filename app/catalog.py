@@ -136,15 +136,12 @@ def product_image_map(bar_id):
 
 
 SETUP_CATEGORY_PRESETS = (
-    ("Bières", "Bières locales, importées et bières pression"),
-    ("Boissons gazeuses", "Sodas, tonic et boissons pétillantes"),
-    ("Jus et boissons", "Jus naturels, nectars et boissons fruitées"),
-    ("Eaux minérales", "Eaux plates et gazeuses"),
-    ("Vins", "Vins rouges, blancs, rosés et mousseux"),
-    ("Whisky et spiritueux", "Whisky, gin, rhum et autres spiritueux"),
-    ("Boissons énergisantes", "Boissons énergétiques et stimulantes"),
-    ("Snacks et accompagnements", "Petite restauration et accompagnements"),
-    ("Autres", "Toutes les autres familles de produits"),
+    ("Bières en bouteille", "Bières vendues en bouteilles"),
+    ("Bières en canette", "Bières et boissons vendues en canettes"),
+    ("Jus et boissons fruitées", "Jus, sodas et boissons fruitées"),
+    ("Eaux", "Eaux en bouteille ou autres conditionnements"),
+    ("Vins et mousseux", "Vins rouges, blancs et mousseux"),
+    ("Whiskies et spiritueux", "Whiskies, gin, rhum et spiritueux"),
 )
 
 
