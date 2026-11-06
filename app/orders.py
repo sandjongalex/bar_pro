@@ -87,6 +87,7 @@ def _message(code):
         "INVALID_NUMBER": "Montant remis invalide.",
         "INVALID_PRECISION": "Utilisez une valeur monétaire sans décimales pour les FCFA.",
         "POSITIVE_NUMBER_REQUIRED": "Le montant remis doit être supérieur à zéro.",
+        "PAYMENT_BALANCE_CHANGED": "Le solde de la commande a changé. Actualisez la facture avant d'encaisser.",
     }
     return messages.get(str(code), "Opération refusée. Vérifiez la commande.")
 
@@ -217,6 +218,9 @@ def receive_server_cash(bar_id: int, order_id: int):
         # Use a decimal, not a float. A client may settle part of the invoice
         # or give a larger note, in which case the difference is change.
         money_scale = 0 if order.currency in {"XAF", "XOF"} else 2
+        expected_due = number(request.form.get("expected_due"), scale=money_scale, positive=True)
+        if expected_due != due:
+            raise ValueError("PAYMENT_BALANCE_CHANGED")
         received = number(request.form.get("amount_presented"), scale=money_scale, positive=True)
         applied = min(received, due)
         change = max(received - due, Decimal("0"))
