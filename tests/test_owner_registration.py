@@ -8,7 +8,7 @@ from sqlalchemy import select
 
 from app import create_app
 from app.extensions import db
-from app.models import Bar, Plan, Subscription, User, utcnow
+from app.models import Bar, Plan, Product, ProductCategory, StockBalance, Subscription, User, utcnow
 from app.saas_governance_models import BarGovernance, OwnerGovernance
 from app.saas_governance import trial_expired
 from app.permissions import permissions
@@ -60,6 +60,10 @@ def test_register_auto_activates_first_bar_for_exactly_15_days(tmp_path):
         assert owner.check_password("Asecurepass-12345")
         assert bar.status == "ACTIVE"
         assert bar.phone == "+237699555001"
+        assert bar.catalog_configured is True
+        assert len(list(db.session.scalars(select(ProductCategory).where(ProductCategory.bar_id == bar.id)))) == 6
+        assert len(list(db.session.scalars(select(Product).where(Product.bar_id == bar.id)))) == 86
+        assert len(list(db.session.scalars(select(StockBalance).where(StockBalance.bar_id == bar.id)))) == 86
         assert db.session.get(BarGovernance, bar.id).status == "APPROVED"
         assert db.session.get(OwnerGovernance, owner.id).status == "APPROVED"
         trial = db.session.scalar(select(Subscription).where(Subscription.bar_id == bar.id))
