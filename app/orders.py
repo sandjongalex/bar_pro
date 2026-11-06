@@ -11,15 +11,18 @@ from sqlalchemy.exc import IntegrityError
 from app.auth import api_required
 from app.async_ui import wants_async_web_response, web_json_response
 from app.server_order_idempotency import create_once, lookup as lookup_order_intent
+from app.cashier_payment_idempotency import claim as claim_payment_intent, complete as complete_payment_intent
 from app.extensions import db
 from app.finance_totals import order_balance
 from app.models import Bar, BarTable, Order, OrderLine, Product, ProductCategory, StaffAssignment, StockBalance, User
 from app.order_services import order_service
+from app.payment_services import payment_service
 from app.order_line_views import effective_lines_by_order
 from app.order_suborder_models import OrderSuborder, OrderSuborderLine
 from app.order_suborder_service import order_suborder_service
 from app.permissions import permissions
 from app.product_display_order import product_order_expression
+from app.validation import number
 
 bp = Blueprint("orders", __name__, url_prefix="/api/v1/bars/<int:bar_id>/orders")
 web_bp = Blueprint("orders_web", __name__, url_prefix="/bars/<int:bar_id>/orders")
@@ -77,6 +80,13 @@ def _message(code):
         "IDEMPOTENCY_IN_PROGRESS": "Commande en cours de validation. Vérifiez son état avant de réessayer.",
         "IDEMPOTENCY_RETRY_LATER": "Le serveur traite cette commande. Vérifiez son état avant de réessayer.",
         "IDEMPOTENCY_RESULT_MISSING": "Reçu introuvable : contactez le responsable avant de renvoyer.",
+        "INVALID_PAYMENT_AMOUNTS": "Montant remis invalide. Saisissez la somme réellement reçue.",
+        "ORDER_NOT_PAYABLE": "Cette commande doit être livrée et rester impayée pour être encaissée.",
+        "PAYMENT_ALREADY_PROCESSED": "Encaissement déjà enregistré. Vérifiez le solde avant toute nouvelle tentative.",
+        "IDEMPOTENCY_KEY_REQUIRED": "Identifiant d'encaissement manquant. Actualisez la commande.",
+        "INVALID_NUMBER": "Montant remis invalide.",
+        "INVALID_PRECISION": "Utilisez une valeur monétaire sans décimales pour les FCFA.",
+        "POSITIVE_NUMBER_REQUIRED": "Le montant remis doit être supérieur à zéro.",
     }
     return messages.get(str(code), "Opération refusée. Vérifiez la commande.")
 
@@ -182,6 +192,77 @@ def mine(bar_id: int):
     return render_template("server_orders.html", **context)
 
 
+@web_bp.post("/<int:order_id>/cash")
+@login_required
+def receive_server_cash(bar_id: int, order_id: int):
+    """Record cash actually collected by the assigned waitress, not a cash-drawer receipt."""
+    permissions.require(current_user, "payments.record", bar_id)
+    assignment = _assignment(bar_id)
+    if not assignment or assignment.role != "SERVER":
+        raise PermissionError("FORBIDDEN")
+
+    async_web = wants_async_web_response()
+    try:
+        order = db.session.scalar(
+            select(Order).where(Order.bar_id == bar_id, Order.id == order_id).with_for_update()
+        )
+        if order is None or order.assigned_staff_id != assignment.id:
+            raise LookupError("NOT_FOUND")
+        if order.status not in {"CONFIRMED", "SERVED"}:
+            raise ValueError("ORDER_NOT_PAYABLE")
+        due = Decimal(order_balance(order, locking=True)["amount_due"] or 0)
+        if due <= 0 or order.payment_status == "PAID":
+            raise ValueError("ORDER_NOT_PAYABLE")
+
+        # Use a decimal, not a float. A client may settle part of the invoice
+        # or give a larger note, in which case the difference is change.
+        money_scale = 0 if order.currency in {"XAF", "XOF"} else 2
+        received = number(request.form.get("amount_presented"), scale=money_scale, positive=True)
+        applied = min(received, due)
+        change = max(received - due, Decimal("0"))
+
+        intent = claim_payment_intent(
+            current_user, bar_id, "server_cash",
+            request.form.get("idempotency_key"), request.form, require_key=True,
+        )
+        payment_service.record(
+            current_user, bar_id, order.id,
+            "SRV-PAY-" + secrets.token_hex(12).upper(), "CASH",
+            received, applied, change, staff_assignment_id=assignment.id,
+        )
+        complete_payment_intent(intent, order_id=order.id)
+        remaining = Decimal(order_balance(order)["amount_due"] or 0)
+        db.session.commit()
+        message = (
+            f"{applied:,.0f} {order.currency} enregistrés chez la serveuse. "
+            + (f"Monnaie rendue : {change:,.0f}. " if change else "")
+            + (f"Reste à payer : {remaining:,.0f}." if remaining else "Commande soldée.")
+        )
+        destination = url_for("orders_web.detail", bar_id=bar_id, order_id=order.id)
+        if async_web:
+            return web_json_response(
+                data={"refresh_url": destination, "remaining": str(remaining)},
+                message=message,
+            )
+        flash(message, "success")
+        return redirect(destination)
+
+    except (PermissionError, LookupError, ValueError, TypeError, IntegrityError) as exc:
+        db.session.rollback()
+        code = "PAYMENT_ALREADY_PROCESSED" if isinstance(exc, IntegrityError) else str(exc)
+        if code == "IDEMPOTENCY_CONFLICT":
+            message = "Référence d'encaissement déjà utilisée pour un autre montant. Vérifiez la facture."
+        else:
+            message = _message(code)
+        if async_web:
+            status = 403 if isinstance(exc, PermissionError) else 404 if isinstance(exc, LookupError) else (
+                409 if code in {"PAYMENT_ALREADY_PROCESSED", "IDEMPOTENCY_CONFLICT"} else 422
+            )
+            return web_json_response(error={"code": code}, message=message, status=status)
+        flash(message, "danger")
+        return redirect(url_for("orders_web.detail", bar_id=bar_id, order_id=order_id))
+
+
 @web_bp.get("/<int:order_id>/detail")
 @login_required
 def detail(bar_id: int, order_id: int):
@@ -277,6 +358,7 @@ def detail(bar_id: int, order_id: int):
         return_url=return_url,
         is_server=is_server,
         is_cashier=is_cashier,
+        server_cash_intent=secrets.token_urlsafe(32) if is_server else None,
     )
 
 
