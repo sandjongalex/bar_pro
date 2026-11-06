@@ -205,8 +205,6 @@
 
   function syncStock(stock) {
     if (!productGrid) return;
-    const activeCategory = document.querySelector('#cashierCategoryTabs .pos-category.active')?.dataset.category || 'all';
-    const query = (productSearch?.value || '').trim().toLocaleLowerCase('fr');
     productGrid.querySelectorAll('.pos-product[data-product-id]').forEach(card => {
       const quantity = Number(stock?.[String(card.dataset.productId)] || 0);
       if (card.dataset.stock !== String(quantity)) {
@@ -218,9 +216,9 @@
       const available = Number.isFinite(quantity) && quantity > 0;
       card.classList.toggle('out-of-stock', !available);
       card.disabled = !available;
-      card.hidden = !(available && (activeCategory === 'all' || card.dataset.category === activeCategory) &&
-        (!query || (card.dataset.name || '').toLocaleLowerCase('fr').includes(query)));
     });
+    // The shared filter owns card visibility, including sold-out products.
+    window.BarProProductCategoryFilters?.refreshByGrid('cashierProductGrid');
   }
 
   function apply(payload) {
