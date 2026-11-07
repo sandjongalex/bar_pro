@@ -67,3 +67,15 @@ def test_responsive_v2_source_has_no_unbounded_grid_children():
     assert "qty(line.current_machine)" in js
     assert "movement.quantity_delta)" in js
     assert "inventory_qty" in report
+
+
+@pytest.mark.parametrize("template_name", [
+    "inventory_detail.html",
+    "inventory_count_v2.html",
+    "inventory_v2_report.html",
+    "_inventory_movement_origin_modal.html",
+])
+def test_inventory_movement_origin_templates_compile(env, template_name):
+    # A malformed Jinja closing tag must never break inventory GET requests.
+    template = env[0].jinja_env.get_template(template_name)
+    assert template is not None
