@@ -523,6 +523,18 @@ def checkout(bar_id):
     )
     waiting_orders = [order for order in active_orders if order.status == "DRAFT"]
     payable_orders = [order for order in active_orders if order.status in {"CONFIRMED", "SERVED"}]
+    advance_ids = select(ChangeVoucher.origin_order_id).where(
+        ChangeVoucher.bar_id == bar_id,
+        ChangeVoucher.code.like("AV-%"),
+    )
+    prepaid_orders = list(db.session.scalars(
+        select(Order).where(
+            Order.bar_id == bar_id,
+            Order.status.in_(["CONFIRMED", "SERVED"]),
+            Order.id.in_(advance_ids),
+            Order.closed_at.is_(None),
+        ).order_by(Order.updated_at.desc(), Order.id.desc()).limit(40)
+    ))
     paid_orders = list(
         db.session.scalars(
             select(Order)
@@ -530,12 +542,13 @@ def checkout(bar_id):
                 Order.bar_id == bar_id,
                 Order.status.in_(["CONFIRMED", "SERVED"]),
                 Order.payment_status == "PAID",
+                (Order.closed_at.is_not(None) | ~Order.id.in_(advance_ids)),
             )
             .order_by(Order.updated_at.desc(), Order.id.desc())
             .limit(20)
         )
     )
-    display_orders = [*active_orders, *paid_orders]
+    display_orders = [*active_orders, *prepaid_orders, *paid_orders]
     balances = {order.id: order_balance(order) for order in display_orders}
 
     order_ids = [order.id for order in display_orders]
@@ -570,6 +583,8 @@ def checkout(bar_id):
         selected_order = next((order for order in display_orders if order.id == selected_id), None)
     if selected_order is None and active_orders:
         selected_order = active_orders[0]
+    if selected_order is None and prepaid_orders:
+        selected_order = prepaid_orders[0]
     if selected_order is None and paid_orders:
         selected_order = paid_orders[0]
 
@@ -632,6 +647,7 @@ def checkout(bar_id):
         orders=active_orders,
         waiting_orders=waiting_orders,
         payable_orders=payable_orders,
+        prepaid_orders=prepaid_orders,
         paid_orders=paid_orders,
         balances=balances,
         lines_by_order=lines_by_order,
