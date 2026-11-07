@@ -174,7 +174,7 @@ class ChangeVoucherService:
         if order.currency != voucher.currency:
             raise ValueError("CURRENCY_MISMATCH")
 
-        due = Decimal(order_balance(order)["amount_due"] or 0)
+        due = Decimal(order_balance(order, locking=True)["amount_due"] or 0)
         if due <= 0:
             raise ValueError("ORDER_NOT_PAYABLE")
         maximum = min(Decimal(voucher.balance_amount), due)
@@ -199,7 +199,7 @@ class ChangeVoucherService:
         voucher.balance_amount = Decimal(voucher.balance_amount) - applied
         self._refresh_status(voucher)
         db.session.flush()
-        order_balance(order, update=True)
+        order_balance(order, update=True, locking=True)
         if not was_paid and order.payment_status == "PAID":
             notify_server(
                 order,
