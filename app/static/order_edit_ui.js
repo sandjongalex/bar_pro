@@ -59,6 +59,7 @@
     const selectedRound = rounds.find(item => String(item.id) === String(selectedTarget));
     const originalLines = selectedRound ? selectedRound.lines : (Array.isArray(order.lines) ? order.lines : []);
     const originalByProduct = new Map(originalLines.map((line) => [String(line.product_id), line]));
+    const deliveredEdit = context === 'cashier' && (selectedRound ? selectedRound.delivered : order.delivered);
 
     if (!order.editable) {
       renderLocked(host, order.payment_status === 'PAID'
@@ -104,6 +105,16 @@
           <label for="orderEditReason${escapeHtml(order.id)}">Motif de la modification <span class="text-secondary">(facultatif)</span></label>
           <input class="form-control" id="orderEditReason${escapeHtml(order.id)}" name="reason" maxlength="500" placeholder="Ex. le client ajoute une bière / retire une eau">
         </div>` : ''}
+        ${deliveredEdit ? `
+        <div class="order-edit-return-decision" data-order-edit-return-decision hidden>
+          <label for="orderEditReturn${escapeHtml(order.id)}">L'ancienne bouteille a-t-elle été récupérée physiquement ?</label>
+          <select class="form-select" id="orderEditReturn${escapeHtml(order.id)}" name="return_disposition" data-order-edit-return-select>
+            <option value="">Choisissez une situation…</option>
+            <option value="RESTOCK">Oui, récupérée et remise en stock</option>
+            <option value="LOSS">Non, consommée ou non restituée (aucune entrée physique)</option>
+          </select>
+          <small>Obligatoire uniquement lorsque vous retirez un produit déjà livré. Le stock et les ventes seront rapprochés en conséquence.</small>
+        </div>` : ''}
         <div class="order-edit-foot">
           <p class="order-edit-message" data-order-edit-message></p>
           <button class="btn btn-primary order-edit-save" type="submit" data-order-edit-save>Enregistrer les modifications</button>
@@ -119,6 +130,8 @@
     const saveButton = host.querySelector('[data-order-edit-save]');
     const message = host.querySelector('[data-order-edit-message]');
     const close = host.querySelector('.order-edit-close');
+    const returnChoiceRoot = host.querySelector('[data-order-edit-return-decision]');
+    const returnChoice = host.querySelector('[data-order-edit-return-select]');
 
     function currentIds() {
       return new Set(Array.from(linesNode.querySelectorAll('.order-edit-line')).map((row) => String(row.dataset.productId)));
@@ -127,11 +140,24 @@
     function refreshMessage() {
       const count = linesNode.querySelectorAll('.order-edit-line').length;
       const valid = count > 0;
-      saveButton.disabled = !valid;
-      message.classList.toggle('danger', !valid);
-      message.textContent = valid
-        ? `${count} produit${count > 1 ? 's' : ''} dans la commande.`
-        : 'La commande doit garder au moins un produit. Utilisez « Annuler » si le client abandonne toute la commande.';
+      const reductions = deliveredEdit && originalLines.some((line) => {
+        const item = Array.from(linesNode.querySelectorAll('.order-edit-line'))
+          .find((row) => String(row.dataset.productId) === String(line.product_id));
+        const current = item ? Number(item.querySelector('input[name="quantity"]').value) : 0;
+        return current < Number(line.quantity) - 0.000001;
+      });
+      if (returnChoiceRoot && returnChoice) {
+        returnChoiceRoot.hidden = !reductions;
+        returnChoice.required = reductions;
+        if (!reductions) returnChoice.value = '';
+      }
+      saveButton.disabled = !valid || (reductions && !returnChoice?.value);
+      message.classList.toggle('danger', !valid || (reductions && !returnChoice?.value));
+      message.textContent = !valid
+        ? 'La commande doit garder au moins un produit. Utilisez « Annuler » si le client abandonne toute la commande.'
+        : reductions && !returnChoice?.value
+          ? 'Précisez si les bouteilles retirées ont réellement été récupérées.'
+          : `${count} produit${count > 1 ? 's' : ''} dans la commande.`;
       refreshProductSelect();
     }
 
@@ -176,10 +202,12 @@
           return;
         }
         input.value = numberText(Math.max(0.001, current - 1));
+        refreshMessage();
       });
       row.querySelector('[data-order-edit-plus]').addEventListener('click', () => {
         const current = Number(input.value || 0);
         input.value = numberText(Math.min(maximum, current + 1));
+        refreshMessage();
       });
       row.querySelector('[data-order-edit-remove]').addEventListener('click', () => {
         row.remove();
@@ -194,11 +222,14 @@
         }
         value = Math.min(value, maximum);
         input.value = numberText(value);
+        refreshMessage();
       });
+      input.addEventListener('input', refreshMessage);
       linesNode.appendChild(row);
     }
 
     originalLines.forEach(addLine);
+    if (returnChoice) returnChoice.addEventListener('change', refreshMessage);
     refreshMessage();
 
     addButton.addEventListener('click', () => {
@@ -224,6 +255,12 @@
     });
 
     form.addEventListener('submit', (event) => {
+      refreshMessage();
+      if (returnChoice?.required && !returnChoice.value) {
+        event.preventDefault();
+        returnChoice.focus();
+        return;
+      }
       if (!linesNode.querySelector('.order-edit-line')) {
         event.preventDefault();
         refreshMessage();
