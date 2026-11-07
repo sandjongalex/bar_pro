@@ -155,6 +155,9 @@
 .cashier-sale-panel .cashier-sale-cart .pos-cart-empty > div {
   display: none;
 }
+.cashier-sale-panel .cashier-sale-cart .pos-cart-empty[hidden] {
+  display: none !important; /* Avoid inherited display:grid overriding [hidden]. */
+}
 .cashier-sale-panel .cashier-sale-cart .pos-cart-empty strong {
   font-size: .79rem;
 }
