@@ -4,9 +4,9 @@
     <div>
       <p class="owner-bento-kicker mb-1">VUE PROPRIÉTAIRE · TOUS MES BARS</p>
       <h2 class="owner-bento-heading mb-1" id="owner-bento-title">Vue d'ensemble</h2>
-      <p class="owner-bento-muted mb-0">Ventes du jour selon le fuseau horaire de chaque établissement.</p>
+      <p class="owner-bento-muted mb-0">Ventes des services ouverts, y compris après minuit. Les chiffres du jour civil restent disponibles séparément.</p>
     </div>
-    <span class="owner-bento-period">Aujourd'hui · {{ owner_bento.bar_count }} établissement{{ 's' if owner_bento.bar_count != 1 else '' }}</span>
+    <span class="owner-bento-period">{{ owner_bento.open_service_count }} service{{ 's' if owner_bento.open_service_count != 1 else '' }} ouvert{{ 's' if owner_bento.open_service_count != 1 else '' }} · {{ owner_bento.bar_count }} bar{{ 's' if owner_bento.bar_count != 1 else '' }}</span>
   </div>
 
   <div class="row g-3 align-items-stretch">
@@ -15,7 +15,7 @@
         <div class="d-flex align-items-start justify-content-between gap-3">
           <div>
             <p class="owner-bento-overline mb-2">SUIVI DES VENTES</p>
-            <h3 id="owner-bento-revenue-title" class="owner-bento-card-title">Chiffre d'affaires global</h3>
+            <h3 id="owner-bento-revenue-title" class="owner-bento-card-title">Chiffre d'affaires global · {{ 'services en cours' if owner_bento.open_service_count else 'jour civil' }}</h3>
           </div>
           <span class="owner-bento-revenue-icon" aria-hidden="true">↗</span>
         </div>
@@ -24,10 +24,15 @@
           <p class="owner-bento-revenue-note">Les monnaies différentes ne sont pas additionnées. Consultez le détail par bar ci-dessous.</p>
         {% else %}
           <p class="owner-bento-revenue-value mb-0">
-            {{ '{:,.0f}'.format(owner_bento.turnover_today)|replace(',', ' ') }}
+            {{ '{:,.0f}'.format(owner_bento.current_service_sales if owner_bento.open_service_count else owner_bento.turnover_today)|replace(',', ' ') }}
             <small>{{ owner_bento.currency_label }}</small>
           </p>
-          <p class="owner-bento-revenue-note">Ventes soldées, nettes des retours · tous les bars autorisés</p>
+          {% if owner_bento.open_service_count %}
+          <p class="owner-bento-revenue-note">{{ owner_bento.current_service_order_count }} commandes confirmées · {{ owner_bento.current_service_unpaid_count }} impayée(s) · depuis l'ouverture réelle des services, sans coupure à minuit.</p>
+          <p class="owner-bento-revenue-note mt-2">Ventes soldées du jour civil : <strong>{{ '{:,.0f}'.format(owner_bento.turnover_today)|replace(',', ' ') }} {{ owner_bento.currency_label }}</strong> (nettes des retours). Le graphique ci-dessous suit cette journée civile.</p>
+          {% else %}
+          <p class="owner-bento-revenue-note">Ventes soldées du jour civil, nettes des retours · aucun service de caisse ouvert.</p>
+          {% endif %>
         {% endif %}
         <div class="owner-bento-chart-area mt-4">
           {% if owner_bento.chart.labels %}
@@ -37,7 +42,7 @@
           {% endif %}
         </div>
         <div class="owner-bento-revenue-footer">
-          <span>7 derniers jours · journée locale de chaque bar</span>
+          <span>Graphique : 7 jours civils · ventes soldées par date locale</span>
           {% if active_bar %}
             <a href="#dashboard-kpis-title">Consulter le détail du bar sélectionné <span aria-hidden="true">↗</span></a>
           {% endif %}
@@ -102,8 +107,14 @@
                 </div>
               </div>
               <div class="owner-bento-venue-right">
+                {% if bar.service %}
+                <strong>{{ '{:,.0f}'.format(bar.service.sales)|replace(',', ' ') }}</strong>
+                <small>{{ bar.currency }} · service depuis {{ bar.service.started_label }}</small>
+                <small>Jour civil soldé : {{ '{:,.0f}'.format(bar.sales_today)|replace(',', ' ') }} {{ bar.currency }}</small>
+                {% else %}
                 <strong>{{ '{:,.0f}'.format(bar.sales_today)|replace(',', ' ') }}</strong>
-                <small>{{ bar.currency }} · aujourd'hui</small>
+                <small>{{ bar.currency }} · jour civil · service fermé</small>
+                {% endif %>
               </div>
             </a>
           {% else %}
