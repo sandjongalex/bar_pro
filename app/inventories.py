@@ -124,9 +124,9 @@ def payload(inv):
         )
     }
 
-    returns = inventory_service._returned_quantities(inv, [line.product_id for line, _ in rows]) if (
-        inv.status == "DRAFT" and period is not None
-    ) else {}
+    returns = inventory_service._returned_quantities(
+        inv, [line.product_id for line, _ in rows]
+    ) if period is not None else {}
     lines = []
     complete = True
     for line, product in rows:
