@@ -16,7 +16,7 @@ from app.order_services import order_service
 
 
 def edit_cashier_suborder(actor, bar_id, order_id, suborder_id, lines,
-                          *, expected_revision, reason=None):
+                          *, expected_revision, reason=None, return_disposition=None):
     permissions.require(actor, "orders.edit", bar_id)
     if actor.category == "EMPLOYEE":
         assignment = order_suborder_service._active_assignment(actor, bar_id)
@@ -76,6 +76,12 @@ def edit_cashier_suborder(actor, bar_id, order_id, suborder_id, lines,
     old_subtotal = Decimal(sub.subtotal_amount)
     old_total = Decimal(sub.total_amount)
     delivered = sub.delivery_status == "DELIVERED"
+    reduced = delivered and any(
+        targets.get(pid, Decimal(0)) < Decimal(line.quantity)
+        for pid, line in existing.items()
+    )
+    if reduced and return_disposition not in {"RESTOCK", "LOSS"}:
+        raise ValueError("RETURN_DISPOSITION_REQUIRED")
     new_products = {}
     proposed_subtotal = Decimal(0)
     for pid, qty in targets.items():
@@ -122,12 +128,20 @@ def edit_cashier_suborder(actor, bar_id, order_id, suborder_id, lines,
         diff = qty - old_qty
         if delivered and diff:
             product = new_products.get(pid)
+            reason_text = f"Correction sous-commande {sub.sequence_no} de {order.reference}: {(reason or 'Modification par la caisse').strip()}"
             stock_service.move(
                 actor, bar_id, pid, "SALE" if diff > 0 else "RETURN", -diff,
-                f"Correction sous-commande {sub.sequence_no} de {order.reference}",
+                (reason_text if diff > 0 or return_disposition == "RESTOCK"
+                 else "Crédit sans retour physique: " + reason_text),
                 unit_snapshot=line.unit_snapshot if line else product.base_unit,
                 unit_cost_snapshot=line.unit_cost_snapshot if line else product.valuation_unit_cost,
             )
+            if diff < 0 and return_disposition == "LOSS":
+                stock_service.move(
+                    actor, bar_id, pid, "LOSS", diff,
+                    "Boisson non restituée / consommée: " + reason_text,
+                    _nonrestocked_order_id=order.id,
+                )
         if line and qty == 0:
             db.session.delete(line)
         elif line and diff:
@@ -162,5 +176,6 @@ def edit_cashier_suborder(actor, bar_id, order_id, suborder_id, lines,
            changes=dict(order_id=order.id, sequence_no=sub.sequence_no,
                         status=sub.status, delivery_status=sub.delivery_status,
                         before=before, after=snapshot(current),
-                        total_before=str(old_total), total_after=str(proposed_total)))
+                        total_before=str(old_total), total_after=str(proposed_total),
+                        return_disposition=return_disposition if reduced else None))
     return sub
