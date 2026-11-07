@@ -109,7 +109,7 @@ def _message(code) -> str:
         "PAYMENT_LIMIT_EXCEEDED": "Le montant dépasse le reste à payer.",
         "INVALID_PAYMENT_AMOUNTS": "Vérifiez les montants saisis.",
         "INVALID_MIXED_PAYMENT": "Les parts espèces et Mobile Money doivent totaliser exactement le reste à payer.",
-        "PROVIDER_REFERENCE_REQUIRED": "Renseignez le prestataire et la référence Mobile Money.",
+        "PROVIDER_REFERENCE_REQUIRED": "Sélectionnez MTN Mobile Money ou Orange Money après avoir confirmé la réception.",
         "CUSTOMER_REQUIRED": "Sélectionnez un client pour une vente à crédit.",
         "CREDIT_DISABLED": "Les ventes à crédit sont désactivées.",
         "CASH_SESSION_REQUIRED": "Ouvrez d'abord votre session de caisse.",
@@ -507,9 +507,9 @@ def workspace(bar_id: int):
                 presented = _decimal(request.form.get("amount_presented"))
                 if presented < cash_part:
                     raise ValueError("INVALID_PAYMENT_AMOUNTS")
-                provider_code = (request.form.get("provider_code") or "").strip()
-                provider_transaction_id = (request.form.get("provider_transaction_id") or "").strip()
-                if not provider_code or not provider_transaction_id:
+                provider_code = (request.form.get("provider_code") or "").strip().upper()
+                provider_transaction_id = None  # No operator transaction ID entered.
+                if provider_code not in {"MTN", "ORANGE"}:
                     raise ValueError("PROVIDER_REFERENCE_REQUIRED")
                 cash_session_id, staff_assignment_id = _cash_destination(order, session)
                 cash_source = _receipt_source_label(bar_id)
@@ -589,9 +589,9 @@ def workspace(bar_id: int):
                 presented = applied
                 change = Decimal("0")
                 if method == "MOBILE_MONEY":
-                    provider_code = (request.form.get("provider_code") or "").strip()
-                    provider_transaction_id = (request.form.get("provider_transaction_id") or "").strip()
-                    if not provider_code or not provider_transaction_id:
+                    provider_code = (request.form.get("provider_code") or "").strip().upper()
+                    provider_transaction_id = None  # No operator transaction ID entered.
+                    if provider_code not in {"MTN", "ORANGE"}:
                         raise ValueError("PROVIDER_REFERENCE_REQUIRED")
 
             payment = payment_service.record(
