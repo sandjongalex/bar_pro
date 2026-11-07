@@ -354,6 +354,63 @@ def workspace(bar_id: int):
                 flash(message, "success")
                 return redirect(refresh_url)
 
+            if action == "close_prepaid":
+                if not order_id:
+                    raise LookupError("NOT_FOUND")
+                order = db.session.scalar(
+                    select(Order).where(
+                        Order.bar_id == bar_id,
+                        Order.id == order_id,
+                        Order.cashier_assignment_id == assignment.id,
+                    ).with_for_update()
+                )
+                if not order:
+                    raise LookupError("NOT_FOUND")
+                if order.closed_at is not None:
+                    raise ValueError("ORDER_ALREADY_FINALIZED")
+                voucher = db.session.scalar(
+                    select(ChangeVoucher).where(
+                        ChangeVoucher.bar_id == bar_id,
+                        ChangeVoucher.origin_order_id == order.id,
+                    ).with_for_update()
+                )
+                if voucher is None:
+                    raise ValueError("NOT_PREPAID_ORDER")
+                if Decimal(order_balance(order, locking=True)["amount_due"] or 0) > 0:
+                    raise ValueError("ORDER_NOT_SETTLED")
+                pending = db.session.scalar(
+                    select(OrderSuborder.id).where(
+                        OrderSuborder.bar_id == bar_id,
+                        OrderSuborder.order_id == order.id,
+                        or_(
+                            OrderSuborder.status == "PENDING_VALIDATION",
+                            OrderSuborder.delivery_status == "PENDING",
+                        ),
+                    ).limit(1)
+                )
+                if pending is not None:
+                    raise ValueError("ORDER_NOT_PAYABLE")
+                returned = Decimal(voucher.balance_amount or 0)
+                if returned > 0:
+                    change_voucher_service.refund_cash(
+                        current_user, bar_id, voucher.code, session.id,
+                        amount=returned,
+                    )
+                order.closed_at = utcnow()
+                db.session.commit()
+                message = (
+                    f"Commande clôturée · monnaie réellement rendue : "
+                    f"{returned:,.0f} {order.currency}. Facture terminée."
+                )
+                refresh_url = url_for("cashier_workspace_web.workspace", bar_id=bar_id)
+                if async_web:
+                    return web_json_response(
+                        data={"refresh_url": refresh_url, "prepaid_closed": True},
+                        message=message,
+                    )
+                flash(message, "success")
+                return redirect(refresh_url)
+
             if not order_id:
                 raise LookupError("NOT_FOUND")
 
@@ -589,13 +646,21 @@ def workspace(bar_id: int):
                 target["sale"] = 1
             return redirect(url_for("cashier_workspace_web.workspace", **target))
 
+    # A tab with a retained customer advance remains operationally OPEN even
+    # when the currently delivered products have a zero financial balance.
+    prepaid_ids = select(ChangeVoucher.origin_order_id).where(
+        ChangeVoucher.bar_id == bar_id
+    )
     active_orders = list(
         db.session.scalars(
             select(Order)
             .where(
                 Order.bar_id == bar_id,
                 Order.status.in_(["DRAFT", "CONFIRMED", "SERVED"]),
-                Order.payment_status.in_(["UNPAID", "PARTIAL"]),
+                or_(
+                    Order.payment_status.in_(["UNPAID", "PARTIAL"]),
+                    and_(Order.closed_at.is_(None), Order.id.in_(prepaid_ids)),
+                ),
                 or_(
                     Order.cashier_assignment_id == assignment.id,
                     and_(Order.cashier_assignment_id.is_(None), Order.status == "DRAFT"),
@@ -605,8 +670,29 @@ def workspace(bar_id: int):
             .limit(120)
         )
     )
+    prepaid_order_ids = set(db.session.scalars(
+        select(ChangeVoucher.origin_order_id).where(
+            ChangeVoucher.bar_id == bar_id,
+            ChangeVoucher.origin_order_id.in_([o.id for o in active_orders]),
+        )
+    ))
     waiting_orders = [item for item in active_orders if item.status == "DRAFT"]
-    payable_orders = [item for item in active_orders if item.status in {"CONFIRMED", "SERVED"}]
+    prepaid_orders = [
+        item for item in active_orders if item.id in prepaid_order_ids
+        and item.closed_at is None and item.payment_status == "PAID"
+    ]
+    payable_orders = [
+        item for item in active_orders
+        if item.status in {"CONFIRMED", "SERVED"} and item.payment_status != "PAID"
+    ]
+    prepaid_vouchers = {
+        item.origin_order_id: item for item in db.session.scalars(
+            select(ChangeVoucher).where(
+                ChangeVoucher.bar_id == bar_id,
+                ChangeVoucher.origin_order_id.in_(list(prepaid_order_ids)),
+            )
+        )
+    } if prepaid_order_ids else {}
 
     selected_order = None
     selected_id = request.args.get("order_id", type=int)
@@ -616,6 +702,8 @@ def workspace(bar_id: int):
         selected_order = payable_orders[0]
     if selected_order is None and waiting_orders:
         selected_order = waiting_orders[0]
+    if selected_order is None and prepaid_orders:
+        selected_order = prepaid_orders[0]
 
     order_ids = [item.id for item in active_orders]
     lines_by_order = effective_lines_by_order(bar_id, order_ids)
@@ -695,6 +783,8 @@ def workspace(bar_id: int):
         session=session,
         waiting_orders=waiting_orders,
         payable_orders=payable_orders,
+        prepaid_orders=prepaid_orders,
+        prepaid_vouchers=prepaid_vouchers,
         selected_order=selected_order,
         selected_server_assignment=selected_server_assignment,
         lines_by_order=lines_by_order,
