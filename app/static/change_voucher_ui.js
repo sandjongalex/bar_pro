@@ -102,7 +102,10 @@
       .change-voucher-warning{font-size:.68rem;line-height:1.35;padding:8px 9px;border-radius:9px;background:#fff4dd;color:#78540b}.change-voucher-client .form-label{font-size:.69rem;margin-bottom:4px}
       @media(max-width:480px){.change-voucher-client .col-7,.change-voucher-client .col-5{width:100%}}
     `;
-    document.head.appendChild(style);
+    if (!document.getElementById('bpVoucherPaymentStyles')) {
+      style.id = 'bpVoucherPaymentStyles';
+      document.head.appendChild(style);
+    }
 
     function method() {
       return form.querySelector('input[name="method"]:checked')?.value || 'CASH';

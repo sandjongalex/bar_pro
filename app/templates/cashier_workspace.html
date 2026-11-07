@@ -503,6 +503,7 @@
     if (newSaleChangeGiven) {
       newSaleChangeGiven.max = String(change);
       newSaleChangeGiven.disabled = !voucherMode;
+      newSaleChangeGiven.required = voucherMode;
     }
     const returned = voucherMode ? Number(newSaleChangeGiven?.value || 0) : 0;
     const validReturn = !voucherMode || (
@@ -522,7 +523,9 @@
           : !validReturn
             ? 'La monnaie réellement rendue ne doit pas dépasser la monnaie due.'
           : amount > counterTotal && voucherMode
-            ? 'Après validation : vente terminée · bon de '+money(change-returned)+' '+currency+' créé pour le client.'
+            ? (change > returned
+              ? 'Après validation : vente terminée · bon de '+money(change-returned)+' '+currency+' créé pour le client.'
+              : 'Après validation : vente terminée · monnaie intégralement rendue.')
           : amount > counterTotal
             ? 'Après validation : COMMANDE EN COURS · avance de '+money(amount-counterTotal)+' '+currency+' conservée pour les ajouts. La monnaie sera rendue à la clôture.'
             : rest === 0
@@ -532,7 +535,9 @@
     saleSubmit.textContent = !hasTender
       ? 'Créer la facture sans paiement'
       : amount > counterTotal && voucherMode
-        ? 'Valider la vente · bon '+money(Math.max(0,change-returned))+' '+currency
+        ? (change > returned
+          ? 'Valider la vente · bon '+money(Math.max(0,change-returned))+' '+currency
+          : 'Valider la vente · monnaie rendue')
       : amount > counterTotal
         ? 'Enregistrer l’avance · commande ouverte'
         : rest === 0

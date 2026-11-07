@@ -79,6 +79,8 @@ def test_inline_client_cash_records_actual_tender_change_and_drawer_only(env):
     ))
     assert voucher is not None
     assert Decimal(voucher.balance_amount) == Decimal("400")
+    from app.change_voucher_service import change_voucher_liability
+    assert change_voucher_liability(bar.id)["amount"] == Decimal("0")  # AV- is not a portable BM-
     assert Decimal(cash_service.expected(session)) == 2000
 
     duplicate = client.post(url, data=payload, headers=_async_headers(csrf))

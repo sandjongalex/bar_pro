@@ -144,6 +144,8 @@ def test_change_voucher_ui_and_registration_are_present():
     assert "Bon de monnaie à créer" in script
     assert "change-vouchers/pay" not in script  # URL is assembled from the cashier bar base.
     assert "form.setAttribute('action', base + 'pay')" in script
+    assert "form.removeAttribute('data-bp-ajax')" in script
+    assert "document.addEventListener('cashier:refresh'" in script
     assert "change_voucher_ui.js" in layout
     assert "change_vouchers_web_bp" in app_factory
     assert "Utiliser un bon sur une facture" in template

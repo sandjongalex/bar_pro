@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
 import secrets
 
-from flask import Blueprint, flash, redirect, render_template, request, url_for
+from flask import Blueprint, flash, make_response, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
 from sqlalchemy import or_, select
 from sqlalchemy.exc import IntegrityError
@@ -366,7 +366,7 @@ def print_voucher(bar_id: int, voucher_id: int):
             .order_by(ChangeVoucherTransaction.id)
         )
     )
-    return render_template(
+    response = make_response(render_template(
         "change_voucher_print.html",
         bar=bar,
         voucher=voucher,
@@ -375,4 +375,6 @@ def print_voucher(bar_id: int, voucher_id: int):
         transactions=transactions,
         rawbt_intent=rawbt_change_voucher_intent(bar, voucher, issuer, transactions),
         is_advance=voucher.code.startswith("AV-"),
-    )
+    ))
+    response.headers["Cache-Control"] = "private, no-store"
+    return response
