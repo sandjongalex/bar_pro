@@ -8,6 +8,8 @@ from sqlalchemy import func, select
 from app.audit import record
 from app.extensions import db
 from app.finance_totals import order_balance
+from app.change_voucher_models import ChangeVoucher
+from app.change_voucher_service import change_voucher_service
 from app.models import Order, Product, StaffAssignment, StockBalance, utcnow
 from app.order_suborder_models import OrderSuborder, OrderSuborderLine
 from app.permissions import permissions
@@ -16,6 +18,31 @@ from app.validation import number, required_text
 
 
 class OrderSuborderService:
+    @staticmethod
+    def _prepaid_voucher(order: Order, *, positive_balance: bool = False):
+        """A cashier's prepaid tab can accept new products until final closing."""
+        if order.closed_at is not None or order.assigned_staff_id is not None:
+            return None
+        stmt = select(ChangeVoucher).where(
+            ChangeVoucher.bar_id == order.bar_id,
+            ChangeVoucher.origin_order_id == order.id,
+        )
+        if positive_balance:
+            stmt = stmt.where(ChangeVoucher.balance_amount > 0)
+        return db.session.scalar(stmt.with_for_update())
+
+    def _apply_prepaid_advance(self, actor, order: Order) -> None:
+        """Apply held cash to a new round without charging the drawer twice."""
+        voucher = self._prepaid_voucher(order, positive_balance=True)
+        if voucher is None:
+            return
+        due = Decimal(order_balance(order, locking=True)["amount_due"] or 0)
+        if due > 0:
+            change_voucher_service.redeem(
+                actor, order.bar_id, voucher.code, order.id,
+                amount=min(due, Decimal(voucher.balance_amount)),
+            )
+
     def _active_assignment(self, actor, bar_id: int):
         if actor.category != "EMPLOYEE":
             return None
@@ -150,7 +177,9 @@ class OrderSuborderService:
             raise LookupError("NOT_FOUND")
         if order.status not in {"DRAFT", "CONFIRMED", "SERVED"}:
             raise ValueError("ORDER_NOT_EDITABLE")
-        if order.payment_status == "PAID":
+        if order.closed_at is not None or (
+            order.payment_status == "PAID" and self._prepaid_voucher(order) is None
+        ):
             raise ValueError("ORDER_PAID")
         if assignment and assignment.role == "CASHIER":
             if order.cashier_assignment_id != assignment.id:
@@ -234,7 +263,8 @@ class OrderSuborderService:
             order.total_amount = number(
                 Decimal(order.total_amount) + Decimal(suborder.total_amount)
             )
-            order_balance(order, update=True)
+            order_balance(order, update=True, locking=True)
+            self._apply_prepaid_advance(actor, order)
 
         record(
             actor,
