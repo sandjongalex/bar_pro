@@ -284,6 +284,7 @@ def workspace(bar_id: int):
                         change_voucher_service.issue(
                             current_user, bar_id, payment.id, advance,
                             customer_name=order.customer_name_snapshot,
+                            customer_advance=True,
                         )
                         if advance > 0 else None
                     )
@@ -395,6 +396,7 @@ def workspace(bar_id: int):
                     change_voucher_service.refund_cash(
                         current_user, bar_id, voucher.code, session.id,
                         amount=returned,
+                        at_order_close=True,
                     )
                 order.closed_at = utcnow()
                 db.session.commit()
@@ -611,6 +613,7 @@ def workspace(bar_id: int):
                 change_voucher_service.issue(
                     current_user, bar_id, payment.id, advance_amount,
                     customer_name=order.customer_name_snapshot,
+                    customer_advance=True,
                 )
                 if advance_amount > 0 else None
             )
