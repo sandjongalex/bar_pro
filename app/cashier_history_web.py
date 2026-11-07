@@ -193,7 +193,11 @@ def history(bar_id: int):
                 "order_label": invoice_name or table_label or "COMPTOIR",
                 "server": server_names.get(assigned_staff_id, "Sans serveuse"),
                 "method": payment.method,
-                "method_label": PAYMENT_LABELS.get(payment.method, payment.method),
+                "method_label": (
+                    PAYMENT_LABELS.get(payment.method, payment.method)
+                    + (" · " + ("MTN Mobile Money" if payment.provider_code == "MTN" else "Orange Money" if payment.provider_code == "ORANGE" else str(payment.provider_code))
+                       if payment.method == "MOBILE_MONEY" and payment.provider_code else "")
+                ),
                 "amount": Decimal(payment.amount_applied or 0),
                 "currency": payment.currency,
                 "recorded_by": actor_names.get(payment.recorded_by_id, "—"),
