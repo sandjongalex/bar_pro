@@ -182,8 +182,29 @@
             </select>
           </div>
           <div class="cashier-tender-recap" aria-live="polite">
-            <div><span>Avance conservée (non rendue)</span><strong data-cashier-tender-change>0 {{ bar.currency }}</strong></div>
+            <div><span id="cashierSurplusLabel">Avance conservée (non rendue)</span><strong data-cashier-tender-change>0 {{ bar.currency }}</strong></div>
             <div><span>Reste à payer</span><strong data-cashier-tender-remaining>0 {{ bar.currency }}</strong></div>
+          </div>
+          <div id="cashierSurplusOptions" class="mt-2" hidden>
+            <label class="form-label fw-bold" for="cashierSurplusAction">Le client a remis plus que le total :</label>
+            <select id="cashierSurplusAction" class="form-select" name="cash_surplus_action">
+              <option value="ADVANCE">Conserver l'avance · commande encore ouverte</option>
+              <option value="CHANGE_VOUCHER">Client part · émettre un bon de monnaie</option>
+            </select>
+            <div id="cashierChangeVoucherDetails" class="mt-2" hidden>
+              <label class="form-label" for="cashierNewSaleChangeGiven">Monnaie réellement rendue au client</label>
+              <div class="input-group">
+                <input id="cashierNewSaleChangeGiven" class="form-control" name="cash_actual_change"
+                       type="number" min="0" step="{{ '1' if bar.currency in ['XAF', 'XOF'] else '0.01' }}"
+                       value="0" inputmode="decimal">
+                <span class="input-group-text">{{ bar.currency }}</span>
+              </div>
+              <div class="row g-2 mt-1">
+                <div class="col-sm-6"><label class="form-label" for="cashierVoucherName">Nom du client (facultatif)</label><input class="form-control" id="cashierVoucherName" name="voucher_customer_name" maxlength="160" autocomplete="off"></div>
+                <div class="col-sm-6"><label class="form-label" for="cashierVoucherPhone">Téléphone (facultatif)</label><input class="form-control" id="cashierVoucherPhone" name="voucher_customer_phone" maxlength="32" inputmode="tel" autocomplete="off"></div>
+              </div>
+              <p class="small text-secondary mt-2 mb-0">Le reste non rendu sera imprimé sur un bon de monnaie, et non comptabilisé comme une nouvelle vente.</p>
+            </div>
           </div>
           <div class="form-text mt-2 fw-bold" id="cashierTenderStatus" role="status" aria-live="polite">Après validation : à encaisser (aucun paiement saisi).</div>
           <div class="form-text mt-2">Une remise d'argent déjà encaissé par une serveuse se traite dans « Remises », sans refaire un paiement.</div>
@@ -453,6 +474,11 @@
   const tenderChange = document.querySelector('[data-cashier-tender-change]');
   const tenderRemaining = document.querySelector('[data-cashier-tender-remaining]');
   const tenderStatus = document.getElementById('cashierTenderStatus');
+  const surplusOptions = document.getElementById('cashierSurplusOptions');
+  const surplusChoice = document.getElementById('cashierSurplusAction');
+  const voucherDetails = document.getElementById('cashierChangeVoucherDetails');
+  const newSaleChangeGiven = document.getElementById('cashierNewSaleChangeGiven');
+  const surplusLabel = document.getElementById('cashierSurplusLabel');
   let counterTotal = 0;
   const cartJump = document.getElementById('cashierCartJump');
   const cartJumpCount = document.getElementById('cashierCartJumpCount');
@@ -471,15 +497,32 @@
     const received = validMoney && hasTender ? amount : 0;
     const settled = Math.min(received, counterTotal);
     const change = Math.max(0, received-counterTotal);
-    if (tenderChange) tenderChange.textContent = money(change) + ' ' + currency;
+    const voucherMode = validMoney && hasTender && change > 0 && surplusChoice?.value === 'CHANGE_VOUCHER';
+    if (surplusOptions) surplusOptions.hidden = !hasTender || change <= 0;
+    if (voucherDetails) voucherDetails.hidden = !voucherMode;
+    if (newSaleChangeGiven) {
+      newSaleChangeGiven.max = String(change);
+      newSaleChangeGiven.disabled = !voucherMode;
+    }
+    const returned = voucherMode ? Number(newSaleChangeGiven?.value || 0) : 0;
+    const validReturn = !voucherMode || (
+      Number.isFinite(returned) && returned >= 0 && returned <= change
+      && !!newSaleChangeGiven?.checkValidity()
+    );
+    if (tenderChange) tenderChange.textContent = money(voucherMode ? Math.max(0, change-returned) : change) + ' ' + currency;
+    if (surplusLabel) surplusLabel.textContent = voucherMode ? 'Bon de monnaie à émettre' : 'Avance conservée (non rendue)';
     const rest = Math.max(0,counterTotal-settled);
     if (tenderRemaining) tenderRemaining.textContent = money(rest) + ' ' + currency;
-    saleSubmit.disabled = cart.size === 0 || !validMoney || !sourceValid || (hasTender && counterTotal<=0);
+    saleSubmit.disabled = cart.size === 0 || !validMoney || !sourceValid || !validReturn || (hasTender && counterTotal<=0);
     if (tenderStatus) {
       tenderStatus.textContent = !hasTender
         ? 'Après validation : À ENCAISSER (sans paiement).'
         : !validMoney || !sourceValid
           ? 'Corrigez le montant remis ou la personne qui remet les espèces.'
+          : !validReturn
+            ? 'La monnaie réellement rendue ne doit pas dépasser la monnaie due.'
+          : amount > counterTotal && voucherMode
+            ? 'Après validation : vente terminée · bon de '+money(change-returned)+' '+currency+' créé pour le client.'
           : amount > counterTotal
             ? 'Après validation : COMMANDE EN COURS · avance de '+money(amount-counterTotal)+' '+currency+' conservée pour les ajouts. La monnaie sera rendue à la clôture.'
             : rest === 0
@@ -488,6 +531,8 @@
     }
     saleSubmit.textContent = !hasTender
       ? 'Créer la facture sans paiement'
+      : amount > counterTotal && voucherMode
+        ? 'Valider la vente · bon '+money(Math.max(0,change-returned))+' '+currency
       : amount > counterTotal
         ? 'Enregistrer l’avance · commande ouverte'
         : rest === 0
@@ -495,6 +540,8 @@
           : 'Enregistrer ' + money(settled) + ' ' + currency + ' · reste ' + money(rest) + ' ' + currency;
   }
   tenderInput?.addEventListener('input', updateTenderPreview);
+  surplusChoice?.addEventListener('change', updateTenderPreview);
+  newSaleChangeGiven?.addEventListener('input', updateTenderPreview);
   tenderSource?.addEventListener('change', updateTenderPreview);
   tenderServer?.addEventListener('change', updateTenderPreview);
   function renderCart(){
@@ -698,7 +745,10 @@
       const feedback=document.getElementById('cashierLastTenderReceipt');
       if (feedback && data.cash_summary) {
         const summary=data.cash_summary;
-        feedback.textContent=summary.order_open
+        feedback.textContent=summary.voucher_code
+          ? 'VENTE TERMINÉE · bon de monnaie '+summary.voucher_code+' de '+money(Number(summary.voucher_balance))+' '+currency+
+            ' à imprimer pour le client.'
+          : summary.order_open
           ? 'COMMANDE EN COURS · '+money(Number(summary.amount_presented))+' '+currency+
             ' reçus · '+money(Number(summary.amount_applied))+' '+currency+
             ' consommés · avance '+money(Number(summary.advance_balance))+' '+currency+
@@ -719,6 +769,16 @@
           receiptLink.textContent = 'Imprimer le reçu';
           feedback.appendChild(receiptLink);
         }
+        if (summary.voucher_url) {
+          const voucherLink = document.createElement('a');
+          voucherLink.href = summary.voucher_url;
+          voucherLink.target = '_blank';
+          voucherLink.rel = 'noopener';
+          voucherLink.className = 'btn btn-sm btn-success ms-2 mt-2';
+          voucherLink.dataset.lastSaleVoucherPrint = String(paidOrderId);
+          voucherLink.textContent = 'Imprimer le bon de monnaie';
+          feedback.appendChild(voucherLink);
+        }
         feedback.hidden=false;
       } else if (feedback) feedback.hidden=true;
       // A successful sale starts a completely new invoice. Keep the fields
@@ -732,6 +792,12 @@
       if(notesSection)notesSection.open=false;
       cart.clear();
       if(tenderInput)tenderInput.value='';
+      if(surplusChoice)surplusChoice.value='ADVANCE';
+      if(newSaleChangeGiven)newSaleChangeGiven.value='0';
+      const voucherName=document.getElementById('cashierVoucherName');
+      const voucherPhone=document.getElementById('cashierVoucherPhone');
+      if(voucherName)voucherName.value='';
+      if(voucherPhone)voucherPhone.value='';
       if(tenderSource)tenderSource.value='CLIENT';
       if(tenderServer)tenderServer.value='';
       renderCart();

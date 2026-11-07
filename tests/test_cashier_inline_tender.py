@@ -464,3 +464,63 @@ def test_cashier_can_issue_printable_change_voucher_without_double_payment(env):
     )) == 1
     assert change_voucher_liability(bar.id)["amount"] == Decimal("1000")
     assert cash_service.expected(session) == Decimal("5800")
+
+
+def test_cashier_counter_sale_can_finish_with_portable_change_voucher(env):
+    app, _, bar, _, product, *_ = env
+    client, session, csrf = _cashier_client(env)
+    product.sale_price = Decimal("3800")
+    db.session.commit()
+    url = f"/bars/{bar.id}/cashier/workspace"
+    saved = client.post(url, data={
+        "csrf_token": csrf, "action": "create_sale",
+        "reference": "COUNTER-BM-FINAL",
+        "product_id": str(product.id), "quantity": "1",
+        "cash_presented": "5000", "cash_receipt_source": "CLIENT",
+        "cash_surplus_action": "CHANGE_VOUCHER",
+        "cash_actual_change": "200",
+        "voucher_customer_name": "Client Test",
+    }, headers=_async_headers(csrf))
+    assert saved.status_code == 200, saved.text
+    summary = saved.json["data"]["cash_summary"]
+    assert summary["order_open"] is False
+    assert summary["advance_code"] is None
+    assert summary["voucher_code"].startswith("BM-")
+    assert summary["voucher_balance"] == "1000"
+    assert summary["voucher_url"].endswith("/print")
+    assert summary["change_given"] == "200"
+    order = db.session.scalar(select(Order).where(
+        Order.bar_id == bar.id, Order.reference == "COUNTER-BM-FINAL"
+    ))
+    assert order.payment_status == "PAID"
+    assert order.closed_at is not None
+    voucher = db.session.scalar(select(ChangeVoucher).where(
+        ChangeVoucher.bar_id == bar.id, ChangeVoucher.origin_order_id == order.id,
+    ))
+    assert voucher.code.startswith("BM-")
+    assert voucher.customer_name == "Client Test"
+    assert voucher.balance_amount == Decimal("1000")
+    assert cash_service.expected(session) == Decimal("5800")
+    response = client.get(summary["voucher_url"])
+    assert response.status_code == 200
+    assert "BON DE MONNAIE" in response.text
+
+
+def test_counter_sale_invalid_change_never_creates_payment_or_voucher(env):
+    app, _, bar, _, product, *_ = env
+    client, session, csrf = _cashier_client(env)
+    product.sale_price = Decimal("3800")
+    db.session.commit()
+    result = client.post(f"/bars/{bar.id}/cashier/workspace", data={
+        "csrf_token": csrf, "action": "create_sale",
+        "reference": "COUNTER-BM-INVALID",
+        "product_id": str(product.id), "quantity": "1",
+        "cash_presented": "5000", "cash_receipt_source": "CLIENT",
+        "cash_surplus_action": "CHANGE_VOUCHER",
+        "cash_actual_change": "1300",
+    }, headers=_async_headers(csrf))
+    assert result.status_code == 422
+    assert db.session.scalar(select(Order.id).where(
+        Order.bar_id == bar.id, Order.reference == "COUNTER-BM-INVALID"
+    )) is None
+    assert cash_service.expected(session) == Decimal("1000")

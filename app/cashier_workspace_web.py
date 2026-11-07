@@ -268,26 +268,46 @@ def workspace(bar_id: int):
                     if due <= 0:
                         raise ValueError("INVALID_PAYMENT_AMOUNTS")
                     applied = min(received, due)
-                    # Excess notes are a *customer advance*, NOT returned change.
-                    # Record the whole physical receipt in the cash drawer using
-                    # the existing persisted change-voucher liability.
-                    advance = max(Decimal("0"), received - due)
-                    change = Decimal("0")
+                    surplus = max(Decimal("0"), received - due)
+                    surplus_action = (request.form.get("cash_surplus_action") or "ADVANCE").strip().upper()
+                    if surplus_action not in {"ADVANCE", "CHANGE_VOUCHER"}:
+                        raise ValueError("INVALID_SURPLUS_ACTION")
+                    # Only an explicit choice can create a portable BM- bon.
+                    # Default remains AV- for a customer still consuming.
+                    make_change_voucher = surplus > 0 and surplus_action == "CHANGE_VOUCHER"
+                    if make_change_voucher:
+                        change = number(
+                            request.form.get("cash_actual_change", "0"),
+                            scale=0 if order.currency in {"XAF", "XOF"} else 2,
+                        )
+                        if change < 0 or change > surplus:
+                            raise ValueError("INVALID_ACTUAL_CHANGE")
+                    else:
+                        change = Decimal("0")
+                    retained = surplus - change
                     payment = payment_service.record(
                         current_user, bar_id, order.id, _reference("PAY"), "CASH",
                         received, applied, change,
                         cash_session_id=session.id,
                         cash_received_from=cash_source,
-                        voucher_amount=advance,
+                        voucher_amount=retained,
                     )
                     voucher = (
                         change_voucher_service.issue(
-                            current_user, bar_id, payment.id, advance,
-                            customer_name=order.customer_name_snapshot,
-                            customer_advance=True,
+                            current_user, bar_id, payment.id, retained,
+                            customer_name=(
+                                request.form.get("voucher_customer_name")
+                                or order.customer_name_snapshot
+                            ),
+                            customer_phone=request.form.get("voucher_customer_phone"),
+                            customer_advance=not make_change_voucher,
                         )
-                        if advance > 0 else None
+                        if retained > 0 else None
                     )
+                    if make_change_voucher:
+                        # The customer is leaving, so this sale must not stay
+                        # open and no AV- advance is issued for the same money.
+                        order.closed_at = utcnow()
                     # Locking totals see the payment inserted in this transaction.
                     # The queue filters on the persisted payment_status, not on
                     # the amount entered into the UI.
@@ -304,19 +324,28 @@ def workspace(bar_id: int):
                         "source": cash_source,
                         "currency": order.currency,
                         "payment_status": order.payment_status,
-                        "advance_balance": format(advance.normalize(), "f"),
-                        "advance_code": voucher.code if voucher else None,
-                        "order_open": bool(voucher),
+                        "advance_balance": format(retained.normalize(), "f") if not make_change_voucher else "0",
+                        "advance_code": voucher.code if voucher and not make_change_voucher else None,
+                        "order_open": bool(voucher and not make_change_voucher),
+                        "voucher_code": voucher.code if voucher and make_change_voucher else None,
+                        "voucher_balance": format(retained.normalize(), "f") if voucher and make_change_voucher else "0",
+                        "voucher_url": url_for("change_vouchers_web.print_voucher", bar_id=bar_id, voucher_id=voucher.id) if voucher and make_change_voucher else None,
                     }
                 else:
                     remaining = due
                     order_balance(order, update=True, locking=True)
                 db.session.commit()
-                if payment_data and payment_data["order_open"]:
+                if payment_data and payment_data.get("voucher_code"):
+                    message = (
+                        f"Vente terminée · monnaie réellement rendue : {change:,.0f} {order.currency} · "
+                        f"bon de monnaie {voucher.code} de {retained:,.0f} {order.currency}. "
+                        "Imprimez le bon pour le client."
+                    )
+                elif payment_data and payment_data["order_open"]:
                     message = (
                         f"Commande EN COURS · {received:,.0f} {order.currency} reçus "
                         f"(remis par {cash_source}) ; {applied:,.0f} consommés ; "
-                        f"avance conservée : {advance:,.0f} {order.currency} (bon {voucher.code}). "
+                        f"avance conservée : {retained:,.0f} {order.currency} (bon {voucher.code}). "
                         "Ajoutez les consommations puis clôturez pour rendre le reliquat."
                     )
                 elif payment_data and order.payment_status == "PAID":
