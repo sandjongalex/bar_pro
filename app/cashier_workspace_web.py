@@ -120,6 +120,7 @@ def _message(code) -> str:
         "INVALID_NUMBER": "Montant remis invalide.",
         "INVALID_PRECISION": "Le montant remis doit respecter l'unité monétaire du bar.",
         "POSITIVE_NUMBER_REQUIRED": "Le montant remis doit être supérieur à zéro.",
+        "PAYMENT_STATE_MISMATCH": "Le solde et le statut de la facture ne correspondent pas. Aucune vente n'a été confirmée : vérifiez et réessayez.",
     }
     return messages.get(str(code), "Opération refusée. Vérifiez les informations saisies.")
 
@@ -268,7 +269,14 @@ def workspace(bar_id: int):
                         cash_session_id=session.id,
                         cash_received_from=cash_source,
                     )
-                    remaining = Decimal(order_balance(order)["amount_due"] or 0)
+                    # Locking totals see the payment inserted in this transaction.
+                    # The queue filters on the persisted payment_status, not on
+                    # the amount entered into the UI.
+                    new_balance = order_balance(order, update=True, locking=True)
+                    remaining = Decimal(new_balance["amount_due"] or 0)
+                    expected_status = "PAID" if applied == due else "PARTIAL"
+                    if order.payment_status != expected_status or remaining != due - applied:
+                        raise ValueError("PAYMENT_STATE_MISMATCH")
                     payment_data = {
                         "amount_presented": format(received.normalize(), "f"),
                         "amount_applied": format(applied.normalize(), "f"),
@@ -276,15 +284,23 @@ def workspace(bar_id: int):
                         "remaining": format(remaining.normalize(), "f"),
                         "source": cash_source,
                         "currency": order.currency,
+                        "payment_status": order.payment_status,
                     }
                 else:
                     remaining = due
+                    order_balance(order, update=True, locking=True)
                 db.session.commit()
-                if payment_data:
+                if payment_data and order.payment_status == "PAID":
                     message = (
-                        f"Vente enregistrée · {payment_data['amount_applied']} {order.currency} encaissés "
+                        f"Facture PAYÉE · {payment_data['amount_applied']} {order.currency} encaissés "
                         f"(remis par {cash_source}). "
                         f"Monnaie à rendre : {payment_data['change_given']} {order.currency}. "
+                        "Aucun autre encaissement nécessaire."
+                    )
+                elif payment_data:
+                    message = (
+                        f"Facture PARTIELLEMENT PAYÉE · {payment_data['amount_applied']} {order.currency} encaissés "
+                        f"(remis par {cash_source}). "
                         f"Reste à payer : {payment_data['remaining']} {order.currency}."
                     )
                 else:
@@ -300,6 +316,8 @@ def workspace(bar_id: int):
                             "reset_cart": True,
                             "close_sale_panel": True,
                             "cash_summary": payment_data,
+                            "payment_status": order.payment_status,
+                            "order_id": order.id,
                         },
                         message=message,
                     )
