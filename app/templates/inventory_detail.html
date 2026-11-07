@@ -30,7 +30,7 @@
 <section class="inventory-stats mt-4">
   <article><span>Fin de période</span><strong>{{ inventory.period_end_at[:10] if inventory.period_end_at else 'Ancien inventaire' }}</strong><small>{% if inventory.period_start_at %}Depuis {{ inventory.period_start_at[:10] }}{% else %}Première période{% endif %}</small></article>
   <article><span>Produits</span><strong>{{ inventory.lines|length }}</strong><small>Références à compter</small></article>
-  <article><span>Ventes estimées sur les produits comptés</span><strong id="salesHeader">{{ "{:,.0f}".format(inventory.theoretical_sales_amount|float) }} {{ bar.currency }}</strong><small>Stock théorique − physique</small></article>
+  <article><span>Ventes estimées sur les produits comptés</span><strong id="salesHeader">{{ "{:,.0f}".format(inventory.theoretical_sales_amount|float) }} {{ bar.currency }}</strong><small>Stock théorique − physique − retours clients</small></article>
   <article><span>Comptage</span><strong id="countProgress">{{ inventory.lines|selectattr('physical_quantity','ne',none)|list|length }}/{{ inventory.lines|length }}</strong><small>Vide = non compté</small></article>
 </section>
 
@@ -47,7 +47,7 @@
         <thead><tr><th>Produit</th><th>Dernier inventaire</th><th>Achats</th><th title="Ajustements manuels, pertes/casses et retours">Mouvements hors ventes</th><th>Stock théorique</th><th>Stock machine</th><th>Stock physique réel</th><th>Qté vendue</th><th>Montant ventes</th><th>Écart machine</th><th>Note</th></tr></thead>
         <tbody>
         {% for line in inventory.lines %}
-          <tr class="inventory-line" data-theoretical="{{ line.theoretical_quantity|inventory_qty }}" data-machine="{{ line.machine_quantity|inventory_qty }}" data-price="{{ line.sale_price }}">
+          <tr class="inventory-line" data-theoretical="{{ line.theoretical_quantity|inventory_qty }}" data-returns="{{ line.return_quantity|inventory_qty }}" data-machine="{{ line.machine_quantity|inventory_qty }}" data-price="{{ line.sale_price }}">
             <td data-label="Produit"><div class="inventory-item-heading"><div class="inventory-item-title"><strong>{{ line.product_name }}</strong><small class="d-block text-secondary">{{ line.sku }} · {{ line.unit }} · {{ "{:,.0f}".format(line.sale_price|float) }} {{ bar.currency }}</small></div><button class="btn btn-sm btn-outline-secondary inventory-details-toggle" type="button" aria-expanded="false" aria-label="Afficher les détails de {{ line.product_name }}">Détails <span aria-hidden="true">⌄</span></button></div></td>
             <td data-label="Dernier inventaire">{{ line.opening_quantity|inventory_qty }}</td>
             <td data-label="Achats" class="text-primary fw-semibold">+{{ line.purchase_quantity|inventory_qty }}</td>
@@ -156,6 +156,7 @@
       const physical = Number(raw);
       const theoretical = Number(row.dataset.theoretical);
       const machine = Number(row.dataset.machine);
+      const returns = Number(row.dataset.returns || 0);
       const price = Number(row.dataset.price);
       const valid = raw !== '' && input.checkValidity()
         && Number.isFinite(physical) && physical >= 0
@@ -170,7 +171,7 @@
         return;
       }
       counted++;
-      const sold = theoretical - physical;
+      const sold = theoretical - physical - returns;
       const sales = sold * price;
       const gap = physical - machine;
       total += sales;
