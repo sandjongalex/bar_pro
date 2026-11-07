@@ -91,7 +91,7 @@
                         data-origin-product="{{ line.product_name }}"
                         data-origin-url="{{ url_for('inventories.detail',bar_id=bar_id,inventory_id=inventory.id) ~ '/movements/' ~ line.product_id }}"
                         aria-label="Voir l'origine des mouvements hors ventes pour {{ line.product_name }}">Voir l'origine</button>
-                {% endif %></td>
+                {% endif %}</td>
         <td data-label="Stock théorique"><strong>{{ line.theoretical_quantity|inventory_qty }}</strong></td>
         <td data-label="Stock machine"><span class="inventory-machine">{{ line.machine_quantity|inventory_qty }}</span></td>
         <td data-label="Stock physique réel">
