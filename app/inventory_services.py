@@ -175,6 +175,35 @@ class InventoryService:
                 query = query.where(StockMovement.movement_type == movement_type)
         return Decimal(db.session.scalar(query) or 0)
 
+    def _returned_quantities(self, inv, product_ids):
+        """Posted order credits in the inventory period, grouped by product.
+
+        RETURN is a physical stock increase but reverses a prior SALE. It must
+        not be charged as an additional bottle sold by physical reconciliation.
+        The period boundary is frozen when the inventory is created.
+        """
+        if not product_ids:
+            return {}
+        period = db.session.scalar(
+            select(InventoryPeriodSnapshot).where(
+                InventoryPeriodSnapshot.bar_id == inv.bar_id,
+                InventoryPeriodSnapshot.inventory_id == inv.id,
+            )
+        )
+        if period is None:
+            raise ValueError("INVENTORY_PERIOD_DATA_MISSING")
+        rows = db.session.execute(
+            select(StockMovement.product_id, func.sum(StockMovement.quantity_delta))
+            .where(
+                StockMovement.bar_id == inv.bar_id,
+                StockMovement.product_id.in_(product_ids),
+                StockMovement.movement_type == "RETURN",
+                *_in_period(StockMovement.occurred_at, period.period_start_at, period.period_end_at),
+            )
+            .group_by(StockMovement.product_id)
+        ).all()
+        return {product_id: Decimal(amount) for product_id, amount in rows}
+
     @staticmethod
     def _latest_stock_movement_cursor(bar_id):
         # MySQL REPEATABLE READ can retain a stale snapshot if normal reads
@@ -471,6 +500,7 @@ class InventoryService:
         count_checkpoint = (
             self._latest_stock_movement_cursor(bar_id) if attribution is not None else None
         )
+        returned_quantities = self._returned_quantities(inv, list(lines))
         values = {}
         for key, raw in quantities.items():
             product_id = product_identifier(key)
@@ -492,7 +522,8 @@ class InventoryService:
                 snap.theoretical_sold_quantity = ZERO
                 snap.theoretical_sales_amount = ZERO
             else:
-                sold = Decimal(snap.theoretical_quantity) - value
+                sold = (Decimal(snap.theoretical_quantity) - value
+                        - returned_quantities.get(product_id, ZERO))
                 snap.theoretical_sold_quantity = sold
                 snap.theoretical_sales_amount = _money(sold * Decimal(snap.sale_price_snapshot))
             if str(product_id) in notes:
@@ -857,10 +888,12 @@ class InventoryService:
             if balance is None or balance.version != line.balance_version_snapshot:
                 raise ValueError("INVENTORY_STALE")
 
+        returned_quantities = self._returned_quantities(inv, [line.product_id for line in lines])
         theoretical_sales = ZERO
         for line in lines:
             snap = snapshots[line.id]
-            sold = Decimal(snap.theoretical_quantity) - Decimal(line.counted_quantity)
+            sold = (Decimal(snap.theoretical_quantity) - Decimal(line.counted_quantity)
+                    - returned_quantities.get(line.product_id, ZERO))
             snap.theoretical_sold_quantity = sold
             snap.theoretical_sales_amount = _money(sold * Decimal(snap.sale_price_snapshot))
             theoretical_sales += Decimal(snap.theoretical_sales_amount)
