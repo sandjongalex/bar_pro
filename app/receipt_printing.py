@@ -126,6 +126,8 @@ def _rawbt_receipt_intent(*, bar, order, lines, payments, refunds, balance, serv
         if payment.method == "CASH" and payment.change_given > 0:
             amount("Recu", payment.amount_presented, payment.currency)
             amount("Monnaie", payment.change_given, payment.currency)
+        elif payment.method == "CASH" and payment.amount_presented > payment.amount_applied:
+            amount("Montant remis", payment.amount_presented, payment.currency)
     if balance["customer_credit"] > 0:
         amount("Credit client", balance["customer_credit"])
     for refund in refunds:
