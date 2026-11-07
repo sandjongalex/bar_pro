@@ -88,6 +88,7 @@
   .cashier-sale-cart .pos-cart-header{padding:10px 12px}
 }
 </style>
+<link rel="stylesheet" href="{{ url_for('static', filename='cashier_workspace_compact.css', v='20261107-compact-v1') }}">
 
 <section class="cashier-workspace-head">
   <div>
@@ -140,7 +141,7 @@
           {% for product in products %}
             {% set stock = stock_balances.get(product.id, 0) %}
             {% set category = categories_by_id.get(product.category_id) %}
-            <button class="pos-product {% if stock <= 0 %}out-of-stock{% endif %}" type="button" data-product-id="{{ product.id }}" data-name="{{ product.name }}" data-price="{{ product.sale_price }}" data-stock="{{ stock }}" data-category="{{ product.category_id }}" {% if stock <= 0 %}disabled{% endif %}>
+            <button class="pos-product {% if stock <= 0 %}out-of-stock{% endif %}" type="button" data-product-id="{{ product.id }}" data-name="{{ product.name }}" title="{{ product.name }}" data-price="{{ product.sale_price }}" data-stock="{{ stock }}" data-category="{{ product.category_id }}" {% if stock <= 0 %}disabled{% endif %}>
               <div class="pos-product-top"><span class="pos-product-avatar">{{ product.name[0]|upper }}</span><span class="pos-stock {% if stock <= 0 %}danger{% elif stock <= product.stock_alert_threshold %}warning{% endif %}">{% if stock <= 0 %}Rupture{% else %}{{ stock }}{% endif %}</span></div>
               <strong>{{ product.name }}</strong><small>{{ category.name if category else 'Produit' }}</small><span class="pos-product-price">{{ "{:,.0f}".format(product.sale_price) }} {{ bar.currency }}</span>
             </button>
@@ -158,7 +159,7 @@
         <div class="pos-total-box"><div class="pos-grand-total"><span>Total</span><strong><span id="cashierCartTotal">0</span> {{ bar.currency }}</strong></div></div>
         <div class="cashier-tender-entry" id="cashierTenderEntry">
           <h3>Espèces reçues (facultatif)</h3>
-          <div class="form-text">Indiquez le montant remis pour encaisser immédiatement. Laissez vide pour créer une facture à payer plus tard.</div>
+          <div class="form-text">Saisissez la somme reçue, ou laissez vide pour une facture impayée.</div>
           <label class="form-label" for="cashierTenderAmount">Montant remis par le client ou la serveuse</label>
           <div class="input-group">
             <input id="cashierTenderAmount" class="form-control" name="cash_presented" type="number"
@@ -171,7 +172,7 @@
             <option value="CLIENT">Client directement</option>
             <option value="SERVER" {% if not server_assignments %}disabled{% endif %}>Serveuse</option>
           </select>
-          <div id="cashierTenderServerRow">
+          <div id="cashierTenderServerRow" hidden>
             <label class="form-label" for="cashierTenderServer">Serveuse qui a remis l'argent</label>
             <select id="cashierTenderServer" name="cash_receipt_server_id" class="form-select">
               <option value="">Sélectionner la serveuse...</option>
