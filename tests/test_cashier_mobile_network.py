@@ -115,3 +115,100 @@ def test_secondary_checkout_network_has_no_external_id_field():
     assert '<option value="MTN">MTN Mobile Money</option>' in template
     assert '<option value="ORANGE">Orange Money</option>' in template
     assert "providerCode.required = isMobile || isMixed" in template
+
+
+def test_mixed_partial_keeps_due_and_only_records_cash_physically_received(env):
+    client, session, csrf, bar, order, url = _unpaid_counter_order(
+        env, "MOMO-MIXED-PARTIAL-001"
+    )
+    response = client.post(url, data={
+        "csrf_token": csrf, "action": "payment", "order_id": str(order.id),
+        "method": "MIXED", "mixed_cash": "50", "mixed_mobile": "60",
+        "amount_presented": "50", "provider_code": "MTN",
+        "reference": "PAY-MOMO-MIXED-PARTIAL",
+    }, headers=_async_headers(csrf))
+    assert response.status_code == 200, response.text
+    assert f"order_id={order.id}" in response.json["data"]["refresh_url"]
+    assert "focus=payment" in response.json["data"]["refresh_url"]
+    db.session.refresh(order)
+    assert order.payment_status == "PARTIAL"
+    assert Decimal(order.total_amount) == 200
+    from app.finance_totals import order_balance
+    assert Decimal(order_balance(order)["amount_due"]) == 90
+    payments = list(db.session.scalars(select(Payment).where(
+        Payment.bar_id == bar.id, Payment.order_id == order.id
+    )))
+    assert len(payments) == 2
+    assert {p.method for p in payments} == {"CASH", "MOBILE_MONEY"}
+    cash = next(p for p in payments if p.method == "CASH")
+    mobile = next(p for p in payments if p.method == "MOBILE_MONEY")
+    assert Decimal(cash.amount_applied) == 50
+    assert Decimal(cash.change_given) == 0
+    assert Decimal(mobile.amount_applied) == 60
+    assert mobile.provider_code == "MTN"
+    assert Decimal(session.opening_amount) == 1000
+    from app.cash_services import cash_service
+    assert Decimal(cash_service.expected(session)) == 1050
+    replay = client.post(url, data={
+        "csrf_token": csrf, "action": "payment", "order_id": str(order.id),
+        "method": "MIXED", "mixed_cash": "50", "mixed_mobile": "60",
+        "amount_presented": "50", "provider_code": "MTN",
+        "reference": "PAY-MOMO-MIXED-PARTIAL",
+    }, headers=_async_headers(csrf))
+    assert replay.status_code == 409
+    assert db.session.scalar(select(func.count()).select_from(Payment).where(
+        Payment.bar_id == bar.id, Payment.order_id == order.id
+    )) == 2
+
+
+def test_mixed_over_tender_opens_a_cashier_advance_instead_of_returning_change(env):
+    client, session, csrf, bar, order, url = _unpaid_counter_order(
+        env, "MOMO-MIXED-ADVANCE-001"
+    )
+    response = client.post(url, data={
+        "csrf_token": csrf, "action": "payment", "order_id": str(order.id),
+        "method": "MIXED", "mixed_cash": "50", "mixed_mobile": "150",
+        "amount_presented": "550", "provider_code": "ORANGE",
+        "reference": "PAY-MOMO-MIXED-ADVANCE",
+    }, headers=_async_headers(csrf))
+    assert response.status_code == 200, response.text
+    assert f"order_id={order.id}" in response.json["data"]["refresh_url"]
+    assert "focus=payment" not in response.json["data"]["refresh_url"]
+    from app.change_voucher_models import ChangeVoucher
+    from app.cash_services import cash_service
+    voucher = db.session.scalar(select(ChangeVoucher).where(
+        ChangeVoucher.bar_id == bar.id,
+        ChangeVoucher.origin_order_id == order.id,
+        ChangeVoucher.code.like("AV-%"),
+    ))
+    assert voucher is not None
+    assert Decimal(voucher.balance_amount) == 500
+    payments = list(db.session.scalars(select(Payment).where(
+        Payment.bar_id == bar.id, Payment.order_id == order.id
+    )))
+    assert len(payments) == 2
+    cash = next(p for p in payments if p.method == "CASH")
+    assert Decimal(cash.amount_presented) == 550
+    assert Decimal(cash.amount_applied) == 50
+    assert Decimal(cash.change_given) == 0
+    assert order.closed_at is None
+    assert Decimal(cash_service.expected(session)) == 1550
+    page = client.get(url)
+    assert 'data-prepaid-order-id="' + str(order.id) + '"' in page.text
+
+
+def test_mixed_payment_rejects_oversized_parts_without_money_movements(env):
+    client, session, csrf, bar, order, url = _unpaid_counter_order(
+        env, "MOMO-MIXED-OVERFLOW-001"
+    )
+    response = client.post(url, data={
+        "csrf_token": csrf, "action": "payment", "order_id": str(order.id),
+        "method": "MIXED", "mixed_cash": "160", "mixed_mobile": "100",
+        "amount_presented": "160", "provider_code": "MTN",
+        "reference": "PAY-MOMO-MIXED-OVERFLOW",
+    }, headers=_async_headers(csrf))
+    assert response.status_code == 422
+    assert db.session.scalar(select(func.count()).select_from(Payment).where(
+        Payment.bar_id == bar.id, Payment.order_id == order.id,
+    )) == 0
+    assert db.session.get(Order, order.id).payment_status == "UNPAID"
