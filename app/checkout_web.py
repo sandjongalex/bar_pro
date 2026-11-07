@@ -533,6 +533,7 @@ def checkout(bar_id):
             Order.status.in_(["CONFIRMED", "SERVED"]),
             Order.id.in_(advance_ids),
             Order.closed_at.is_(None),
+            Order.payment_status == "PAID",
         ).order_by(Order.updated_at.desc(), Order.id.desc()).limit(40)
     ))
     paid_orders = list(
