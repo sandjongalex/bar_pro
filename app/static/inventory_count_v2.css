@@ -94,3 +94,17 @@
   .inv2-approval .btn,
   .inv2-policy-panel .btn { width:100%; }
 }
+
+
+/* Non-sale movement audit: compact touch target in expanded product cards. */
+.inventory-origin-trigger{display:inline-flex;align-items:center;justify-content:center;margin-top:6px;min-height:36px;max-width:100%;font-weight:650;white-space:normal;text-align:center}
+.inventory-origin-net{display:block;font-variant-numeric:tabular-nums}
+.inventory-origin-summary{padding:13px 15px;border-radius:12px;background:#f1f7fd;border:1px solid #d7e6f3;font-weight:700;color:#17486e;overflow-wrap:anywhere}
+.inventory-origin-list{display:grid;gap:10px;margin-top:10px}
+.inventory-origin-entry{padding:12px 14px;border:1px solid #dce4ec;border-radius:12px;background:#fff;min-width:0;overflow-wrap:anywhere}
+.inventory-origin-entry-head{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:5px}
+.inventory-origin-type{font-weight:750}
+.inventory-origin-delta{font-weight:750;font-variant-numeric:tabular-nums}
+.inventory-origin-date,.inventory-origin-reason,.inventory-origin-more{display:block;font-size:.88rem;margin-top:4px;color:#475467}
+.inventory-origin-reason{color:#24364a}
+@media(max-width:520px){#inventoryOriginModal .modal-dialog{margin:.5rem}#inventoryOriginModal .modal-body{padding:14px}.inventory-origin-entry{padding:12px}}
