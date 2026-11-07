@@ -56,7 +56,8 @@ def test_basket_remains_accessible_with_cash_receipt_ui_intact():
 
     # The entire basket (including long item lists and payment controls)
     # belongs to page scrolling, rather than an additional scroll trap.
-    basket = css.split(".cashier-sale-panel .cashier-sale-cart {", 1)[1].split("}", 1)[0]
+    basket_section = css.split("/* The basket is a single continuous surface.", 1)[1]
+    basket = basket_section.split(".cashier-sale-panel .cashier-sale-cart {", 1)[1].split("}", 1)[0]
     assert "max-height: none" in basket
     assert "overflow: visible" in basket
     assert "position: static" in basket
