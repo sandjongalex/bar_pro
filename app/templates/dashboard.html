@@ -63,7 +63,10 @@
       <strong>Bons de monnaie non remboursés · {{ active_bar.name }}</strong>
       <p class="text-secondary mb-0 small">{{ owner_voucher_liability.count }} bon(s) encore utilisable(s). Hors avances sur les commandes ouvertes.</p>
     </div>
-    <strong class="fs-4">{{ "{:,.0f}".format(owner_voucher_liability.amount) }} {{ active_bar.currency }}</strong>
+    <div class="d-flex gap-2 align-items-center flex-wrap">
+      <strong class="fs-4">{{ "{:,.0f}".format(owner_voucher_liability.amount) }} {{ active_bar.currency }}</strong>
+      <a class="btn btn-sm btn-outline-primary" href="{{ url_for('change_vouchers_web.manage', bar_id=active_bar.id) }}">Voir les bons</a>
+    </div>
   </div>
 </section>
 {% endif %}

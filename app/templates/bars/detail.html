@@ -61,7 +61,8 @@
     {% if voucher_liability %}
     <section class="panel-card"><div class="panel-header"><div><p class="eyebrow mb-1">Engagements clients</p><h2>Bons de monnaie à rembourser</h2></div></div>
       <div class="p-4"><strong class="fs-3">{{ "{:,.0f}".format(voucher_liability.amount) }} {{ bar.currency }}</strong>
-      <p class="text-secondary small mt-1 mb-0">{{ voucher_liability.count }} bon(s) restant(s), hors avances des commandes ouvertes.</p></div>
+      <p class="text-secondary small mt-1 mb-2">{{ voucher_liability.count }} bon(s) restant(s), hors avances des commandes ouvertes.</p>
+      <a class="btn btn-sm btn-outline-primary" href="{{ url_for('change_vouchers_web.manage', bar_id=bar.id) }}">Consulter les bons</a></div>
     </section>
     {% endif %}
     <section class="panel-card"><div class="panel-header"><div><p class="eyebrow mb-1">Établissement</p><h2>Informations</h2></div></div><div class="info-list"><div><span>Propriétaire</span><strong>{{ bar.owner.display_name }}</strong></div><div><span>Devise</span><strong>{{ bar.currency }}</strong></div><div><span>Imprimante</span><strong>{{ bar.printer_width_mm }} mm</strong></div><div><span>Fuseau horaire</span><strong>{{ bar.timezone }}</strong></div><div><span>Ventes à crédit</span><strong>{{ 'Activées' if bar.credit_sales_enabled else 'Désactivées' }}</strong></div><div><span>Seuil stock global</span><strong>{{ bar.stock_alert_threshold }}</strong></div></div></section>
