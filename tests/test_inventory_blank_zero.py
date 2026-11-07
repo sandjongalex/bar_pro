@@ -9,7 +9,7 @@ from test_workflows import balance, env
 
 
 def _csrf_from(page):
-    match = re.search(r'name=["\']csrf_token["\']\s+value=["\']([^"\']+)["\']', page.text)
+    match = re.search(r'name=["\\']csrf_token["\\']\\s+value=["\\']([^"\\']+)["\\']', page.text)
     assert match is not None, page.text
     return match.group(1)
 
@@ -27,14 +27,10 @@ def _login(client, email):
     )
 
 
-def test_blank_physical_stock_is_saved_and_posted_as_zero(env):
+def test_blank_physical_stock_stays_uncounted_until_explicit_zero(env):
     app, owner, bar, _, product, _, _, _ = env
     inventory = inventory_service.create(
-        owner,
-        bar.id,
-        'INV-BLANK-ZERO',
-        [product.id],
-        'Physical count',
+        owner, bar.id, 'INV-BLANK-NOT-ZERO', [product.id], 'Physical count',
     )
     db.session.commit()
 
@@ -44,39 +40,44 @@ def test_blank_physical_stock_is_saved_and_posted_as_zero(env):
 
     page = client.get(detail_path)
     assert page.status_code == 200
-    assert 'laissée vide sera considérée comme' in page.text
-    assert '0 bouteille' in page.text
+    assert 'vide signifie' in page.text
+    assert 'non compté' in page.text
+    assert 'Les cases vides ne sont pas enregistrées' in page.text
 
     response = client.post(
         detail_path,
-        data={
-            'csrf_token': _csrf_from(page),
-            'action': 'counts',
-            f'quantity_{product.id}': '',
-        },
+        data={'csrf_token': _csrf_from(page), 'action': 'counts', f'quantity_{product.id}': ''},
         follow_redirects=False,
     )
     assert response.status_code == 302
 
-    line = db.session.scalar(
-        select(InventoryLine).where(
-            InventoryLine.inventory_id == inventory.id,
-            InventoryLine.product_id == product.id,
-        )
-    )
-    assert line.counted_quantity == 0
+    line = db.session.scalar(select(InventoryLine).where(
+        InventoryLine.inventory_id == inventory.id, InventoryLine.product_id == product.id,
+    ))
+    assert line.counted_quantity is None
+    assert balance(env) == 10
 
     page = client.get(detail_path)
     response = client.post(
         detail_path,
-        data={
-            'csrf_token': _csrf_from(page),
-            'action': 'post',
-            f'quantity_{product.id}': '',
-        },
+        data={'csrf_token': _csrf_from(page), 'action': 'post', f'quantity_{product.id}': ''},
+        follow_redirects=False,
+    )
+    assert response.status_code == 302
+    db.session.refresh(inventory)
+    assert inventory.status == 'DRAFT'
+    assert line.counted_quantity is None
+    assert balance(env) == 10
+
+    # Explicit zero is a real physical count and can close the inventory.
+    page = client.get(detail_path)
+    response = client.post(
+        detail_path,
+        data={'csrf_token': _csrf_from(page), 'action': 'post', f'quantity_{product.id}': '0'},
         follow_redirects=False,
     )
     assert response.status_code == 302
     db.session.refresh(inventory)
     assert inventory.status == 'POSTED'
+    assert line.counted_quantity == 0
     assert balance(env) == 0
