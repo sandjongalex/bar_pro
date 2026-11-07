@@ -182,7 +182,7 @@
             </select>
           </div>
           <div class="cashier-tender-recap" aria-live="polite">
-            <div><span>Monnaie à rendre</span><strong data-cashier-tender-change>0 {{ bar.currency }}</strong></div>
+            <div><span>Avance conservée (non rendue)</span><strong data-cashier-tender-change>0 {{ bar.currency }}</strong></div>
             <div><span>Reste à payer</span><strong data-cashier-tender-remaining>0 {{ bar.currency }}</strong></div>
           </div>
           <div class="form-text mt-2 fw-bold" id="cashierTenderStatus" role="status" aria-live="polite">Après validation : à encaisser (aucun paiement saisi).</div>
@@ -214,6 +214,43 @@
       {% else %}<div data-cashier-queue-empty class="p-3 text-secondary small">Aucune commande à encaisser.</div>{% endfor %}
     </div>
 
+    {% if prepaid_orders %}
+    <div class="cashier-queue-section" id="queuePrepaid" aria-label="Commandes ouvertes avec avance">
+      <div class="cashier-queue-label"><span>EN COURS · AVANCES CLIENTS</span><span>{{ prepaid_orders|length }}</span></div>
+      {% for order in prepaid_orders %}
+      {% set voucher = prepaid_vouchers.get(order.id) %}
+      {% set b = balances[order.id] %}
+      <article class="cashier-order-card" data-prepaid-order-id="{{ order.id }}">
+        <div class="cashier-order-link">
+          <div class="cashier-order-copy">
+            <strong class="cashier-human-order-title">{{ order.customer_name_snapshot or 'Comptoir' }}</strong>
+            <small>Réf. {{ order.reference }} · commande toujours ouverte</small>
+            <small>Bon d'avance : {{ voucher.code if voucher else '—' }}</small>
+          </div>
+          <div class="cashier-order-money">
+            <strong>{{ "{:,.0f}".format(voucher.balance_amount if voucher else 0) }} {{ order.currency }}</strong>
+            <small>Avance encore disponible</small>
+          </div>
+        </div>
+        <div class="cashier-order-actions">
+          <a class="btn btn-sm btn-primary" href="{{ url_for('suborders_web.new_suborder', bar_id=bar.id, order_id=order.id) }}">＋ Ajouter des produits</a>
+          <a class="btn btn-sm btn-light border" href="{{ url_for('orders_web.detail', bar_id=bar.id, order_id=order.id) }}">Détails</a>
+          {% if b.amount_due > 0 %}
+          <a class="btn btn-sm btn-outline-primary" href="{{ url_for('cashier_workspace_web.workspace', bar_id=bar.id, order_id=order.id, focus='payment') }}#paymentPanel">Reste à encaisser</a>
+          {% else %}
+          <form method="post" data-bp-ajax="json" data-cashier-async="1" action="{{ url_for('cashier_workspace_web.workspace', bar_id=bar.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="action" value="close_prepaid">
+            <input type="hidden" name="order_id" value="{{ order.id }}">
+            <button class="btn btn-sm btn-success" type="submit">Clôturer et rendre {{ "{:,.0f}".format(voucher.balance_amount if voucher else 0) }} {{ order.currency }}</button>
+          </form>
+          {% endif %}
+        </div>
+      </article>
+      {% endfor %}
+    </div>
+    {% endif %}
+
     <div class="cashier-queue-section" id="queueWaiting">
       <div class="cashier-queue-label"><span>À LIVRER</span><span>{{ waiting_orders|length }}</span></div>
       {% for order in waiting_orders %}
@@ -237,7 +274,7 @@
       {% set b = balances[selected_order.id] %}
       {% set selected_lines = lines_by_order.get(selected_order.id, []) %}
       <div class="cashier-pay-title"><div><p class="eyebrow mb-1">Commande</p><h2 class="cashier-human-order-title">{{ selected_order.customer_name_snapshot or selected_order.table_label_snapshot or 'COMPTOIR' }}</h2><small class="cashier-selected-system-ref">Réf. système : {{ selected_order.reference }}</small></div><span class="cashier-pay-total">{{ "{:,.0f}".format(b.amount_due if selected_order.status != 'DRAFT' else b.net_sale) }} {{ selected_order.currency }}</span></div>
-      {% if selected_order.payment_status != 'PAID' and (selected_server_assignment or (selected_order.cashier_assignment_id and selected_order.status in ['CONFIRMED', 'SERVED'])) %}
+      {% if (selected_order.payment_status != 'PAID' or selected_order.id in prepaid_vouchers) and (selected_server_assignment or (selected_order.cashier_assignment_id and selected_order.status in ['CONFIRMED', 'SERVED'])) %}
       <a href="{{ url_for('suborders_web.new_suborder', bar_id=bar.id, order_id=selected_order.id) }}" class="cashier-selected-suborder-cta" data-selected-suborder-add="1">
         <div><strong>Ajouter une sous-commande</strong><small>{% if selected_server_assignment %}Servir un ajout sur cette facture, à valider par la serveuse.{% else %}Ajouter des produits à ma facture et actualiser le montant dû.{% endif %}</small></div><span class="cashier-selected-suborder-plus">＋</span>
       </a>
@@ -276,7 +313,7 @@
   </aside>
 </div>
 
-{% if selected_order and selected_order.status != 'DRAFT' and not selected_pending_delivery %}
+{% if selected_order and selected_order.status != 'DRAFT' and not selected_pending_delivery and balances[selected_order.id].amount_due > 0 %}
 <div class="modal fade" id="cashierPaymentModal" tabindex="-1" aria-labelledby="cashierPaymentModalTitle" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-lg">
     <div class="modal-content modal-liquid-glass">
@@ -412,15 +449,19 @@
         ? 'Après validation : À ENCAISSER (sans paiement).'
         : !validMoney || !sourceValid
           ? 'Corrigez le montant remis ou la personne qui remet les espèces.'
-          : rest === 0
-            ? 'Après validation : PAYÉE. La facture ne passera pas dans « À encaisser ».'
-            : 'Après validation : PARTIELLEMENT PAYÉE · reste ' + money(rest) + ' ' + currency + '.';
+          : amount > counterTotal
+            ? 'Après validation : COMMANDE EN COURS · avance de '+money(amount-counterTotal)+' '+currency+' conservée pour les ajouts. La monnaie sera rendue à la clôture.'
+            : rest === 0
+              ? 'Après validation : montant actuel réglé.'
+              : 'Après validation : paiement partiel · reste ' + money(rest) + ' ' + currency + '.';
     }
     saleSubmit.textContent = !hasTender
       ? 'Créer la facture sans paiement'
-      : rest === 0
-        ? 'Valider la facture PAYÉE'
-        : 'Enregistrer ' + money(settled) + ' ' + currency + ' · reste ' + money(rest) + ' ' + currency;
+      : amount > counterTotal
+        ? 'Enregistrer l’avance · commande ouverte'
+        : rest === 0
+          ? 'Valider le montant réglé'
+          : 'Enregistrer ' + money(settled) + ' ' + currency + ' · reste ' + money(rest) + ' ' + currency;
   }
   tenderInput?.addEventListener('input', updateTenderPreview);
   tenderSource?.addEventListener('change', updateTenderPreview);
@@ -562,11 +603,16 @@
       const feedback=document.getElementById('cashierLastTenderReceipt');
       if (feedback && data.cash_summary) {
         const summary=data.cash_summary;
-        feedback.textContent=(summary.payment_status === 'PAID' ? 'Facture PAYÉE · ' : 'Facture PARTIELLEMENT PAYÉE · ') +
-          'Encaissé : '+money(Number(summary.amount_applied))+' '+currency+
-          ' · remis par '+(sourceLabel||'client')+
-          ' · monnaie à rendre : '+money(Number(summary.change_given))+' '+currency+
-          ' · reste : '+money(Number(summary.remaining))+' '+currency+'.';
+        feedback.textContent=summary.order_open
+          ? 'COMMANDE EN COURS · '+money(Number(summary.amount_presented))+' '+currency+
+            ' reçus · '+money(Number(summary.amount_applied))+' '+currency+
+            ' consommés · avance '+money(Number(summary.advance_balance))+' '+currency+
+            ' conservée (bon '+summary.advance_code+'). Ajoutez des produits ou clôturez pour rendre le solde.'
+          : (summary.payment_status === 'PAID' ? 'Montant actuel réglé · ' : 'Paiement partiel · ') +
+            'Encaissé : '+money(Number(summary.amount_applied))+' '+currency+
+            ' · remis par '+(sourceLabel||'client')+
+            ' · monnaie rendue : '+money(Number(summary.change_given))+' '+currency+
+            ' · reste à payer : '+money(Number(summary.remaining))+' '+currency+'.';
         feedback.hidden=false;
       } else if (feedback) feedback.hidden=true;
       // A successful sale starts a completely new invoice. Keep the fields
