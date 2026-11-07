@@ -9,6 +9,7 @@ from decimal import Decimal
 
 from sqlalchemy import and_, func, or_, select
 
+from app.current_service_reporting import current_service_snapshot
 from app.dashboard_charts import _seven_day_trend
 from app.dashboard_service import _day_bounds, _sales_and_margin
 from app.extensions import db
@@ -41,18 +42,30 @@ def owner_bento_overview(actor, reportable_bars):
 
     chart_totals = [ZERO] * 7
     turnover = ZERO
+    current_service_sales = ZERO
+    current_service_order_count = 0
+    current_service_unpaid_count = 0
+    open_service_count = 0
     venues = []
     cash_periods = []
 
     for bar in bars:
         local_date, start_at, end_at = _day_bounds(bar)
         sales, _ = _sales_and_margin(bar.id, start_at, end_at)
+        service = current_service_snapshot(bar)
+        if service:
+            open_service_count += 1
+            current_service_order_count += service["order_count"]
+            current_service_unpaid_count += service["unpaid_count"]
+            if single_currency:
+                current_service_sales += service["sales"]
         venues.append({
             "id": bar.id,
             "name": bar.name,
             "status": bar.status,
             "currency": "FCFA" if bar.currency == "XAF" else bar.currency,
             "sales_today": sales,
+            "service": service,
             "local_date": local_date,
         })
         if single_currency:
@@ -72,7 +85,12 @@ def owner_bento_overview(actor, reportable_bars):
         return {
             "bars": [], "bar_count": 0, "currency": None,
             "currency_label": "FCFA", "mixed_currencies": False,
-            "turnover_today": ZERO, "chart": {"labels": [], "values": [], "currency": "FCFA"},
+            "turnover_today": ZERO,
+            "current_service_sales": ZERO,
+            "open_service_count": 0,
+            "current_service_order_count": 0,
+            "current_service_unpaid_count": 0,
+            "chart": {"labels": [], "values": [], "currency": "FCFA"},
             "critical_stocks": [], "critical_stock_count": 0,
             "servers_on_duty": 0, "cash_discrepancy_amount": ZERO,
             "cash_discrepancy_count": 0,
@@ -162,6 +180,10 @@ def owner_bento_overview(actor, reportable_bars):
         "currency_label": currency_label,
         "mixed_currencies": not single_currency,
         "turnover_today": turnover if single_currency else None,
+        "current_service_sales": current_service_sales if single_currency else None,
+        "open_service_count": open_service_count,
+        "current_service_order_count": current_service_order_count,
+        "current_service_unpaid_count": current_service_unpaid_count,
         "chart": {
             "labels": CHART_LABELS if single_currency else [],
             "values": [float(value) for value in chart_totals] if single_currency else [],
