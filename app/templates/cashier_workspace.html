@@ -708,6 +708,17 @@
             ' · remis par '+(sourceLabel||'client')+
             ' · monnaie rendue : '+money(Number(summary.change_given))+' '+currency+
             ' · reste à payer : '+money(Number(summary.remaining))+' '+currency+'.';
+        const paidOrderId = Number(data.order_id);
+        if (Number.isSafeInteger(paidOrderId) && paidOrderId > 0) {
+          const receiptLink = document.createElement('a');
+          receiptLink.className = 'btn btn-sm btn-outline-success ms-2 mt-2';
+          receiptLink.dataset.lastSalePrint = String(paidOrderId);
+          receiptLink.href = {{ url_for('checkout_web.receipt', bar_id=bar.id, order_id=0)|tojson }}.replace('/0/receipt', '/' + paidOrderId + '/receipt');
+          receiptLink.target = '_blank';
+          receiptLink.rel = 'noopener';
+          receiptLink.textContent = 'Imprimer le reçu';
+          feedback.appendChild(receiptLink);
+        }
         feedback.hidden=false;
       } else if (feedback) feedback.hidden=true;
       // A successful sale starts a completely new invoice. Keep the fields
