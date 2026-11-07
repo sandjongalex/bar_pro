@@ -72,7 +72,8 @@ def cumulative_receipt_lines(lines):
 
 def _rawbt_receipt_intent(*, bar, order, lines, payments, refunds, balance, server_name,
                           customer_name, payment_times, refund_times, payment_labels,
-                          sale_time, issued_at, mode_label, receipt_sections=None):
+                          sale_time, issued_at, mode_label, receipt_sections=None,
+                          open_advance=False, advance_balance=Decimal("0")):
     rows = []
 
     def add(value):
@@ -134,6 +135,9 @@ def _rawbt_receipt_intent(*, bar, order, lines, payments, refunds, balance, serv
     amount("RESTE A PAYER", balance["amount_due"])
     if order.status == "CANCELLED":
         add("COMMANDE ANNULEE")
+    elif open_advance:
+        add("COMMANDE EN COURS - AVANCE CLIENT")
+        amount("Avance disponible", advance_balance)
     elif balance["amount_due"] == 0:
         add("A CREDIT" if balance["customer_credit"] > 0 else "PAYEE")
     else:
@@ -153,7 +157,8 @@ def _rawbt_receipt_intent(*, bar, order, lines, payments, refunds, balance, serv
 
 def rawbt_receipt(*, bar, order, lines, payments, refunds, balance, server_name,
                   customer_name, payment_times, refund_times, payment_labels,
-                  sale_time, issued_at, receipt_sections=None):
+                  sale_time, issued_at, receipt_sections=None,
+                  open_advance=False, advance_balance=Decimal("0")):
     cumulative_lines = cumulative_receipt_lines(lines)
     common = dict(
         bar=bar,
@@ -168,6 +173,8 @@ def rawbt_receipt(*, bar, order, lines, payments, refunds, balance, server_name,
         payment_labels=payment_labels,
         sale_time=sale_time,
         issued_at=issued_at,
+        open_advance=open_advance,
+        advance_balance=advance_balance,
     )
     detailed = _rawbt_receipt_intent(
         lines=lines,
