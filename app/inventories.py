@@ -489,7 +489,10 @@ def movement_origin(bar_id, inventory_id, product_id):
         movements.append({
             "id": movement.id,
             "date": stamp.astimezone(ZoneInfo(bar.timezone)).strftime("%d/%m/%Y %H:%M"),
-            "type": labels.get(movement.movement_type, movement.movement_type),
+            "type": ("Crédit sans retour physique"
+                     if movement.movement_type == "RETURN"
+                     and movement.reason.startswith("Crédit sans retour physique")
+                     else labels.get(movement.movement_type, movement.movement_type)),
             "quantity": str(movement.quantity_delta),
             "author": author.display_name if author else f"Utilisateur #{movement.recorded_by_id}",
             "reason": movement.reason,
