@@ -549,6 +549,16 @@
       }
 
       currentPanel.replaceWith(nextPanel);
+
+      // Prepaid tabs are intentionally outside the live "À encaisser" queue.
+      // Refresh that section explicitly after an advance, an added payment or
+      // a final change refund, without rebuilding the existing live cards.
+      const currentPrepaid = document.getElementById('queuePrepaid');
+      const nextPrepaid = nextDocument.getElementById('queuePrepaid');
+      if (currentPrepaid && nextPrepaid) currentPrepaid.replaceWith(nextPrepaid);
+      else if (currentPrepaid) currentPrepaid.remove();
+      else if (nextPrepaid) document.getElementById('queueWaiting')?.before(nextPrepaid);
+
       const openPayment = selection || new URL(refreshUrl, window.location.href).searchParams.get('focus') === 'payment';
       if (openPayment) nextPanel.classList.add('is-open');
       if (currentModal && nextModal) currentModal.replaceWith(nextModal);
