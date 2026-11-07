@@ -148,3 +148,20 @@ def test_change_voucher_ui_and_registration_are_present():
     assert "change_vouchers_web_bp" in app_factory
     assert "Utiliser un bon sur une facture" in template
     assert "Rembourser un bon en espèces" in template
+
+
+def test_voucher_print_uses_selected_bar_paper_width(env):
+    app, owner, bar, _, product, *_ = env
+    session = cash_service.open(owner, bar.id, "CHANGE-VOUCHER-80", 0)
+    db.session.commit()
+    _, _, voucher = _issue_voucher(owner, bar, product, session)
+    bar.printer_width_mm = 80
+    db.session.commit()
+
+    from test_cashier_complete_flow import _login
+    client = app.test_client()
+    _login(client, owner.email)
+    response = client.get(f"/bars/{bar.id}/cashier/change-vouchers/{voucher.id}/print")
+    assert response.status_code == 200
+    assert "width:80mm" in response.text
+    assert "size:80mm auto" in response.text
