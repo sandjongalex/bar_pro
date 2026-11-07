@@ -169,6 +169,7 @@ def test_cashier_web_editor_updates_delivered_unpaid_order(env):
             "product_id": str(second.id),
             "quantity": "1",
             "reason": "Client change sa commande",
+            "return_disposition": "RESTOCK",
         },
         follow_redirects=False,
     )
