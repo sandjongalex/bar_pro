@@ -554,6 +554,7 @@ def workspace(bar_id: int):
             provider_transaction_id = None
             cash_session_id = None
             staff_assignment_id = None
+            advance_amount = Decimal("0")
             if method == "CASH":
                 presented = _decimal(request.form.get("amount_presented"))
                 if presented < applied:
@@ -563,6 +564,23 @@ def workspace(bar_id: int):
                 cash_source = _receipt_source_label(bar_id)
                 if staff_assignment_id is not None and cash_source != "client":
                     raise ValueError("INVALID_CASH_SOURCE")
+                # A cashier may receive a larger note for an own-counter
+                # invoice that remains open for more products. Do not return
+                # this money until explicit closing of the customer's tab.
+                if (
+                    order.assigned_staff_id is None
+                    and order.cashier_assignment_id == assignment.id
+                    and applied == due and presented > applied
+                    and cash_session_id == session.id
+                    and not db.session.scalar(
+                        select(ChangeVoucher.id).where(
+                            ChangeVoucher.bar_id == bar_id,
+                            ChangeVoucher.origin_order_id == order.id,
+                        )
+                    )
+                ):
+                    advance_amount = presented - applied
+                    change = Decimal("0")
             else:
                 cash_source = None
                 presented = applied
@@ -587,9 +605,29 @@ def workspace(bar_id: int):
                 provider_code=provider_code,
                 provider_transaction_id=provider_transaction_id,
                 cash_received_from=cash_source if cash_session_id is not None else None,
+                voucher_amount=advance_amount,
+            )
+            advance_voucher = (
+                change_voucher_service.issue(
+                    current_user, bar_id, payment.id, advance_amount,
+                    customer_name=order.customer_name_snapshot,
+                )
+                if advance_amount > 0 else None
             )
             complete_payment_intent(payment_intent, order_id=order.id)
             db.session.commit()
+            if advance_voucher is not None:
+                message = (
+                    f"Commande EN COURS · avance de {advance_amount:,.0f} {order.currency} "
+                    f"conservée (bon {advance_voucher.code}). Ajoutez les produits puis clôturez."
+                )
+                refresh_url = url_for(
+                    "cashier_workspace_web.workspace", bar_id=bar_id, order_id=order.id,
+                )
+                if async_web:
+                    return web_json_response(data={"refresh_url": refresh_url}, message=message)
+                flash(message, "success")
+                return redirect(refresh_url)
             remaining = Decimal(order_balance(db.session.get(Order, order.id))["amount_due"] or 0)
             if remaining > 0:
                 message = f"{payment.amount_applied:,.0f} {payment.currency} encaissés · reste {remaining:,.0f}."
