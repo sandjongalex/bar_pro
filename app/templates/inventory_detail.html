@@ -57,7 +57,7 @@
                         data-origin-product="{{ line.product_name }}"
                         data-origin-url="{{ url_for('inventories.detail',bar_id=bar_id,inventory_id=inventory.id) ~ '/movements/' ~ line.product_id }}"
                         aria-label="Voir l'origine des mouvements hors ventes pour {{ line.product_name }}">Voir l'origine</button>
-                {% endif %></td>
+                {% endif %}</td>
             <td data-label="Stock théorique"><strong>{{ line.theoretical_quantity|inventory_qty }}</strong></td>
             <td data-label="Stock machine"><span class="inventory-machine">{{ line.machine_quantity|inventory_qty }}</span></td>
             <td data-label="Stock physique réel"><input class="form-control inventory-count-input" aria-label="Stock physique {{ line.product_name }}" name="quantity_{{ line.product_id }}" type="number" min="0" step="0.000001" value="{{ line.physical_quantity|inventory_qty if line.physical_quantity is not none else '' }}" placeholder="0"></td>
@@ -97,7 +97,7 @@
                         data-origin-product="{{ line.product_name }}"
                         data-origin-url="{{ url_for('inventories.detail',bar_id=bar_id,inventory_id=inventory.id) ~ '/movements/' ~ line.product_id }}"
                         aria-label="Voir l'origine des mouvements hors ventes pour {{ line.product_name }}">Voir l'origine</button>
-                {% endif %></td><td data-label="Stock théorique">{{ line.theoretical_quantity|inventory_qty }}</td><td data-label="Stock machine">{{ line.machine_quantity|inventory_qty }}</td><td data-label="Stock physique"><strong>{{ line.physical_quantity|inventory_qty if line.physical_quantity is not none else '—' }}</strong></td><td data-label="Quantité vendue">{{ line.sold_quantity|inventory_qty if line.sold_quantity is not none else '—' }}</td><td data-label="Montant ventes">{% if line.theoretical_sales_amount is not none %}{{ "{:,.0f}".format(line.theoretical_sales_amount|float) }} {{ bar.currency }}{% else %}—{% endif %}</td><td data-label="Écart">{{ line.difference_quantity|inventory_qty if line.difference_quantity is not none else '—' }}</td><td data-label="Observation">{{ line.note or '—' }}</td></tr>{% endfor %}
+                {% endif %}</td><td data-label="Stock théorique">{{ line.theoretical_quantity|inventory_qty }}</td><td data-label="Stock machine">{{ line.machine_quantity|inventory_qty }}</td><td data-label="Stock physique"><strong>{{ line.physical_quantity|inventory_qty if line.physical_quantity is not none else '—' }}</strong></td><td data-label="Quantité vendue">{{ line.sold_quantity|inventory_qty if line.sold_quantity is not none else '—' }}</td><td data-label="Montant ventes">{% if line.theoretical_sales_amount is not none %}{{ "{:,.0f}".format(line.theoretical_sales_amount|float) }} {{ bar.currency }}{% else %}—{% endif %}</td><td data-label="Écart">{{ line.difference_quantity|inventory_qty if line.difference_quantity is not none else '—' }}</td><td data-label="Observation">{{ line.note or '—' }}</td></tr>{% endfor %}
   </tbody></table></div>
 </section>
 {% endif %}
