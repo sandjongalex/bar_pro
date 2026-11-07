@@ -229,7 +229,7 @@ def test_inventory_movement_origin_explains_signed_net_and_is_bar_scoped(env):
     db.session.commit()
     inv = draft(env)
     client = env[0].test_client()
-    csrf = re.search(r'name=["\\']csrf_token["\\']\\s+value=["\\']([^"\\']+)["\\']', client.get('/login').text).group(1)
+    csrf = re.search(r'name="csrf_token"\\s+value="([^"]+)"', client.get('/login').text).group(1)
     assert client.post('/login', data={
         'email': env[1].email, 'password': 'test-password', 'csrf_token': csrf,
     }).status_code == 302
