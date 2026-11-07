@@ -220,3 +220,39 @@ def test_non_sale_stock_movements_are_included_in_next_theoretical_inventory(env
     db.session.commit()
     assert snapshot.theoretical_sold_quantity == Decimal("1")
     assert snapshot.theoretical_sales_amount == Decimal("100")
+
+
+def test_inventory_movement_origin_explains_signed_net_and_is_bar_scoped(env):
+    # This is the same signed net shown next to "Mouvements hors ventes".
+    stock_service.move(env[1], env[2].id, env[4].id, 'ADJUSTMENT', 2, 'Ajout corrigé')
+    stock_service.move(env[1], env[2].id, env[4].id, 'LOSS', -1, 'Bouteille cassée')
+    db.session.commit()
+    inv = draft(env)
+    client = env[0].test_client()
+    csrf = re.search(r'name=["\\']csrf_token["\\']\\s+value=["\\']([^"\\']+)["\\']', client.get('/login').text).group(1)
+    assert client.post('/login', data={
+        'email': env[1].email, 'password': 'test-password', 'csrf_token': csrf,
+    }).status_code == 302
+
+    url = f'/bars/{env[2].id}/inventories/{inv.id}/movements/{env[4].id}'
+    response = client.get(url)
+    assert response.status_code == 200
+    data = response.json['data']
+    assert data['product_name'] == env[4].name
+    assert Decimal(data['snapshot_total']) == Decimal('1')
+    assert Decimal(data['journal_total']) == Decimal('1')
+    assert data['matches_snapshot'] is True
+    assert {entry['type'] for entry in data['movements']} == {'Ajustement manuel', 'Perte / casse'}
+    assert sum(Decimal(entry['quantity']) for entry in data['movements']) == Decimal('1')
+    assert {entry['reason'] for entry in data['movements']} == {'Ajout corrigé', 'Bouteille cassée'}
+    assert all(entry['author'] and entry['date'] for entry in data['movements'])
+    assert client.get(url.replace(f'/bars/{env[2].id}', f'/bars/{env[3].id}')).status_code in (403, 404)
+    assert client.get(url.replace(f'/movements/{env[4].id}', '/movements/999999')).status_code == 404
+
+
+def test_inventory_movement_origin_requires_authenticated_session(env):
+    inv = draft(env)
+    response = env[0].test_client().get(
+        f'/bars/{env[2].id}/inventories/{inv.id}/movements/{env[4].id}'
+    )
+    assert response.status_code in (302, 401, 403)
