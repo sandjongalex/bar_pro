@@ -4,6 +4,7 @@ RawBT's documented base64 transport sends ESC/POS bytes without re-encoding.
 ASCII transliteration avoids depending on a clone's accented-character table.
 """
 import base64
+import re
 import textwrap
 import unicodedata
 from decimal import Decimal
@@ -70,10 +71,25 @@ def cumulative_receipt_lines(lines):
     return [grouped[key] for key in ordered_keys]
 
 
+def compact_order_reference(reference):
+    """Short customer ID for generated CMD codes, keeping full source ID in DB."""
+    value = str(reference or "")
+    matched = re.fullmatch(r"CMD-\d{8}-(\d{6})-([A-Za-z0-9]{3,12})", value)
+    return "-".join(matched.groups()) if matched else value
+
+
+def receipt_address(bar):
+    """Omit merchant address if its text is already part of the merchant name."""
+    address = str(getattr(bar, "address", "") or "").strip()
+    name = printable(getattr(bar, "name", "")).casefold()
+    return None if address and printable(address).casefold() in name else address or None
+
+
 def _rawbt_receipt_intent(*, bar, order, lines, payments, refunds, balance, server_name,
                           customer_name, payment_times, refund_times, payment_labels,
                           sale_time, issued_at, mode_label, receipt_sections=None,
                           open_advance=False, advance_balance=Decimal("0")):
+    """Compact RawBT receipt. Internal references remain in the application."""
     rows = []
 
     def add(value):
@@ -88,77 +104,91 @@ def _rawbt_receipt_intent(*, bar, order, lines, payments, refunds, balance, serv
         rows.append("-" * WIDTH)
 
     add(bar.name)
-    if bar.address:
-        add(bar.address)
+    address = receipt_address(bar)
+    if address:
+        add(address)
     if bar.phone:
         add(f"Tel: {bar.phone}")
-    add("RECU DE VENTE")
-    add(mode_label)
-    rule()
-    add(f"Commande: {order.reference}")
+    add(sale_time)
+    add(f"N {compact_order_reference(order.reference)}")
     if customer_name:
         add(f"Client: {customer_name}")
-    add(f"Date: {sale_time}")
-    add(f"Serveuse: {server_name}")
+    if server_name and server_name != "Sans serveuse":
+        add(f"Serveuse: {server_name}")
     if order.table_label_snapshot:
         add(f"Table: {order.table_label_snapshot}")
     rule()
+
     sections = receipt_sections if receipt_sections is not None else [{"label": None, "lines": lines}]
+    multiple_rounds = len(sections) > 1
     for section in sections:
-        if section["label"]:
+        if multiple_rounds and section["label"]:
             add(section.get("print_label") or section["label"])
         for line in section["lines"]:
             add(line.product_name_snapshot)
-            add(f"{number(line.quantity)} x {number(line.unit_sale_price_snapshot)}")
-            amount("Total", line.total_amount)
-        if section["label"]:
+            left = f"{number(line.quantity)} x {number(line.unit_sale_price_snapshot)}"
+            right = number(line.total_amount)
+            if len(left) + len(right) + 1 <= WIDTH:
+                rows.append(left + " " * (WIDTH - len(left) - len(right)) + right)
+            else:
+                add(f"{left} = {right}")
+        if multiple_rounds:
             rule()
-    if receipt_sections is None:
+    if not multiple_rounds:
         rule()
-    amount("Total commande", order.total_amount)
+
     if balance["return_credit"] > 0:
-        amount("Retours / avoirs", -balance["return_credit"])
-    amount("NET A REGLER", balance["net_sale"])
-    rule()
-    for payment in payments:
-        label = payment_labels.get(payment.method, payment.method)
-        if payment.method == "MOBILE_MONEY" and payment.provider_code:
-            label += " " + ("MTN" if payment.provider_code == "MTN" else "Orange" if payment.provider_code == "ORANGE" else str(payment.provider_code))
-        amount(label, payment.amount_applied, payment.currency)
-        add(f"{payment.reference} {payment_times[payment.id]}")
-        if payment.method == "CASH" and payment.change_given > 0:
-            amount("Recu", payment.amount_presented, payment.currency)
-            amount("Monnaie", payment.change_given, payment.currency)
-        elif payment.method == "CASH" and payment.amount_presented > payment.amount_applied:
-            amount("Montant remis", payment.amount_presented, payment.currency)
-    if balance["customer_credit"] > 0:
-        amount("Credit client", balance["customer_credit"])
-    for refund in refunds:
-        amount("Remboursement " + payment_labels.get(refund.method, refund.method), -refund.amount, refund.currency)
-        add(f"{refund.reference} {refund_times[refund.id]}")
-    amount("Regle / finance", balance["net_settled"])
-    amount("RESTE A PAYER", balance["amount_due"])
+        amount("Articles", order.total_amount)
+        amount("Avoirs", -balance["return_credit"])
+    if balance["amount_due"] > 0 and balance["net_settled"] <= 0:
+        amount("A PAYER", balance["amount_due"])
+    else:
+        amount("TOTAL", balance["net_sale"])
+
+    if payments or balance["customer_credit"] > 0 or refunds:
+        rule()
+        for payment in payments:
+            label = payment_labels.get(payment.method, payment.method)
+            if payment.method == "MOBILE_MONEY" and payment.provider_code:
+                provider = (
+                    "MTN" if payment.provider_code == "MTN"
+                    else "Orange" if payment.provider_code == "ORANGE"
+                    else printable(payment.provider_code)
+                )
+                label += f" {provider}"
+            amount(label, payment.amount_applied, payment.currency)
+            if payment.method == "CASH" and payment.change_given > 0:
+                amount("Recu", payment.amount_presented, payment.currency)
+                amount("Monnaie", payment.change_given, payment.currency)
+            elif payment.method == "CASH" and payment.amount_presented > payment.amount_applied:
+                amount("Montant remis", payment.amount_presented, payment.currency)
+        if balance["customer_credit"] > 0:
+            amount("Credit client", balance["customer_credit"])
+        for refund in refunds:
+            amount(
+                "Remboursement " + payment_labels.get(refund.method, refund.method),
+                -refund.amount, refund.currency,
+            )
+
+    if balance["amount_due"] > 0 and balance["net_settled"] > 0:
+        rule()
+        amount("RESTE A PAYER", balance["amount_due"])
+
     if order.status == "CANCELLED":
         add("COMMANDE ANNULEE")
     elif open_advance:
-        add("COMMANDE EN COURS - AVANCE CLIENT")
+        add("COMMANDE EN COURS")
         amount("Avance disponible", advance_balance)
     elif balance["amount_due"] == 0:
         add("A CREDIT" if balance["customer_credit"] > 0 else "PAYEE")
-    else:
-        add("PAIEMENT PARTIEL" if balance["net_settled"] > 0 else "A PAYER")
-    if order.notes:
-        rule()
-        add(f"Note: {order.notes}")
+
     rule()
     add("Merci pour votre visite.")
-    add(f"Edite le {issued_at}")
     text = "\n".join(rows) + "\n\n\n"
-    # Initialize, select normal font A and left alignment. No cutter on mobile printers.
+    # Initialize, font A, left alignment; no cutter on mobile printers.
     payload = b"\x1b@\x1b!\x00\x1ba\x00" + text.encode("ascii")
     encoded = base64.b64encode(payload).decode("ascii")
     return "intent:base64," + encoded + "#Intent;scheme=rawbt;package=ru.a402d.rawbtprinter;end;"
-
 
 def rawbt_receipt(*, bar, order, lines, payments, refunds, balance, server_name,
                   customer_name, payment_times, refund_times, payment_labels,

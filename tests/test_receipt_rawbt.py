@@ -37,12 +37,16 @@ def test_rawbt_ticket_uses_authorized_receipt_data_and_32_columns(env):
 
     assert 'Client: Zaza' in ticket
     assert 'Elodie' in ticket
-    assert 'RESTE A PAYER: 200 FCFA' in ticket
-    assert 'A PAYER' in ticket
+    assert 'A PAYER: 200 FCFA' in ticket
+    assert ticket.count('A PAYER') == 1
+    assert 'RECU DE VENTE' not in ticket
+    assert 'Regle / finance' not in ticket
+    assert 'Commande initiale' not in ticket
+    assert 'Sans serveuse' not in ticket
+    assert 'Edite le' not in ticket
     assert all(len(line) <= 32 for line in ticket.splitlines())
     assert '\x1b' not in ticket
-    assert any('FACTURE CUMULEE' in item for item in tickets)
-    assert any('FACTURE DETAILLEE' in item for item in tickets)
+    assert all('FACTURE CUMULEE' not in item and 'FACTURE DETAILLEE' not in item for item in tickets)
     assert 'Facture cumulée' in page.text
     assert 'Facture détaillée' in page.text
     assert 'data-receipt-mode="cumulative"' in page.text
@@ -107,3 +111,17 @@ def test_print_numbers_preserve_fractional_values_and_strip_controls():
     assert number(Decimal('1000.50')) == '1,000.5'
     assert number(Decimal('0.125')) == '0.125'
     assert printable('Élodie\x1b@\n33 Export') == 'Elodie @ 33 Export'
+
+
+def test_compact_receipt_reference_and_no_duplicate_address():
+    from types import SimpleNamespace
+    from app.receipt_printing import compact_order_reference, receipt_address
+
+    assert compact_order_reference("CMD-20261107-022506-E85E") == "022506-E85E"
+    assert compact_order_reference("SERVER-PREVIEW") == "SERVER-PREVIEW"
+    assert receipt_address(SimpleNamespace(
+        name="Terasse sous manguier", address="Sous manguier",
+    )) is None
+    assert receipt_address(SimpleNamespace(
+        name="Terasse sous manguier", address="Carrefour Essomba",
+    )) == "Carrefour Essomba"

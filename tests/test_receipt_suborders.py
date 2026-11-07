@@ -109,7 +109,7 @@ def test_printed_receipt_refreshes_with_validated_suborder(env):
 
     ticket = _rawbt_text(page.text)
     assert "Booster ajout facture" in ticket
-    assert "Total commande: 350 FCFA" in ticket
+    assert "A PAYER: 350 FCFA" in ticket
 
 
 def test_receipt_does_not_show_unvalidated_suborder(env):
@@ -144,4 +144,4 @@ def test_receipt_does_not_show_unvalidated_suborder(env):
     assert page.status_code == 200
     ticket = _rawbt_text(page.text)
     assert ticket.count("Water") == 1
-    assert "Total commande: 200 FCFA" in ticket
+    assert "A PAYER: 200 FCFA" in ticket
