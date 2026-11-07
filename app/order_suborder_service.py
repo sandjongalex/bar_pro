@@ -26,6 +26,7 @@ class OrderSuborderService:
         stmt = select(ChangeVoucher).where(
             ChangeVoucher.bar_id == order.bar_id,
             ChangeVoucher.origin_order_id == order.id,
+            ChangeVoucher.code.like("AV-%"),
         )
         if positive_balance:
             stmt = stmt.where(ChangeVoucher.balance_amount > 0)
