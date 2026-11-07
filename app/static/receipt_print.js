@@ -5,7 +5,6 @@
   const buttons = Array.from(document.querySelectorAll('.print-receipt'));
   const tables = Array.from(document.querySelectorAll('.receipt-lines'));
   const help = document.getElementById('print-help');
-  const modeLabel = document.getElementById('receipt-mode-label');
   const browserButton = document.getElementById('print-browser');
   const android = /Android/i.test(navigator.userAgent);
   let activeMode = 'detailed';
@@ -15,9 +14,6 @@
     tables.forEach(function (table) {
       table.hidden = table.dataset.receiptMode !== activeMode;
     });
-    if (modeLabel) {
-      modeLabel.textContent = activeMode === 'cumulative' ? 'Facture cumulée' : 'Facture détaillée';
-    }
   }
 
   setMode(activeMode);

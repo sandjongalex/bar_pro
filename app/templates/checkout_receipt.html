@@ -12,32 +12,32 @@
     .toolbar a, .toolbar button { border: 1px solid #c8cfcc; background: #fff; color: #111; border-radius: 8px; padding: 9px 12px; font-weight: 700; text-decoration: none; cursor: pointer; }
     .toolbar button { background: #123d33; color: #fff; border-color: #123d33; }
     .toolbar button.secondary { background: #fff; color: #123d33; }
-    .receipt { width: 58mm; max-width: calc(100vw - 20px); margin: 0 auto 24px; background: #fff; padding: 6mm 5mm; box-shadow: 0 8px 30px rgba(0,0,0,.08); }
+    .receipt { width: 58mm; max-width: calc(100vw - 20px); margin: 0 auto 24px; background: #fff; padding: 4mm 3.5mm; box-shadow: 0 8px 30px rgba(0,0,0,.08); }
     .center { text-align: center; }
-    .brand { font-size: 20px; font-weight: 800; letter-spacing: .03em; }
+    .brand { font-size: 14px; font-weight: 800; line-height: 1.2; letter-spacing: 0; }
     .muted { color: #666; font-size: 11px; line-height: 1.4; }
-    .mode-label { margin-top: 3px; font-weight: 800; color: #222; text-transform: uppercase; letter-spacing: .04em; }
-    .rule { border: 0; border-top: 1px dashed #777; margin: 10px 0; }
-    .meta, .totals { display: grid; gap: 5px; }
+    .receipt-id { font-size: 10px; font-weight: 600; margin-top: 3px; }
+    .rule { border: 0; border-top: 1px dashed #777; margin: 7px 0; }
+    .meta, .totals { display: grid; gap: 4px; }
     .row { display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; font-size: 11px; }
     .row strong { text-align: right; min-width: 0; overflow-wrap: anywhere; }
     .items td, .brand, .muted { overflow-wrap: anywhere; }
     .print-help { max-width: 520px; margin: 10px auto; padding: 0 10px; font-size: 13px; }
     .items { width: 100%; border-collapse: collapse; table-layout: fixed; }
     .items[hidden] { display: none !important; }
-    .items th { font-size: 9px; text-transform: uppercase; color: #555; border-bottom: 1px solid #bbb; padding: 5px 2px; text-align: left; }
-    .items td { font-size: 10.5px; padding: 6px 2px; vertical-align: top; border-bottom: 1px dotted #ddd; }
+    .items th { font-size: 9px; text-transform: uppercase; color: #555; border-bottom: 1px solid #bbb; padding: 4px 2px; text-align: left; }
+    .items td { font-size: 10px; padding: 4px 2px; vertical-align: top; border-bottom: 1px dotted #ddd; }
     .items th:nth-child(2), .items td:nth-child(2) { width: 14%; text-align: center; }
     .items th:nth-child(3), .items td:nth-child(3), .items th:nth-child(4), .items td:nth-child(4) { width: 22%; text-align: right; }
     .section-title { margin: 8px 0 5px; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; }
-    .grand { font-size: 14px; font-weight: 800; padding-top: 5px; }
-    .status { margin: 10px 0; padding: 7px; border: 1px solid #333; font-size: 11px; font-weight: 800; text-align: center; }
-    .footer { margin-top: 12px; text-align: center; font-size: 10px; line-height: 1.5; }
+    .grand { font-size: 13px; font-weight: 800; padding-top: 5px; }
+    .status { margin: 7px 0; padding: 5px; border: 1px solid #333; font-size: 11px; font-weight: 800; text-align: center; }
+    .footer { margin-top: 9px; text-align: center; font-size: 10px; line-height: 1.4; }
     @media print {
       @page { size: 58mm auto; margin: 0; }
       body { background: #fff; }
       .no-print { display: none !important; }
-      .receipt { width: 58mm; max-width: none; margin: 0; padding: 5mm; box-shadow: none; }
+      .receipt { width: 58mm; max-width: none; margin: 0; padding: 4mm 3.5mm; box-shadow: none; }
     }
   </style>
 </head>
@@ -54,29 +54,27 @@
   <main class="receipt">
     <header class="center">
       <div class="brand">{{ bar.name }}</div>
-      {% if bar.address %}<div class="muted">{{ bar.address }}</div>{% endif %}
+      {% if receipt_address %}<div class="muted">{{ receipt_address }}</div>{% endif %}
       {% if bar.phone %}<div class="muted">Tél. {{ bar.phone }}</div>{% endif %}
-      <div class="muted">Reçu de vente</div>
-      <div class="muted mode-label" id="receipt-mode-label">Facture détaillée</div>
+      <div class="receipt-id">{{ sale_time }}</div>
+      <div class="receipt-id">N° {{ short_reference }}</div>
     </header>
 
+    {% if (server_name and server_name != 'Sans serveuse') or order.table_label_snapshot or customer_name %}
     <hr class="rule">
-
     <section class="meta">
-      <div class="row"><span>Commande</span><strong>{{ order.reference }}</strong></div>
-      <div class="row"><span>Date</span><strong>{{ sale_time }}</strong></div>
-      <div class="row"><span>Serveuse</span><strong>{{ server_name }}</strong></div>
-      <div class="row"><span>Table</span><strong>{{ order.table_label_snapshot or '—' }}</strong></div>
+      {% if server_name and server_name != 'Sans serveuse' %}<div class="row"><span>Serveuse</span><strong>{{ server_name }}</strong></div>{% endif %}
+      {% if order.table_label_snapshot %}<div class="row"><span>Table</span><strong>{{ order.table_label_snapshot }}</strong></div>{% endif %}
       {% if customer_name %}<div class="row"><span>Client</span><strong>{{ customer_name }}</strong></div>{% endif %}
     </section>
-
+    {% endif %}
     <hr class="rule">
 
     <table class="items receipt-lines" data-receipt-mode="detailed" aria-label="Facture détaillée">
       <thead><tr><th>Article</th><th>Qté</th><th>PU</th><th>Total</th></tr></thead>
       <tbody>
         {% for section in receipt_sections %}
-        <tr class="receipt-section-label"><td colspan="4">{{ section.label }}</td></tr>
+        {% if receipt_sections|length > 1 %}<tr class="receipt-section-label"><td colspan="4">{{ section.label }}</td></tr>{% endif %}
           {% for line in section.lines %}
           <tr>
             <td>{{ line.product_name_snapshot }}</td>
@@ -104,57 +102,53 @@
     </table>
 
     <div class="totals">
-      <div class="row"><span>Total commande</span><strong>{{ "{:,.0f}".format(order.total_amount) }} {{ order.currency }}</strong></div>
-      {% if balance.return_credit > 0 %}<div class="row"><span>Retours / avoirs</span><strong>- {{ "{:,.0f}".format(balance.return_credit) }} {{ order.currency }}</strong></div>{% endif %}
-      <div class="row grand"><span>Net à régler</span><strong>{{ "{:,.0f}".format(balance.net_sale) }} {{ order.currency }}</strong></div>
+      {% if balance.return_credit > 0 %}
+      <div class="row"><span>Articles</span><strong>{{ "{:,.0f}".format(order.total_amount) }} {{ order.currency }}</strong></div>
+      <div class="row"><span>Avoirs</span><strong>- {{ "{:,.0f}".format(balance.return_credit) }} {{ order.currency }}</strong></div>
+      {% endif %}
+      {% if balance.amount_due > 0 and balance.net_settled <= 0 %}
+      <div class="row grand"><span>À PAYER</span><strong>{{ "{:,.0f}".format(balance.amount_due) }} {{ order.currency }}</strong></div>
+      {% else %}
+      <div class="row grand"><span>TOTAL</span><strong>{{ "{:,.0f}".format(balance.net_sale) }} {{ order.currency }}</strong></div>
+      {% endif %}
     </div>
 
     {% if payments or balance.customer_credit > 0 or refunds %}
     <hr class="rule">
-    <div class="section-title">Règlement</div>
     <div class="totals">
       {% for payment in payments %}
-      <div class="row"><span>{{ payment_labels.get(payment.method, payment.method) }}{% if payment.method == 'MOBILE_MONEY' and payment.provider_code %} · {{ 'MTN Mobile Money' if payment.provider_code == 'MTN' else 'Orange Money' if payment.provider_code == 'ORANGE' else payment.provider_code }}{% endif %}</span><strong>{{ "{:,.0f}".format(payment.amount_applied) }} {{ payment.currency }}</strong></div>
-      <div class="row muted"><span>{{ payment.reference }} · {{ payment_times[payment.id] }}</span><span></span></div>
+      <div class="row"><span>{{ payment_labels.get(payment.method, payment.method) }}{% if payment.method == 'MOBILE_MONEY' and payment.provider_code %} · {{ 'MTN' if payment.provider_code == 'MTN' else 'Orange' if payment.provider_code == 'ORANGE' else payment.provider_code }}{% endif %}</span><strong>{{ "{:,.0f}".format(payment.amount_applied) }} {{ payment.currency }}</strong></div>
       {% if payment.method == 'CASH' and payment.change_given > 0 %}
       <div class="row muted"><span>Reçu {{ "{:,.0f}".format(payment.amount_presented) }}</span><strong>Monnaie {{ "{:,.0f}".format(payment.change_given) }}</strong></div>
       {% elif payment.method == 'CASH' and payment.amount_presented > payment.amount_applied %}
-      <div class="row muted"><span>Montant réellement remis</span><strong>{{ "{:,.0f}".format(payment.amount_presented) }} {{ payment.currency }}</strong></div>
+      <div class="row muted"><span>Montant remis</span><strong>{{ "{:,.0f}".format(payment.amount_presented) }} {{ payment.currency }}</strong></div>
       {% endif %}
       {% endfor %}
       {% if balance.customer_credit > 0 %}<div class="row"><span>Crédit client</span><strong>{{ "{:,.0f}".format(balance.customer_credit) }} {{ order.currency }}</strong></div>{% endif %}
       {% for refund in refunds %}
       <div class="row"><span>Remboursement {{ payment_labels.get(refund.method, refund.method) }}</span><strong>- {{ "{:,.0f}".format(refund.amount) }} {{ refund.currency }}</strong></div>
-      <div class="row muted"><span>{{ refund.reference }} · {{ refund_times[refund.id] }}</span><span></span></div>
       {% endfor %}
     </div>
     {% endif %}
 
+    {% if balance.amount_due > 0 and balance.net_settled > 0 %}
     <hr class="rule">
     <div class="totals">
-      <div class="row"><span>Réglé / financé</span><strong>{{ "{:,.0f}".format(balance.net_settled) }} {{ order.currency }}</strong></div>
-      <div class="row grand"><span>Reste à payer</span><strong>{{ "{:,.0f}".format(balance.amount_due) }} {{ order.currency }}</strong></div>
+      <div class="row grand"><span>RESTE À PAYER</span><strong>{{ "{:,.0f}".format(balance.amount_due) }} {{ order.currency }}</strong></div>
     </div>
-
-    <div class="status">
-      {% if order.status == "CANCELLED" %}COMMANDE ANNULÉE{% elif open_advance %}COMMANDE EN COURS · AVANCE CONSERVÉE{% elif balance.amount_due == 0 and balance.customer_credit > 0 %}À CRÉDIT{% elif balance.amount_due == 0 %}PAYÉE{% elif balance.net_settled > 0 %}PAIEMENT PARTIEL{% else %}À PAYER{% endif %}
-    </div>
-
-    {% if open_advance %}
-    <div class="totals">
-      <div class="row grand"><span>Avance toujours disponible</span><strong>{{ "{:,.0f}".format(advance_balance) }} {{ order.currency }}</strong></div>
-    </div>
-    <p class="muted">Montant conservé pour les prochains produits. Ce reçu n'est pas une clôture définitive ; le solde sera rendu à la fin de la commande.</p>
     {% endif %}
 
-    {% if order.notes %}
-    <div class="section-title">Note</div>
-    <div class="muted">{{ order.notes }}</div>
+    {% if order.status == "CANCELLED" %}
+    <div class="status">COMMANDE ANNULÉE</div>
+    {% elif open_advance %}
+    <div class="status">COMMANDE EN COURS</div>
+    <div class="row"><span>Avance disponible</span><strong>{{ "{:,.0f}".format(advance_balance) }} {{ order.currency }}</strong></div>
+    {% elif balance.amount_due == 0 %}
+    <div class="status">{{ 'À CRÉDIT' if balance.customer_credit > 0 else 'PAYÉE' }}</div>
     {% endif %}
 
     <footer class="footer">
-      Merci pour votre visite.<br>
-      <span class="muted">Reçu édité le {{ issued_at }} · Bar Manager Pro</span>
+      Merci pour votre visite !
     </footer>
   </main>
   <script src="{{ url_for('static', filename='receipt_print.js') }}"></script>

@@ -6,7 +6,7 @@ from decimal import Decimal, InvalidOperation
 import secrets
 from zoneinfo import ZoneInfo
 
-from app.receipt_printing import rawbt_receipt
+from app.receipt_printing import rawbt_receipt, compact_order_reference, receipt_address
 
 from flask import Blueprint, flash, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
@@ -280,6 +280,8 @@ def receipt(bar_id: int, order_id: int):
     )
     return render_template(
         "checkout_receipt.html",
+        short_reference=compact_order_reference(order.reference),
+        receipt_address=receipt_address(bar),
         rawbt_intent=rawbt_receipt(**receipt_context),
         **receipt_context,
     )
