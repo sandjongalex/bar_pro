@@ -7,6 +7,8 @@ from app.cash_services import cash_service
 from app.extensions import db
 from app.finance_totals import order_balance
 from app.models import CashMovement, Order, Payment, StaffAssignment, StaffCashLedger, StockBalance
+from app.change_voucher_models import ChangeVoucher, ChangeVoucherTransaction
+from app.order_suborder_service import order_suborder_service
 from test_cashier_workspace_async import _async_headers, _cashier, _csrf, _login
 from test_workflows import env
 
@@ -45,15 +47,15 @@ def test_inline_client_cash_records_actual_tender_change_and_drawer_only(env):
     response = client.post(url, data=payload, headers=_async_headers(csrf))
     assert response.status_code == 200, response.text
     data = response.json["data"]
-    assert data["cash_summary"] == {
-        "amount_presented": "1000", "amount_applied": "600",
-        "change_given": "400", "remaining": "0",
-        "source": "client", "currency": "XAF",
-        "payment_status": "PAID",
-    }
-    assert data["payment_status"] == "PAID"
+    assert data["cash_summary"]["amount_presented"] == "1000"
+    assert data["cash_summary"]["amount_applied"] == "600"
+    assert data["cash_summary"]["change_given"] == "0"
+    assert data["cash_summary"]["advance_balance"] == "400"
+    assert data["cash_summary"]["order_open"] is True
+    assert data["cash_summary"]["advance_code"]
+    assert data["payment_status"] == "PAID"  # Financial balance only: tab stays open.
     assert "focus=payment" not in data["refresh_url"]
-    assert "order_id=" not in data["refresh_url"]
+    assert f"order_id=" in data["refresh_url"]
     order = db.session.scalar(select(Order).where(
         Order.bar_id == bar.id, Order.reference == "INLINE-CASH-CLIENT-1"
     ))
@@ -66,13 +68,18 @@ def test_inline_client_cash_records_actual_tender_change_and_drawer_only(env):
     assert payment.cash_session_id == session.id
     assert Decimal(payment.amount_presented) == 1000
     assert Decimal(payment.amount_applied) == 600
-    assert Decimal(payment.change_given) == 400
+    assert Decimal(payment.change_given) == 0
     cash_line = db.session.scalar(select(CashMovement).where(
         CashMovement.bar_id == bar.id, CashMovement.payment_id == payment.id
     ))
     assert Decimal(cash_line.amount_delta) == 600
     assert "remis par client" in cash_line.reason
-    assert Decimal(cash_service.expected(session)) == 1600
+    voucher = db.session.scalar(select(ChangeVoucher).where(
+        ChangeVoucher.bar_id == bar.id, ChangeVoucher.origin_order_id == order.id,
+    ))
+    assert voucher is not None
+    assert Decimal(voucher.balance_amount) == Decimal("400")
+    assert Decimal(cash_service.expected(session)) == 2000
 
     duplicate = client.post(url, data=payload, headers=_async_headers(csrf))
     assert duplicate.status_code == 409
@@ -252,6 +259,7 @@ def test_cashier_full_tender_is_not_in_payable_queue(env):
     assert response.status_code == 200, response.text
     assert response.json["data"]["payment_status"] == "PAID"
     assert "focus=payment" not in response.json["data"]["refresh_url"]
+    assert "order_id=" in response.json["data"]["refresh_url"]
 
     order = db.session.scalar(select(Order).where(
         Order.bar_id == bar.id, Order.reference == "INLINE-CASH-PAID-NOT-DUE"
@@ -261,4 +269,7 @@ def test_cashier_full_tender_is_not_in_payable_queue(env):
     assert Decimal(order_balance(order)["amount_due"]) == Decimal("0")
     page = client.get(url)
     assert page.status_code == 200
-    assert "INLINE-CASH-PAID-NOT-DUE" not in page.text
+    payable_section = page.text.split('id="queuePayable"', 1)[1].split('id="queuePrepaid"', 1)[0]
+    assert "INLINE-CASH-PAID-NOT-DUE" not in payable_section
+    assert "INLINE-CASH-PAID-NOT-DUE" in page.text
+    assert "EN COURS · AVANCES CLIENTS" in page.text
