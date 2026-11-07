@@ -44,6 +44,9 @@
           <div class="invoice-actions">
             <a href="{{ url_for('orders_web.detail', bar_id=bar.id, order_id=order.id) }}">◉ Détails</a>
             <a class="primary" href="{{ url_for('cashier_workspace_web.workspace', bar_id=bar.id, order_id=order.id) }}#paymentPanel">Ouvrir</a>
+            {% if delivered %}
+            <a data-invoice-print="{{ order.id }}" href="{{ url_for('checkout_web.receipt', bar_id=bar.id, order_id=order.id) }}" target="_blank" rel="noopener">Imprimer</a>
+            {% endif %}
             {% if delivered and order.payment_status != 'PAID' and balance and balance.amount_due > 0 %}
             <form method="post" data-bp-ajax="json" data-invoice-pay="1" data-confirm-amount="{{ '{:,.0f}'.format(balance.amount_due) }} {{ order.currency }}">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">

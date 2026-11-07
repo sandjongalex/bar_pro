@@ -278,6 +278,15 @@ def test_cashier_full_tender_is_not_in_payable_queue(env):
     assert "INLINE-CASH-PAID-NOT-DUE" not in payable_section
     assert "INLINE-CASH-PAID-NOT-DUE" in page.text
     assert "EN COURS · AVANCES CLIENTS" in page.text
+    # A paid-for-products tab with retained customer money must stay printable.
+    receipt_path = f"/bars/{bar.id}/checkout/orders/{order.id}/receipt"
+    assert f'data-prepaid-print="{order.id}"' in page.text
+    assert f'data-selected-print="{order.id}"' in page.text
+    assert receipt_path in page.text
+    receipt = client.get(receipt_path)
+    assert receipt.status_code == 200
+    assert "COMMANDE EN COURS" in receipt.text
+    assert "Avance disponible" in receipt.text
 
 
 
@@ -340,6 +349,10 @@ def test_cashier_keeps_advance_for_new_rounds_and_returns_only_remaining_cash(en
     assert voucher.status == "SETTLED"
     assert Decimal(voucher.balance_amount) == 0
     assert Decimal(cash_service.expected(session)) == 6000  # 1000 float + 5000 sold.
+    paid_invoices = client.get(f"/bars/{bar.id}/cashier/invoices?payment=paid")
+    assert paid_invoices.status_code == 200
+    assert f'data-invoice-print="{order.id}"' in paid_invoices.text
+    assert f"/bars/{bar.id}/checkout/orders/{order.id}/receipt" in paid_invoices.text
     after_closing = client.get(url)
     assert after_closing.status_code == 200
     assert f'data-prepaid-order-id="{order.id}"' not in after_closing.text

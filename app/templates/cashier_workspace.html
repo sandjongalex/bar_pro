@@ -235,6 +235,7 @@
         <div class="cashier-order-actions">
           <a class="btn btn-sm btn-primary" href="{{ url_for('suborders_web.new_suborder', bar_id=bar.id, order_id=order.id) }}">＋ Ajouter des produits</a>
           <a class="btn btn-sm btn-light border" href="{{ url_for('orders_web.detail', bar_id=bar.id, order_id=order.id) }}">Détails</a>
+          <a class="btn btn-sm btn-outline-primary" data-prepaid-print="{{ order.id }}" href="{{ url_for('checkout_web.receipt', bar_id=bar.id, order_id=order.id) }}" target="_blank" rel="noopener">Imprimer le reçu</a>
           {% if b.amount_due > 0 %}
           <a class="btn btn-sm btn-outline-primary" href="{{ url_for('cashier_workspace_web.workspace', bar_id=bar.id, order_id=order.id, focus='payment') }}#paymentPanel">Reste à encaisser</a>
           {% else %}
@@ -278,6 +279,9 @@
       <a href="{{ url_for('suborders_web.new_suborder', bar_id=bar.id, order_id=selected_order.id) }}" class="cashier-selected-suborder-cta" data-selected-suborder-add="1">
         <div><strong>Ajouter une sous-commande</strong><small>{% if selected_server_assignment %}Servir un ajout sur cette facture, à valider par la serveuse.{% else %}Ajouter des produits à ma facture et actualiser le montant dû.{% endif %}</small></div><span class="cashier-selected-suborder-plus">＋</span>
       </a>
+      {% endif %}
+      {% if selected_order.status != 'DRAFT' %}
+      <a class="btn btn-outline-primary w-100 mt-2" data-selected-print="{{ selected_order.id }}" href="{{ url_for('checkout_web.receipt', bar_id=bar.id, order_id=selected_order.id) }}" target="_blank" rel="noopener">Imprimer le reçu{% if selected_order.id in prepaid_vouchers and selected_order.closed_at is none %} d'avance{% endif %}</a>
       {% endif %}
       <div class="cashier-order-summary">
         <div><span>Origine</span><strong>{{ server_name_by_order.get(selected_order.id, 'Comptoir') }}</strong></div>
