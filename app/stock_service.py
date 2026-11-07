@@ -4,6 +4,7 @@ from sqlalchemy import select
 from app.extensions import db
 from app.models import (
     InventoryLine,
+    Order,
     OrderLine,
     OrderReturnLine,
     Product,
@@ -27,7 +28,20 @@ class StockService:
     def move(self, actor, bar_id, product_id, movement_type, quantity_delta, reason, **source):
         if movement_type not in TYPES:
             raise StockError("INVALID_MOVEMENT_TYPE")
-        if movement_type in {"INITIAL", "ADJUSTMENT", "LOSS", "INVENTORY_ADJUSTMENT"}:
+        # A correction of a *delivered* order may credit a product without
+        # physically receiving it. The paired LOSS is an internal order action,
+        # not an unrestricted manual inventory adjustment.
+        correction_order_id = source.pop("_nonrestocked_order_id", None)
+        if correction_order_id is not None:
+            if movement_type != "LOSS":
+                raise StockError("INVALID_MOVEMENT_TYPE")
+            linked_order = db.session.scalar(
+                select(Order).where(Order.bar_id == bar_id, Order.id == correction_order_id)
+            )
+            if linked_order is None or linked_order.status not in {"CONFIRMED", "SERVED"}:
+                raise LookupError("NOT_FOUND")
+            permissions.require(actor, "orders.edit", bar_id)
+        elif movement_type in {"INITIAL", "ADJUSTMENT", "LOSS", "INVENTORY_ADJUSTMENT"}:
             permissions.require(actor, "inventory.adjust", bar_id)
         elif movement_type in {"SALE", "RETURN"}:
             permissions.require(actor, "orders.edit", bar_id)
