@@ -75,7 +75,9 @@
   max-height: min(73vh, 730px);  /* Fallback for older Chrome. */
   max-height: min(73dvh, 730px);
   overflow-y: auto;
-  overscroll-behavior-y: contain;
+  /* When the catalog reaches either end, pass wheel/touch scrolling to the
+     document instead of trapping it inside the product grid. */
+  overscroll-behavior-y: auto;
   -webkit-overflow-scrolling: touch;
   align-content: start;
 }
@@ -129,17 +131,15 @@
   outline-offset: 2px;
 }
 
-/* The basket stays separate and reachable; its empty state no longer wastes
- * half the visible panel height. Use an inner scroll only for a tall basket. */
+/* The basket is a single continuous surface. Do not trap the wheel inside
+ * three nested scrollbars (page / basket / basket lines). The document handles
+ * long receipts naturally; the "Panier" shortcut can jump here at any time. */
 .cashier-sale-panel .cashier-sale-cart {
-  position: sticky;
-  top: 82px;
+  position: static;
   align-self: start;
-  max-height: calc(100vh - 96px);
-  max-height: calc(100dvh - 96px);
-  overflow-y: auto;
-  overscroll-behavior-y: contain;
-  scrollbar-width: thin;
+  max-height: none;
+  overflow: visible;
+  overscroll-behavior-y: auto;
 }
 .cashier-sale-panel .cashier-sale-cart .pos-cart-header {
   padding: 8px 11px;
@@ -165,9 +165,9 @@
   font-size: .68rem;
 }
 .cashier-sale-panel .cashier-sale-cart .pos-cart-lines {
-  max-height: min(30vh, 260px);
-  max-height: min(30dvh, 260px);
-  overflow-y: auto;
+  /* The order rows expand with the basket; no nested scrollbar. */
+  max-height: none;
+  overflow: visible;
 }
 .cashier-sale-panel .cashier-sale-cart .pos-cart-line {
   margin: 4px 6px;
@@ -210,9 +210,7 @@
   padding: 7px;
 }
 .cashier-sale-panel .cashier-sale-cart .cashier-sale-actions {
-  position: sticky;
-  bottom: 0;
-  z-index: 3;
+  position: static;
   padding: 8px;
   background: inherit;
   border-top: 1px solid var(--line);
@@ -280,8 +278,7 @@
     min-height: 44px; /* Thumb-friendly even at 320px. */
   }
   .cashier-sale-panel .cashier-sale-cart .pos-cart-lines {
-    max-height: min(35vh, 300px);
-    max-height: min(35dvh, 300px);
+    max-height: none;
   }
 }
 @media (prefers-reduced-motion: reduce) {
