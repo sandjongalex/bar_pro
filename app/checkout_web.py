@@ -15,6 +15,7 @@ from sqlalchemy.exc import IntegrityError, OperationalError
 
 from app.cash_services import cash_service
 from app.change_voucher_models import ChangeVoucher
+from app.change_voucher_service import change_voucher_service
 from app.cashier_payment_idempotency import claim as claim_payment_intent, complete as complete_payment_intent
 from app.customer_services import customer_service
 from app.extensions import db
@@ -121,7 +122,7 @@ def _message(code) -> str:
         "ORDER_ALREADY_CREDITED": "Cette commande a déjà été portée au compte d'un client.",
         "PAYMENT_LIMIT_EXCEEDED": "Le montant dépasse le reste à payer.",
         "INVALID_PAYMENT_AMOUNTS": "Vérifiez le montant encaissé et le montant reçu.",
-        "INVALID_MIXED_PAYMENT": "Le paiement mixte doit répartir exactement le reste entre espèces et Mobile Money.",
+        "INVALID_MIXED_PAYMENT": "Les deux montants doivent être positifs et leur somme ne doit pas dépasser le reste à payer.",
         "INVALID_METHOD": "Le mode de paiement sélectionné est invalide.",
         "CASH_LOCATION_REQUIRED": "Sélectionnez où se trouvent réellement les espèces.",
         "INVALID_CASH_HOLDER_MODE": "Le détenteur des espèces sélectionné est invalide.",
@@ -371,7 +372,7 @@ def checkout(bar_id):
             if method == "MIXED":
                 cash_part = _decimal(request.form.get("mixed_cash"), allow_zero=True)
                 mobile_part = _decimal(request.form.get("mixed_mobile"), allow_zero=True)
-                if cash_part <= 0 or mobile_part <= 0 or cash_part + mobile_part != due_before:
+                if cash_part <= 0 or mobile_part <= 0 or cash_part + mobile_part > due_before:
                     raise ValueError("INVALID_MIXED_PAYMENT")
                 presented = _positive_decimal(request.form.get("amount_presented"))
                 if presented < cash_part:
@@ -380,7 +381,26 @@ def checkout(bar_id):
                 if provider_code not in {"MTN", "ORANGE"}:
                     raise ValueError("PROVIDER_REFERENCE_REQUIRED")
 
-                payment_service.record(
+                advance = Decimal("0")
+                if (
+                    cash_part + mobile_part == due_before
+                    and presented > cash_part
+                    and is_cashier and assignment is not None
+                    and order.cashier_assignment_id == assignment.id
+                    and order.assigned_staff_id is None
+                    and cash_session_id is not None
+                    and staff_assignment_id is None
+                    and order.closed_at is None
+                    and not db.session.scalar(
+                        select(ChangeVoucher.id).where(
+                            ChangeVoucher.bar_id == bar_id,
+                            ChangeVoucher.origin_order_id == order.id,
+                            ChangeVoucher.code.like("AV-%"),
+                        )
+                    )
+                ):
+                    advance = presented - cash_part
+                cash_payment = payment_service.record(
                     current_user,
                     bar_id,
                     order_id,
@@ -388,9 +408,10 @@ def checkout(bar_id):
                     "CASH",
                     presented,
                     cash_part,
-                    presented - cash_part,
+                    presented - cash_part - advance,
                     cash_session_id=cash_session_id,
                     staff_assignment_id=staff_assignment_id,
+                    voucher_amount=advance,
                 )
                 payment_service.record(
                     current_user,
@@ -404,12 +425,24 @@ def checkout(bar_id):
                     provider_code=provider_code,
                     provider_transaction_id=provider_transaction_id,
                 )
+                if advance > 0:
+                    change_voucher_service.issue(
+                        current_user, bar_id, cash_payment.id, advance,
+                        customer_name=order.customer_name_snapshot,
+                        customer_advance=True,
+                    )
+                remaining = Decimal(order_balance(order, update=True, locking=True)["amount_due"] or 0)
                 complete_payment_intent(payment_intent, order_id=order.id)
                 db.session.commit()
-                flash(
-                    f"Paiement mixte validé : {cash_part:,.0f} espèces + {mobile_part:,.0f} Mobile Money.",
-                    "success",
+                message = (
+                    f"Commande EN COURS · avance conservée {advance:,.0f} {order.currency}."
+                    if advance > 0 else
+                    f"Paiement mixte PARTIEL · reste {remaining:,.0f} {order.currency}."
+                    if remaining > 0 else
+                    f"Montant actuel réglé : {cash_part:,.0f} espèces + "
+                    f"{mobile_part:,.0f} {provider_code}."
                 )
+                flash(message, "success")
                 return redirect(url_for("checkout_web.checkout", bar_id=bar_id, order_id=order_id))
 
             applied = _positive_decimal(request.form.get("amount_applied"))
