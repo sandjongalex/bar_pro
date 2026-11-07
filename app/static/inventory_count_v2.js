@@ -143,9 +143,10 @@
       var gapNode = row.querySelector(".inventory-gap");
       var theoretical = Number(row.getAttribute("data-theoretical") || "0");
       var machine = Number(row.getAttribute("data-machine") || "0");
+      var returns = Number(row.getAttribute("data-returns") || "0");
       var price = Number(row.getAttribute("data-price") || "0");
       var countedValid = result.kind === "counted" &&
-        isFinite(theoretical) && isFinite(machine) && isFinite(price);
+        isFinite(theoretical) && isFinite(machine) && isFinite(price) && isFinite(returns);
       if (!countedValid) {
         if (result.kind === "invalid") invalid++;
         if (soldNode) soldNode.textContent = "—";
@@ -156,7 +157,7 @@
         return;
       }
       counted++;
-      var sold = theoretical - result.physical;
+      var sold = theoretical - result.physical - returns;
       var sale = sold * price;
       var gap = result.physical - machine;
       soldTotal += sold;
