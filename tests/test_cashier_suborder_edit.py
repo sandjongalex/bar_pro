@@ -123,7 +123,8 @@ def test_cashier_edits_own_delivered_round_before_server_validation(env):
     edit_cashier_suborder(cashier, bar.id, order.id, sub.id,
                           [{"product_id": product.id, "quantity": 1}],
                           expected_revision=order_revision(order),
-                          reason="Client demande une seule bouteille")
+                          reason="Client demande une seule bouteille",
+                          return_disposition="RESTOCK")
     db.session.commit()
     assert stock(bar.id, product.id) == before + 1
     assert sub.status == "PENDING_VALIDATION"
