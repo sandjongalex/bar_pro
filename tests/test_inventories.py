@@ -256,3 +256,69 @@ def test_inventory_movement_origin_requires_authenticated_session(env):
         f'/bars/{env[2].id}/inventories/{inv.id}/movements/{env[4].id}'
     )
     assert response.status_code in (302, 401, 403)
+
+
+@pytest.mark.parametrize("disposition,remaining", [("RESTOCK", "10"), ("LOSS", "9")])
+def test_physical_inventory_net_sales_exclude_credited_replacements(env, disposition, remaining):
+    from app.order_edit_service import order_edit_service
+    from app.order_services import order_service
+    from app.models import StockBalance
+    app, owner, bar, _, original, _, _, _ = env
+    replacement = Product(
+        bar_id=bar.id, category_id=original.category_id,
+        name="Replacement", sku="REPLACEMENT-NET", base_unit="bottle",
+        sale_price=250, valuation_unit_cost=80,
+    )
+    db.session.add(replacement)
+    db.session.flush()
+    stock_service.move(owner, bar.id, replacement.id, "INITIAL", 5, "Initial replacement stock")
+
+    order = order_service.create(
+        owner, bar.id, "NET-RETURN-ORDER",
+        [{"product_id": original.id, "quantity": 1}],
+    )
+    order_service.confirm(owner, bar.id, order.id)
+    db.session.commit()
+    order_edit_service.edit(
+        owner, bar.id, order.id,
+        [{"product_id": replacement.id, "quantity": 1}],
+        "Produit remplacé", return_disposition=disposition,
+    )
+    db.session.commit()
+
+    original_stock = db.session.scalar(select(StockBalance.quantity).where(
+        StockBalance.bar_id == bar.id, StockBalance.product_id == original.id,
+    ))
+    replacement_stock = db.session.scalar(select(StockBalance.quantity).where(
+        StockBalance.bar_id == bar.id, StockBalance.product_id == replacement.id,
+    ))
+    assert original_stock == Decimal(remaining)
+    assert replacement_stock == Decimal("4")
+
+    inv = inventory_service.create(
+        owner, bar.id, f"INV-NET-{disposition}",
+        [original.id, replacement.id], "Comptage physique net",
+    )
+    db.session.commit()
+    inventory_service.count(owner, bar.id, inv.id, {
+        str(original.id): str(original_stock),
+        str(replacement.id): str(replacement_stock),
+    })
+    db.session.commit()
+    snapshots = {
+        row.product_id: db.session.scalar(select(InventoryLineSnapshot).where(
+            InventoryLineSnapshot.bar_id == bar.id,
+            InventoryLineSnapshot.inventory_line_id == row.id,
+        ))
+        for row in db.session.scalars(select(InventoryLine).where(
+            InventoryLine.bar_id == bar.id, InventoryLine.inventory_id == inv.id,
+        ))
+    }
+    assert snapshots[original.id].theoretical_sold_quantity == 0
+    assert snapshots[original.id].theoretical_sales_amount == 0
+    assert snapshots[replacement.id].theoretical_sold_quantity == 1
+    assert snapshots[replacement.id].theoretical_sales_amount == 250
+    inventory_service.post(owner, bar.id, inv.id)
+    db.session.commit()
+    db.session.refresh(inv)
+    assert inv.status == "POSTED"
