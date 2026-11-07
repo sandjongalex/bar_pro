@@ -1,13 +1,13 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 import secrets
 from decimal import Decimal
 from zoneinfo import ZoneInfo
 
 from flask import Blueprint, flash, jsonify, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 
 from app.auth import api_required
@@ -23,7 +23,7 @@ from app.inventory_approval import evaluation, policy_data, update_policy, submi
 from app.inventory_v2_reports import inventory_v2_report
 from app.inventory_finance_services import view as finance_view, count_cash, add_expense, request_debt, decide_debt
 from app.inventory_approval_models import InventoryApproval
-from app.models import Bar, Inventory, InventoryLine, Product
+from app.models import Bar, Inventory, InventoryLine, Product, StockMovement
 from app.permissions import permissions
 from app.product_display_order import product_order_expression
 
@@ -414,6 +414,85 @@ def detail(bar_id, inventory_id):
         can_adjust=can_adjust,
         can_count=can_count,
     )
+
+
+
+@inventories_bp.get("/<int:inventory_id>/movements/<int:product_id>")
+@login_required
+def movement_origin(bar_id, inventory_id, product_id):
+    """Explain a frozen inventory's non-sale movement total, without changing stock."""
+    inv = inventory_service.get(current_user, bar_id, inventory_id)
+    line = db.session.scalar(
+        select(InventoryLine).where(
+            InventoryLine.bar_id == bar_id,
+            InventoryLine.inventory_id == inv.id,
+            InventoryLine.product_id == product_id,
+        )
+    )
+    if line is None:
+        raise LookupError("NOT_FOUND")
+    snapshot = db.session.scalar(
+        select(InventoryLineSnapshot).where(
+            InventoryLineSnapshot.bar_id == bar_id,
+            InventoryLineSnapshot.inventory_line_id == line.id,
+        )
+    )
+    period = db.session.scalar(
+        select(InventoryPeriodSnapshot).where(
+            InventoryPeriodSnapshot.bar_id == bar_id,
+            InventoryPeriodSnapshot.inventory_id == inv.id,
+        )
+    )
+    product = db.session.scalar(
+        select(Product).where(Product.bar_id == bar_id, Product.id == product_id)
+    )
+    if snapshot is None or period is None or product is None:
+        raise LookupError("NOT_FOUND")
+
+    # Match the exact period and movement types used by InventoryService.create.
+    filters = [
+        StockMovement.bar_id == bar_id,
+        StockMovement.product_id == product_id,
+        StockMovement.movement_type.in_(("RETURN", "LOSS", "ADJUSTMENT")),
+        StockMovement.occurred_at <= period.period_end_at,
+    ]
+    if period.period_start_at is not None:
+        filters.append(StockMovement.occurred_at > period.period_start_at)
+
+    net = Decimal(db.session.scalar(
+        select(func.coalesce(func.sum(StockMovement.quantity_delta), 0)).where(*filters)
+    ) or 0)
+    rows = db.session.execute(
+        select(StockMovement, User)
+        .outerjoin(User, User.id == StockMovement.recorded_by_id)
+        .where(*filters)
+        .order_by(StockMovement.occurred_at.desc(), StockMovement.id.desc())
+        .limit(101)
+    ).all()
+    bar = db.session.get(Bar, bar_id)
+    labels = {"RETURN": "Retour client", "LOSS": "Perte / casse",
+              "ADJUSTMENT": "Ajustement manuel"}
+    movements = []
+    for movement, author in rows[:100]:
+        stamp = movement.occurred_at.replace(tzinfo=timezone.utc) if (
+            movement.occurred_at.tzinfo is None
+        ) else movement.occurred_at
+        movements.append({
+            "id": movement.id,
+            "date": stamp.astimezone(ZoneInfo(bar.timezone)).strftime("%d/%m/%Y %H:%M"),
+            "type": labels.get(movement.movement_type, movement.movement_type),
+            "quantity": str(movement.quantity_delta),
+            "author": author.display_name if author else f"Utilisateur #{movement.recorded_by_id}",
+            "reason": movement.reason,
+        })
+    return jsonify(success=True, data={
+        "product_name": product.name,
+        "snapshot_total": str(snapshot.other_movement_quantity),
+        "journal_total": str(net),
+        "matches_snapshot": net == Decimal(snapshot.other_movement_quantity),
+        "movements": movements,
+        "has_more": len(rows) > 100,
+    })
 
 
 @inventories_bp.route("/<int:inventory_id>/v2-count", methods=["GET", "POST"])
