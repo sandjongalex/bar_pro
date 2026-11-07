@@ -68,6 +68,14 @@
           <input class="form-control" id="address" name="address" maxlength="500" placeholder="Quartier, ville" value="{{ values.get('address','') }}">
         </div>
       </div>
+      <div class="mt-3">
+        <label class="form-label" for="printer_width_mm">Largeur de l'imprimante thermique</label>
+        <select class="form-select" id="printer_width_mm" name="printer_width_mm" required>
+          <option value="58" {% if values.get('printer_width_mm', '58') == '58' %}selected{% endif %}>58 mm — Ticket compact</option>
+          <option value="80" {% if values.get('printer_width_mm', '58') == '80' %}selected{% endif %}>80 mm — Ticket large</option>
+        </select>
+        <small class="text-secondary">Modifiable à tout moment dans les paramètres du bar.</small>
+      </div>
       <div class="form-check mt-4">
         <input class="form-check-input" type="checkbox" id="confirm_authority" name="confirm_authority" value="1" required>
         <label class="form-check-label" for="confirm_authority">Je confirme être autorisé à gérer cet établissement.</label>

@@ -59,6 +59,7 @@ def test_register_auto_activates_first_bar_for_exactly_15_days(tmp_path):
         assert owner.category == "OWNER"
         assert owner.check_password("Asecurepass-12345")
         assert bar.status == "ACTIVE"
+        assert bar.printer_width_mm == 58
         assert bar.phone == "+237699555001"
         assert bar.catalog_configured is True
         assert len(list(db.session.scalars(select(ProductCategory).where(ProductCategory.bar_id == bar.id)))) == 6
@@ -194,3 +195,41 @@ def test_signup_is_blocked_when_disabled_and_login_hides_cta(tmp_path):
     assert "Créer un compte propriétaire" not in login.get_data(as_text=True)
     with app.app_context():
         assert db.session.scalar(select(User).where(User.email == "owner@example.invalid")) is None
+
+
+def test_owner_selects_80mm_at_signup_and_can_change_settings(tmp_path):
+    app = _app(tmp_path)
+    client = app.test_client()
+    form = _form(email="owner-width@example.invalid")
+    form["printer_width_mm"] = "80"
+    assert client.post("/register-owner", data=form).status_code == 302
+    with app.app_context():
+        bar = db.session.scalar(select(Bar).where(Bar.name == "BAR TEST"))
+        bar_id = bar.id
+        assert bar.printer_width_mm == 80
+
+    url = f"/bars/{bar_id}/settings"
+    settings = client.get(url)
+    assert settings.status_code == 200
+    assert 'value="80" checked' in settings.text
+    saved = client.post(url, data={"printer_width_mm": "58"})
+    assert saved.status_code == 302
+    with app.app_context():
+        assert db.session.get(Bar, bar_id).printer_width_mm == 58
+
+    invalid = client.post(url, data={"printer_width_mm": "70"})
+    assert invalid.status_code == 200
+    assert "58 mm ou 80 mm" in invalid.text
+    with app.app_context():
+        assert db.session.get(Bar, bar_id).printer_width_mm == 58
+
+
+def test_signup_rejects_invalid_printer_width(tmp_path):
+    app = _app(tmp_path)
+    client = app.test_client()
+    form = _form()
+    form["printer_width_mm"] = "120"
+    response = client.post("/register-owner", data=form)
+    assert response.status_code == 400
+    with app.app_context():
+        assert db.session.scalar(select(User.id).where(User.email == form["email"])) is None

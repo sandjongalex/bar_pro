@@ -50,6 +50,14 @@
               <div class="form-text">Pour le FCFA : XAF</div>
             </div>
             <div class="col-md-6">
+              <label class="form-label" for="printer_width_mm">Imprimante thermique</label>
+              <select class="form-select" id="printer_width_mm" name="printer_width_mm" required>
+                <option value="58" {% if values.printer_width_mm == '58' %}selected{% endif %}>58 mm — Ticket compact</option>
+                <option value="80" {% if values.printer_width_mm == '80' %}selected{% endif %}>80 mm — Ticket large</option>
+              </select>
+              <div class="form-text">Vous pourrez changer ce réglage dans les paramètres du bar.</div>
+            </div>
+            <div class="col-md-6">
               <label class="form-label" for="stock_alert_threshold">Seuil d'alerte stock</label>
               <input class="form-control" id="stock_alert_threshold" name="stock_alert_threshold" type="number" min="0" step="0.001" value="{{ values.stock_alert_threshold }}">
               <div class="form-text">Valeur globale utilisée pour signaler un stock faible.</div>

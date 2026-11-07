@@ -1,0 +1,43 @@
+{% extends 'layout.html' %}
+{% block title %}Paramètres d'impression · {{ bar.name }}{% endblock %}
+{% block header %}Paramètres d'impression · {{ bar.name }}{% endblock %}
+{% block content %}
+<section class="dashboard-hero">
+  <div>
+    <a class="bar-back" href="{{ url_for('bars.web_detail', bar_id=bar.id) }}">← Retour au bar</a>
+    <p class="eyebrow mt-3 mb-2">Configuration du bar</p>
+    <h1>Imprimante thermique</h1>
+    <p>Choisissez la largeur des tickets de {{ bar.name }}. Le réglage s'applique aux nouvelles impressions HTML/PDF et RawBT.</p>
+  </div>
+</section>
+{% with notifications = get_flashed_messages(with_categories=true) %}
+  {% for kind, message in notifications %}
+  <div class="alert alert-{{ kind }} mt-3">{{ message }}</div>
+  {% endfor %}
+{% endwith %}
+{% if error %}<div class="alert alert-danger mt-3" role="alert">{{ error }}</div>{% endif %}
+<section class="panel-card mt-4" style="max-width:700px">
+  <div class="panel-header"><h2>Format du papier</h2></div>
+  <div class="p-4">
+    <form method="post">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="row g-3">
+        <div class="col-sm-6">
+          <label class="border rounded-3 p-3 d-flex align-items-center gap-2 h-100" for="paper58">
+            <input type="radio" id="paper58" name="printer_width_mm" value="58" {% if selected == '58' %}checked{% endif %} required>
+            <span><strong>58 mm</strong><small class="d-block text-secondary">Ticket compact, 32 caractères/ligne</small></span>
+          </label>
+        </div>
+        <div class="col-sm-6">
+          <label class="border rounded-3 p-3 d-flex align-items-center gap-2 h-100" for="paper80">
+            <input type="radio" id="paper80" name="printer_width_mm" value="80" {% if selected == '80' %}checked{% endif %} required>
+            <span><strong>80 mm</strong><small class="d-block text-secondary">Ticket large, 48 caractères/ligne</small></span>
+          </label>
+        </div>
+      </div>
+      <p class="text-secondary small mt-3">Le choix est propre à ce bar : les autres établissements et l'historique des commandes ne changent pas. Vérifiez aussi que votre imprimante est réglée sur le même papier.</p>
+      <button class="btn btn-primary mt-2" type="submit">Enregistrer le format</button>
+    </form>
+  </div>
+</section>
+{% endblock %}

@@ -71,6 +71,13 @@ def create_owner(actor, data):
     return owner
 
 
+def parse_printer_width(value):
+    """Only two supported receipt roll widths; do not accept arbitrary numbers."""
+    if str(value).strip() not in {"58", "80"}:
+        raise ValueError("INVALID_PRINTER_WIDTH")
+    return int(value)
+
+
 def create_bar(actor, owner_id, data, copy_from_id=None):
     if not actor.is_active or actor.category != "SUPER_ADMIN":
         raise PermissionError("FORBIDDEN")
@@ -84,6 +91,7 @@ def create_bar(actor, owner_id, data, copy_from_id=None):
     phone = str(data.get("phone", "")).strip() or None
     timezone_name = str(data.get("timezone", "Africa/Douala")).strip()
     currency = str(data.get("currency", "XAF")).strip().upper()
+    printer_width = parse_printer_width(data.get("printer_width_mm", 58))
 
     if not name or len(name) > 160:
         raise ValueError("INVALID_BAR_NAME")
@@ -111,6 +119,7 @@ def create_bar(actor, owner_id, data, copy_from_id=None):
         name=name,
         timezone=timezone_name,
         currency=currency,
+        printer_width_mm=printer_width,
         address=address,
         phone=phone,
         stock_alert_threshold=threshold,
@@ -170,6 +179,8 @@ def update_bar(actor, bar_id, data):
         raise ValueError("CURRENCY_IMMUTABLE")
     if "logo_key" in data:
         raise ValueError("LOGO_STORAGE_UNAVAILABLE")
+    if "printer_width_mm" in data:
+        data["printer_width_mm"] = parse_printer_width(data["printer_width_mm"])
     if "stock_alert_threshold" in data:
         from app.validation import number
         data["stock_alert_threshold"] = number(data["stock_alert_threshold"], 6)
@@ -180,7 +191,7 @@ def update_bar(actor, bar_id, data):
             ZoneInfo(data["timezone"])
         except (ZoneInfoNotFoundError, ValueError):
             raise ValueError("INVALID_TIMEZONE") from None
-    for field in ("name", "address", "phone", "timezone", "stock_alert_threshold", "credit_sales_enabled"):
+    for field in ("name", "address", "phone", "timezone", "stock_alert_threshold", "credit_sales_enabled", "printer_width_mm"):
         if field in data:
             setattr(bar, field, data[field])
     return bar

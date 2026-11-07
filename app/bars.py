@@ -13,7 +13,7 @@ from app.auth import api_required
 bars_bp=Blueprint("bars",__name__,url_prefix="/bars")
 api_bars_bp=Blueprint("api_bars",__name__,url_prefix="/api/v1/bars")
 def deny(reason): return jsonify({"success":False,"error":{"code":reason,"message":"Access denied.","details":None}}),404 if reason=="NOT_FOUND" else 403
-def serialize(bar): return {"id":str(bar.id),"name":bar.name,"status":bar.status,"timezone":bar.timezone,"currency":bar.currency,"address":bar.address,"phone":bar.phone,"logo_key":bar.logo_key,"stock_alert_threshold":str(bar.stock_alert_threshold),"credit_sales_enabled":bar.credit_sales_enabled}
+def serialize(bar): return {"id":str(bar.id),"name":bar.name,"status":bar.status,"timezone":bar.timezone,"currency":bar.currency,"printer_width_mm":bar.printer_width_mm,"address":bar.address,"phone":bar.phone,"logo_key":bar.logo_key,"stock_alert_threshold":str(bar.stock_alert_threshold),"credit_sales_enabled":bar.credit_sales_enabled}
 
 
 def _active_owners():
@@ -34,6 +34,7 @@ def _form_error_message(code):
         "INVALID_BAR_PHONE":"Le numéro de téléphone est invalide ou trop long.",
         "INVALID_CURRENCY":"La devise doit être un code de 3 lettres, par exemple XAF.",
         "INVALID_TIMEZONE":"Le fuseau horaire sélectionné est invalide.",
+        "INVALID_PRINTER_WIDTH":"Choisissez un format d'imprimante de 58 mm ou 80 mm.",
         "INVALID_THRESHOLD":"Le seuil d'alerte stock doit être un nombre positif ou nul.",
     }
     return messages.get(str(code),"Impossible de créer l'établissement. Vérifiez les informations saisies.")
@@ -128,6 +129,32 @@ def web_detail(bar_id):
     return render_template("bars/detail.html",bar=bar,stats=stats,rights=rights)
 
 
+@bars_bp.route("/<int:bar_id>/settings", methods=["GET", "POST"])
+@login_required
+def web_settings(bar_id):
+    """Owner-only device paper format; persisted independently for each bar."""
+    if not permissions.evaluate(current_user, "bars.read", bar_id).allowed:
+        raise LookupError("NOT_FOUND")
+    bar = db.session.get(Bar, bar_id)
+    if not bar:
+        raise LookupError("NOT_FOUND")
+    if not permissions.evaluate(current_user, "bars.update_settings", bar_id).allowed:
+        raise PermissionError("FORBIDDEN")
+    error = None
+    selected = str(bar.printer_width_mm)
+    if request.method == "POST":
+        selected = request.form.get("printer_width_mm", "").strip()
+        try:
+            update_bar(current_user, bar_id, {"printer_width_mm": selected})
+            db.session.commit()
+            flash(f"Format de ticket enregistré : {bar.printer_width_mm} mm.", "success")
+            return redirect(url_for("bars.web_settings", bar_id=bar_id))
+        except ValueError as exc:
+            db.session.rollback()
+            error = _form_error_message(exc)
+    return render_template("bars/settings.html", bar=bar, selected=selected, error=error)
+
+
 @bars_bp.post("/<int:bar_id>/reset")
 @login_required
 def web_reset(bar_id):
@@ -175,6 +202,7 @@ def web_create():
         "phone":"",
         "timezone":"Africa/Douala",
         "currency":"XAF",
+        "printer_width_mm":"58",
         "stock_alert_threshold":"0",
         "credit_sales_enabled":False,
     }
@@ -191,6 +219,7 @@ def web_create():
             "phone":request.form.get("phone","").strip(),
             "timezone":request.form.get("timezone","Africa/Douala").strip(),
             "currency":request.form.get("currency","XAF").strip().upper(),
+            "printer_width_mm":request.form.get("printer_width_mm","58").strip(),
             "stock_alert_threshold":request.form.get("stock_alert_threshold","0").strip(),
             "credit_sales_enabled":request.form.get("credit_sales_enabled")=="1",
         })
@@ -218,6 +247,7 @@ def web_create():
                 "phone":values["phone"],
                 "timezone":values["timezone"],
                 "currency":values["currency"],
+                "printer_width_mm":values["printer_width_mm"],
                 "stock_alert_threshold":values["stock_alert_threshold"],
                 "credit_sales_enabled":values["credit_sales_enabled"],
             })
@@ -242,12 +272,18 @@ def list_bars():
 def create():
     try: bar=create_bar(request.api_user,request.json["owner_id"],request.json,request.json.get("copy_from_id"));db.session.commit();return jsonify({"success":True,"data":serialize(bar),"meta":{}}),201
     except (PermissionError,LookupError) as exc: db.session.rollback();return deny(str(exc))
+    except ValueError as exc:
+        db.session.rollback()
+        return jsonify({"success":False,"error":{"code":str(exc),"message":_form_error_message(exc)}}),400
 
 @api_bars_bp.patch("/<int:bar_id>")
 @api_required
 def patch(bar_id):
     try: bar=update_bar(request.api_user,bar_id,request.json or {});db.session.commit();return jsonify({"success":True,"data":serialize(bar),"meta":{}})
     except PermissionError as exc:return deny(str(exc))
+    except ValueError as exc:
+        db.session.rollback()
+        return jsonify({"success":False,"error":{"code":str(exc),"message":_form_error_message(exc)}}),400
 
 @api_bars_bp.post("/<int:bar_id>/staff")
 @api_required

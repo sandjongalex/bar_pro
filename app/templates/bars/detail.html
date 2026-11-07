@@ -22,6 +22,7 @@
     {% if nav_can('shifts.read', bar.id) %}<a class="btn btn-outline-success" href="{{ url_for('shifts_web.manage',bar_id=bar.id) }}">Personnel en service</a>{% endif %}
     {% if rights.orders_create %}<a class="btn btn-outline-primary" href="{{ url_for('orders_web.quick',bar_id=bar.id) }}">Point de vente</a>{% endif %}
     {% if rights.payments_read %}<a class="btn btn-primary" href="{{ url_for('checkout_web.checkout',bar_id=bar.id) }}">Caisse commandes</a>{% endif %}
+    {% if rights.settings %}<a class="btn btn-outline-primary" href="{{ url_for('bars.web_settings',bar_id=bar.id) }}">Paramètres d'impression</a>{% endif %}
   </div>
 </section>
 
@@ -57,7 +58,7 @@
   </section>
 
   <aside class="bar-side-stack">
-    <section class="panel-card"><div class="panel-header"><div><p class="eyebrow mb-1">Établissement</p><h2>Informations</h2></div></div><div class="info-list"><div><span>Propriétaire</span><strong>{{ bar.owner.display_name }}</strong></div><div><span>Devise</span><strong>{{ bar.currency }}</strong></div><div><span>Fuseau horaire</span><strong>{{ bar.timezone }}</strong></div><div><span>Ventes à crédit</span><strong>{{ 'Activées' if bar.credit_sales_enabled else 'Désactivées' }}</strong></div><div><span>Seuil stock global</span><strong>{{ bar.stock_alert_threshold }}</strong></div></div></section>
+    <section class="panel-card"><div class="panel-header"><div><p class="eyebrow mb-1">Établissement</p><h2>Informations</h2></div></div><div class="info-list"><div><span>Propriétaire</span><strong>{{ bar.owner.display_name }}</strong></div><div><span>Devise</span><strong>{{ bar.currency }}</strong></div><div><span>Imprimante</span><strong>{{ bar.printer_width_mm }} mm</strong></div><div><span>Fuseau horaire</span><strong>{{ bar.timezone }}</strong></div><div><span>Ventes à crédit</span><strong>{{ 'Activées' if bar.credit_sales_enabled else 'Désactivées' }}</strong></div><div><span>Seuil stock global</span><strong>{{ bar.stock_alert_threshold }}</strong></div></div></section>
     <section class="panel-card bar-next-card"><div class="panel-header"><div><p class="eyebrow mb-1">Exploitation</p><h2>Prochaine étape</h2></div></div><div class="p-4"><div class="next-step-number">07</div><h3>Analyser les performances</h3><p>Utilisez les rapports pour comparer les ventes, les encaissements, les dépenses, le stock, les crédits et les performances de l'équipe sur une période choisie.</p>{% if rights.reports %}<a class="btn btn-outline-primary btn-sm mt-2" href="{{ url_for('reports_web.desk',bar_id=bar.id) }}">Ouvrir les rapports</a>{% endif %}</div></section>
   </aside>
 </div>

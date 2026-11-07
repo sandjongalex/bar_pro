@@ -72,12 +72,13 @@ class Bar(Timestamped, db.Model):
     status = db.Column(db.String(16), nullable=False, default="ACTIVE")
     timezone = db.Column(db.String(64), nullable=False)
     currency = db.Column(db.String(3), nullable=False, default="XAF")
+    printer_width_mm = db.Column(db.SmallInteger, nullable=False, default=58, server_default=text("58"))
     stock_alert_threshold = db.Column(QTY, nullable=False, default=Decimal("0"))
     credit_sales_enabled = db.Column(db.Boolean, nullable=False, default=False)
     catalog_configured = db.Column(db.Boolean, nullable=False, default=False, server_default=text("0"))
     suspended_at = db.Column(datetime_type(fsp=6)); suspension_reason = db.Column(db.String(500))
     owner = db.relationship("User", foreign_keys=[owner_id], backref="owned_bars")
-    __table_args__ = (CheckConstraint("status IN ('ACTIVE','SUSPENDED')", name="ck_bars_status"), Index("ix_bars_owner_status", "owner_id", "status", "id"))
+    __table_args__ = (CheckConstraint("status IN ('ACTIVE','SUSPENDED')", name="ck_bars_status"), CheckConstraint("printer_width_mm IN (58,80)", name="ck_bars_printer_width"), Index("ix_bars_owner_status", "owner_id", "status", "id"))
 
 
 def tenant_args(name, *extra):

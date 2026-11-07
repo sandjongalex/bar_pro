@@ -13,6 +13,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
 from app.audit import record
+from app.bar_services import parse_printer_width
 from app.extensions import db, limiter
 from app.models import Bar, Plan, Subscription, User, utcnow
 from app.saas_governance_models import BarGovernance, OwnerGovernance
@@ -38,6 +39,7 @@ def _check_signup(form):
     confirm = form.get("password_confirm") or ""
     bar_name = (form.get("bar_name") or "").strip()
     address = (form.get("address") or "").strip()
+    printer_width = parse_printer_width(form.get("printer_width_mm", "58"))
     phone = _normalize_phone(form.get("phone"))
     if not name or len(name) > 120:
         raise ValueError("Le nom doit contenir entre 1 et 120 caractères.")
@@ -53,7 +55,7 @@ def _check_signup(form):
         raise ValueError("L'adresse est trop longue.")
     if form.get("confirm_authority") != "1":
         raise ValueError("Confirmez être autorisé à gérer cet établissement.")
-    return name, email, password, bar_name, address, phone
+    return name, email, password, bar_name, address, phone, printer_width
 
 
 def _trial_plan():
@@ -90,10 +92,10 @@ def register():
     if request.method == "GET":
         return render_template("owner_registration.html", error=None, values={})
     values = {key: request.form.get(key, "") for key in (
-        "display_name", "email", "phone", "bar_name", "address"
+        "display_name", "email", "phone", "bar_name", "address", "printer_width_mm"
     )}
     try:
-        name, email, password, bar_name, address, phone = _check_signup(request.form)
+        name, email, password, bar_name, address, phone, printer_width = _check_signup(request.form)
         if db.session.scalar(select(User.id).where(User.email == email)):
             raise ValueError("Cette adresse e-mail est déjà enregistrée.")
 
@@ -106,6 +108,7 @@ def register():
         bar = Bar(
             owner_id=owner.id, name=bar_name, address=address or None,
             phone=phone, timezone="Africa/Douala", currency="XAF", status="ACTIVE",
+            printer_width_mm=printer_width,
         )
         db.session.add(bar)
         db.session.flush()
