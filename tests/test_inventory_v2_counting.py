@@ -275,3 +275,37 @@ def test_unchanged_form_or_note_only_does_not_reset_physical_count_time(env):
     assert note_only["last_counted_at"] == saved_time
     assert note_only["note"] == "Photo vérifiée"
     assert balance(env) == 10
+
+
+def test_cashier_count_subtracts_physically_returned_order_from_net_sales(env):
+    from app.order_services import order_service
+    from app.models import OrderLine
+    from app.inventory_period_models import InventoryLineSnapshot
+    owner, bar, product = env[1], env[2], env[4]
+    order = order_service.create(
+        owner, bar.id, "V2-NET-RETURN",
+        [{"product_id": product.id, "quantity": 1}],
+    )
+    order_service.confirm(owner, bar.id, order.id)
+    original_line = db.session.scalar(select(OrderLine).where(
+        OrderLine.bar_id == bar.id, OrderLine.order_id == order.id,
+    ))
+    order_service.return_lines(
+        owner, bar.id, order.id,
+        [{"order_line_id": original_line.id, "quantity": 1, "disposition": "RESTOCK"}],
+        "Le client rend la bouteille",
+    )
+    db.session.commit()
+    cashier, _, _ = on_duty_cashier(env)
+    inv = create_v2(env, cashier, "V2-NET-SALES")
+    save(env, cashier, inv, units="10")
+    db.session.commit()
+    item = line(env, inv)
+    snapshot = db.session.scalar(select(InventoryLineSnapshot).where(
+        InventoryLineSnapshot.bar_id == bar.id,
+        InventoryLineSnapshot.inventory_line_id == item.id,
+    ))
+    assert snapshot.theoretical_quantity == 11
+    assert snapshot.theoretical_sold_quantity == 0
+    assert snapshot.theoretical_sales_amount == 0
+    assert Decimal(payload(inv)["lines"][0]["return_quantity"]) == 1
