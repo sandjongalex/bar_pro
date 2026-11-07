@@ -58,3 +58,11 @@
 .order-edit-target label{font-size:.72rem;font-weight:850;color:var(--ink)}
 .order-edit-target select{min-height:44px;max-width:100%;font-size:.85rem;border-radius:10px}
 @media(max-width:767px){.order-edit-target select{min-height:48px;font-size:16px}}
+
+/* A delivered-order reduction must explicitly say whether stock came back. */
+.order-edit-return-decision{display:grid;gap:7px;margin:12px 0;padding:13px;border:1px solid #c5d9ed;border-radius:12px;background:#f4f8ff;min-width:0}
+.order-edit-return-decision[hidden]{display:none!important}
+.order-edit-return-decision label{color:var(--ink);font-weight:750;font-size:.9rem}
+.order-edit-return-decision select{width:100%;min-height:46px;max-width:100%;font-size:1rem}
+.order-edit-return-decision small{color:#46566e;line-height:1.45;font-size:.8rem}
+@media(max-width:767px){.order-edit-return-decision{padding:11px}.order-edit-return-decision select{font-size:16px;min-height:48px}}
