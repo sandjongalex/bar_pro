@@ -273,3 +273,116 @@ def test_cashier_full_tender_is_not_in_payable_queue(env):
     assert "INLINE-CASH-PAID-NOT-DUE" not in payable_section
     assert "INLINE-CASH-PAID-NOT-DUE" in page.text
     assert "EN COURS · AVANCES CLIENTS" in page.text
+
+
+
+def test_cashier_keeps_advance_for_new_rounds_and_returns_only_remaining_cash(env):
+    """3 000 sold + 10 000 received: keep 7 000, add 2 000, refund 5 000 at close."""
+    app, _, bar, _, product, *_ = env
+    client, session, csrf = _cashier_client(env)
+    product.sale_price = Decimal("1000")
+    db.session.commit()
+    cashier = _cashier(bar)
+    url = f"/bars/{bar.id}/cashier/workspace"
+    sale = client.post(url, data={
+        "csrf_token": csrf, "action": "create_sale",
+        "reference": "ADVANCE-OPEN-3000",
+        "product_id": str(product.id), "quantity": "3",
+        "cash_presented": "10000", "cash_receipt_source": "CLIENT",
+    }, headers=_async_headers(csrf))
+    assert sale.status_code == 200, sale.text
+    assert sale.json["data"]["cash_summary"]["advance_balance"] == "7000"
+    assert sale.json["data"]["cash_summary"]["change_given"] == "0"
+    order = db.session.scalar(select(Order).where(
+        Order.bar_id == bar.id, Order.reference == "ADVANCE-OPEN-3000",
+    ))
+    voucher = db.session.scalar(select(ChangeVoucher).where(
+        ChangeVoucher.bar_id == bar.id, ChangeVoucher.origin_order_id == order.id,
+    ))
+    assert order.closed_at is None
+    assert order.payment_status == "PAID"  # Current due = 0; operational tab is still open.
+    assert Decimal(voucher.balance_amount) == 7000
+    assert Decimal(cash_service.expected(session)) == 11000  # Opening 1000 + held 10000.
+
+    suborder = order_suborder_service.create_cashier_addition(
+        cashier, bar.id, order.id, [{"product_id": product.id, "quantity": "2"}],
+    )
+    db.session.commit()
+    assert suborder.status == "VALIDATED"
+    assert Decimal(order.total_amount) == 5000
+    assert order.closed_at is None
+    assert Decimal(order_balance(order)["amount_due"]) == 0
+    db.session.refresh(voucher)
+    assert Decimal(voucher.balance_amount) == 5000
+    assert db.session.scalar(select(func.count()).select_from(Payment).where(
+        Payment.bar_id == bar.id, Payment.order_id == order.id,
+    )) == 1  # Redeeming the advance did not collect more physical cash.
+    assert db.session.scalar(select(func.sum(ChangeVoucherTransaction.amount)).where(
+        ChangeVoucherTransaction.bar_id == bar.id,
+        ChangeVoucherTransaction.voucher_id == voucher.id,
+        ChangeVoucherTransaction.kind == "REDEEM",
+    )) == Decimal("2000")
+    assert Decimal(cash_service.expected(session)) == 11000
+
+    finish = client.post(url, data={
+        "csrf_token": csrf, "action": "close_prepaid", "order_id": str(order.id),
+    }, headers=_async_headers(csrf))
+    assert finish.status_code == 200, finish.text
+    assert finish.json["data"]["prepaid_closed"] is True
+    db.session.refresh(order)
+    db.session.refresh(voucher)
+    assert order.closed_at is not None
+    assert voucher.status == "SETTLED"
+    assert Decimal(voucher.balance_amount) == 0
+    assert Decimal(cash_service.expected(session)) == 6000  # 1000 float + 5000 sold.
+    assert str(order.id) not in client.get(url).text.split('id="queuePrepaid"', 1)[-1].split('id="queueWaiting"', 1)[0] if 'id="queuePrepaid"' in client.get(url).text else True
+
+    duplicate_close = client.post(url, data={
+        "csrf_token": csrf, "action": "close_prepaid", "order_id": str(order.id),
+    }, headers=_async_headers(csrf))
+    assert duplicate_close.status_code == 422
+    assert Decimal(cash_service.expected(session)) == 6000
+
+    import pytest
+    with pytest.raises(ValueError, match="ORDER_PAID"):
+        order_suborder_service.create_cashier_addition(
+            cashier, bar.id, order.id, [{"product_id": product.id, "quantity": "1"}],
+        )
+    db.session.rollback()
+
+
+def test_cashier_cannot_close_open_advance_with_outstanding_products(env):
+    app, _, bar, _, product, *_ = env
+    client, session, csrf = _cashier_client(env)
+    product.sale_price = Decimal("1000")
+    db.session.commit()
+    cashier = _cashier(bar)
+    url = f"/bars/{bar.id}/cashier/workspace"
+    sale = client.post(url, data={
+        "csrf_token": csrf, "action": "create_sale",
+        "reference": "ADVANCE-INSUFFICIENT",
+        "product_id": str(product.id), "quantity": "3",
+        "cash_presented": "10000", "cash_receipt_source": "CLIENT",
+    }, headers=_async_headers(csrf))
+    assert sale.status_code == 200
+    order = db.session.scalar(select(Order).where(
+        Order.bar_id == bar.id, Order.reference == "ADVANCE-INSUFFICIENT",
+    ))
+    # 8 extra products cost 8 000, while only 7 000 advance remains.
+    order_suborder_service.create_cashier_addition(
+        cashier, bar.id, order.id, [{"product_id": product.id, "quantity": "8"}],
+    )
+    db.session.commit()
+    assert Decimal(order_balance(order)["amount_due"]) == 1000
+    assert order.payment_status == "PARTIAL"
+    assert Decimal(cash_service.expected(session)) == 11000
+    close = client.post(url, data={
+        "csrf_token": csrf, "action": "close_prepaid", "order_id": str(order.id),
+    }, headers=_async_headers(csrf))
+    assert close.status_code == 422
+    assert order.closed_at is None
+    assert Decimal(cash_service.expected(session)) == 11000
+    voucher = db.session.scalar(select(ChangeVoucher).where(
+        ChangeVoucher.bar_id == bar.id, ChangeVoucher.origin_order_id == order.id,
+    ))
+    assert Decimal(voucher.balance_amount) == 0
