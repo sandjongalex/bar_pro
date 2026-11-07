@@ -101,11 +101,17 @@ class PaymentService:
             raise ValueError("INVALID_METHOD")
         if applied > order_balance(order, locking=True)["amount_due"]:
             raise ValueError("PAYMENT_LIMIT_EXCEEDED")
-        if (provider_code is None) != (provider_transaction_id is None):
+        # For manual Mobile Money payments, the cashier selects the operator
+        # and verifies reception. A provider-generated transaction ID is
+        # optional: do not fabricate one. Payment.reference is our audit ID.
+        if provider_code is None and provider_transaction_id is not None:
             raise ValueError("PROVIDER_REFERENCE_REQUIRED")
         if provider_code is not None:
             provider_code = required_text(provider_code, 32)
-            provider_transaction_id = required_text(provider_transaction_id, 128)
+            if provider_transaction_id is not None:
+                provider_transaction_id = required_text(provider_transaction_id, 128)
+            elif method != "MOBILE_MONEY":
+                raise ValueError("PROVIDER_REFERENCE_REQUIRED")
         if cash_received_from is not None:
             if method != "CASH" or cash_session_id is None or staff_assignment_id is not None:
                 raise ValueError("INVALID_CASH_SOURCE")
