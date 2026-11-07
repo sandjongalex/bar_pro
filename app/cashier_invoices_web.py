@@ -192,6 +192,7 @@ def invoices(bar_id: int):
         select(ChangeVoucher.origin_order_id).where(
             ChangeVoucher.bar_id == bar_id,
             ChangeVoucher.origin_order_id.in_([order.id for order in all_orders]),
+            ChangeVoucher.code.like("AV-%"),
         )
     )) if all_orders else set()
     open_advance_ids = {
