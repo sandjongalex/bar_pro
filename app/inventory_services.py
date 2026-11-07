@@ -665,6 +665,49 @@ class InventoryService:
             return inv
         return self.count(actor, bar_id, inventory_id, quantities, notes)
 
+    def refresh_net_sale_snapshots(self, inv):
+        """Reconcile a draft's saved physical counts before V2 submission/approval.
+
+        Older draft counts may have been persisted before return-aware totals
+        were deployed. Never rewrite posted inventories or their cash journals.
+        """
+        if inv.status != "DRAFT":
+            return
+        lines = list(db.session.scalars(
+            select(InventoryLine).where(
+                InventoryLine.bar_id == inv.bar_id,
+                InventoryLine.inventory_id == inv.id,
+            )
+        ))
+        snapshots = {
+            row.inventory_line_id: row for row in db.session.scalars(
+                select(InventoryLineSnapshot).where(
+                    InventoryLineSnapshot.bar_id == inv.bar_id,
+                    InventoryLineSnapshot.inventory_line_id.in_([line.id for line in lines] or [-1]),
+                )
+            )
+        }
+        period = db.session.scalar(select(InventoryPeriodSnapshot).where(
+            InventoryPeriodSnapshot.bar_id == inv.bar_id,
+            InventoryPeriodSnapshot.inventory_id == inv.id,
+        ))
+        if period is None or len(snapshots) != len(lines):
+            raise ValueError("INVENTORY_PERIOD_DATA_MISSING")
+        returns = self._returned_quantities(inv, [line.product_id for line in lines])
+        total = ZERO
+        for line in lines:
+            snap = snapshots[line.id]
+            if line.counted_quantity is None:
+                snap.theoretical_sold_quantity = ZERO
+                snap.theoretical_sales_amount = ZERO
+                continue
+            sold = (Decimal(snap.theoretical_quantity) - Decimal(line.counted_quantity)
+                    - returns.get(line.product_id, ZERO))
+            snap.theoretical_sold_quantity = sold
+            snap.theoretical_sales_amount = _money(sold * Decimal(snap.sale_price_snapshot))
+            total += Decimal(snap.theoretical_sales_amount)
+        period.theoretical_sales_amount = _money(total)
+
     def financial_summary(self, inv):
         """Return live theoretical handover values for this inventory draft."""
         period = db.session.scalar(
