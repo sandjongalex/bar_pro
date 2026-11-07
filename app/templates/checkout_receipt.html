@@ -135,8 +135,15 @@
     </div>
 
     <div class="status">
-      {% if order.status == "CANCELLED" %}COMMANDE ANNULÉE{% elif balance.amount_due == 0 and balance.customer_credit > 0 %}À CRÉDIT{% elif balance.amount_due == 0 %}PAYÉE{% elif balance.net_settled > 0 %}PAIEMENT PARTIEL{% else %}À PAYER{% endif %}
+      {% if order.status == "CANCELLED" %}COMMANDE ANNULÉE{% elif open_advance %}COMMANDE EN COURS · AVANCE CONSERVÉE{% elif balance.amount_due == 0 and balance.customer_credit > 0 %}À CRÉDIT{% elif balance.amount_due == 0 %}PAYÉE{% elif balance.net_settled > 0 %}PAIEMENT PARTIEL{% else %}À PAYER{% endif %}
     </div>
+
+    {% if open_advance %}
+    <div class="totals">
+      <div class="row grand"><span>Avance toujours disponible</span><strong>{{ "{:,.0f}".format(advance_balance) }} {{ order.currency }}</strong></div>
+    </div>
+    <p class="muted">Montant conservé pour les prochains produits. Ce reçu n'est pas une clôture définitive ; le solde sera rendu à la fin de la commande.</p>
+    {% endif %}
 
     {% if order.notes %}
     <div class="section-title">Note</div>
