@@ -161,6 +161,20 @@ def test_cashier_web_editor_updates_delivered_unpaid_order(env):
     assert payload["order"]["editable"] is True
     assert payload["order"]["delivered"] is True
 
+    rejected = client.post(
+        f"/bars/{bar.id}/order-edits/{order.id}",
+        data={
+            "csrf_token": _csrf(workspace),
+            "order_revision": payload["order"]["revision"],
+            "product_id": str(second.id),
+            "quantity": "1",
+            "reason": "Modification sans retour justifié",
+        },
+        follow_redirects=True,
+    )
+    assert rejected.status_code == 200
+    assert "Indiquez si les bouteilles retirées" in rejected.text
+
     response = client.post(
         f"/bars/{bar.id}/order-edits/{order.id}",
         data={
