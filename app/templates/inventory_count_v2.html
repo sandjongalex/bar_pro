@@ -85,7 +85,13 @@
         </td>
         <td data-label="Dernier inventaire">{{ line.opening_quantity|inventory_qty }}</td>
         <td data-label="Achats" class="text-primary fw-semibold">+{{ line.purchase_quantity|inventory_qty }}</td>
-        <td data-label="Mouvements hors ventes" class="text-secondary fw-semibold">{{ '+' if line.other_movement_quantity|float > 0 else '' }}{{ line.other_movement_quantity|inventory_qty }}</td>
+        <td data-label="Mouvements hors ventes" class="text-secondary fw-semibold"><span class="inventory-origin-net">{{ '+' if line.other_movement_quantity|float > 0 else '' }}{{ line.other_movement_quantity|inventory_qty }}</span>
+                {% if line.other_movement_quantity|float != 0 %}
+                <button type="button" class="btn btn-outline-primary btn-sm inventory-origin-trigger"
+                        data-origin-product="{{ line.product_name }}"
+                        data-origin-url="{{ url_for('inventories.movement_origin',bar_id=bar_id,inventory_id=inventory.id,product_id=line.product_id) }}"
+                        aria-label="Voir l'origine des mouvements hors ventes pour {{ line.product_name }}">Voir l'origine</button>
+                {% endif %></td>
         <td data-label="Stock théorique"><strong>{{ line.theoretical_quantity|inventory_qty }}</strong></td>
         <td data-label="Stock machine"><span class="inventory-machine">{{ line.machine_quantity|inventory_qty }}</span></td>
         <td data-label="Stock physique réel">
@@ -204,6 +210,8 @@
 </section>
 
 <p class="inv2-footer mt-3">Le stock ne sera ajusté qu'après approbation du responsable. Les ventes, dépenses et dettes sont suivies séparément.</p>
+{% include '_inventory_movement_origin_modal.html' %}
+<script defer src="{{ url_for('static',filename='inventory_movement_origin.js',v='20261107-origin-v1') }}"></script>
 <script defer src="{{ url_for('static',filename='inventory_count_v2.js', v='20261105-cashier-bottle-count-v1') }}"></script>
 <script>
 document.addEventListener('click', function(event) {
