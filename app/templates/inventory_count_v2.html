@@ -38,7 +38,7 @@
   <article>
     <span>Quantité vendue estimée</span>
     <strong id="inv2-live-sold">—</strong>
-    <small>Stock théorique − physique</small>
+    <small>Stock théorique − physique − retours annulés</small>
   </article>
   <article class="inventory-live-sales-card">
     <span>Ventes calculées</span>
@@ -70,7 +70,7 @@
       <thead><tr><th>Produit</th><th>Dernier inventaire</th><th>Achats</th><th title="Ajustements, pertes et retours">Mouvements hors ventes</th><th>Stock théorique</th><th>Stock machine</th><th>Stock physique réel</th><th>Qté vendue</th><th>Montant ventes</th><th>Écart machine</th><th>Observation</th></tr></thead>
       <tbody>
       {% for line in inventory.lines %}
-      <tr class="inventory-line {% if editable_count %}inv2-product{% endif %}" {% if editable_count %}data-product-id="{{ line.product_id }}" data-theoretical="{{ line.theoretical_quantity|inventory_qty }}" data-machine="{{ line.machine_quantity|inventory_qty }}" data-price="{{ line.sale_price }}"{% endif %}>
+      <tr class="inventory-line {% if editable_count %}inv2-product{% endif %}" {% if editable_count %}data-product-id="{{ line.product_id }}" data-theoretical="{{ line.theoretical_quantity|inventory_qty }}" data-returns="{{ line.return_quantity|inventory_qty }}" data-machine="{{ line.machine_quantity|inventory_qty }}" data-price="{{ line.sale_price }}"{% endif %}>
         <td data-label="Produit">
           <div class="inventory-item-heading">
             <div class="inventory-item-title">
