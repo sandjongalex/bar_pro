@@ -5,7 +5,7 @@ from decimal import Decimal
 from types import SimpleNamespace
 
 from app.extensions import db
-from app.receipt_printing import cumulative_receipt_lines, number, printable
+from app.receipt_printing import cumulative_receipt_lines, number, printable, receipt_columns
 from test_cashier_complete_flow import _login
 from test_workflows import env, order
 
@@ -125,3 +125,26 @@ def test_compact_receipt_reference_and_no_duplicate_address():
     assert receipt_address(SimpleNamespace(
         name="Terasse sous manguier", address="Carrefour Essomba",
     )) == "Carrefour Essomba"
+
+
+def test_80mm_rawbt_and_browser_receipt_use_bar_setting(env):
+    app, owner, bar, foreign, product, _, _, _ = env
+    long_name = "TERASSE SOUS MANGUIER LARGE FORMAT 80MM"
+    bar.name = long_name
+    bar.printer_width_mm = 80
+    assert foreign.printer_width_mm == 58
+    value = order(env)
+    db.session.commit()
+    client = app.test_client()
+    _login(client, owner.email)
+    page = client.get(f"/bars/{bar.id}/checkout/orders/{value.id}/receipt")
+    assert page.status_code == 200
+    assert "width: 80mm" in page.text
+    assert "size: 80mm auto" in page.text
+    links = re.findall(r'data-rawbt-intent="([^"]+)"', page.text)
+    assert len(links) == 2
+    ticket = _decode_intent(links[0])
+    assert long_name in ticket.splitlines()
+    assert all(len(line) <= 48 for line in ticket.splitlines())
+    assert receipt_columns(bar) == 48
+    assert receipt_columns(foreign) == 32

@@ -1,7 +1,7 @@
-"""POS-58MINI receipts: 384 dots / font A (12 dots) = 32 columns.
+"""Thermal receipts: 58mm uses 32 font-A columns; 80mm uses 48 columns.
 
-RawBT's documented base64 transport sends ESC/POS bytes without re-encoding.
-ASCII transliteration avoids depending on a clone's accented-character table.
+RawBT transports ESC/POS bytes without re-encoding. ASCII transliteration
+avoids depending on cloned printers' accented-character tables.
 """
 import base64
 import re
@@ -10,7 +10,12 @@ import unicodedata
 from decimal import Decimal
 from types import SimpleNamespace
 
-WIDTH = 32
+WIDTH = 32  # Legacy/default 58mm layout
+
+
+def receipt_columns(bar):
+    """Use the bar's saved printer paper setting, not the cashier's device."""
+    return 48 if str(getattr(bar, "printer_width_mm", 58)) == "80" else WIDTH
 
 
 class ReceiptPrintOptions(str):
@@ -90,10 +95,11 @@ def _rawbt_receipt_intent(*, bar, order, lines, payments, refunds, balance, serv
                           sale_time, issued_at, mode_label, receipt_sections=None,
                           open_advance=False, advance_balance=Decimal("0")):
     """Compact RawBT receipt. Internal references remain in the application."""
+    width = receipt_columns(bar)
     rows = []
 
     def add(value):
-        rows.extend(textwrap.wrap(printable(value), WIDTH) or [""])
+        rows.extend(textwrap.wrap(printable(value), width) or [""])
 
     def amount(label, value, currency=None):
         currency = currency or order.currency
@@ -101,7 +107,7 @@ def _rawbt_receipt_intent(*, bar, order, lines, payments, refunds, balance, serv
         add(f"{label}: {number(value)} {currency}")
 
     def rule():
-        rows.append("-" * WIDTH)
+        rows.append("-" * width)
 
     add(bar.name)
     address = receipt_address(bar)
@@ -128,8 +134,8 @@ def _rawbt_receipt_intent(*, bar, order, lines, payments, refunds, balance, serv
             add(line.product_name_snapshot)
             left = f"{number(line.quantity)} x {number(line.unit_sale_price_snapshot)}"
             right = number(line.total_amount)
-            if len(left) + len(right) + 1 <= WIDTH:
-                rows.append(left + " " * (WIDTH - len(left) - len(right)) + right)
+            if len(left) + len(right) + 1 <= width:
+                rows.append(left + " " * (width - len(left) - len(right)) + right)
             else:
                 add(f"{left} = {right}")
         if multiple_rounds:
