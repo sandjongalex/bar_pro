@@ -124,6 +124,9 @@ def payload(inv):
         )
     }
 
+    returns = inventory_service._returned_quantities(inv, [line.product_id for line, _ in rows]) if (
+        inv.status == "DRAFT" and period is not None
+    ) else {}
     lines = []
     complete = True
     for line, product in rows:
@@ -134,6 +137,11 @@ def payload(inv):
         theoretical = _decimal(snap.theoretical_quantity) if snap else _decimal(line.expected_quantity_snapshot)
         sold = _decimal(snap.theoretical_sold_quantity) if snap and counted is not None else None
         sales_amount = _decimal(snap.theoretical_sales_amount) if snap and counted is not None else None
+        # Draft previews must reflect corrected net sales even when an older
+        # draft was saved before the return-aware calculation was deployed.
+        if inv.status == "DRAFT" and snap is not None and counted is not None:
+            sold = _decimal(snap.theoretical_quantity) - _decimal(counted) - returns.get(line.product_id, Decimal("0"))
+            sales_amount = (sold * _decimal(snap.sale_price_snapshot)).quantize(Decimal("0.0001"))
         difference = _decimal(counted) - _decimal(line.expected_quantity_snapshot) if counted is not None else None
         case_size = product.units_per_case if product.units_per_case and product.units_per_case > 1 else None
         if cashier_assignment is not None:
@@ -162,6 +170,7 @@ def payload(inv):
                 "opening_quantity": str(snap.opening_quantity if snap else line.expected_quantity_snapshot),
                 "purchase_quantity": str(snap.purchase_quantity if snap else 0),
                 "other_movement_quantity": str(snap.other_movement_quantity if snap else 0),
+                "return_quantity": str(returns.get(line.product_id, Decimal("0"))),
                 "theoretical_quantity": str(theoretical),
                 "machine_quantity": str(line.expected_quantity_snapshot),
                 "physical_quantity": str(counted) if counted is not None else None,
