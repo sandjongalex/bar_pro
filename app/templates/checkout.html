@@ -92,6 +92,30 @@
       {% else %}<div class="checkout-queue-empty">Aucune commande livrée en attente d'encaissement.</div>{% endif %}
     </section>
 
+    {% if prepaid_orders %}
+    <section class="checkout-queue-section" id="checkoutOpenAdvances">
+      <div class="checkout-queue-head">
+        <div><span class="checkout-stage checkout-stage-payable">A</span><div><strong>En cours · avances clients</strong><small>Commande encore ouverte : les boissons peuvent être ajoutées.</small></div></div>
+        <span class="checkout-queue-count">{{ prepaid_orders|length }}</span>
+      </div>
+      <div class="checkout-order-list">
+        {% for order in prepaid_orders %}
+        {% set b = balances[order.id] %}
+        <a class="checkout-order-card {% if selected_order and selected_order.id == order.id %}active{% endif %}" href="{{ url_for('checkout_web.checkout', bar_id=bar.id, order_id=order.id) }}">
+          <div class="checkout-order-main">
+            <div class="checkout-order-icon">A</div>
+            <div>
+              <strong>{{ order.customer_name_snapshot or order.reference }}</strong>
+              <small>Avance enregistrée · {{ order.reference }}</small>
+            </div>
+          </div>
+          <div class="checkout-order-amount"><small>Reste à payer</small><strong>{{ "{:,.0f}".format(b.amount_due) }} {{ order.currency }}</strong><span class="checkout-state-chip state-payable">En cours</span></div>
+        </a>
+        {% endfor %}
+      </div>
+    </section>
+    {% endif %}
+
     <section class="checkout-queue-section checkout-paid-history">
       <div class="checkout-queue-head">
         <div><span class="checkout-stage checkout-stage-paid">3</span><div><strong>Payées récemment</strong><small>Historique des commandes soldées.</small></div></div>
@@ -149,7 +173,15 @@
       </div>
       {% endif %}
 
-      {% if selected_order.payment_status == 'PAID' %}
+      {% if selected_order in prepaid_orders %}
+        <div class="checkout-paid-state" role="status">
+          <div class="checkout-paid-icon">A</div>
+          <div><strong>Commande EN COURS · avance conservée</strong><p>Le montant actuellement consommé est couvert. Le client peut encore commander ; la monnaie restante ne sera rendue qu'à la clôture.</p></div>
+        </div>
+        {% if is_cashier %}
+        <a class="btn btn-primary w-100" href="{{ url_for('cashier_workspace_web.workspace', bar_id=bar.id, order_id=selected_order.id) }}">Gérer les ajouts et clôturer dans la caisse rapide</a>
+        {% endif %}
+      {% elif selected_order.payment_status == 'PAID' %}
         <div class="checkout-paid-state">
           <div class="checkout-paid-icon">✓</div>
           <div><strong>Commande soldée</strong><p>Cette commande est terminée. Elle reste consultable ici pour la traçabilité de la caisse.</p></div>
