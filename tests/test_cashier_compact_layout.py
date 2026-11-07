@@ -47,11 +47,27 @@ def test_basket_remains_accessible_with_cash_receipt_ui_intact():
     template = CASHIER_TEMPLATE.read_text(encoding="utf-8")
     assert ".cashier-sale-cart .pos-cart-empty" in css
     assert ".cashier-sale-cart .cashier-sale-actions" in css
-    assert "position: sticky" in css
-    assert "overflow-y: auto" in css
+    # The product list is the only intentional nested vertical scroller.
+    # When it reaches an edge, scrolling must continue on the main page.
+    products = css.split(".cashier-sale-panel .cashier-sale-catalog .pos-products {", 1)[1].split("}", 1)[0]
+    assert "overflow-y: auto" in products
+    assert "overscroll-behavior-y: auto" in products
+    assert "overscroll-behavior-y: contain" not in css
+
+    # The entire basket (including long item lists and payment controls)
+    # belongs to page scrolling, rather than an additional scroll trap.
+    basket = css.split(".cashier-sale-panel .cashier-sale-cart {", 1)[1].split("}", 1)[0]
+    assert "max-height: none" in basket
+    assert "overflow: visible" in basket
+    assert "position: static" in basket
+    item_list = css.split(".cashier-sale-panel .cashier-sale-cart .pos-cart-lines {", 1)[1].split("}", 1)[0]
+    assert "max-height: none" in item_list
+    assert "overflow: visible" in item_list
+    assert "position: sticky" not in css
     assert 'id="cashierCreateSale"' in template
     assert 'id="cashierCartJump"' in template
     assert 'id="cashierTenderAmount"' in template
     assert 'id="cashierTenderSource"' in template
     assert "updateTenderPreview();" in template
     assert "BarProProductCategoryFilters" not in css  # Filtering remains in shared JS.
+    assert "20261107-scroll-fix-v2" in template  # Browsers load the fresh CSS after deploy.
