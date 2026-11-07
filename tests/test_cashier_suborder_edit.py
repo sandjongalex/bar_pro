@@ -186,3 +186,43 @@ def test_editing_draft_original_lines_keeps_server_round_total(env):
     assert parent.status == "DRAFT"
     assert Decimal(parent.total_amount) == 500
     assert Decimal(sub.total_amount) == 200
+
+
+def test_consumed_bottle_removed_from_delivered_round_does_not_restock(env):
+    from app.models import StockMovement
+    from app.order_concurrency import order_revision
+    app, owner, bar, product, server, cashier, order = setup(env)
+    sub = order_suborder_service.create_cashier_addition(
+        cashier, bar.id, order.id, [{"product_id": product.id, "quantity": 2}])
+    db.session.commit()
+    before = stock(bar.id, product.id)
+    revision = order_revision(order)
+
+    # Cashier must acknowledge where the physically delivered bottle went.
+    import pytest
+    with pytest.raises(ValueError, match="RETURN_DISPOSITION_REQUIRED"):
+        edit_cashier_suborder(
+            cashier, bar.id, order.id, sub.id,
+            [{"product_id": product.id, "quantity": 1}],
+            expected_revision=revision,
+        )
+    db.session.rollback()
+    assert stock(bar.id, product.id) == before
+
+    edit_cashier_suborder(
+        cashier, bar.id, order.id, sub.id,
+        [{"product_id": product.id, "quantity": 1}],
+        expected_revision=revision, reason="Produit consommé",
+        return_disposition="LOSS",
+    )
+    db.session.commit()
+    assert stock(bar.id, product.id) == before
+    db.session.refresh(sub)
+    assert sub.total_amount == Decimal("100")
+    corrections = list(db.session.scalars(select(StockMovement).where(
+        StockMovement.bar_id == bar.id,
+        StockMovement.product_id == product.id,
+        StockMovement.movement_type.in_(("RETURN", "LOSS")),
+    )))
+    assert len(corrections) == 2
+    assert sum((Decimal(move.quantity_delta) for move in corrections), Decimal("0")) == 0
