@@ -229,6 +229,7 @@ def receipt(bar_id: int, order_id: int):
         select(ChangeVoucher).where(
             ChangeVoucher.bar_id == bar_id,
             ChangeVoucher.origin_order_id == order.id,
+            ChangeVoucher.code.like("AV-%"),
         )
     )
     open_advance = advance_voucher is not None and order.closed_at is None
