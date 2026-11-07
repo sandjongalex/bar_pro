@@ -267,7 +267,7 @@
             <button class="btn btn-sm btn-success" type="submit">Clôturer et rendre {{ "{:,.0f}".format(voucher.balance_amount if voucher else 0) }} {{ order.currency }}</button>
           </form>
           {% if voucher and voucher.balance_amount > 0 %}
-          <details class="cashier-voucher-close border rounded-3 p-2 mt-1" style="grid-column:1 / -1" data-prepaid-voucher-option="{{ order.id }}">
+          <details class="cashier-voucher-close border rounded-3 p-2 mt-1" id="prepaid-bon-{{ order.id }}" style="grid-column:1 / -1" data-prepaid-voucher-option="{{ order.id }}">
             <summary class="btn btn-sm btn-outline-primary w-100">Pas de monnaie ? Faire un bon de monnaie</summary>
             <form method="post" action="{{ url_for('cashier_workspace_web.workspace', bar_id=bar.id) }}" class="mt-3 d-grid gap-2">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -351,7 +351,7 @@
           <strong class="mt-2">Avance disponible : {{ "{:,.0f}".format(prepaid_vouchers[selected_order.id].balance_amount) }} {{ selected_order.currency }}</strong>
           <a class="btn btn-primary w-100 mt-2" href="{{ url_for('suborders_web.new_suborder', bar_id=bar.id, order_id=selected_order.id) }}">＋ Ajouter une sous-commande</a>
           {% if selected_order.closed_at is none and prepaid_vouchers[selected_order.id].balance_amount > 0 %}
-          <a class="btn btn-outline-primary w-100 mt-2" href="#prepaid-bon-{{ selected_order.id }}" data-open-prepaid-voucher="{{ selected_order.id }}" onclick="(function(el){var t=document.querySelector('[data-prepaid-voucher-option=\"{{ selected_order.id }}\"]');if(t){t.open=true;t.scrollIntoView({behavior:'smooth',block:'center'});}})(this);return false;">Pas de monnaie ? Émettre un bon</a>
+          <a class="btn btn-outline-primary w-100 mt-2" href="#prepaid-bon-{{ selected_order.id }}" data-open-prepaid-voucher="{{ selected_order.id }}">Pas de monnaie ? Émettre un bon</a>
           {% endif %}
         </div>
       {% else %}
@@ -758,6 +758,16 @@
       refreshingWorkspace = false;
     }
   }
+
+  document.addEventListener('click', event => {
+    const trigger = event.target.closest('[data-open-prepaid-voucher]');
+    if (!trigger) return;
+    const details = document.getElementById('prepaid-bon-' + trigger.dataset.openPrepaidVoucher);
+    if (!details) return;
+    event.preventDefault();
+    details.open = true;
+    details.scrollIntoView({behavior:'smooth',block:'center'});
+  });
 
   document.addEventListener('click', event => {
     if (!event.target.closest('[data-cashier-panel-close]')) return;
