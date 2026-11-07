@@ -56,6 +56,17 @@
 {% if owner_bento %}
 {% include '_owner_bento_overview.html' %}
 {% endif %}
+{% if owner_voucher_liability and active_bar %}
+<section class="panel-card mt-3 p-3 p-md-4" aria-label="Bons de monnaie restant dus aux clients">
+  <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
+    <div>
+      <strong>Bons de monnaie non remboursés · {{ active_bar.name }}</strong>
+      <p class="text-secondary mb-0 small">{{ owner_voucher_liability.count }} bon(s) encore utilisable(s). Hors avances sur les commandes ouvertes.</p>
+    </div>
+    <strong class="fs-4">{{ "{:,.0f}".format(owner_voucher_liability.amount) }} {{ active_bar.currency }}</strong>
+  </div>
+</section>
+{% endif %}
 
 {% if current_user.category == 'SUPER_ADMIN' %}
 <div class="admin-notice"><div><strong>Mode supervision activé</strong><span>Les indicateurs affichés correspondent uniquement à l'établissement sélectionné.</span></div></div>

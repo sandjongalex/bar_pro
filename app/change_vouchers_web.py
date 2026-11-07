@@ -14,7 +14,8 @@ from app.async_ui import wants_async_web_response, web_json_response
 from app.cashier_secondary_async import begin, succeeded, failed
 from app.cashier_financial_intents import financial_complete
 from app.change_voucher_models import ChangeVoucher, ChangeVoucherTransaction
-from app.change_voucher_service import change_voucher_service
+from app.change_voucher_service import change_voucher_service, change_voucher_liability
+from app.change_voucher_printing import rawbt_change_voucher_intent
 from app.extensions import db
 from app.finance_totals import order_balance
 from app.models import Bar, CashSession, Order, Payment, StaffAssignment, User
@@ -296,6 +297,7 @@ def manage(bar_id: int):
         bar=bar,
         session=session,
         vouchers=vouchers,
+        liability=change_voucher_liability(bar_id),
         orders=orders,
         balances=balances,
         selected_order_id=selected_order_id,
@@ -343,4 +345,6 @@ def print_voucher(bar_id: int, voucher_id: int):
         payment=payment,
         issuer=issuer,
         transactions=transactions,
+        rawbt_intent=rawbt_change_voucher_intent(bar, voucher, issuer, transactions),
+        is_advance=voucher.code.startswith("AV-"),
     )

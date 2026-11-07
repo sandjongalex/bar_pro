@@ -197,9 +197,15 @@ def dashboard():
                 "remaining_days": max(0, int(((trial.ends_at - now).total_seconds() + 86399) // 86400)),
             }
 
+    owner_voucher_liability = None
+    if current_user.category == "OWNER" and active_bar is not None:
+        from app.change_voucher_service import change_voucher_liability
+        owner_voucher_liability = change_voucher_liability(active_bar.id)
+
     return render_template(
         "dashboard.html",
         owner_trial=owner_trial,
+        owner_voucher_liability=owner_voucher_liability,
         bars=bars,
         reportable_bars=reportable_bars,
         active_bar=active_bar,

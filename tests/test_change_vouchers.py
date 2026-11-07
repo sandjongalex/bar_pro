@@ -165,3 +165,53 @@ def test_voucher_print_uses_selected_bar_paper_width(env):
     assert response.status_code == 200
     assert "width:80mm" in response.text
     assert "size:80mm auto" in response.text
+
+
+
+def test_voucher_rawbt_58_80_and_outstanding_owner_totals(env):
+    import base64
+    import html
+    import re
+
+    from app.change_voucher_printing import rawbt_change_voucher_intent
+    from app.change_voucher_service import change_voucher_liability
+    from test_cashier_complete_flow import _login
+
+    app, owner, bar, foreign, product, _, _, _ = env
+    session = cash_service.open(owner, bar.id, "VOUCHER-RAWBT-PAPER", 0)
+    db.session.commit()
+    _, _, voucher = _issue_voucher(owner, bar, product, session)
+    assert change_voucher_liability(bar.id) == {"count": 1, "amount": Decimal("1400")}
+    assert change_voucher_liability(foreign.id) == {"count": 0, "amount": Decimal("0")}
+
+    for paper, width in ((58, 32), (80, 48)):
+        bar.printer_width_mm = paper
+        intent = rawbt_change_voucher_intent(bar, voucher, owner)
+        encoded, suffix = html.unescape(intent).removeprefix("intent:base64,").split("#Intent;")
+        assert suffix == "scheme=rawbt;package=ru.a402d.rawbtprinter;end;"
+        payload = base64.b64decode(encoded)
+        assert payload.startswith(b"\x1b@\\x1b!\\x00\\x1ba\\x00")
+        clean = re.sub(
+            rb"\x1bE[\x00\\x01]|\x1d![\x00\\x01\\x11]|\x1b3[\x20-\\x40]|\x1b2",
+            b"", payload[8:]
+        )
+        text = clean.decode("ascii")
+        assert "BON DE MONNAIE" in text
+        assert voucher.code in text
+        assert "SOLDE: 1,400 XAF" in text
+        assert all(len(line) <= width for line in text.splitlines())
+        db.session.commit()
+        client = app.test_client()
+        _login(client, owner.email)
+        response = client.get(f"/bars/{bar.id}/cashier/change-vouchers/{voucher.id}/print")
+        # Only the assigned cashier may print. Owner still sees totals in dashboard.
+        assert response.status_code == 403
+        page = client.get(f"/dashboard?bar_id={bar.id}")
+        assert page.status_code == 200
+        assert "Bons de monnaie non remboursés" in page.text
+
+    remaining = change_voucher_liability(bar.id)
+    assert remaining["amount"] == Decimal("1400")
+    change_voucher_service.refund_cash(owner, bar.id, voucher.code, session.id, Decimal("400"))
+    db.session.commit()
+    assert change_voucher_liability(bar.id)["amount"] == Decimal("1000")

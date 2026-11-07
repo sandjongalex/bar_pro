@@ -4,6 +4,7 @@ from flask_login import current_user, login_required
 from sqlalchemy import func, select
 
 from app.bar_services import assign_staff, create_bar, create_owner, update_bar
+from app.change_voucher_service import change_voucher_liability
 from app.bar_reset_service import reset_bar
 from app.extensions import db
 from app.models import Bar, Order, Product, StaffAssignment, StockBalance, User
@@ -126,7 +127,8 @@ def web_detail(bar_id):
             )
         ) or 0
 
-    return render_template("bars/detail.html",bar=bar,stats=stats,rights=rights)
+    voucher_liability = change_voucher_liability(bar_id) if rights["reports"] else None
+    return render_template("bars/detail.html",bar=bar,stats=stats,rights=rights,voucher_liability=voucher_liability)
 
 
 @bars_bp.route("/<int:bar_id>/settings", methods=["GET", "POST"])

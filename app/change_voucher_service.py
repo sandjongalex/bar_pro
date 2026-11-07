@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 from decimal import Decimal
 import secrets
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from app.audit import record
 from app.cash_services import cash_service
@@ -283,3 +283,22 @@ class ChangeVoucherService:
 
 
 change_voucher_service = ChangeVoucherService()
+
+
+
+def change_voucher_liability(bar_id: int) -> dict:
+    """Outstanding portable BM- vouchers for ONE bar; excludes in-progress AV- tabs."""
+    statement = (
+        select(
+            func.count(ChangeVoucher.id),
+            func.coalesce(func.sum(ChangeVoucher.balance_amount), 0),
+        )
+        .where(
+            ChangeVoucher.bar_id == bar_id,
+            ChangeVoucher.code.like("BM-%"),
+            ChangeVoucher.status.in_(("ACTIVE", "PARTIAL")),
+            ChangeVoucher.balance_amount > 0,
+        )
+    )
+    count, outstanding = db.session.execute(statement).one()
+    return {"count": int(count or 0), "amount": Decimal(outstanding or 0)}
