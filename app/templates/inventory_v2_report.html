@@ -42,7 +42,7 @@
             {% if not request.args.get('print') %}
             <button type="button" class="btn btn-outline-primary btn-sm inventory-origin-trigger"
                     data-origin-product="{{ item.product_name }}"
-                    data-origin-url="{{ url_for('inventories.movement_origin',bar_id=bar_id,inventory_id=report.inventory_id,product_id=item.product_id) }}">Voir l'origine des mouvements</button>
+                    data-origin-url="{{ url_for('inventories.detail',bar_id=bar_id,inventory_id=report.inventory_id) ~ '/movements/' ~ item.product_id }}">Voir l'origine des mouvements</button>
             {% endif %}
           </td>
           <td>{{ item.start_machine_quantity|inventory_qty }}</td>
