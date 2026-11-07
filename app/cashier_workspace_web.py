@@ -373,6 +373,7 @@ def workspace(bar_id: int):
                     select(ChangeVoucher).where(
                         ChangeVoucher.bar_id == bar_id,
                         ChangeVoucher.origin_order_id == order.id,
+                        ChangeVoucher.code.like("AV-%"),
                     ).with_for_update()
                 )
                 if voucher is None:
@@ -690,7 +691,8 @@ def workspace(bar_id: int):
     # A tab with a retained customer advance remains operationally OPEN even
     # when the currently delivered products have a zero financial balance.
     prepaid_ids = select(ChangeVoucher.origin_order_id).where(
-        ChangeVoucher.bar_id == bar_id
+        ChangeVoucher.bar_id == bar_id,
+        ChangeVoucher.code.like("AV-%"),
     )
     active_orders = list(
         db.session.scalars(
@@ -715,6 +717,7 @@ def workspace(bar_id: int):
         select(ChangeVoucher.origin_order_id).where(
             ChangeVoucher.bar_id == bar_id,
             ChangeVoucher.origin_order_id.in_([o.id for o in active_orders]),
+            ChangeVoucher.code.like("AV-%"),
         )
     ))
     waiting_orders = [item for item in active_orders if item.status == "DRAFT"]
@@ -731,6 +734,7 @@ def workspace(bar_id: int):
             select(ChangeVoucher).where(
                 ChangeVoucher.bar_id == bar_id,
                 ChangeVoucher.origin_order_id.in_(list(prepaid_order_ids)),
+                ChangeVoucher.code.like("AV-%"),
             )
         )
     } if prepaid_order_ids else {}
