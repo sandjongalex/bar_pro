@@ -184,9 +184,13 @@
     document.querySelectorAll('.cash-session-field').forEach(el => {
       el.classList.toggle('d-none', !drawer);
       const cashSelect = el.querySelector('select');
-      if (cashSelect) cashSelect.required = drawer;
+      if (cashSelect) { cashSelect.required = drawer; cashSelect.disabled = !drawer; }
     });
-    document.querySelectorAll('.provider-field').forEach(el => el.classList.toggle('d-none', method.value === 'CASH'));
+    const useProvider = method.value !== 'CASH';
+    document.querySelectorAll('.provider-field').forEach(el => {
+      el.classList.toggle('d-none', !useProvider);
+      el.querySelectorAll('input').forEach(input => { input.disabled = !useProvider; });
+    });
   }
   if (method) { method.addEventListener('change', syncMethod); syncMethod(); }
   if (source) source.addEventListener('change', syncMethod);

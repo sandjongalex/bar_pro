@@ -254,9 +254,12 @@
         option.disabled = drawer && option.value !== 'CASH';
       });
       if (cashBlock) cashBlock.classList.toggle('d-none', !drawer);
-      if (cashSelect) cashSelect.required = drawer;
+      if (cashSelect) { cashSelect.required = drawer; cashSelect.disabled = !drawer; }
       const provider = enabled && paymentMethod?.value && paymentMethod.value !== 'CASH';
-      providerBlocks.forEach((block) => block.classList.toggle('d-none', !provider));
+      providerBlocks.forEach((block) => {
+        block.classList.toggle('d-none', !provider);
+        block.querySelectorAll('input').forEach((input) => { input.disabled = !provider; });
+      });
     }
 
     container.querySelectorAll('.purchase-entry-line').forEach(bindRow);
