@@ -329,7 +329,7 @@
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer sans encaisser"></button>
       </div>
       <div class="modal-body">
-<form method="post" id="cashierPaymentForm" data-bp-ajax="json" data-cashier-async="1">
+<form method="post" id="cashierPaymentForm" data-bp-ajax="json" data-cashier-async="1" data-own-counter-order="{{ '1' if not selected_order.assigned_staff_id else '0' }}">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="payment"><input type="hidden" name="order_id" value="{{ selected_order.id }}"><input type="hidden" id="cashierDue" value="{{ b.amount_due }}">
           <label class="form-label fw-bold">Autre paiement</label>
           <div class="cashier-methods">
@@ -346,9 +346,9 @@
           </div>
 
           <div id="cashierPresented" class="mt-3">
-            <label class="form-label" for="cashierPresentedInput">Montant remis</label>
+            <label class="form-label" for="cashierPresentedInput">Espèces physiquement remises</label>
             <div class="input-group input-group-lg"><input class="form-control" id="cashierPresentedInput" name="amount_presented" type="number" min="1" step="1" value="{{ b.amount_due }}" inputmode="numeric"><span class="input-group-text">{{ bar.currency }}</span></div>
-            <div class="cashier-order-summary mt-2 mb-0"><div><span>Monnaie à rendre</span><strong id="cashierChange">0 {{ bar.currency }}</strong></div></div>
+            <div class="cashier-order-summary mt-2 mb-0"><div><span id="cashierChangeLabel">Monnaie à rendre</span><strong id="cashierChange">0 {{ bar.currency }}</strong></div></div>
           </div>
 
           <div class="mt-3" id="cashierPaymentReceiptSourceRow">
@@ -370,7 +370,21 @@
           </div>
 
           <div id="cashierMixed" class="mt-3" hidden>
-            <div class="row g-2"><div class="col-6"><label class="form-label">Espèces</label><input class="form-control form-control-lg" name="mixed_cash" id="cashierMixedCash" type="number" min="0" step="1" value="0"></div><div class="col-6"><label class="form-label">Mobile Money</label><input class="form-control form-control-lg" name="mixed_mobile" id="cashierMixedMobile" type="number" min="0" step="1" value="{{ b.amount_due }}"></div></div>
+            <div class="row g-2">
+              <div class="col-6">
+                <label class="form-label" for="cashierMixedCash">Part espèces</label>
+                <input class="form-control form-control-lg" name="mixed_cash" id="cashierMixedCash" type="number" min="1" step="1" value="0" inputmode="numeric">
+              </div>
+              <div class="col-6">
+                <label class="form-label" for="cashierMixedMobile">Part MTN / Orange</label>
+                <input class="form-control form-control-lg" name="mixed_mobile" id="cashierMixedMobile" type="number" min="1" step="1" value="{{ b.amount_due }}" inputmode="numeric">
+              </div>
+            </div>
+            <div class="cashier-tender-recap mt-2" aria-live="polite">
+              <div><span>Total affecté à la facture</span><strong id="cashierMixedApplied">0 {{ bar.currency }}</strong></div>
+              <div><span>Reste à payer</span><strong id="cashierMixedDue">{{ "{:,.0f}".format(b.amount_due) }} {{ bar.currency }}</strong></div>
+            </div>
+            <div id="cashierMixedWarning" class="form-text mt-2">Les parts espèces et Mobile Money peuvent couvrir une partie ou tout le solde de la facture.</div>
           </div>
 
           <div id="cashierProvider" class="mt-3" hidden>
@@ -499,6 +513,15 @@
     if(!paymentForm || paymentForm.dataset.bpInitialized === '1') return;
     paymentForm.dataset.bpInitialized='1';
     const due=Number(document.getElementById('cashierDue')?.value||0), applied=document.getElementById('cashierApplied'), presented=document.getElementById('cashierPresentedInput'), single=document.getElementById('cashierSingleAmount'), presentedBox=document.getElementById('cashierPresented'), mixed=document.getElementById('cashierMixed'), provider=document.getElementById('cashierProvider'), credit=document.getElementById('cashierCredit'), change=document.getElementById('cashierChange'), submit=document.getElementById('cashierPaymentSubmit');
+    const mixedCash=document.getElementById('cashierMixedCash');
+    const mixedMobile=document.getElementById('cashierMixedMobile');
+    const mixedApplied=document.getElementById('cashierMixedApplied');
+    const mixedDue=document.getElementById('cashierMixedDue');
+    const mixedWarning=document.getElementById('cashierMixedWarning');
+    const changeLabel=document.getElementById('cashierChangeLabel');
+    const ownCounterOrder=paymentForm.dataset.ownCounterOrder === '1';
+    let presentedManuallyEdited=false;
+    let lastMethod='CASH';
     const mobileNetwork=document.getElementById('cashierMobileNetwork');
     const sourceRow=document.getElementById('cashierPaymentReceiptSourceRow');
     const sourceSelect=document.getElementById('cashierPaymentReceiptSource');
@@ -518,12 +541,54 @@
       const isMixed=m==='MIXED',isCredit=m==='CREDIT',isCash=m==='CASH';
       single.hidden=isMixed||isCredit; presentedBox.hidden=!(isCash||isMixed); mixed.hidden=!isMixed; provider.hidden=!(m==='MOBILE_MONEY'||isMixed); credit.hidden=!isCredit;
       if(mobileNetwork) mobileNetwork.required=(m==='MOBILE_MONEY'||isMixed);
+      if(isMixed && lastMethod !== 'MIXED') {
+        presentedManuallyEdited=false;
+        if(presented) presented.value=mixedCash?.value||'0';
+      } else if(isCash && lastMethod!=='CASH') {
+        if(presented) presented.value=applied?.value||'';
+      }
+      lastMethod=m;
       refreshCashSource();
-      if(isCredit) submit.textContent=`Mettre ${money(due)} {{ bar.currency }} à crédit`; else submit.textContent=`Encaisser ${money(Number(applied?.value||due))} {{ bar.currency }}`;
       refreshChange();
     }
-    function refreshChange(){ const m=method(); const target=m==='MIXED'?Number(document.getElementById('cashierMixedCash')?.value||0):Number(applied?.value||0); const received=Number(presented?.value||0); change.textContent=`${money(Math.max(0,received-target))} {{ bar.currency }}`; }
-    paymentForm.querySelectorAll('input[name="method"]').forEach(x=>x.addEventListener('change',refresh)); [applied,presented,document.getElementById('cashierMixedCash')].filter(Boolean).forEach(x=>x.addEventListener('input',()=>{refreshChange(); if(applied&&method()!=='CREDIT'&&method()!=='MIXED')submit.textContent=`Encaisser ${money(Number(applied.value||0))} {{ bar.currency }}`;})); refresh();
+    function refreshChange(){
+      const m=method(), isMixed=m==='MIXED';
+      const cash=Number(mixedCash?.value||0), mobile=Number(mixedMobile?.value||0);
+      const part=isMixed?cash:Number(applied?.value||0);
+      const received=Number(presented?.value||0);
+      const total=isMixed?cash+mobile:part;
+      const remaining=Math.max(0,due-total);
+      const validMixed=!isMixed || (Number.isFinite(cash)&&Number.isFinite(mobile)
+        && cash>0 && mobile>0 && total<=due && received>=cash
+        && !!mobileNetwork?.value);
+      const retained=isMixed && ownCounterOrder && remaining===0 && received>cash;
+      if(changeLabel) changeLabel.textContent=retained?'Avance conservée pour la commande':'Monnaie à rendre';
+      if(change) change.textContent=`${money(Math.max(0,received-part))} {{ bar.currency }}`;
+      if(mixedApplied) mixedApplied.textContent=`${money(Math.max(0,total))} {{ bar.currency }}`;
+      if(mixedDue) mixedDue.textContent=`${money(remaining)} {{ bar.currency }}`;
+      if(mixedWarning) mixedWarning.textContent=validMixed
+        ? (retained ? 'Le surplus d’espèces restera disponible pour les prochains produits jusqu’à la clôture.'
+          : remaining>0 ? 'Paiement mixte partiel : la facture gardera ce solde à encaisser.'
+          : 'Montant actuel couvert par les deux moyens de paiement.')
+        : 'Indiquez deux parts positives, un total inférieur ou égal au solde, des espèces réellement reçues et un réseau MTN ou Orange.';
+      if(submit){
+        const amount=isMixed?total:Number(applied?.value||0);
+        submit.textContent=m==='CREDIT'?`Mettre ${money(due)} {{ bar.currency }} à crédit`
+          :`Enregistrer ${money(amount)} {{ bar.currency }}${isMixed&&remaining>0?' · reste '+money(remaining):''}`;
+        submit.disabled=!validMixed;
+      }
+    }
+    paymentForm.querySelectorAll('input[name="method"]').forEach(x=>x.addEventListener('change',refresh));
+    applied?.addEventListener('input',refreshChange);
+    presented?.addEventListener('input',()=>{presentedManuallyEdited=true;refreshChange();});
+    mixedCash?.addEventListener('input',()=>{
+      if(mixedMobile) mixedMobile.value=String(Math.max(0,due-Number(mixedCash.value||0)));
+      if(presented && !presentedManuallyEdited) presented.value=mixedCash.value||'0';
+      refreshChange();
+    });
+    mixedMobile?.addEventListener('input',refreshChange);
+    mobileNetwork?.addEventListener('change',refreshChange);
+    refresh();
   }
   initCashierPaymentForm();
 
