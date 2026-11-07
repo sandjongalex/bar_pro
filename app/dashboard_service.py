@@ -12,6 +12,7 @@ from zoneinfo import ZoneInfo
 
 from sqlalchemy import case, func, select
 
+from app.current_service_reporting import current_service_snapshot
 from app.customer_models import CustomerLedgerEntry
 from app.extensions import db
 from app.models import (
@@ -312,6 +313,7 @@ def dashboard_summary(actor, bar_id: int):
     return {
         "bar": bar,
         "local_date": local_date,
+        "current_service": current_service_snapshot(bar),
         "currency": bar.currency,
         "values": {
             "today_sales": sales,
@@ -326,11 +328,11 @@ def dashboard_summary(actor, bar_id: int):
             "stock_sale_value": stock_sale_value,
         },
         "cards": [
-            ("Ventes du jour", sales, "money", "green", "Commandes soldées aujourd'hui"),
+            ("Ventes soldées · jour civil", sales, "money", "green", "Commandes soldées depuis minuit, heure locale"),
             ("Total encaissé", receipts, "money", "blue", "Paiements réels nets reçus"),
             ("Produits actifs", product_count, "number", "slate", "Catalogue disponible"),
             ("Commandes en attente", pending_orders, "number", "orange", "À livrer ou à encaisser"),
-            ("Dépenses du jour", expenses, "money", "red", "Sorties validées nettes"),
+            ("Dépenses · jour civil", expenses, "money", "red", "Sorties validées nettes depuis minuit"),
             ("Dettes fournisseurs", supplier_debt, "money", "amber", "Reste à régler"),
             ("Bénéfice estimé", gross_margin - expenses, "money", "purple", "Marge brute moins dépenses"),
             ("Stock total", stock_quantity, "quantity", "teal", "Unités actuellement disponibles"),
