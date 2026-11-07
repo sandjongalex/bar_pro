@@ -13,6 +13,8 @@ from sqlalchemy.exc import IntegrityError, OperationalError
 from app.async_ui import wants_async_web_response, web_json_response
 from app.cash_services import cash_service
 from app.cashier_payment_idempotency import claim as claim_payment_intent, complete as complete_payment_intent
+from app.change_voucher_models import ChangeVoucher
+from app.change_voucher_service import change_voucher_service
 from app.customer_services import customer_service
 from app.extensions import db
 from app.finance_totals import order_balance
@@ -27,6 +29,7 @@ from app.models import (
     StaffAssignment,
     StockBalance,
     User,
+    utcnow,
 )
 from app.order_services import order_service
 from app.order_line_views import effective_lines_by_order
@@ -121,6 +124,9 @@ def _message(code) -> str:
         "INVALID_PRECISION": "Le montant remis doit respecter l'unité monétaire du bar.",
         "POSITIVE_NUMBER_REQUIRED": "Le montant remis doit être supérieur à zéro.",
         "PAYMENT_STATE_MISMATCH": "Le solde et le statut de la facture ne correspondent pas. Aucune vente n'a été confirmée : vérifiez et réessayez.",
+        "ORDER_ALREADY_FINALIZED": "Cette facture a déjà été clôturée.",
+        "ORDER_NOT_SETTLED": "Un montant reste à encaisser avant la clôture.",
+        "NOT_PREPAID_ORDER": "Cette facture n'a pas d'avance à clôturer.",
     }
     return messages.get(str(code), "Opération refusée. Vérifiez les informations saisies.")
 
@@ -262,12 +268,24 @@ def workspace(bar_id: int):
                     if due <= 0:
                         raise ValueError("INVALID_PAYMENT_AMOUNTS")
                     applied = min(received, due)
-                    change = max(Decimal("0"), received - due)
-                    payment_service.record(
+                    # Excess notes are a *customer advance*, NOT returned change.
+                    # Record the whole physical receipt in the cash drawer using
+                    # the existing persisted change-voucher liability.
+                    advance = max(Decimal("0"), received - due)
+                    change = Decimal("0")
+                    payment = payment_service.record(
                         current_user, bar_id, order.id, _reference("PAY"), "CASH",
                         received, applied, change,
                         cash_session_id=session.id,
                         cash_received_from=cash_source,
+                        voucher_amount=advance,
+                    )
+                    voucher = (
+                        change_voucher_service.issue(
+                            current_user, bar_id, payment.id, advance,
+                            customer_name=order.customer_name_snapshot,
+                        )
+                        if advance > 0 else None
                     )
                     # Locking totals see the payment inserted in this transaction.
                     # The queue filters on the persisted payment_status, not on
@@ -285,17 +303,26 @@ def workspace(bar_id: int):
                         "source": cash_source,
                         "currency": order.currency,
                         "payment_status": order.payment_status,
+                        "advance_balance": format(advance.normalize(), "f"),
+                        "advance_code": voucher.code if voucher else None,
+                        "order_open": bool(voucher),
                     }
                 else:
                     remaining = due
                     order_balance(order, update=True, locking=True)
                 db.session.commit()
-                if payment_data and order.payment_status == "PAID":
+                if payment_data and payment_data["order_open"]:
                     message = (
-                        f"Facture PAYÉE · {payment_data['amount_applied']} {order.currency} encaissés "
-                        f"(remis par {cash_source}). "
-                        f"Monnaie à rendre : {payment_data['change_given']} {order.currency}. "
-                        "Aucun autre encaissement nécessaire."
+                        f"Commande EN COURS · {received:,.0f} {order.currency} reçus "
+                        f"(remis par {cash_source}) ; {applied:,.0f} consommés ; "
+                        f"avance conservée : {advance:,.0f} {order.currency} (bon {voucher.code}). "
+                        "Ajoutez les consommations puis clôturez pour rendre le reliquat."
+                    )
+                elif payment_data and order.payment_status == "PAID":
+                    message = (
+                        f"Facture réglée pour les produits actuels · "
+                        f"{payment_data['amount_applied']} {order.currency} encaissés "
+                        f"(remis par {cash_source})."
                     )
                 elif payment_data:
                     message = (
@@ -307,7 +334,10 @@ def workspace(bar_id: int):
                     message = f"Facture créée sans paiement · {order.total_amount:,.0f} {order.currency} à encaisser."
                 refresh_url = (
                     url_for("cashier_workspace_web.workspace", bar_id=bar_id, order_id=order.id, focus="payment")
-                    if remaining > 0 else url_for("cashier_workspace_web.workspace", bar_id=bar_id)
+                    if remaining > 0 else
+                    url_for("cashier_workspace_web.workspace", bar_id=bar_id, order_id=order.id)
+                    if payment_data and payment_data["order_open"] else
+                    url_for("cashier_workspace_web.workspace", bar_id=bar_id)
                 )
                 if async_web:
                     return web_json_response(
