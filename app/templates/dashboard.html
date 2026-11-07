@@ -61,11 +61,28 @@
 <div class="admin-notice"><div><strong>Mode supervision activé</strong><span>Les indicateurs affichés correspondent uniquement à l'établissement sélectionné.</span></div></div>
 {% endif %}
 
+{% if dashboard_data and dashboard_data.current_service %}
+<section class="panel-card mt-4 p-3 p-md-4" aria-label="Ventes du service de caisse en cours" id="owner-current-service">
+  <div class="d-flex flex-wrap justify-content-between align-items-start gap-3">
+    <div>
+      <p class="eyebrow mb-1">Service de caisse toujours ouvert</p>
+      <h2 class="fs-5 mb-2">Ventes du service · {{ active_bar.name }}</h2>
+      <p class="text-secondary small mb-2">Ouvert le {{ dashboard_data.current_service.started_label }}{% if dashboard_data.current_service.crossed_midnight %} · service poursuivi après minuit{% endif %}.</p>
+      <p class="text-secondary small mb-0">Même périmètre que la caissière : commandes confirmées, y compris les impayées, depuis sa prise de service. Le changement de date ne clôture pas ce service.</p>
+    </div>
+    <div>
+      <strong class="fs-3">{{ "{:,.0f}".format(dashboard_data.current_service.sales) }} <small>{{ dashboard_data.currency }}</small></strong>
+      <p class="text-secondary small mb-0">{{ dashboard_data.current_service.order_count }} commandes · {{ dashboard_data.current_service.unpaid_count }} impayée(s)</p>
+    </div>
+  </div>
+</section>
+{% endif %}
+
 {% if dashboard_data %}
 <section class="dashboard-section mt-4" aria-labelledby="dashboard-kpis-title">
   <div class="dashboard-section-heading">
     <div>
-      <p class="eyebrow mb-1">Aujourd'hui</p>
+      <p class="eyebrow mb-1">Journée civile · {{ dashboard_data.local_date.strftime('%d/%m/%Y') }}</p>
       <h2 id="dashboard-kpis-title">Indicateurs clés · {{ active_bar.name }}</h2>
     </div>
     <div class="d-flex flex-wrap gap-2 justify-content-end">
