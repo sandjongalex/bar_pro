@@ -38,7 +38,13 @@
       <tbody>
         {% for item in report.lines %}
         <tr>
-          <td><strong>{{ item.product_name }}</strong><small class="d-block text-secondary">{{ item.sku }} · {{ item.unit }}</small></td>
+          <td><strong>{{ item.product_name }}</strong><small class="d-block text-secondary">{{ item.sku }} · {{ item.unit }}</small>
+            {% if not request.args.get('print') %}
+            <button type="button" class="btn btn-outline-primary btn-sm inventory-origin-trigger"
+                    data-origin-product="{{ item.product_name }}"
+                    data-origin-url="{{ url_for('inventories.movement_origin',bar_id=bar_id,inventory_id=report.inventory_id,product_id=item.product_id) }}">Voir l'origine des mouvements</button>
+            {% endif %}
+          </td>
           <td>{{ item.start_machine_quantity|inventory_qty }}</td>
           <td><strong>{{ item.counted_quantity|inventory_qty if item.counted_quantity is not none else "Non compté" }}</strong></td>
           <td>
@@ -75,5 +81,9 @@
 </section>
 {% if report.status == "POSTED" %}
 <p class="text-secondary small mt-3">Ce rapport utilise les mouvements d'inventaire validés : les ventes ultérieures ne modifient pas les corrections historiques. Les noms affichés sont ceux du catalogue actuel.</p>
+{% endif %}
+{% if not request.args.get('print') %}
+{% include '_inventory_movement_origin_modal.html' %}
+<script defer src="{{ url_for('static',filename='inventory_movement_origin.js',v='20261107-origin-v1') }}"></script>
 {% endif %}
 {% endblock %}
