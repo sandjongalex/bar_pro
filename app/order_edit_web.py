@@ -52,6 +52,7 @@ def _message(code) -> str:
         "ORDER_CONFLICT": "Cette commande a changé sur un autre appareil. Rouvrez « Modifier » pour charger la version actuelle.",
         "ORDER_REVISION_REQUIRED": "Rechargez la commande avant de la modifier.",
         "INSUFFICIENT_STOCK": "Stock insuffisant pour ajouter cette quantité.",
+        "RETURN_DISPOSITION_REQUIRED": "Indiquez si les bouteilles retirées ont réellement été récupérées avant de modifier une commande livrée.",
         "NOT_FOUND": "Commande ou produit introuvable.",
         "FORBIDDEN": "Vous n'êtes pas autorisé à modifier cette commande.",
         "BAR_SUSPENDED": "Le bar est suspendu : les modifications sont bloquées.",
@@ -240,6 +241,7 @@ def update(bar_id: int, order_id: int):
             _form_lines(),
             (request.form.get("reason") or "").strip() or None,
             expected_revision=expected_revision,
+            return_disposition=(request.form.get("return_disposition") or "").strip() or None,
         )
         db.session.commit()
         message = f"Commande {order.reference} mise à jour."
@@ -279,6 +281,7 @@ def update_suborder(bar_id: int, order_id: int, suborder_id: int):
             current_user, bar_id, order_id, suborder_id, _form_lines(),
             expected_revision=(request.form.get("order_revision") or "").strip(),
             reason=(request.form.get("reason") or "").strip() or None,
+            return_disposition=(request.form.get("return_disposition") or "").strip() or None,
         )
         db.session.commit()
         message = f"Sous-commande {sub.sequence_no} mise à jour. La serveuse voit les nouveaux produits."
