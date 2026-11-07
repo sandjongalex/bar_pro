@@ -34,9 +34,11 @@ class ChangeVoucherService:
         stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
         return f"{prefix}-{stamp}-{secrets.token_hex(2).upper()}"
 
-    def _unique_code(self, bar_id: int) -> str:
+    def _unique_code(self, bar_id: int, *, customer_advance: bool = False) -> str:
         for _ in range(12):
             code = self._code()
+            if customer_advance:
+                code = "AV-" + code[3:]  # Internal tab advance, not a portable voucher.
             exists = db.session.scalar(
                 select(ChangeVoucher.id).where(
                     ChangeVoucher.bar_id == bar_id,
@@ -70,6 +72,7 @@ class ChangeVoucherService:
         *,
         customer_name: str | None = None,
         customer_phone: str | None = None,
+        customer_advance: bool = False,
     ) -> ChangeVoucher:
         permissions.require(actor, "payments.record", bar_id)
         amount = number(amount, positive=True)
@@ -103,7 +106,7 @@ class ChangeVoucherService:
 
         voucher = ChangeVoucher(
             bar_id=bar_id,
-            code=self._unique_code(bar_id),
+            code=self._unique_code(bar_id, customer_advance=customer_advance),
             origin_order_id=payment.order_id,
             origin_payment_id=payment.id,
             initial_amount=amount,
@@ -169,6 +172,10 @@ class ChangeVoucherService:
         )
         if not order:
             raise LookupError("NOT_FOUND")
+        if voucher.code.startswith("AV-") and (
+            order.id != voucher.origin_order_id or order.closed_at is not None
+        ):
+            raise ValueError("ADVANCE_ORDER_MISMATCH")
         if order.status not in {"CONFIRMED", "SERVED"}:
             raise ValueError("ORDER_NOT_PAYABLE")
         if order.currency != voucher.currency:
@@ -224,9 +231,13 @@ class ChangeVoucherService:
         code: str,
         cash_session_id: int,
         amount=None,
+        *,
+        at_order_close: bool = False,
     ) -> ChangeVoucherTransaction:
         permissions.require(actor, "payments.record", bar_id)
         voucher = self.by_code(bar_id, code, lock=True)
+        if voucher.code.startswith("AV-") and not at_order_close:
+            raise ValueError("ADVANCE_CLOSE_REQUIRED")
         if voucher.status not in {"ACTIVE", "PARTIAL"} or Decimal(voucher.balance_amount) <= 0:
             raise ValueError("VOUCHER_NOT_ACTIVE")
 
