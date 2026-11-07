@@ -108,7 +108,7 @@ def _message(code) -> str:
         "ORDER_NOT_PAYABLE": "Cette commande n'est pas prête à être encaissée.",
         "PAYMENT_LIMIT_EXCEEDED": "Le montant dépasse le reste à payer.",
         "INVALID_PAYMENT_AMOUNTS": "Vérifiez les montants saisis.",
-        "INVALID_MIXED_PAYMENT": "Les parts espèces et Mobile Money doivent totaliser exactement le reste à payer.",
+        "INVALID_MIXED_PAYMENT": "Indiquez deux montants positifs (espèces et Mobile Money), dont la somme ne dépasse pas le reste à payer.",
         "PROVIDER_REFERENCE_REQUIRED": "Sélectionnez MTN Mobile Money ou Orange Money après avoir confirmé la réception.",
         "CUSTOMER_REQUIRED": "Sélectionnez un client pour une vente à crédit.",
         "CREDIT_DISABLED": "Les ventes à crédit sont désactivées.",
@@ -502,7 +502,7 @@ def workspace(bar_id: int):
             if method == "MIXED":
                 cash_part = _decimal(request.form.get("mixed_cash"), allow_zero=True)
                 mobile_part = _decimal(request.form.get("mixed_mobile"), allow_zero=True)
-                if cash_part <= 0 or mobile_part <= 0 or cash_part + mobile_part != due:
+                if cash_part <= 0 or mobile_part <= 0 or cash_part + mobile_part > due:
                     raise ValueError("INVALID_MIXED_PAYMENT")
                 presented = _decimal(request.form.get("amount_presented"))
                 if presented < cash_part:
@@ -515,7 +515,27 @@ def workspace(bar_id: int):
                 cash_source = _receipt_source_label(bar_id)
                 if staff_assignment_id is not None and cash_source != "client":
                     raise ValueError("INVALID_CASH_SOURCE")
-                payment_service.record(
+                # Extra physical cash is kept as an advance only for an open
+                # cashier-created tab which has just been fully covered. On
+                # other orders, surplus is ordinary returned change.
+                mixed_advance = Decimal("0")
+                if (
+                    cash_part + mobile_part == due
+                    and presented > cash_part
+                    and order.assigned_staff_id is None
+                    and order.cashier_assignment_id == assignment.id
+                    and cash_session_id == session.id
+                    and order.closed_at is None
+                    and not db.session.scalar(
+                        select(ChangeVoucher.id).where(
+                            ChangeVoucher.bar_id == bar_id,
+                            ChangeVoucher.origin_order_id == order.id,
+                            ChangeVoucher.code.like("AV-%"),
+                        )
+                    )
+                ):
+                    mixed_advance = presented - cash_part
+                cash_payment = payment_service.record(
                     current_user,
                     bar_id,
                     order.id,
@@ -523,10 +543,11 @@ def workspace(bar_id: int):
                     "CASH",
                     presented,
                     cash_part,
-                    presented - cash_part,
+                    presented - cash_part - mixed_advance,
                     cash_session_id=cash_session_id,
                     staff_assignment_id=staff_assignment_id,
                     cash_received_from=cash_source if cash_session_id is not None else None,
+                    voucher_amount=mixed_advance,
                 )
                 payment_service.record(
                     current_user,
@@ -540,10 +561,42 @@ def workspace(bar_id: int):
                     provider_code=provider_code,
                     provider_transaction_id=provider_transaction_id,
                 )
+                mixed_voucher = (
+                    change_voucher_service.issue(
+                        current_user, bar_id, cash_payment.id, mixed_advance,
+                        customer_name=order.customer_name_snapshot,
+                        customer_advance=True,
+                    )
+                    if mixed_advance > 0 else None
+                )
+                remaining = Decimal(order_balance(order, update=True, locking=True)["amount_due"] or 0)
                 complete_payment_intent(payment_intent, order_id=order.id)
                 db.session.commit()
-                message = f"{order.reference} encaissée en paiement mixte."
-                refresh_url = url_for("cashier_workspace_web.workspace", bar_id=bar_id)
+                if mixed_voucher is not None:
+                    message = (
+                        f"Commande EN COURS · {cash_part:,.0f} en espèces + "
+                        f"{mobile_part:,.0f} par {provider_code}. "
+                        f"Avance conservée : {mixed_advance:,.0f} {order.currency}."
+                    )
+                    refresh_url = url_for(
+                        "cashier_workspace_web.workspace", bar_id=bar_id, order_id=order.id,
+                    )
+                elif remaining > 0:
+                    message = (
+                        f"Paiement mixte PARTIEL : {cash_part:,.0f} en espèces + "
+                        f"{mobile_part:,.0f} par {provider_code}. "
+                        f"Reste {remaining:,.0f} {order.currency}."
+                    )
+                    refresh_url = url_for(
+                        "cashier_workspace_web.workspace", bar_id=bar_id,
+                        order_id=order.id, focus="payment",
+                    )
+                else:
+                    message = (
+                        f"Montant actuel réglé : {cash_part:,.0f} en espèces + "
+                        f"{mobile_part:,.0f} par {provider_code}."
+                    )
+                    refresh_url = url_for("cashier_workspace_web.workspace", bar_id=bar_id)
                 if async_web:
                     return web_json_response(data={"refresh_url": refresh_url}, message=message)
                 flash(message, "success")
