@@ -374,7 +374,13 @@
           </div>
 
           <div id="cashierProvider" class="mt-3" hidden>
-            <div class="row g-2"><div class="col-5"><label class="form-label">Réseau</label><input class="form-control" name="provider_code" maxlength="32" placeholder="MTN / Orange"></div><div class="col-7"><label class="form-label">Référence transaction</label><input class="form-control" name="provider_transaction_id" maxlength="128" placeholder="ID transaction"></div></div>
+            <label class="form-label fw-bold" for="cashierMobileNetwork">Réseau Mobile Money</label>
+            <select class="form-select form-select-lg" name="provider_code" id="cashierMobileNetwork">
+              <option value="">Choisir le réseau...</option>
+              <option value="MTN">MTN Mobile Money</option>
+              <option value="ORANGE">Orange Money</option>
+            </select>
+            <div class="form-text mt-2">Vérifiez la réception du paiement sur le compte du bar avant de valider. Une référence interne sera conservée automatiquement.</div>
           </div>
 
           <div id="cashierCredit" class="mt-3" hidden>
@@ -493,6 +499,7 @@
     if(!paymentForm || paymentForm.dataset.bpInitialized === '1') return;
     paymentForm.dataset.bpInitialized='1';
     const due=Number(document.getElementById('cashierDue')?.value||0), applied=document.getElementById('cashierApplied'), presented=document.getElementById('cashierPresentedInput'), single=document.getElementById('cashierSingleAmount'), presentedBox=document.getElementById('cashierPresented'), mixed=document.getElementById('cashierMixed'), provider=document.getElementById('cashierProvider'), credit=document.getElementById('cashierCredit'), change=document.getElementById('cashierChange'), submit=document.getElementById('cashierPaymentSubmit');
+    const mobileNetwork=document.getElementById('cashierMobileNetwork');
     const sourceRow=document.getElementById('cashierPaymentReceiptSourceRow');
     const sourceSelect=document.getElementById('cashierPaymentReceiptSource');
     const serverRow=document.getElementById('cashierPaymentReceiptServerRow');
@@ -509,7 +516,9 @@
     function refresh(){
       const m=method(); document.querySelectorAll('.cashier-method').forEach(x=>x.classList.toggle('active',x.querySelector('input').checked));
       const isMixed=m==='MIXED',isCredit=m==='CREDIT',isCash=m==='CASH';
-      single.hidden=isMixed||isCredit; presentedBox.hidden=!(isCash||isMixed); mixed.hidden=!isMixed; provider.hidden=!(m==='MOBILE_MONEY'||isMixed); credit.hidden=!isCredit; refreshCashSource();
+      single.hidden=isMixed||isCredit; presentedBox.hidden=!(isCash||isMixed); mixed.hidden=!isMixed; provider.hidden=!(m==='MOBILE_MONEY'||isMixed); credit.hidden=!isCredit;
+      if(mobileNetwork) mobileNetwork.required=(m==='MOBILE_MONEY'||isMixed);
+      refreshCashSource();
       if(isCredit) submit.textContent=`Mettre ${money(due)} {{ bar.currency }} à crédit`; else submit.textContent=`Encaisser ${money(Number(applied?.value||due))} {{ bar.currency }}`;
       refreshChange();
     }
