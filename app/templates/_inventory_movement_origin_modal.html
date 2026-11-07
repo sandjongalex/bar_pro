@@ -1,0 +1,20 @@
+{# Single read-only movement-origin dialog; included outside counting forms. #}
+<div class="modal fade" id="inventoryOriginModal" tabindex="-1" aria-labelledby="inventoryOriginTitle" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 class="modal-title fs-5" id="inventoryOriginTitle">Origine des mouvements hors ventes</h2>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
+      </div>
+      <div class="modal-body">
+        <p class="text-secondary small mb-3">Historique du produit sur la période de cet inventaire. Aucune opération n'est modifiée.</p>
+        <div id="inventoryOriginSummary" class="inventory-origin-summary" aria-live="polite"></div>
+        <p id="inventoryOriginStatus" class="small mt-3" role="status" aria-live="polite"></p>
+        <div id="inventoryOriginList" class="inventory-origin-list"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
+      </div>
+    </div>
+  </div>
+</div>
