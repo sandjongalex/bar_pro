@@ -114,7 +114,7 @@
     <div class="section-title">Règlement</div>
     <div class="totals">
       {% for payment in payments %}
-      <div class="row"><span>{{ payment_labels.get(payment.method, payment.method) }}</span><strong>{{ "{:,.0f}".format(payment.amount_applied) }} {{ payment.currency }}</strong></div>
+      <div class="row"><span>{{ payment_labels.get(payment.method, payment.method) }}{% if payment.method == 'MOBILE_MONEY' and payment.provider_code %} · {{ 'MTN Mobile Money' if payment.provider_code == 'MTN' else 'Orange Money' if payment.provider_code == 'ORANGE' else payment.provider_code }}{% endif %}</span><strong>{{ "{:,.0f}".format(payment.amount_applied) }} {{ payment.currency }}</strong></div>
       <div class="row muted"><span>{{ payment.reference }} · {{ payment_times[payment.id] }}</span><span></span></div>
       {% if payment.method == 'CASH' and payment.change_given > 0 %}
       <div class="row muted"><span>Reçu {{ "{:,.0f}".format(payment.amount_presented) }}</span><strong>Monnaie {{ "{:,.0f}".format(payment.change_given) }}</strong></div>
