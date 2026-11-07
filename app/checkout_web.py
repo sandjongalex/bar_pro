@@ -14,6 +14,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError, OperationalError
 
 from app.cash_services import cash_service
+from app.change_voucher_models import ChangeVoucher
 from app.cashier_payment_idempotency import claim as claim_payment_intent, complete as complete_payment_intent
 from app.customer_services import customer_service
 from app.extensions import db
@@ -224,6 +225,13 @@ def receipt(bar_id: int, order_id: int):
         )
     )
     balance = order_balance(order)
+    advance_voucher = db.session.scalar(
+        select(ChangeVoucher).where(
+            ChangeVoucher.bar_id == bar_id,
+            ChangeVoucher.origin_order_id == order.id,
+        )
+    )
+    open_advance = advance_voucher is not None and order.closed_at is None
 
     server_name = "Sans serveuse"
     if order.assigned_staff_id is not None:
@@ -258,6 +266,8 @@ def receipt(bar_id: int, order_id: int):
         payments=payments,
         refunds=refunds,
         balance=balance,
+        open_advance=open_advance,
+        advance_balance=(advance_voucher.balance_amount if open_advance else Decimal("0")),
         server_name=server_name,
         customer_name=customer_name,
         payment_times=payment_times,
