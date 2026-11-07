@@ -526,3 +526,104 @@ def test_counter_sale_invalid_change_never_creates_payment_or_voucher(env):
         Order.bar_id == bar.id, Order.reference == "COUNTER-BM-INVALID"
     )) is None
     assert cash_service.expected(session) == Decimal("1000")
+
+
+
+def test_close_existing_advance_with_change_voucher_without_new_cash_receipt(env):
+    """An existing AV- amount must become a BM- liability on close."""
+    from app.change_voucher_service import change_voucher_liability
+    app, _, bar, _, product, *_ = env
+    client, session, csrf = _cashier_client(env)
+    product.sale_price = Decimal("3000")
+    db.session.commit()
+    url = f"/bars/{bar.id}/cashier/workspace"
+    new = client.post(url, data={
+        "csrf_token": csrf, "action": "create_sale",
+        "reference": "PREPAID-CONVERT-7000",
+        "product_id": str(product.id), "quantity": "1",
+        "cash_presented": "10000", "cash_receipt_source": "CLIENT",
+    }, headers=_async_headers(csrf))
+    assert new.status_code == 200, new.text
+    order = db.session.scalar(select(Order).where(
+        Order.bar_id == bar.id, Order.reference == "PREPAID-CONVERT-7000"
+    ))
+    voucher = db.session.scalar(select(ChangeVoucher).where(
+        ChangeVoucher.bar_id == bar.id, ChangeVoucher.origin_order_id == order.id
+    ))
+    previous_id, previous_origin = voucher.id, voucher.origin_payment_id
+    assert voucher.code.startswith("AV-")
+    assert change_voucher_liability(bar.id)["amount"] == Decimal("0")
+    assert cash_service.expected(session) == Decimal("11000")
+    assert f'data-prepaid-voucher-option="{order.id}"' in client.get(url).text
+
+    close_data = {
+        "csrf_token": csrf, "action": "close_prepaid", "order_id": str(order.id),
+        "change_settlement": "VOUCHER", "actual_change_given": "0",
+        "confirm_voucher": "1",
+    }
+    close = client.post(url, data=close_data)
+    assert close.status_code == 302
+    assert "/change-vouchers/" in close.headers["Location"]
+    assert close.headers["Location"].endswith("/print")
+    db.session.refresh(order)
+    db.session.refresh(voucher)
+    assert order.closed_at is not None
+    assert order.payment_status == "PAID"
+    assert voucher.id == previous_id
+    assert voucher.origin_payment_id == previous_origin
+    assert voucher.code.startswith("BM-")
+    assert voucher.balance_amount == Decimal("7000")
+    assert change_voucher_liability(bar.id)["amount"] == Decimal("7000")
+    assert cash_service.expected(session) == Decimal("11000")
+    assert db.session.scalar(select(func.count()).select_from(Payment).where(
+        Payment.bar_id == bar.id, Payment.order_id == order.id,
+    )) == 1
+    ticket = client.get(close.headers["Location"])
+    assert ticket.status_code == 200
+    assert voucher.code in ticket.text
+    assert "BON DE MONNAIE" in ticket.text
+    repeated = client.post(url, data=close_data)
+    assert repeated.status_code == 302
+    assert cash_service.expected(session) == Decimal("11000")
+    assert change_voucher_liability(bar.id)["count"] == 1
+
+
+def test_close_advance_with_partial_cash_and_change_voucher(env):
+    from app.change_voucher_service import change_voucher_liability
+    app, _, bar, _, product, *_ = env
+    client, session, csrf = _cashier_client(env)
+    product.sale_price = Decimal("3000")
+    db.session.commit()
+    url = f"/bars/{bar.id}/cashier/workspace"
+    created = client.post(url, data={
+        "csrf_token": csrf, "action": "create_sale",
+        "reference": "PREPAID-PARTIAL-7000",
+        "product_id": str(product.id), "quantity": "1",
+        "cash_presented": "10000",
+    }, headers=_async_headers(csrf))
+    assert created.status_code == 200
+    order = db.session.scalar(select(Order).where(
+        Order.bar_id == bar.id, Order.reference == "PREPAID-PARTIAL-7000"
+    ))
+    close = client.post(url, data={
+        "csrf_token": csrf, "action": "close_prepaid", "order_id": str(order.id),
+        "change_settlement": "VOUCHER", "actual_change_given": "200",
+        "confirm_voucher": "1",
+    }, headers=_async_headers(csrf))
+    assert close.status_code == 200, close.text
+    assert close.json["data"]["prepaid_closed"] is True
+    assert close.json["data"]["voucher_url"].endswith("/print")
+    voucher = db.session.scalar(select(ChangeVoucher).where(
+        ChangeVoucher.bar_id == bar.id, ChangeVoucher.origin_order_id == order.id
+    ))
+    assert voucher.code.startswith("BM-")
+    assert voucher.balance_amount == Decimal("6800")
+    assert change_voucher_liability(bar.id)["amount"] == Decimal("6800")
+    assert cash_service.expected(session) == Decimal("10800")
+    entries = list(db.session.scalars(select(ChangeVoucherTransaction).where(
+        ChangeVoucherTransaction.bar_id == bar.id,
+        ChangeVoucherTransaction.voucher_id == voucher.id,
+        ChangeVoucherTransaction.kind == "CASH_REFUND",
+    )))
+    assert len(entries) == 1
+    assert entries[0].amount == Decimal("200")

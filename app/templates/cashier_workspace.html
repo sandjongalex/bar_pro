@@ -266,6 +266,29 @@
             <input type="hidden" name="order_id" value="{{ order.id }}">
             <button class="btn btn-sm btn-success" type="submit">Clôturer et rendre {{ "{:,.0f}".format(voucher.balance_amount if voucher else 0) }} {{ order.currency }}</button>
           </form>
+          {% if voucher and voucher.balance_amount > 0 %}
+          <details class="cashier-voucher-close border rounded-3 p-2 mt-1" style="grid-column:1 / -1" data-prepaid-voucher-option="{{ order.id }}">
+            <summary class="btn btn-sm btn-outline-primary w-100">Pas de monnaie ? Faire un bon de monnaie</summary>
+            <form method="post" action="{{ url_for('cashier_workspace_web.workspace', bar_id=bar.id) }}" class="mt-3 d-grid gap-2">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="action" value="close_prepaid">
+              <input type="hidden" name="change_settlement" value="VOUCHER">
+              <input type="hidden" name="order_id" value="{{ order.id }}">
+              <label class="form-label mb-0">Monnaie réellement rendue en espèces</label>
+              <div class="input-group">
+                <input class="form-control" type="number" name="actual_change_given" value="0" min="0" max="{{ voucher.balance_amount }}" step="{{ '1' if order.currency in ['XAF', 'XOF'] else '0.01' }}" required inputmode="decimal">
+                <span class="input-group-text">{{ order.currency }}</span>
+              </div>
+              <div class="row g-2">
+                <div class="col-sm-6"><label class="form-label mb-1">Nom du client (facultatif)</label><input class="form-control" name="voucher_customer_name" maxlength="160" autocomplete="off" value="{{ voucher.customer_name or order.customer_name_snapshot or '' }}"></div>
+                <div class="col-sm-6"><label class="form-label mb-1">Téléphone (facultatif)</label><input class="form-control" name="voucher_customer_phone" maxlength="32" autocomplete="off" inputmode="tel" value="{{ voucher.customer_phone or '' }}"></div>
+              </div>
+              <label class="small"><input type="checkbox" name="confirm_voucher" value="1" required> Je confirme que le client repart avec un bon pour la monnaie non rendue.</label>
+              <button class="btn btn-primary w-100" type="submit" data-close-advance-voucher="{{ order.id }}">Clôturer et imprimer le bon</button>
+              <small class="text-secondary">Le bon est généré uniquement pour le solde non rendu. Aucun deuxième encaissement.</small>
+            </form>
+          </details>
+          {% endif %}
           {% endif %}
         </div>
       </article>
@@ -327,6 +350,9 @@
           <small>Il n'y a rien à encaisser pour les produits actuels. Vous pouvez ajouter des boissons ; l'avance restante sera utilisée automatiquement.</small>
           <strong class="mt-2">Avance disponible : {{ "{:,.0f}".format(prepaid_vouchers[selected_order.id].balance_amount) }} {{ selected_order.currency }}</strong>
           <a class="btn btn-primary w-100 mt-2" href="{{ url_for('suborders_web.new_suborder', bar_id=bar.id, order_id=selected_order.id) }}">＋ Ajouter une sous-commande</a>
+          {% if selected_order.closed_at is none and prepaid_vouchers[selected_order.id].balance_amount > 0 %}
+          <a class="btn btn-outline-primary w-100 mt-2" href="#prepaid-bon-{{ selected_order.id }}" data-open-prepaid-voucher="{{ selected_order.id }}" onclick="(function(el){var t=document.querySelector('[data-prepaid-voucher-option=\"{{ selected_order.id }}\"]');if(t){t.open=true;t.scrollIntoView({behavior:'smooth',block:'center'});}})(this);return false;">Pas de monnaie ? Émettre un bon</a>
+          {% endif %}
         </div>
       {% else %}
         <div class="cashier-fast-cash">

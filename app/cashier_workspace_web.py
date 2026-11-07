@@ -421,27 +421,56 @@ def workspace(bar_id: int):
                 )
                 if pending is not None:
                     raise ValueError("ORDER_NOT_PAYABLE")
-                returned = Decimal(voucher.balance_amount or 0)
-                if returned > 0:
-                    change_voucher_service.refund_cash(
-                        current_user, bar_id, voucher.code, session.id,
-                        amount=returned,
-                        at_order_close=True,
+                available = Decimal(voucher.balance_amount or 0)
+                method = (request.form.get("change_settlement") or "CASH").strip().upper()
+                if method not in {"CASH", "VOUCHER"}:
+                    raise ValueError("INVALID_CHANGE_SETTLEMENT")
+                portable = None
+                if method == "VOUCHER":
+                    if request.form.get("confirm_voucher") != "1":
+                        raise ValueError("VOUCHER_CONFIRMATION_REQUIRED")
+                    returned = _decimal(
+                        request.form.get("actual_change_given", "0"),
+                        allow_zero=True,
                     )
+                    if returned > available:
+                        raise ValueError("INVALID_ACTUAL_CHANGE")
+                    portable = change_voucher_service.convert_advance_to_change(
+                        current_user, bar_id, voucher, session.id, returned,
+                        customer_name=request.form.get("voucher_customer_name"),
+                        customer_phone=request.form.get("voucher_customer_phone"),
+                    )
+                else:
+                    returned = available
+                    if returned > 0:
+                        change_voucher_service.refund_cash(
+                            current_user, bar_id, voucher.code, session.id,
+                            amount=returned, at_order_close=True,
+                        )
                 order.closed_at = utcnow()
                 db.session.commit()
-                message = (
-                    f"Commande clôturée · monnaie réellement rendue : "
-                    f"{returned:,.0f} {order.currency}. Facture terminée."
-                )
                 refresh_url = url_for("cashier_workspace_web.workspace", bar_id=bar_id)
+                voucher_url = (
+                    url_for("change_vouchers_web.print_voucher", bar_id=bar_id, voucher_id=portable.id)
+                    if portable is not None else None
+                )
+                if portable is not None:
+                    message = (
+                        f"Commande clôturée · {returned:,.0f} {order.currency} rendus · "
+                        f"bon de monnaie {portable.code} : {portable.balance_amount:,.0f} {order.currency} dus."
+                    )
+                else:
+                    message = (
+                        f"Commande clôturée · monnaie réellement rendue : "
+                        f"{returned:,.0f} {order.currency}. Facture terminée."
+                    )
                 if async_web:
                     return web_json_response(
-                        data={"refresh_url": refresh_url, "prepaid_closed": True},
+                        data={"refresh_url": refresh_url, "prepaid_closed": True, "voucher_url": voucher_url},
                         message=message,
                     )
                 flash(message, "success")
-                return redirect(refresh_url)
+                return redirect(voucher_url or refresh_url)
 
             if not order_id:
                 raise LookupError("NOT_FOUND")

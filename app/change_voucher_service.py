@@ -142,6 +142,49 @@ class ChangeVoucherService:
         )
         return voucher
 
+    def convert_advance_to_change(
+        self, actor, bar_id: int, voucher: ChangeVoucher, cash_session_id: int,
+        cash_returned=0, *, customer_name=None, customer_phone=None,
+    ) -> ChangeVoucher | None:
+        """Close an AV- advance as a portable BM- liability without new income.
+
+        Caller locks its order and voucher and commits the whole operation.
+        Refund only the physical cash handed back; the remaining balance and
+        its original payment stay on the existing voucher record.
+        """
+        permissions.require(actor, "payments.record", bar_id)
+        if voucher.bar_id != bar_id or not voucher.code.startswith("AV-"):
+            raise ValueError("NOT_PREPAID_ORDER")
+        if voucher.status not in {"ACTIVE", "PARTIAL", "SETTLED"}:
+            raise ValueError("VOUCHER_NOT_ACTIVE")
+        returned = number(cash_returned, scale=0 if voucher.currency in {"XAF", "XOF"} else 2)
+        available = Decimal(voucher.balance_amount or 0)
+        if returned < 0 or returned > available:
+            raise ValueError("INVALID_ACTUAL_CHANGE")
+        if returned:
+            self.refund_cash(
+                actor, bar_id, voucher.code, cash_session_id,
+                amount=returned, at_order_close=True,
+            )
+        if Decimal(voucher.balance_amount or 0) <= 0:
+            return None
+        old_code = voucher.code
+        voucher.code = self._unique_code(bar_id, customer_advance=False)
+        name = str(customer_name or "").strip()
+        phone = str(customer_phone or "").strip()
+        if name:
+            voucher.customer_name = name[:160]
+        if phone:
+            voucher.customer_phone = phone[:32]
+        self._refresh_status(voucher)
+        db.session.flush()
+        record(
+            actor, bar_id, "change_vouchers.advance_conversion",
+            "change_vouchers", voucher.id,
+            f"{old_code} -> {voucher.code}; {voucher.balance_amount} {voucher.currency} dus au client",
+        )
+        return voucher
+
     def by_code(self, bar_id: int, code: str, *, lock: bool = False) -> ChangeVoucher:
         statement = select(ChangeVoucher).where(
             ChangeVoucher.bar_id == bar_id,
