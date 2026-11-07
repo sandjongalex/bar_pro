@@ -10,13 +10,14 @@ from jinja2 import Environment
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def _css_rule(source: str, selector: str) -> str:
-    return source.split(selector + "{", 1)[1].split("}", 1)[0]
+def _css_rule(source: str, selector: str, *, containing: str = "") -> str:
+    rules = [part.split("}", 1)[0] for part in source.split(selector + "{")[1:]]
+    return next(rule for rule in rules if containing in rule)
 
 
 def test_waitress_product_list_scroll_chains_to_document():
     css = (ROOT / "app/static/server_pos.css").read_text(encoding="utf-8")
-    products = _css_rule(css, ".server-pos-layout .pos-products")
+    products = _css_rule(css, ".server-pos-layout .pos-products", containing="overflow-y:auto")
     assert "overflow-y:auto" in products
     assert "overscroll-behavior-y:auto" in products
     assert "overscroll-behavior:contain" not in css
