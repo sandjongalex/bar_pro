@@ -32,7 +32,7 @@
           <p class="owner-bento-revenue-note mt-2">Ventes soldées du jour civil : <strong>{{ '{:,.0f}'.format(owner_bento.turnover_today)|replace(',', ' ') }} {{ owner_bento.currency_label }}</strong> (nettes des retours). Le graphique ci-dessous suit cette journée civile.</p>
           {% else %}
           <p class="owner-bento-revenue-note">Ventes soldées du jour civil, nettes des retours · aucun service de caisse ouvert.</p>
-          {% endif %>
+          {% endif %}
         {% endif %}
         <div class="owner-bento-chart-area mt-4">
           {% if owner_bento.chart.labels %}
@@ -114,7 +114,7 @@
                 {% else %}
                 <strong>{{ '{:,.0f}'.format(bar.sales_today)|replace(',', ' ') }}</strong>
                 <small>{{ bar.currency }} · jour civil · service fermé</small>
-                {% endif %>
+                {% endif %}
               </div>
             </a>
           {% else %}
