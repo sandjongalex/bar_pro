@@ -168,6 +168,7 @@ def pay_purchase(bar_id, purchase_id):
         data.get("cash_session_id"),
         data.get("provider_code"),
         data.get("provider_transaction_id"),
+        data.get("funding_source"),
     )
     return ok(serialize(item), 201)
 

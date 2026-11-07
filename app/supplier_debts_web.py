@@ -44,6 +44,9 @@ def _message(code) -> str:
         "PURCHASE_NOT_PAYABLE": "Seuls les achats réceptionnés peuvent être payés.",
         "SUPPLIER_PAYMENT_LIMIT": "Le montant dépasse le solde restant dû.",
         "INVALID_METHOD": "Le mode de paiement sélectionné est invalide.",
+        "INVALID_FUNDING_SOURCE": "Sélectionnez une source de financement valide.",
+        "DRAWER_REQUIRES_CASH": "L'argent de la caisse se règle en espèces depuis une session ouverte.",
+        "CASH_LOCATION_FOR_OWNER": "Un achat payé sur fonds propres ne doit pas utiliser la caisse.",
         "CASH_LOCATION_REQUIRED": "Pour un paiement en espèces, ouvrez d'abord une session de caisse et sélectionnez-la.",
         "CASH_SESSION_NOT_OPEN": "La session de caisse sélectionnée n'est plus ouverte.",
         "CURRENCY_MISMATCH": "La devise de la caisse ne correspond pas à celle de l'achat.",
@@ -75,7 +78,8 @@ def manage(bar_id):
                 method = request.form.get("method", "").strip()
                 provider_code = request.form.get("provider_code", "").strip() or None
                 provider_transaction_id = request.form.get("provider_transaction_id", "").strip() or None
-                cash_session_id = _optional_int(request.form.get("cash_session_id")) if method == "CASH" else None
+                funding_source = request.form.get("funding_source", "").strip() or None
+                cash_session_id = _optional_int(request.form.get("cash_session_id")) if method == "CASH" and funding_source != "OWNER_FUNDS" else None
 
                 payment = purchase_service.pay(
                     current_user,
@@ -88,6 +92,7 @@ def manage(bar_id):
                     cash_session_id,
                     provider_code,
                     provider_transaction_id,
+                    funding_source,
                 )
                 db.session.commit()
                 flash(
@@ -104,7 +109,7 @@ def manage(bar_id):
                 )
                 if not source:
                     raise LookupError("NOT_FOUND")
-                cash_session_id = _optional_int(request.form.get("cash_session_id")) if source.method == "CASH" else None
+                cash_session_id = _optional_int(request.form.get("cash_session_id")) if source.funding_source == "CASH_DRAWER" else None
                 reversal = purchase_service.reverse_payment(
                     current_user,
                     bar_id,
@@ -174,6 +179,14 @@ def manage(bar_id):
     purchase_by_id = {purchase.id: purchase for purchase in posted_purchases}
     reversed_ids = {payment.reversal_of_id for payment in payments if payment.reversal_of_id is not None}
 
+    funding_totals = {
+        funding: Decimal(amount or 0)
+        for funding, amount in db.session.execute(
+            select(SupplierPayment.funding_source, func.coalesce(func.sum(signed_amount), 0))
+            .where(SupplierPayment.bar_id == bar_id)
+            .group_by(SupplierPayment.funding_source)
+        )
+    }
     total_due = sum((due_by_purchase[purchase.id] for purchase in outstanding), Decimal("0"))
     total_net_paid = Decimal(
         db.session.scalar(
@@ -197,6 +210,8 @@ def manage(bar_id):
         "unpaid_purchases": len(outstanding),
         "net_paid": total_net_paid,
         "paid_purchases": len(paid_purchases),
+        "owner_funded": funding_totals.get("OWNER_FUNDS", Decimal("0")),
+        "drawer_funded": funding_totals.get("CASH_DRAWER", Decimal("0")),
     }
 
     return render_template(
@@ -212,6 +227,7 @@ def manage(bar_id):
         open_cash_sessions=open_cash_sessions,
         cash_expected=cash_expected,
         payment_labels=PAYMENT_LABELS,
+        funding_labels={"OWNER_FUNDS": "Fonds propres", "CASH_DRAWER": "Caisse", "UNSPECIFIED": "Non précisé"},
         stats=stats,
         can_manage=can_manage,
     )

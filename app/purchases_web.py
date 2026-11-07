@@ -71,6 +71,9 @@ def _message(code) -> str:
         "PAYMENT_REQUIRES_RECEIPT": "Un paiement initial ne peut être enregistré que si l'achat est réceptionné.",
         "SUPPLIER_PAYMENT_LIMIT": "Le montant payé dépasse le total restant dû sur cet achat.",
         "INVALID_METHOD": "Le mode de paiement sélectionné est invalide.",
+        "INVALID_FUNDING_SOURCE": "Sélectionnez une source de financement valide.",
+        "DRAWER_REQUIRES_CASH": "L'argent de la caisse se règle en espèces depuis une session ouverte.",
+        "CASH_LOCATION_FOR_OWNER": "Un achat payé sur fonds propres ne doit pas utiliser la caisse.",
         "CASH_LOCATION_REQUIRED": "Pour un paiement en espèces, sélectionnez une session de caisse ouverte.",
         "CASH_SESSION_NOT_OPEN": "La session de caisse sélectionnée n'est plus ouverte.",
         "INSUFFICIENT_DRAWER_CASH": "La caisse ne contient pas suffisamment d'espèces pour ce règlement.",
@@ -129,7 +132,8 @@ def _record_initial_payment(bar_id, purchase):
     if amount <= 0:
         return None
     method = request.form.get("payment_method", "").strip()
-    cash_session_id = _optional_int(request.form.get("cash_session_id")) if method == "CASH" else None
+    funding_source = request.form.get("funding_source", "").strip() or None
+    cash_session_id = _optional_int(request.form.get("cash_session_id")) if method == "CASH" and funding_source != "OWNER_FUNDS" else None
     provider_code = request.form.get("provider_code", "").strip() or None
     provider_transaction_id = request.form.get("provider_transaction_id", "").strip() or None
     return purchase_service.pay(
@@ -143,6 +147,7 @@ def _record_initial_payment(bar_id, purchase):
         cash_session_id,
         provider_code,
         provider_transaction_id,
+        funding_source,
     )
 
 

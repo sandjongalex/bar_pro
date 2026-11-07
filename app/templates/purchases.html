@@ -181,6 +181,7 @@
       <div class="purchase-payment-title"><div><p class="eyebrow mb-1">Règlement initial</p><h3>Montant déjà payé</h3></div><small>Optionnel — enregistré uniquement lors de la réception</small></div>
       <div class="row g-3">
         <div class="col-md-3"><label class="form-label">Montant payé</label><div class="input-group"><input class="form-control initial-payment-amount" name="amount_paid" type="number" min="0" step="1" value="0"><span class="input-group-text">{{ bar.currency }}</span></div></div>
+        <div class="col-md-3"><label class="form-label">Source de l'argent</label><select class="form-select initial-payment-source" name="funding_source"><option value="">Sélectionner...</option>{% if current_user.category == 'OWNER' %}<option value="OWNER_FUNDS">Fonds propres du propriétaire</option>{% endif %}<option value="CASH_DRAWER">Argent de la caisse</option></select></div>
         <div class="col-md-3"><label class="form-label">Mode</label><select class="form-select initial-payment-method" name="payment_method"><option value="">Sélectionner...</option>{% for code,label in payment_labels.items() %}<option value="{{ code }}">{{ label }}</option>{% endfor %}</select></div>
         <div class="col-md-3 purchase-cash-session d-none"><label class="form-label">Caisse</label><select class="form-select" name="cash_session_id"><option value="">Sélectionner...</option>{% for session in open_cash_sessions %}<option value="{{ session.id }}">{{ session.reference }} · {{ "{:,.0f}".format(cash_expected.get(session.id,0)) }}</option>{% endfor %}</select></div>
         <div class="col-md-3"><label class="form-label">Référence paiement</label><input class="form-control" name="payment_reference" maxlength="64" placeholder="Auto si vide"></div>
@@ -189,6 +190,7 @@
         <div class="col-12"><label class="form-label">Note paiement</label><input class="form-control" name="payment_note" maxlength="500" placeholder="Ex. acompte fournisseur"></div>
       </div>
     </div>
+    <p class="small text-secondary mt-2 mb-0">Fonds propres : aucune sortie de caisse. Argent de la caisse : débit enregistré dans la session sélectionnée.</p>
     <div class="info-box mt-4"><strong>Stock :</strong> un achat en casier est converti automatiquement en bouteilles. Exemple : 3 casiers × 12 = 36 bouteilles ajoutées au stock.</div>
   </div>
   <div class="modal-footer purchase-modal-actions"><button class="btn btn-light border" type="button" data-bs-dismiss="modal">Fermer</button><button class="btn btn-outline-primary" type="submit" name="submit_mode" value="draft">Enregistrer brouillon</button><button class="btn btn-primary" type="submit" name="submit_mode" value="receive">Enregistrer & réceptionner</button></div>

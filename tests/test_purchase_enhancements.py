@@ -4,8 +4,9 @@ import pytest
 from flask_migrate import upgrade
 from sqlalchemy import select
 
+from app.cash_services import cash_service
 from app.extensions import db
-from app.models import Bar, Product, ProductCategory, Purchase, PurchaseLine, StockBalance, Supplier, User
+from app.models import Bar, CashMovement, Product, ProductCategory, Purchase, PurchaseLine, StockBalance, Supplier, SupplierPayment, User
 from app.purchase_services import purchase_service, supplier_service
 
 
@@ -147,3 +148,71 @@ def test_supplier_note_can_be_updated(purchase_env):
     supplier_service.update(owner, bar.id, supplier.id, {"note": "Appeler avant livraison"})
     db.session.commit()
     assert supplier.note == "Appeler avant livraison"
+
+
+def test_supplier_payments_keep_owner_money_out_of_cash_drawer(purchase_env):
+    owner, bar, product, supplier = purchase_env
+    purchase = purchase_service.create(
+        owner, bar.id, supplier.id, "ACH-FUNDS",
+        [{"product_id": product.id, "purchase_unit": "BOTTLE",
+          "purchase_quantity": 10, "purchase_unit_price": 650}],
+    )
+    purchase_service.receive(owner, bar.id, purchase.id)
+    drawer = cash_service.open(owner, bar.id, "DRAWER-FUNDS", 10000)
+    db.session.flush()
+
+    personal = purchase_service.pay(
+        owner, bar.id, purchase.id, "PERSO-1", 1000, "CASH",
+        "Achat avec fonds propres", funding_source="OWNER_FUNDS",
+    )
+    db.session.flush()
+    assert personal.funding_source == "OWNER_FUNDS"
+    assert personal.cash_session_id is None
+    assert cash_service.expected(drawer) == Decimal("10000")
+    assert db.session.scalar(
+        select(CashMovement.id).where(CashMovement.supplier_payment_id == personal.id)
+    ) is None
+
+    caisse = purchase_service.pay(
+        owner, bar.id, purchase.id, "CAISSE-1", 1500, "CASH",
+        "Achat sur caisse", drawer.id, funding_source="CASH_DRAWER",
+    )
+    db.session.flush()
+    assert caisse.funding_source == "CASH_DRAWER"
+    assert cash_service.expected(drawer) == Decimal("8500")
+    assert purchase_service.due(bar.id, purchase.id) == Decimal("4000")
+
+    purchase_service.reverse_payment(owner, bar.id, personal.id, "REV-PERSO", "Erreur")
+    assert cash_service.expected(drawer) == Decimal("8500")
+    purchase_service.reverse_payment(owner, bar.id, caisse.id, "REV-CAISSE", "Erreur", drawer.id)
+    db.session.flush()
+    assert cash_service.expected(drawer) == Decimal("10000")
+    assert purchase_service.due(bar.id, purchase.id) == Decimal("6500")
+    assert db.session.scalar(
+        select(SupplierPayment.funding_source).where(SupplierPayment.reference == "REV-PERSO")
+    ) == "OWNER_FUNDS"
+
+
+def test_purchase_source_rejects_invalid_drawer_payment(purchase_env):
+    owner, bar, product, supplier = purchase_env
+    purchase = purchase_service.create(
+        owner, bar.id, supplier.id, "ACH-BAD-FUNDS",
+        [{"product_id": product.id, "purchase_unit": "BOTTLE",
+          "purchase_quantity": 10, "purchase_unit_price": 650}],
+    )
+    purchase_service.receive(owner, bar.id, purchase.id)
+    with pytest.raises(ValueError, match="DRAWER_REQUIRES_CASH"):
+        purchase_service.pay(
+            owner, bar.id, purchase.id, "BAD-1", 1000, "CARD",
+            "Invalid", funding_source="CASH_DRAWER",
+        )
+    with pytest.raises(ValueError, match="INVALID_FUNDING_SOURCE"):
+        purchase_service.pay(
+            owner, bar.id, purchase.id, "BAD-2", 1000, "CASH",
+            "Invalid", funding_source="UNKNOWN",
+        )
+    with pytest.raises(ValueError, match="CASH_LOCATION_REQUIRED"):
+        purchase_service.pay(
+            owner, bar.id, purchase.id, "BAD-3", 1000, "CASH",
+            "Invalid", funding_source="CASH_DRAWER",
+        )

@@ -12,7 +12,7 @@ from __future__ import annotations
 from sqlalchemy import CheckConstraint
 
 from app.extensions import db
-from app.models import Purchase, PurchaseLine, Supplier
+from app.models import Purchase, PurchaseLine, Supplier, SupplierPayment
 
 
 if not hasattr(Supplier, "note"):
@@ -22,6 +22,11 @@ if not hasattr(Purchase, "purchase_date"):
     Purchase.purchase_date = db.Column(db.Date, nullable=False)
 if not hasattr(Purchase, "notes"):
     Purchase.notes = db.Column(db.String(500))
+
+if not hasattr(SupplierPayment, "funding_source"):
+    SupplierPayment.funding_source = db.Column(
+        db.String(20), nullable=False, default="UNSPECIFIED", server_default="UNSPECIFIED"
+    )
 
 if not hasattr(PurchaseLine, "purchase_unit"):
     PurchaseLine.purchase_unit = db.Column(db.String(16), nullable=False)
@@ -55,3 +60,11 @@ for constraint in (
 ):
     if constraint.name not in _purchase_line_constraint_names:
         PurchaseLine.__table__.append_constraint(constraint)
+
+if "ck_supplier_payments_funding_source" not in {
+    c.name for c in SupplierPayment.__table__.constraints if c.name
+}:
+    SupplierPayment.__table__.append_constraint(CheckConstraint(
+        "funding_source IN ('UNSPECIFIED','OWNER_FUNDS','CASH_DRAWER')",
+        name="ck_supplier_payments_funding_source",
+    ))

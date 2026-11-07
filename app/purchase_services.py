@@ -24,6 +24,7 @@ from app.validation import number, required_text
 
 
 PAYMENT_METHODS = {"CASH", "CARD", "MOBILE_MONEY", "BANK_TRANSFER"}
+FUNDING_SOURCES = {"UNSPECIFIED", "OWNER_FUNDS", "CASH_DRAWER"}
 PURCHASE_UNITS = {"CASE", "BOTTLE"}
 
 
@@ -436,6 +437,7 @@ class PurchaseService:
         cash_session_id=None,
         provider_code=None,
         provider_transaction_id=None,
+        funding_source=None,
     ):
         permissions.require(actor, "purchases.manage", bar_id)
         purchase = db.session.scalar(
@@ -460,6 +462,7 @@ class PurchaseService:
             cash_session_id,
             provider_code,
             provider_transaction_id,
+            funding_source=funding_source,
         )
         record(actor, bar_id, "supplier_payments.record", "supplier_payments", item.id, item.reference)
         return item
@@ -491,10 +494,11 @@ class PurchaseService:
             source.method,
             required_text(reason),
             "REVERSAL",
-            cash_session_id if source.method == "CASH" else None,
+            cash_session_id if source.funding_source == "CASH_DRAWER" else None,
             None,
             None,
             source.id,
+            funding_source=source.funding_source,
         )
         record(actor, bar_id, "supplier_payments.reverse", "supplier_payments", item.id, item.reference)
         return item
@@ -542,16 +546,34 @@ class PurchaseService:
         provider_code=None,
         provider_transaction_id=None,
         reversal_of_id=None,
+        funding_source=None,
     ):
         if method not in PAYMENT_METHODS:
             raise ValueError("INVALID_METHOD")
-        if method == "CASH":
-            if cash_session_id is None or provider_code is not None or provider_transaction_id is not None:
+        if funding_source is None:
+            funding_source = "CASH_DRAWER" if method == "CASH" else "UNSPECIFIED"
+        if funding_source not in FUNDING_SOURCES:
+            raise ValueError("INVALID_FUNDING_SOURCE")
+        if funding_source == "OWNER_FUNDS":
+            bar = db.session.get(Bar, bar_id)
+            if not bar or actor.category != "OWNER" or bar.owner_id != actor.id:
+                raise PermissionError("FORBIDDEN")
+        if funding_source == "CASH_DRAWER":
+            if method != "CASH":
+                raise ValueError("DRAWER_REQUIRES_CASH")
+            if cash_session_id is None:
                 raise ValueError("CASH_LOCATION_REQUIRED")
             session = cash_service.session(bar_id, cash_session_id)
             if session.currency != purchase.currency:
                 raise ValueError("CURRENCY_MISMATCH")
-        elif cash_session_id is not None or (provider_code is None) != (provider_transaction_id is None):
+        elif cash_session_id is not None:
+            raise ValueError("CASH_LOCATION_FOR_OWNER")
+        if funding_source == "UNSPECIFIED" and method == "CASH":
+            raise ValueError("INVALID_FUNDING_SOURCE")
+        if method == "CASH":
+            if provider_code is not None or provider_transaction_id is not None:
+                raise ValueError("PROVIDER_REFERENCE_REQUIRED")
+        elif (provider_code is None) != (provider_transaction_id is None):
             raise ValueError("PROVIDER_REFERENCE_REQUIRED")
         elif provider_code is not None:
             provider_code = required_text(provider_code, 32)
@@ -567,6 +589,7 @@ class PurchaseService:
             method=method,
             provider_code=provider_code,
             provider_transaction_id=provider_transaction_id,
+            funding_source=funding_source,
             cash_session_id=cash_session_id,
             paid_at=utcnow(),
             recorded_by_id=actor.id,
@@ -574,7 +597,7 @@ class PurchaseService:
         )
         db.session.add(item)
         db.session.flush()
-        if method == "CASH":
+        if funding_source == "CASH_DRAWER":
             cash_service.entry(
                 actor,
                 bar_id,

@@ -21,6 +21,7 @@
     const selectedCount = form.querySelector('.purchase-selected-count');
     const paymentAmount = form.querySelector('.initial-payment-amount');
     const paymentMethod = form.querySelector('.initial-payment-method');
+    const paymentSource = form.querySelector('.initial-payment-source');
     const cashBlock = form.querySelector('.purchase-cash-session');
     const cashSelect = cashBlock ? cashBlock.querySelector('select') : null;
     const providerBlocks = Array.from(form.querySelectorAll('.purchase-provider-field'));
@@ -246,9 +247,14 @@
       const amount = Number(paymentAmount?.value || 0);
       const enabled = amount > 0;
       if (paymentMethod) paymentMethod.required = enabled;
-      const cash = enabled && paymentMethod?.value === 'CASH';
-      if (cashBlock) cashBlock.classList.toggle('d-none', !cash);
-      if (cashSelect) cashSelect.required = cash;
+      if (paymentSource) paymentSource.required = enabled;
+      const drawer = enabled && paymentSource?.value === 'CASH_DRAWER';
+      if (drawer && paymentMethod) paymentMethod.value = 'CASH';
+      if (paymentMethod) Array.from(paymentMethod.options).forEach((option) => {
+        option.disabled = drawer && option.value !== 'CASH';
+      });
+      if (cashBlock) cashBlock.classList.toggle('d-none', !drawer);
+      if (cashSelect) cashSelect.required = drawer;
       const provider = enabled && paymentMethod?.value && paymentMethod.value !== 'CASH';
       providerBlocks.forEach((block) => block.classList.toggle('d-none', !provider));
     }
@@ -261,6 +267,7 @@
     if (searchInput) searchInput.addEventListener('input', filterRows);
     if (paymentAmount) paymentAmount.addEventListener('input', syncPaymentFields);
     if (paymentMethod) paymentMethod.addEventListener('change', syncPaymentFields);
+    if (paymentSource) paymentSource.addEventListener('change', syncPaymentFields);
 
     form.addEventListener('submit', function (event) {
       const mode = event.submitter?.value || 'draft';
