@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 from decimal import Decimal
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import func, select
+from sqlalchemy import case, func, select
 
 from app.extensions import db
 from app.models import Bar, CashSession, Order
@@ -66,7 +66,7 @@ def current_service_snapshot(bar: Bar, *, now_utc: datetime | None = None):
             func.coalesce(func.sum(Order.total_amount), 0),
             func.count(Order.id),
             func.coalesce(
-                func.sum(func.case(
+                func.sum(case(
                     (Order.payment_status != "PAID", 1), else_=0
                 )), 0
             ),
