@@ -176,7 +176,7 @@
         <tr>
           <td><span class="stock-date">{{ row.occurred_at.strftime('%d/%m/%Y') }}</span><small>{{ row.occurred_at.strftime('%H:%M') }}</small></td>
           <td><strong>{{ product.name if product else 'Produit #' ~ row.product_id }}</strong><small class="d-block text-secondary">{{ product.sku if product else '' }}</small></td>
-          <td><span class="movement-type movement-{{ row.movement_type|lower }}">{{ movement_labels.get(row.movement_type, row.movement_type) }}</span></td>
+          <td><span class="movement-type movement-{{ row.movement_type|lower }}">{{ 'Crédit sans retour physique' if row.movement_type == 'RETURN' and row.reason.startswith('Crédit sans retour physique') else movement_labels.get(row.movement_type, row.movement_type) }}</span></td>
           <td><strong class="movement-delta {% if row.quantity_delta > 0 %}movement-positive{% else %}movement-negative{% endif %}">{% if row.quantity_delta > 0 %}+{% endif %}{{ row.quantity_delta }} bouteille(s)</strong></td>
           <td>{{ "{:,.0f}".format(row.unit_cost_snapshot) }} {{ bar.currency }}</td>
           <td>{{ recorder.display_name if recorder else 'Utilisateur #' ~ row.recorded_by_id }}</td>
