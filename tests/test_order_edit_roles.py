@@ -209,3 +209,69 @@ def test_partial_payment_cannot_be_reduced_below_settled_amount(env):
     db.session.commit()
     assert order_balance(order)["net_sale"] == Decimal("250.0000")
     assert order.payment_status == "PARTIAL"
+
+
+def test_delivered_reduction_requires_explicit_physical_return_decision(env):
+    _, _, bar, _, product, server, _, _ = env
+    activate_employee(bar, server)
+    cashier = _cashier(bar)
+    second = _second_product(env)
+    order = order_service.create(
+        server, bar.id, "EDIT-DECISION-REQUIRED",
+        [{"product_id": product.id, "quantity": 1}],
+    )
+    order_service.confirm(cashier, bar.id, order.id)
+    db.session.commit()
+    before_old = _stock(bar.id, product.id)
+    before_new = _stock(bar.id, second.id)
+    with pytest.raises(ValueError, match="RETURN_DISPOSITION_REQUIRED"):
+        order_edit_service.edit(
+            cashier, bar.id, order.id,
+            [{"product_id": second.id, "quantity": 1}],
+            "Changement sans indication du retour",
+        )
+    db.session.rollback()
+    assert _stock(bar.id, product.id) == before_old
+    assert _stock(bar.id, second.id) == before_new
+    assert db.session.scalar(select(OrderReturnLine).where(
+        OrderReturnLine.order_id == order.id,
+    )) is None
+
+
+def test_consumed_replaced_bottle_does_not_restock_and_stays_auditable(env):
+    from app.models import StockMovement
+    _, _, bar, _, product, server, _, _ = env
+    activate_employee(bar, server)
+    cashier = _cashier(bar)
+    second = _second_product(env)
+    order = order_service.create(
+        server, bar.id, "EDIT-CONSUMED-REPLACEMENT",
+        [{"product_id": product.id, "quantity": 1}],
+    )
+    order_service.confirm(cashier, bar.id, order.id)
+    db.session.commit()
+    old_before = _stock(bar.id, product.id)
+    new_before = _stock(bar.id, second.id)
+
+    order_edit_service.edit(
+        cashier, bar.id, order.id,
+        [{"product_id": second.id, "quantity": 1}],
+        "Bouteille déjà consommée", return_disposition="LOSS",
+    )
+    db.session.commit()
+
+    assert _stock(bar.id, product.id) == old_before
+    assert _stock(bar.id, second.id) == new_before - 1
+    returned = db.session.scalar(select(OrderReturnLine).where(
+        OrderReturnLine.bar_id == bar.id, OrderReturnLine.order_id == order.id,
+    ))
+    assert returned.quantity == Decimal("1")
+    assert returned.restock_quantity == 0
+    movements = list(db.session.scalars(select(StockMovement).where(
+        StockMovement.bar_id == bar.id,
+        StockMovement.product_id == product.id,
+        StockMovement.movement_type.in_(("RETURN", "LOSS")),
+    )))
+    assert len(movements) == 2
+    assert sum((Decimal(row.quantity_delta) for row in movements), Decimal(0)) == 0
+    assert order_balance(order)["net_sale"] == Decimal("250.0000")
