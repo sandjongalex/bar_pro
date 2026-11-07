@@ -129,7 +129,7 @@ def _message(code) -> str:
         "CASH_SESSION_REQUIRED": "Ouvrez d'abord une session de caisse avant de traiter les commandes.",
         "CASH_SESSION_NOT_OPEN": "La caisse sélectionnée n'est plus ouverte.",
         "CURRENCY_MISMATCH": "La devise de la caisse ne correspond pas à celle de la commande.",
-        "PROVIDER_REFERENCE_REQUIRED": "Pour Mobile Money, renseignez le prestataire et la référence de transaction.",
+        "PROVIDER_REFERENCE_REQUIRED": "Sélectionnez MTN Mobile Money ou Orange Money après confirmation de la réception.",
         "INVALID_NONCASH_PAYMENT": "Les informations du paiement non espèces sont invalides.",
         "INSUFFICIENT_STOCK": "Stock insuffisant : la livraison ne peut pas être confirmée.",
         "CREDIT_DISABLED": "Les ventes à crédit sont désactivées pour cet établissement.",
@@ -343,8 +343,9 @@ def checkout(bar_id):
                 raise ValueError("ORDER_NOT_PAYABLE")
             method = request.form.get("method", "").strip()
             base_reference = request.form.get("reference", "").strip() or _reference()
-            provider_code = request.form.get("provider_code", "").strip() or None
-            provider_transaction_id = request.form.get("provider_transaction_id", "").strip() or None
+            provider_code = request.form.get("provider_code", "").strip().upper() or None
+            # Manually verified operator payment: no fabricated transaction ID.
+            provider_transaction_id = None
 
             if method == "CREDIT":
                 if not can_credit:
@@ -376,7 +377,7 @@ def checkout(bar_id):
                 if presented < cash_part:
                     raise ValueError("INVALID_PAYMENT_AMOUNTS")
                 cash_session_id, staff_assignment_id = _cash_location_from_form(bar_id, order)
-                if not provider_code or not provider_transaction_id:
+                if provider_code not in {"MTN", "ORANGE"}:
                     raise ValueError("PROVIDER_REFERENCE_REQUIRED")
 
                 payment_service.record(
@@ -412,7 +413,7 @@ def checkout(bar_id):
                 return redirect(url_for("checkout_web.checkout", bar_id=bar_id, order_id=order_id))
 
             applied = _positive_decimal(request.form.get("amount_applied"))
-            if method == "MOBILE_MONEY" and (not provider_code or not provider_transaction_id):
+            if method == "MOBILE_MONEY" and provider_code not in {"MTN", "ORANGE"}:
                 raise ValueError("PROVIDER_REFERENCE_REQUIRED")
 
             staff_assignment_id = None
