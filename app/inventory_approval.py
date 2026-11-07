@@ -235,6 +235,7 @@ def submit(actor, bar_id, inventory_id):
         if not shift or shift.id != assigned.cashier_shift_id or assigned.cashier_user_id != actor.id:
             raise PermissionError("INVENTORY_SHIFT_CLOSED")
     _ready(inv)
+    inventory_service.refresh_net_sale_snapshots(inv)
     if review is None:
         review = InventoryApproval(
             bar_id=bar_id, inventory_id=inv.id,
@@ -268,6 +269,7 @@ def decide(actor, bar_id, inventory_id, *, decision, reason):
     from app.inventory_finance_services import assert_no_pending_debts
     assert_no_pending_debts(bar_id, inv.id)
     summary, total = _ready(inv)
+    inventory_service.refresh_net_sale_snapshots(inv)
     bar = db.session.get(Bar, bar_id)
     if actor.category != "OWNER" or bar.owner_id != actor.id:
         limits = policy_data(bar_id)
