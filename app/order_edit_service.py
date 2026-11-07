@@ -73,6 +73,7 @@ class OrderEditService:
         lines,
         reason: str | None = None,
         expected_revision: str | None = None,
+        return_disposition: str | None = None,
     ):
         """Replace the *effective* product list of an editable order.
 
@@ -279,11 +280,15 @@ class OrderEditService:
                 {
                     "order_line_id": line.id,
                     "quantity": current_qty - target_qty,
-                    "disposition": "RESTOCK",
+                    "disposition": return_disposition,
                 }
             )
 
         if reductions:
+            if return_disposition not in {"RESTOCK", "LOSS"}:
+                raise ValueError("RETURN_DISPOSITION_REQUIRED")
+            for reduction in reductions:
+                reduction["disposition"] = return_disposition
             order_service.return_lines(actor, bar_id, order.id, reductions, reason_text)
 
         final_balance = order_balance(order)
