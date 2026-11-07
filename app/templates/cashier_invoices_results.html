@@ -24,7 +24,8 @@
 
           <div class="invoice-badges">
             {% if delivered %}<span class="invoice-badge delivered">✓ Livrée</span>{% else %}<span class="invoice-badge waiting">● À livrer</span>{% endif %}
-            {% if order.payment_status == 'PAID' %}<span class="invoice-badge paid">✓ Payée</span>
+            {% if order.id in open_advance_ids %}<span class="invoice-badge partial">● En cours · avance client</span>
+            {% elif order.payment_status == 'PAID' %}<span class="invoice-badge paid">✓ Payée</span>
             {% elif order.payment_status == 'PARTIAL' %}<span class="invoice-badge partial">Paiement partiel</span>
             {% else %}<span class="invoice-badge">À encaisser</span>{% endif %}
           </div>
