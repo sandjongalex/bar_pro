@@ -212,3 +212,59 @@ def test_mixed_payment_rejects_oversized_parts_without_money_movements(env):
         Payment.bar_id == bar.id, Payment.order_id == order.id,
     )) == 0
     assert db.session.get(Order, order.id).payment_status == "UNPAID"
+
+
+def test_secondary_checkout_mixed_partial_preserves_the_remaining_balance(env):
+    client, session, csrf, bar, order, _ = _unpaid_counter_order(
+        env, "MOMO-SECONDARY-PARTIAL"
+    )
+    url = f"/bars/{bar.id}/checkout"
+    response = client.post(url, data={
+        "csrf_token": csrf, "action": "payment",
+        "order_id": str(order.id), "method": "MIXED",
+        "mixed_cash": "50", "mixed_mobile": "60",
+        "amount_presented": "50", "cash_session_id": str(session.id),
+        "cash_holder_mode": "DRAWER", "provider_code": "ORANGE",
+        "reference": "PAY-MOMO-SECONDARY-PARTIAL",
+    }, follow_redirects=False)
+    assert response.status_code == 302
+    from app.finance_totals import order_balance
+    db.session.refresh(order)
+    assert order.payment_status == "PARTIAL"
+    assert Decimal(order_balance(order)["amount_due"]) == 90
+    payments = list(db.session.scalars(select(Payment).where(
+        Payment.bar_id == bar.id, Payment.order_id == order.id
+    )))
+    assert len(payments) == 2
+    assert {p.method for p in payments} == {"CASH", "MOBILE_MONEY"}
+    assert next(p for p in payments if p.method == "MOBILE_MONEY").provider_code == "ORANGE"
+
+
+def test_secondary_checkout_overpaid_own_cashier_mixed_stays_open(env):
+    client, session, csrf, bar, order, _ = _unpaid_counter_order(
+        env, "MOMO-SECONDARY-ADVANCE"
+    )
+    url = f"/bars/{bar.id}/checkout"
+    response = client.post(url, data={
+        "csrf_token": csrf, "action": "payment",
+        "order_id": str(order.id), "method": "MIXED",
+        "mixed_cash": "50", "mixed_mobile": "150",
+        "amount_presented": "550", "cash_session_id": str(session.id),
+        "cash_holder_mode": "DRAWER", "provider_code": "MTN",
+        "reference": "PAY-MOMO-SECONDARY-ADVANCE",
+    }, follow_redirects=False)
+    assert response.status_code == 302
+    from app.change_voucher_models import ChangeVoucher
+    voucher = db.session.scalar(select(ChangeVoucher).where(
+        ChangeVoucher.bar_id == bar.id,
+        ChangeVoucher.origin_order_id == order.id,
+        ChangeVoucher.code.like("AV-%"),
+    ))
+    assert voucher is not None
+    assert Decimal(voucher.balance_amount) == 500
+    assert order.closed_at is None
+    page = client.get(f"{url}?order_id={order.id}")
+    assert page.status_code == 200
+    assert "En cours · avances clients" in page.text
+    assert "Commande EN COURS · avance conservée" in page.text
+    assert "Commande soldée</strong>" not in page.text
