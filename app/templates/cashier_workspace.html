@@ -185,6 +185,7 @@
             <div><span>Monnaie à rendre</span><strong data-cashier-tender-change>0 {{ bar.currency }}</strong></div>
             <div><span>Reste à payer</span><strong data-cashier-tender-remaining>0 {{ bar.currency }}</strong></div>
           </div>
+          <div class="form-text mt-2 fw-bold" id="cashierTenderStatus" role="status" aria-live="polite">Après validation : à encaisser (aucun paiement saisi).</div>
           <div class="form-text mt-2">Une remise d'argent déjà encaissé par une serveuse se traite dans « Remises », sans refaire un paiement.</div>
         </div>
         <div class="cashier-sale-actions"><button class="btn btn-primary btn-lg w-100" id="cashierCreateSale" type="submit" disabled>Valider & encaisser</button></div>
@@ -383,6 +384,7 @@
   const tenderServerRow = document.getElementById('cashierTenderServerRow');
   const tenderChange = document.querySelector('[data-cashier-tender-change]');
   const tenderRemaining = document.querySelector('[data-cashier-tender-remaining]');
+  const tenderStatus = document.getElementById('cashierTenderStatus');
   let counterTotal = 0;
   const cartJump = document.getElementById('cashierCartJump');
   const cartJumpCount = document.getElementById('cashierCartJumpCount');
@@ -402,9 +404,23 @@
     const settled = Math.min(received, counterTotal);
     const change = Math.max(0, received-counterTotal);
     if (tenderChange) tenderChange.textContent = money(change) + ' ' + currency;
-    if (tenderRemaining) tenderRemaining.textContent = money(Math.max(0,counterTotal-settled)) + ' ' + currency;
+    const rest = Math.max(0,counterTotal-settled);
+    if (tenderRemaining) tenderRemaining.textContent = money(rest) + ' ' + currency;
     saleSubmit.disabled = cart.size === 0 || !validMoney || !sourceValid || (hasTender && counterTotal<=0);
-    saleSubmit.textContent = hasTender ? 'Valider & encaisser ' + money(settled) + ' ' + currency : 'Créer la facture sans paiement';
+    if (tenderStatus) {
+      tenderStatus.textContent = !hasTender
+        ? 'Après validation : À ENCAISSER (sans paiement).'
+        : !validMoney || !sourceValid
+          ? 'Corrigez le montant remis ou la personne qui remet les espèces.'
+          : rest === 0
+            ? 'Après validation : PAYÉE. La facture ne passera pas dans « À encaisser ».'
+            : 'Après validation : PARTIELLEMENT PAYÉE · reste ' + money(rest) + ' ' + currency + '.';
+    }
+    saleSubmit.textContent = !hasTender
+      ? 'Créer la facture sans paiement'
+      : rest === 0
+        ? 'Valider la facture PAYÉE'
+        : 'Enregistrer ' + money(settled) + ' ' + currency + ' · reste ' + money(rest) + ' ' + currency;
   }
   tenderInput?.addEventListener('input', updateTenderPreview);
   tenderSource?.addEventListener('change', updateTenderPreview);
@@ -546,7 +562,8 @@
       const feedback=document.getElementById('cashierLastTenderReceipt');
       if (feedback && data.cash_summary) {
         const summary=data.cash_summary;
-        feedback.textContent='Encaissé : '+money(Number(summary.amount_applied))+' '+currency+
+        feedback.textContent=(summary.payment_status === 'PAID' ? 'Facture PAYÉE · ' : 'Facture PARTIELLEMENT PAYÉE · ') +
+          'Encaissé : '+money(Number(summary.amount_applied))+' '+currency+
           ' · remis par '+(sourceLabel||'client')+
           ' · monnaie à rendre : '+money(Number(summary.change_given))+' '+currency+
           ' · reste : '+money(Number(summary.remaining))+' '+currency+'.';
