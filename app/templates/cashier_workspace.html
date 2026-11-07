@@ -296,6 +296,13 @@
         </form>
       {% elif selected_pending_delivery %}
         <div class="cashier-delivery-block" role="status"><strong>Livraison à confirmer</strong>Livrez tous les ajouts de cette commande avant d'encaisser le client. Ouvrez la sous-commande dans la file active et appuyez sur « Livré » après remise des produits.</div>
+      {% elif b.amount_due == 0 and selected_order.id in prepaid_vouchers %}
+        <div class="cashier-fast-cash" role="status">
+          <strong>Commande EN COURS · acompte enregistré</strong>
+          <small>Il n'y a rien à encaisser pour les produits actuels. Vous pouvez ajouter des boissons ; l'avance restante sera utilisée automatiquement.</small>
+          <strong class="mt-2">Avance disponible : {{ "{:,.0f}".format(prepaid_vouchers[selected_order.id].balance_amount) }} {{ selected_order.currency }}</strong>
+          <a class="btn btn-primary w-100 mt-2" href="{{ url_for('suborders_web.new_suborder', bar_id=bar.id, order_id=selected_order.id) }}">＋ Ajouter une sous-commande</a>
+        </div>
       {% else %}
         <div class="cashier-fast-cash">
           <strong>Paiement espèces exact</strong><small>Si le client donne exactement {{ "{:,.0f}".format(b.amount_due) }} {{ selected_order.currency }}, encaissez en un clic.</small>
