@@ -136,6 +136,7 @@ def test_cashier_can_replace_products_on_delivered_unpaid_order(env):
         order.id,
         [{"product_id": second.id, "quantity": 1}],
         "Le client remplace les eaux par un jus",
+        return_disposition="RESTOCK",
     )
     db.session.commit()
 
@@ -203,6 +204,7 @@ def test_partial_payment_cannot_be_reduced_below_settled_amount(env):
         order.id,
         [{"product_id": second.id, "quantity": 1}],
         "Remplacement après acompte",
+        return_disposition="RESTOCK",
     )
     db.session.commit()
     assert order_balance(order)["net_sale"] == Decimal("250.0000")
