@@ -121,7 +121,10 @@ def _rawbt_receipt_intent(*, bar, order, lines, payments, refunds, balance, serv
     amount("NET A REGLER", balance["net_sale"])
     rule()
     for payment in payments:
-        amount(payment_labels.get(payment.method, payment.method), payment.amount_applied, payment.currency)
+        label = payment_labels.get(payment.method, payment.method)
+        if payment.method == "MOBILE_MONEY" and payment.provider_code:
+            label += " " + ("MTN" if payment.provider_code == "MTN" else "Orange" if payment.provider_code == "ORANGE" else str(payment.provider_code))
+        amount(label, payment.amount_applied, payment.currency)
         add(f"{payment.reference} {payment_times[payment.id]}")
         if payment.method == "CASH" and payment.change_given > 0:
             amount("Recu", payment.amount_presented, payment.currency)
