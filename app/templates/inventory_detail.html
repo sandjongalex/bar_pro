@@ -52,7 +52,7 @@
             <td data-label="Dernier inventaire">{{ line.opening_quantity|inventory_qty }}</td>
             <td data-label="Achats" class="text-primary fw-semibold">+{{ line.purchase_quantity|inventory_qty }}</td>
             <td data-label="Mouvements hors ventes" class="text-secondary fw-semibold"><span class="inventory-origin-net">{{ '+' if line.other_movement_quantity|float > 0 else '' }}{{ line.other_movement_quantity|inventory_qty }}</span>
-                {% if line.other_movement_quantity|float != 0 %}
+                {% if line.other_movement_quantity|float != 0 or line.return_quantity|float > 0 %}
                 <button type="button" class="btn btn-outline-primary btn-sm inventory-origin-trigger"
                         data-origin-product="{{ line.product_name }}"
                         data-origin-url="{{ url_for('inventories.detail',bar_id=bar_id,inventory_id=inventory.id) ~ '/movements/' ~ line.product_id }}"
@@ -92,7 +92,7 @@
   <div class="panel-header"><div><p class="eyebrow mb-1">Résultat figé</p><h2>Détail des produits</h2></div></div>
   <div class="table-responsive inventory-table-scroll" tabindex="0" role="region" aria-label="Produits inventoriés"><table class="table inventory-table align-middle mb-0"><thead><tr><th>Produit</th><th>Dernier inventaire</th><th>Achats</th><th title="Ajustements manuels, pertes/casses et retours">Mouvements hors ventes</th><th>Théorique</th><th>Machine</th><th>Physique</th><th>Vendue</th><th>Ventes</th><th>Écart</th><th>Note</th></tr></thead><tbody>
   {% for line in inventory.lines %}<tr><td data-label="Produit"><div class="inventory-item-heading"><div class="inventory-item-title"><strong>{{ line.product_name }}</strong><small class="d-block text-secondary">{{ line.unit }}</small></div><button class="btn btn-sm btn-outline-secondary inventory-details-toggle" type="button" aria-expanded="false" aria-label="Afficher les détails de {{ line.product_name }}">Détails <span aria-hidden="true">⌄</span></button></div></td><td data-label="Dernier inventaire">{{ line.opening_quantity|inventory_qty }}</td><td data-label="Achats">{{ line.purchase_quantity|inventory_qty }}</td><td data-label="Mouvements hors ventes"><span class="inventory-origin-net">{{ '+' if line.other_movement_quantity|float > 0 else '' }}{{ line.other_movement_quantity|inventory_qty }}</span>
-                {% if line.other_movement_quantity|float != 0 %}
+                {% if line.other_movement_quantity|float != 0 or line.return_quantity|float > 0 %}
                 <button type="button" class="btn btn-outline-primary btn-sm inventory-origin-trigger"
                         data-origin-product="{{ line.product_name }}"
                         data-origin-url="{{ url_for('inventories.detail',bar_id=bar_id,inventory_id=inventory.id) ~ '/movements/' ~ line.product_id }}"
