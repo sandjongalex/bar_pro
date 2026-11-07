@@ -49,7 +49,11 @@ def test_inline_client_cash_records_actual_tender_change_and_drawer_only(env):
         "amount_presented": "1000", "amount_applied": "600",
         "change_given": "400", "remaining": "0",
         "source": "client", "currency": "XAF",
+        "payment_status": "PAID",
     }
+    assert data["payment_status"] == "PAID"
+    assert "focus=payment" not in data["refresh_url"]
+    assert "order_id=" not in data["refresh_url"]
     order = db.session.scalar(select(Order).where(
         Order.bar_id == bar.id, Order.reference == "INLINE-CASH-CLIENT-1"
     ))
@@ -95,6 +99,9 @@ def test_waitress_hands_drawer_cash_for_cashier_created_invoice(env):
     url = f"/bars/{bar.id}/cashier/workspace"
     response = client.post(url, data=payload, headers=_async_headers(csrf))
     assert response.status_code == 200, response.text
+    assert response.json["data"]["payment_status"] == "PARTIAL"
+    assert response.json["data"]["cash_summary"]["payment_status"] == "PARTIAL"
+    assert "focus=payment" in response.json["data"]["refresh_url"]
     order = db.session.scalar(select(Order).where(
         Order.bar_id == bar.id, Order.reference == "INLINE-CASH-SERVER-1"
     ))
@@ -168,6 +175,7 @@ def test_empty_inline_amount_keeps_existing_unpaid_invoice_flow(env):
     )
     assert result.status_code == 200
     assert result.json["data"]["cash_summary"] is None
+    assert result.json["data"]["payment_status"] == "UNPAID"
     assert "focus=payment" in result.json["data"]["refresh_url"]
     order = db.session.scalar(select(Order).where(
         Order.bar_id == bar.id, Order.reference == payload["reference"]
@@ -222,3 +230,35 @@ def test_cashier_can_receive_from_waitress_after_creating_own_invoice(env):
         CashMovement.bar_id == bar.id, CashMovement.payment_id == payment.id
     ))
     assert "serveuse #" + str(staff.id) in movement.reason
+
+
+
+def test_cashier_full_tender_is_not_in_payable_queue(env):
+    """A paid-at-creation invoice must not be offered for collection again."""
+    app, _, bar, _, product, *_ = env
+    client, _, csrf = _cashier_client(env)
+    product.sale_price = Decimal("900")
+    db.session.commit()
+    url = f"/bars/{bar.id}/cashier/workspace"
+    response = client.post(url, data={
+        "csrf_token": csrf,
+        "action": "create_sale",
+        "reference": "INLINE-CASH-PAID-NOT-DUE",
+        "product_id": str(product.id),
+        "quantity": "2",
+        "cash_presented": "2000",
+        "cash_receipt_source": "CLIENT",
+    }, headers=_async_headers(csrf))
+    assert response.status_code == 200, response.text
+    assert response.json["data"]["payment_status"] == "PAID"
+    assert "focus=payment" not in response.json["data"]["refresh_url"]
+
+    order = db.session.scalar(select(Order).where(
+        Order.bar_id == bar.id, Order.reference == "INLINE-CASH-PAID-NOT-DUE"
+    ))
+    assert order.payment_status == "PAID"
+    assert order.status == "CONFIRMED"
+    assert Decimal(order_balance(order)["amount_due"]) == Decimal("0")
+    page = client.get(url)
+    assert page.status_code == 200
+    assert "INLINE-CASH-PAID-NOT-DUE" not in page.text
