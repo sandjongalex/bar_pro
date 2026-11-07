@@ -230,8 +230,13 @@ def test_cashier_can_receive_from_waitress_after_creating_own_invoice(env):
     payment = db.session.scalar(select(Payment).where(
         Payment.bar_id == bar.id, Payment.order_id == order.id
     ))
-    assert Decimal(payment.change_given) == Decimal("500")
+    assert Decimal(payment.change_given) == Decimal("0")
     assert payment.cash_session_id == session.id
+    voucher = db.session.scalar(select(ChangeVoucher).where(
+        ChangeVoucher.bar_id == bar.id, ChangeVoucher.origin_order_id == order.id,
+    ))
+    assert voucher is not None
+    assert Decimal(voucher.balance_amount) == Decimal("500")
     assert payment.staff_assignment_id is None
     movement = db.session.scalar(select(CashMovement).where(
         CashMovement.bar_id == bar.id, CashMovement.payment_id == payment.id
@@ -335,7 +340,9 @@ def test_cashier_keeps_advance_for_new_rounds_and_returns_only_remaining_cash(en
     assert voucher.status == "SETTLED"
     assert Decimal(voucher.balance_amount) == 0
     assert Decimal(cash_service.expected(session)) == 6000  # 1000 float + 5000 sold.
-    assert str(order.id) not in client.get(url).text.split('id="queuePrepaid"', 1)[-1].split('id="queueWaiting"', 1)[0] if 'id="queuePrepaid"' in client.get(url).text else True
+    after_closing = client.get(url)
+    assert after_closing.status_code == 200
+    assert f'data-prepaid-order-id="{order.id}"' not in after_closing.text
 
     duplicate_close = client.post(url, data={
         "csrf_token": csrf, "action": "close_prepaid", "order_id": str(order.id),
