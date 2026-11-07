@@ -276,9 +276,10 @@
               <input type="hidden" name="order_id" value="{{ order.id }}">
               <label class="form-label mb-0">Monnaie réellement rendue en espèces</label>
               <div class="input-group">
-                <input class="form-control" type="number" name="actual_change_given" value="0" min="0" max="{{ voucher.balance_amount }}" step="{{ '1' if order.currency in ['XAF', 'XOF'] else '0.01' }}" required inputmode="decimal">
+                <input class="form-control" type="number" name="actual_change_given" value="0" min="0" max="{{ voucher.balance_amount }}" step="{{ '1' if order.currency in ['XAF', 'XOF'] else '0.01' }}" required inputmode="decimal" data-voucher-returned data-voucher-available="{{ voucher.balance_amount }}">
                 <span class="input-group-text">{{ order.currency }}</span>
               </div>
+              <div class="d-flex justify-content-between gap-2 align-items-center p-2 bg-light rounded" role="status"><span>Bon à remettre au client</span><strong data-voucher-preview-amount>{{ "{:,.0f}".format(voucher.balance_amount) }} {{ order.currency }}</strong></div>
               <div class="row g-2">
                 <div class="col-sm-6"><label class="form-label mb-1">Nom du client (facultatif)</label><input class="form-control" name="voucher_customer_name" maxlength="160" autocomplete="off" value="{{ voucher.customer_name or order.customer_name_snapshot or '' }}"></div>
                 <div class="col-sm-6"><label class="form-label mb-1">Téléphone (facultatif)</label><input class="form-control" name="voucher_customer_phone" maxlength="32" autocomplete="off" inputmode="tel" value="{{ voucher.customer_phone or '' }}"></div>
@@ -758,6 +759,20 @@
       refreshingWorkspace = false;
     }
   }
+
+  document.addEventListener('input', event => {
+    const input = event.target.closest('[data-voucher-returned]');
+    if (!input) return;
+    const available = Number(input.dataset.voucherAvailable || 0);
+    const returned = Number(input.value || 0);
+    const preview = input.closest('form')?.querySelector('[data-voucher-preview-amount]');
+    if (!preview) return;
+    if (!Number.isFinite(returned) || returned < 0 || returned > available) {
+      preview.textContent = 'Montant invalide';
+      return;
+    }
+    preview.textContent = new Intl.NumberFormat('fr-FR',{maximumFractionDigits:0}).format(available-returned) + ' ' + currency;
+  });
 
   document.addEventListener('click', event => {
     const trigger = event.target.closest('[data-open-prepaid-voucher]');

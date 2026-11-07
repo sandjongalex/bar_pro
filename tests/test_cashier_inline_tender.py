@@ -627,3 +627,34 @@ def test_close_advance_with_partial_cash_and_change_voucher(env):
     )))
     assert len(entries) == 1
     assert entries[0].amount == Decimal("200")
+
+
+def test_conversion_form_rejects_missing_confirmation(env):
+    from app.change_voucher_service import change_voucher_liability
+    app, _, bar, _, product, *_ = env
+    client, session, csrf = _cashier_client(env)
+    product.sale_price = Decimal("3000")
+    db.session.commit()
+    url = f"/bars/{bar.id}/cashier/workspace"
+    sale = client.post(url, data={
+        "csrf_token": csrf, "action": "create_sale",
+        "reference": "PREPAID-CONFIRM-REQUIRED",
+        "product_id": str(product.id), "quantity": "1",
+        "cash_presented": "10000",
+    }, headers=_async_headers(csrf))
+    assert sale.status_code == 200
+    order = db.session.scalar(select(Order).where(
+        Order.bar_id == bar.id, Order.reference == "PREPAID-CONFIRM-REQUIRED"
+    ))
+    result = client.post(url, data={
+        "csrf_token": csrf, "action": "close_prepaid", "order_id": str(order.id),
+        "change_settlement": "VOUCHER", "actual_change_given": "0",
+    }, headers=_async_headers(csrf))
+    assert result.status_code == 422
+    assert order.closed_at is None
+    voucher = db.session.scalar(select(ChangeVoucher).where(
+        ChangeVoucher.bar_id == bar.id, ChangeVoucher.origin_order_id == order.id
+    ))
+    assert voucher.code.startswith("AV-")
+    assert change_voucher_liability(bar.id)["amount"] == Decimal("0")
+    assert cash_service.expected(session) == Decimal("11000")
