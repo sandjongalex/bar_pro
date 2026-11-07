@@ -397,15 +397,30 @@ class OrderService:
             )
             db.session.add(detail)
             db.session.flush()
-            if disposition == "RESTOCK":
+            # Every credited reduction reverses a sale. If the bottle is
+            # physically returned, the RETURN is the only stock movement.
+            # Otherwise pair it with a LOSS in the same transaction: inventory
+            # stays unchanged while the client is no longer billed for it.
+            stock_service.move(
+                actor,
+                bar_id,
+                line.product_id,
+                "RETURN",
+                qty,
+                (f"Retour physique {order.reference}: {reason}"
+                 if disposition == "RESTOCK"
+                 else f"Crédit sans retour physique {order.reference}: {reason}"),
+                order_return_line_id=detail.id,
+            )
+            if disposition == "LOSS":
                 stock_service.move(
                     actor,
                     bar_id,
                     line.product_id,
-                    "RETURN",
-                    qty,
-                    f"Retour {order.reference}: {reason}",
-                    order_return_line_id=detail.id,
+                    "LOSS",
+                    -qty,
+                    f"Boisson non restituée / consommée {order.reference}: {reason}",
+                    _nonrestocked_order_id=order.id,
                 )
         returned.total_amount = number(total)
         from app.finance_totals import order_balance
