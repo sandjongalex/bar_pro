@@ -169,14 +169,14 @@
 .server-pos-layout .pos-toolbar{gap:9px;padding:12px 14px}
 .server-pos-layout .pos-search input{min-height:44px;font-size:16px}
 .server-pos-layout .pos-category{min-height:39px;padding:7px 12px}
-.server-pos-layout .pos-products{grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:9px;padding:12px;max-height:min(70vh,720px);overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
+.server-pos-layout .pos-products{grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:9px;padding:12px;max-height:min(70vh,720px);overflow-y:auto;overscroll-behavior-y:auto;-webkit-overflow-scrolling:touch}
 .server-pos-layout .pos-product{min-height:126px;padding:11px;padding-bottom:39px;gap:.3rem}
 .server-pos-layout .pos-product>strong{font-size:.84rem;line-height:1.23;overflow-wrap:anywhere}
 .server-pos-layout .pos-product-price{font-size:.87rem}
 .server-pos-layout .pos-product>small{display:none}
-.server-pos-layout .pos-cart-panel{top:85px}
+.server-pos-layout .pos-cart-panel{position:static;top:auto;align-self:start;max-height:none;overflow:visible;overscroll-behavior-y:auto}
 .server-pos-layout .pos-cart-header{padding:13px 15px}
-.server-pos-layout .pos-cart-lines{max-height:42vh;overflow-y:auto}
+.server-pos-layout .pos-cart-lines{max-height:none;overflow:visible}
 .server-pos-layout .pos-order-meta{gap:8px;padding:11px 13px}
 .server-pos-layout .pos-extra-options{padding:9px;border:1px solid var(--line);border-radius:10px}
 .server-pos-layout .pos-extra-options>summary{cursor:pointer;color:var(--brand);font-size:.76rem;font-weight:800}
@@ -212,7 +212,7 @@
   .server-pos-layout .pos-product{min-height:119px;padding:9px;padding-bottom:37px}
   .server-pos-layout .pos-product>strong{font-size:.8rem}
   .server-pos-layout .pos-cart-header{padding:11px 13px}
-  .server-pos-layout .pos-cart-lines{max-height:40vh}
+  .server-pos-layout .pos-cart-lines{max-height:none;overflow:visible}
   .server-pos-layout .pos-cart-line{padding:9px 11px}
   .server-pos-layout .pos-confirm{min-height:52px}
 }
