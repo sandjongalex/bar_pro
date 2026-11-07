@@ -316,6 +316,10 @@ def test_physical_inventory_net_sales_exclude_credited_replacements(env, disposi
     }
     assert snapshots[original.id].theoretical_sold_quantity == 0
     assert snapshots[original.id].theoretical_sales_amount == 0
+    # A non-returned credit has offsetting RETURN and LOSS journal entries.
+    assert snapshots[original.id].other_movement_quantity == (
+        Decimal("1") if disposition == "RESTOCK" else Decimal("0")
+    )
     assert snapshots[replacement.id].theoretical_sold_quantity == 1
     assert snapshots[replacement.id].theoretical_sales_amount == 250
     inventory_service.post(owner, bar.id, inv.id)
