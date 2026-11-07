@@ -154,7 +154,10 @@ class PaymentService:
                 staff_id=staff_assignment_id,
                 payment_id=item.id,
             )
-        order_balance(order, update=True)
+        # In MySQL REPEATABLE READ a plain aggregate can use a stale snapshot.
+        # Use current/locking reads so the stored status immediately reflects
+        # the payment in this transaction (PAID, PARTIAL or UNPAID).
+        order_balance(order, update=True, locking=True)
         if not was_paid and order.payment_status == "PAID":
             notify_server(
                 order,
