@@ -118,6 +118,8 @@
       <div class="row muted"><span>{{ payment.reference }} · {{ payment_times[payment.id] }}</span><span></span></div>
       {% if payment.method == 'CASH' and payment.change_given > 0 %}
       <div class="row muted"><span>Reçu {{ "{:,.0f}".format(payment.amount_presented) }}</span><strong>Monnaie {{ "{:,.0f}".format(payment.change_given) }}</strong></div>
+      {% elif payment.method == 'CASH' and payment.amount_presented > payment.amount_applied %}
+      <div class="row muted"><span>Montant réellement remis</span><strong>{{ "{:,.0f}".format(payment.amount_presented) }} {{ payment.currency }}</strong></div>
       {% endif %}
       {% endfor %}
       {% if balance.customer_credit > 0 %}<div class="row"><span>Crédit client</span><strong>{{ "{:,.0f}".format(balance.customer_credit) }} {{ order.currency }}</strong></div>{% endif %}
