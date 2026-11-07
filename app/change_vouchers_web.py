@@ -12,13 +12,14 @@ from sqlalchemy.exc import IntegrityError
 
 from app.async_ui import wants_async_web_response, web_json_response
 from app.cashier_secondary_async import begin, succeeded, failed
-from app.cashier_financial_intents import financial_complete
+from app.cashier_financial_intents import financial_claim, financial_complete
 from app.change_voucher_models import ChangeVoucher, ChangeVoucherTransaction
 from app.change_voucher_service import change_voucher_service, change_voucher_liability
 from app.change_voucher_printing import rawbt_change_voucher_intent
 from app.extensions import db
 from app.finance_totals import order_balance
 from app.models import Bar, CashSession, Order, Payment, StaffAssignment, User
+from app.order_suborder_models import OrderSuborder
 from app.payment_services import payment_service
 from app.permissions import permissions
 
@@ -97,6 +98,8 @@ def _message(exc) -> str:
         "INVALID_VOUCHER_AMOUNT": "Saisissez un montant valide.",
         "INVALID_ACTUAL_CHANGE": "La monnaie réellement rendue ne peut pas dépasser la monnaie due.",
         "INVALID_PAYMENT_AMOUNTS": "Vérifiez le montant donné par le client et la monnaie réellement rendue.",
+        "PAYMENT_ALREADY_PROCESSED": "Ce règlement a déjà été enregistré. Retrouvez le bon dans l'historique, sans encaisser une seconde fois.",
+        "IDEMPOTENCY_CONFLICT": "Les montants de cette opération ont changé. Actualisez la facture avant de réessayer.",
         "PAYMENT_LIMIT_EXCEEDED": "Le montant dépasse le reste à payer.",
         "ORDER_NOT_PAYABLE": "Cette facture n'est pas disponible pour ce règlement.",
         "CURRENCY_MISMATCH": "Le bon et la facture n'utilisent pas la même devise.",
@@ -115,7 +118,8 @@ def _message(exc) -> str:
 def pay_with_change(bar_id: int):
     """Record a cash payment and issue a voucher for any unreturned change."""
     permissions.require(current_user, "payments.record", bar_id)
-    if _cashier_assignment(bar_id) is None:
+    assignment = _cashier_assignment(bar_id)
+    if assignment is None:
         raise PermissionError("FORBIDDEN")
     session = _open_session(bar_id)
     if session is None:
@@ -129,10 +133,20 @@ def pay_with_change(bar_id: int):
         ) if order_id else None
         if not order:
             raise LookupError("NOT_FOUND")
-        if order.status not in {"CONFIRMED", "SERVED"}:
+        if order.status not in {"CONFIRMED", "SERVED"} or order.cashier_assignment_id != assignment.id:
+            raise ValueError("ORDER_NOT_PAYABLE")
+        pending_delivery = db.session.scalar(
+            select(OrderSuborder.id).where(
+                OrderSuborder.bar_id == bar_id,
+                OrderSuborder.order_id == order.id,
+                OrderSuborder.status == "VALIDATED",
+                OrderSuborder.delivery_status == "PENDING",
+            ).limit(1)
+        )
+        if pending_delivery is not None:
             raise ValueError("ORDER_NOT_PAYABLE")
 
-        due = Decimal(order_balance(order)["amount_due"] or 0)
+        due = Decimal(order_balance(order, locking=True)["amount_due"] or 0)
         if due <= 0:
             raise ValueError("ORDER_NOT_PAYABLE")
         presented = _number(request.form.get("amount_presented"))
@@ -147,7 +161,11 @@ def pay_with_change(bar_id: int):
             raise ValueError("INVALID_ACTUAL_CHANGE")
         voucher_amount = total_change - actual_change
         cash_session_id, staff_assignment_id = _cash_destination(order, session)
-        reference = (request.form.get("reference") or "").strip() or _reference()
+        reference = (request.form.get("reference_override") or request.form.get("reference") or "").strip() or _reference()
+        intent = financial_claim(
+            current_user, bar_id, "change_voucher_issue", request.form,
+            require_key=False,
+        )
 
         payment = payment_service.record(
             current_user,
@@ -174,6 +192,9 @@ def pay_with_change(bar_id: int):
                 customer_phone=request.form.get("voucher_customer_phone"),
             )
 
+        financial_complete(
+            intent, order_id=order.id, voucher_id=voucher.id if voucher else None,
+        )
         db.session.commit()
         if voucher is not None:
             flash(
@@ -208,12 +229,14 @@ def pay_with_change(bar_id: int):
 def manage(bar_id: int):
     permissions.require(current_user, "payments.read", bar_id)
     permissions.require(current_user, "payments.record", bar_id)
-    if _cashier_assignment(bar_id) is None:
-        raise PermissionError("FORBIDDEN")
-
     bar = db.session.get(Bar, bar_id)
     if not bar:
         raise LookupError("NOT_FOUND")
+    if not (
+        (current_user.category == "OWNER" and bar.owner_id == current_user.id)
+        or _cashier_assignment(bar_id) is not None
+    ):
+        raise PermissionError("FORBIDDEN")
     session = _open_session(bar_id)
 
     if request.method == "POST":
@@ -310,9 +333,14 @@ def manage(bar_id: int):
 @login_required
 def print_voucher(bar_id: int, voucher_id: int):
     permissions.require(current_user, "payments.read", bar_id)
-    if _cashier_assignment(bar_id) is None:
-        raise PermissionError("FORBIDDEN")
     bar = db.session.get(Bar, bar_id)
+    if not bar:
+        raise LookupError("NOT_FOUND")
+    if not (
+        (current_user.category == "OWNER" and bar.owner_id == current_user.id)
+        or _cashier_assignment(bar_id) is not None
+    ):
+        raise PermissionError("FORBIDDEN")
     voucher = db.session.scalar(
         select(ChangeVoucher).where(
             ChangeVoucher.bar_id == bar_id,

@@ -334,7 +334,7 @@
       </div>
       <div class="modal-body">
 <form method="post" id="cashierPaymentForm" data-bp-ajax="json" data-cashier-async="1" data-own-counter-order="{{ '1' if not selected_order.assigned_staff_id else '0' }}">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="payment"><input type="hidden" name="order_id" value="{{ selected_order.id }}"><input type="hidden" id="cashierDue" value="{{ b.amount_due }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="idempotency_key" value="{{ payment_reference }}"><input type="hidden" name="action" value="payment"><input type="hidden" name="order_id" value="{{ selected_order.id }}"><input type="hidden" id="cashierDue" value="{{ b.amount_due }}">
           <label class="form-label fw-bold">Autre paiement</label>
           <div class="cashier-methods">
             {% for code, label in payment_labels.items() %}

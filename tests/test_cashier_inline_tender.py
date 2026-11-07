@@ -406,3 +406,61 @@ def test_cashier_cannot_close_open_advance_with_outstanding_products(env):
         ChangeVoucher.bar_id == bar.id, ChangeVoucher.origin_order_id == order.id,
     ))
     assert Decimal(voucher.balance_amount) == 0
+
+
+def test_cashier_can_issue_printable_change_voucher_without_double_payment(env):
+    """Cash shortage: 5 000 tendered for 3 800, 200 returned, 1 000 owed."""
+    from app.change_voucher_service import change_voucher_liability
+
+    app, _, bar, _, product, *_ = env
+    client, session, csrf = _cashier_client(env)
+    product.sale_price = Decimal("3800")
+    db.session.commit()
+    url = f"/bars/{bar.id}/cashier/workspace"
+    create = client.post(url, data={
+        "csrf_token": csrf, "action": "create_sale",
+        "reference": "BON-MONNAIE-3800",
+        "product_id": str(product.id), "quantity": "1",
+    }, headers=_async_headers(csrf))
+    assert create.status_code == 200, create.text
+    order = db.session.scalar(select(Order).where(
+        Order.bar_id == bar.id, Order.reference == "BON-MONNAIE-3800"
+    ))
+    assert order.payment_status == "UNPAID"
+
+    payment_data = {
+        "csrf_token": csrf,
+        "idempotency_key": "BON-MONNAIE-TEST-KEY-1",
+        "reference": "BON-MONNAIE-CASH-1",
+        "order_id": str(order.id),
+        "method": "CASH",
+        "amount_presented": "5000",
+        "amount_applied": "3800",
+        "actual_change_given": "200",
+    }
+    post_url = f"/bars/{bar.id}/cashier/change-vouchers/pay"
+    received = client.post(post_url, data=payment_data)
+    assert received.status_code == 302
+    assert "/print" in received.headers["Location"]
+    voucher = db.session.scalar(select(ChangeVoucher).where(
+        ChangeVoucher.bar_id == bar.id, ChangeVoucher.origin_order_id == order.id
+    ))
+    assert voucher.code.startswith("BM-")
+    assert voucher.initial_amount == Decimal("1000")
+    assert change_voucher_liability(bar.id)["amount"] == Decimal("1000")
+    assert order.payment_status == "PAID"
+    # Opening float 1000 + money received 5000 - change returned 200.
+    assert cash_service.expected(session) == Decimal("5800")
+    print_page = client.get(received.headers["Location"])
+    assert print_page.status_code == 200
+    assert "BON DE MONNAIE" in print_page.text
+    assert voucher.code in print_page.text
+    assert 'data-rawbt-intent="intent:base64,' in print_page.text
+
+    repeated = client.post(post_url, data=payment_data)
+    assert repeated.status_code == 302
+    assert db.session.scalar(select(func.count()).select_from(Payment).where(
+        Payment.bar_id == bar.id, Payment.order_id == order.id
+    )) == 1
+    assert change_voucher_liability(bar.id)["amount"] == Decimal("1000")
+    assert cash_service.expected(session) == Decimal("5800")

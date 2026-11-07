@@ -190,9 +190,9 @@ def test_voucher_rawbt_58_80_and_outstanding_owner_totals(env):
         encoded, suffix = html.unescape(intent).removeprefix("intent:base64,").split("#Intent;")
         assert suffix == "scheme=rawbt;package=ru.a402d.rawbtprinter;end;"
         payload = base64.b64decode(encoded)
-        assert payload.startswith(b"\x1b@\\x1b!\\x00\\x1ba\\x00")
+        assert payload.startswith(b"\x1b@\x1b!\x00\x1ba\x00")
         clean = re.sub(
-            rb"\x1bE[\x00\\x01]|\x1d![\x00\\x01\\x11]|\x1b3[\x20-\\x40]|\x1b2",
+            rb"\x1bE[\x00\x01]|\x1d![\x00\x01\x11]|\x1b3[\x20-\x40]|\x1b2",
             b"", payload[8:]
         )
         text = clean.decode("ascii")
@@ -204,8 +204,9 @@ def test_voucher_rawbt_58_80_and_outstanding_owner_totals(env):
         client = app.test_client()
         _login(client, owner.email)
         response = client.get(f"/bars/{bar.id}/cashier/change-vouchers/{voucher.id}/print")
-        # Only the assigned cashier may print. Owner still sees totals in dashboard.
-        assert response.status_code == 403
+        # Owner is allowed to reprint their own bar's liability receipt.
+        assert response.status_code == 200
+        assert 'data-rawbt-intent="intent:base64,' in response.text
         page = client.get(f"/dashboard?bar_id={bar.id}")
         assert page.status_code == 200
         assert "Bons de monnaie non remboursés" in page.text
