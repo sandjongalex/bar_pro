@@ -14,6 +14,7 @@ from sqlalchemy.exc import IntegrityError, OperationalError
 from app.async_ui import wants_async_web_response, web_json_response
 from app.cashier_payment_idempotency import claim as claim_payment_intent, complete as complete_payment_intent
 from app.extensions import db
+from app.change_voucher_models import ChangeVoucher
 from app.finance_totals import order_balance
 from app.models import Bar, CashSession, Order, OrderLine, StaffAssignment, User
 from app.payment_services import payment_service
@@ -187,6 +188,17 @@ def invoices(bar_id: int):
         )
     )
 
+    advance_origin_ids = set(db.session.scalars(
+        select(ChangeVoucher.origin_order_id).where(
+            ChangeVoucher.bar_id == bar_id,
+            ChangeVoucher.origin_order_id.in_([order.id for order in all_orders]),
+        )
+    )) if all_orders else set()
+    open_advance_ids = {
+        order.id for order in all_orders
+        if order.id in advance_origin_ids and order.closed_at is None
+    }
+
     assigned_staff_ids = {
         order.assigned_staff_id
         for order in all_orders
@@ -285,13 +297,13 @@ def invoices(bar_id: int):
 
     def payment_matches(order: Order) -> bool:
         if payment_filter == "open":
-            return order.payment_status in {"UNPAID", "PARTIAL"}
+            return order.payment_status in {"UNPAID", "PARTIAL"} or order.id in open_advance_ids
         if payment_filter == "unpaid":
             return order.payment_status == "UNPAID"
         if payment_filter == "partial":
             return order.payment_status == "PARTIAL"
         if payment_filter == "paid":
-            return order.payment_status == "PAID"
+            return order.payment_status == "PAID" and order.id not in open_advance_ids
         return True
 
     def order_person_id(order: Order):
@@ -341,11 +353,11 @@ def invoices(bar_id: int):
             )
         balance_by_order[order.id] = order_balance(order)
 
-    open_orders = [order for order in all_orders if order.payment_status in {"UNPAID", "PARTIAL"}]
+    open_orders = [order for order in all_orders if order.payment_status in {"UNPAID", "PARTIAL"} or order.id in open_advance_ids]
     stats = {
         "waiting": sum(1 for order in open_orders if order.status == "DRAFT"),
         "delivered": sum(1 for order in open_orders if order.status in {"CONFIRMED", "SERVED"}),
-        "paid": sum(1 for order in all_orders if order.payment_status == "PAID"),
+        "paid": sum(1 for order in all_orders if order.payment_status == "PAID" and order.id not in open_advance_ids),
         "visible": len(invoice_rows),
     }
 
@@ -355,6 +367,7 @@ def invoices(bar_id: int):
         lines_by_order=lines_by_order,
         origin_by_order=origin_by_order,
         balance_by_order=balance_by_order,
+        open_advance_ids=open_advance_ids,
         personnel_filters=personnel_filters,
         delivery_filter=delivery_filter,
         payment_filter=payment_filter,
