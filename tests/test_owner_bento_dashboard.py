@@ -79,7 +79,18 @@ def test_owner_bento_is_isolated_and_uses_actual_paid_sales(env):
     assert "Second Owned Bar" in response.text
     assert foreign_bar.name not in response.text
     assert 'id="ownerBentoSalesChart"' in response.text
-    assert "Réinitialiser le bar" in response.text
+    assert "Indicateurs clés" not in response.text
+    assert "Réinitialiser le bar" not in response.text
+    assert "Tous mes établissements" in response.text
+
+    # Selecting an establishment opens its own dashboard instead of keeping
+    # the consolidated overview mixed into the same page.
+    detail = client.get(f"/dashboard?bar_id={bar.id}")
+    assert detail.status_code == 200
+    assert "Indicateurs clés" in detail.text
+    assert "Vue globale" in detail.text
+    assert "Chiffre d'affaires global" not in detail.text
+    assert "Réinitialiser le bar" in detail.text
 
 
 def test_owner_bento_does_not_combine_different_currencies(env):

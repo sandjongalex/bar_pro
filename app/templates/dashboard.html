@@ -8,19 +8,35 @@
 {% endif %}
 <section class="dashboard-hero">
   <div>
-    <p class="eyebrow mb-2">Vue d'ensemble</p>
-    <h1>Bonjour, {{ current_user.display_name }}</h1>
-    {% if active_bar and dashboard_data %}
-      <p>Suivi opérationnel de <strong>{{ active_bar.name }}</strong> pour le {{ dashboard_data.local_date.strftime('%d/%m/%Y') }}.</p>
+    {% if current_user.category == 'OWNER' and active_bar %}
+      <p class="eyebrow mb-2">Espace établissement</p>
+      <h1>{{ active_bar.name }}</h1>
+      <p>Tableau de bord détaillé pour le {{ dashboard_data.local_date.strftime('%d/%m/%Y') }}.</p>
+    {% elif current_user.category == 'OWNER' %}
+      <p class="eyebrow mb-2">Vue globale propriétaire</p>
+      <h1>Bonjour, {{ current_user.display_name }}</h1>
+      <p>Pilotez l'ensemble de vos établissements depuis un seul espace.</p>
     {% else %}
-      <p>Retrouvez ici vos établissements et les actions correspondant à votre rôle.</p>
+      <p class="eyebrow mb-2">Vue d'ensemble</p>
+      <h1>Bonjour, {{ current_user.display_name }}</h1>
+      {% if active_bar and dashboard_data %}
+        <p>Suivi opérationnel de <strong>{{ active_bar.name }}</strong> pour le {{ dashboard_data.local_date.strftime('%d/%m/%Y') }}.</p>
+      {% else %}
+        <p>Retrouvez ici vos établissements et les actions correspondant à votre rôle.</p>
+      {% endif %}
     {% endif %}
   </div>
   <div class="dashboard-hero-actions">
+    {% if current_user.category == 'OWNER' and active_bar %}
+      <a class="btn btn-outline-primary" href="{{ url_for('web.dashboard') }}">← Vue globale</a>
+    {% endif %}
     {% if reportable_bars|length > 1 %}
     <form method="get" class="dashboard-bar-selector" aria-label="Sélectionner un établissement">
       <label for="dashboard-bar">Établissement</label>
       <select class="form-select" id="dashboard-bar" name="bar_id" onchange="this.form.submit()">
+        {% if current_user.category == 'OWNER' %}
+          <option value="" {% if not active_bar %}selected{% endif %}>Tous mes établissements</option>
+        {% endif %}
         {% for bar in reportable_bars %}
           <option value="{{ bar.id }}" {% if active_bar and bar.id == active_bar.id %}selected{% endif %}>{{ bar.name }}</option>
         {% endfor %}
@@ -351,7 +367,7 @@
 </section>
 {% endif %}
 
-{% if not dashboard_data %}
+{% if not dashboard_data and not owner_bento %}
 <section class="stats-grid mt-4" aria-label="Indicateurs disponibles">
   <article class="stat-card"><div class="stat-icon">▦</div><div><span>Établissements accessibles</span><strong>{{ bars|length }}</strong><small>Visibles avec vos droits actuels</small></div></article>
   <article class="stat-card"><div class="stat-icon">✓</div><div><span>Établissements actifs</span><strong>{{ bars|selectattr('status','equalto','ACTIVE')|list|length }}</strong><small>Prêts pour les opérations</small></div></article>
@@ -359,6 +375,7 @@
 </section>
 {% endif %}
 
+{% if current_user.category != 'OWNER' or not reportable_bars %}
 <section class="panel-card mt-4">
   <div class="panel-header"><div><p class="eyebrow mb-1">Gestion</p><h2>Mes établissements</h2></div><a class="btn btn-outline-primary btn-sm" href="{{ url_for('bars.web_list') }}">Voir tous</a></div>
   {% if bars %}
@@ -391,6 +408,7 @@
   </div>
   {% endif %}
 </section>
+{% endif %}
 {% endblock %}
 
 {% block scripts %}

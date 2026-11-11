@@ -124,19 +124,21 @@ def dashboard():
         active_bar = next((bar for bar in reportable_bars if bar.id == requested_bar_id), None)
         if active_bar is None:
             abort(404)
-    elif reportable_bars:
+    elif reportable_bars and current_user.category != "OWNER":
+        # Owners land on the consolidated overview; a bar is opened explicitly.
         active_bar = next((bar for bar in reportable_bars if bar.status == "ACTIVE"), reportable_bars[0])
 
     # A newly created bar remains outside day-to-day operations until its
     # owner has selected categories and configured at least one product.
-    # Existing bars are marked configured by the additive migration.
-    if current_user.category == "OWNER":
-        setup_bar = next(
-            (bar for bar in reportable_bars if bar.status == "ACTIVE" and not bar.catalog_configured),
-            None,
-        )
-        if setup_bar is not None:
-            return redirect(url_for("catalog.setup_categories", bar_id=setup_bar.id))
+    # Keep the global overview accessible; start guided setup only when that
+    # specific unconfigured establishment is selected.
+    if (
+        current_user.category == "OWNER"
+        and active_bar is not None
+        and active_bar.status == "ACTIVE"
+        and not active_bar.catalog_configured
+    ):
+        return redirect(url_for("catalog.setup_categories", bar_id=active_bar.id))
 
     dashboard_data = dashboard_summary(current_user, active_bar.id) if active_bar else None
     operational_alerts = dashboard_alerts(current_user, active_bar.id) if active_bar else None
@@ -145,11 +147,16 @@ def dashboard():
     activity_data = dashboard_activity(current_user, active_bar.id) if active_bar else None
 
     owner_bento = None
-    if current_user.category == "OWNER":
+    if current_user.category == "OWNER" and active_bar is None:
         from app.owner_bento_dashboard import owner_bento_overview
 
         owner_bento = owner_bento_overview(current_user, reportable_bars)
 
+    notification_bar_ids = (
+        [active_bar.id]
+        if current_user.category == "OWNER" and active_bar is not None
+        else [bar.id for bar in reportable_bars]
+    )
     notifications = list(
         db.session.scalars(
             select(UserNotification)
@@ -159,7 +166,7 @@ def dashboard():
             .where(
                 UserNotification.user_id == current_user.id,
                 UserNotification.read_at.is_(None),
-                UserNotification.bar_id.in_([bar.id for bar in reportable_bars]),
+                UserNotification.bar_id.in_(notification_bar_ids),
             )
             .order_by(UserNotification.id.desc())
             .limit(20)
