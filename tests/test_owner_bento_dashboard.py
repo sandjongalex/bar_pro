@@ -111,3 +111,21 @@ def test_owner_bento_does_not_combine_different_currencies(env):
     assert overview["chart"]["values"] == []
     assert {venue["currency"] for venue in overview["bars"]} == {"FCFA", "EUR"}
     assert foreign_bar.id not in {venue["id"] for venue in overview["bars"]}
+
+
+def test_owner_workspace_tab_assets_are_scoped_to_selected_bar():
+    root = Path(__file__).resolve().parents[1]
+    layout = (root / "app/templates/layout.html").read_text(encoding="utf-8")
+    js = (root / "app/static/workspace_tabs.js").read_text(encoding="utf-8")
+    css = (root / "app/static/workspace_tabs.css").read_text(encoding="utf-8")
+    Environment().parse(layout)
+    assert "current_user.category == 'OWNER' and active_bar is defined and active_bar" in layout
+    assert 'id="bpWorkspace"' in layout
+    assert 'id="bpWorkspaceTabs"' in layout
+    assert 'id="bpWorkspacePanels"' in layout
+    assert "workspace_tabs.js" in layout and "workspace_tabs.css" in layout
+    assert "window.parent !== window" in js
+    assert "url.pathname.indexOf('/bars/' + barId + '/')" in js
+    assert "tab.dirtyForms.size" in js
+    assert "data.payment_finalized === true" in js
+    assert "bp-workspace-child" in css

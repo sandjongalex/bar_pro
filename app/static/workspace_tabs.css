@@ -1,0 +1,31 @@
+/* Owner module windows are isolated so existing forms and JavaScript remain intact. */
+.bp-workspace[hidden],.bp-workspace-frame[hidden],#main[hidden]{display:none!important}
+.bp-workspace{min-width:0;padding:14px 20px 18px}
+.bp-workspace-tabs{display:flex;align-items:stretch;gap:6px;max-width:100%;overflow-x:auto;padding:4px 0 12px;-webkit-overflow-scrolling:touch}
+.bp-workspace-home,.bp-workspace-tab{flex:0 0 auto;min-height:42px;border:1px solid var(--line);border-radius:12px;background:var(--surface,#fff)}
+.bp-workspace-home{padding:8px 15px;color:var(--brand);font-weight:800}
+.bp-workspace-home.is-active,.bp-workspace-tab.is-active{border-color:var(--brand);background:var(--brand-soft,#eaf6ef)}
+.bp-workspace-tab{display:inline-flex;align-items:center;max-width:230px;overflow:hidden}
+.bp-workspace-tab-title{min-height:40px;min-width:0;max-width:180px;border:0;background:transparent;color:var(--ink);padding:8px 10px 8px 13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:.83rem;font-weight:750}
+.bp-workspace-tab-close{border:0;background:transparent;color:var(--muted);font-size:1.3rem;min-width:38px;min-height:40px;padding:4px 8px;cursor:pointer}
+.bp-workspace-tab-close:hover{color:#a12e2e}
+.bp-workspace button:focus-visible{outline:3px solid var(--brand);outline-offset:-3px}
+.bp-workspace-panels{height:calc(100vh - 158px);height:calc(100dvh - 158px);min-height:360px;border:1px solid var(--line);border-radius:14px;overflow:hidden;background:var(--page,#f4f7f5)}
+.bp-workspace-frame{width:100%;height:100%;border:0;display:block;background:var(--page,#f4f7f5)}
+html.bp-workspace-child .sidebar,
+html.bp-workspace-child .app-nav-drawer,
+html.bp-workspace-child .topbar,
+html.bp-workspace-child .global-mobile-bottom,
+html.bp-workspace-child .bp-workspace{display:none!important}
+html.bp-workspace-child .app-shell{display:block;min-height:0}
+html.bp-workspace-child .app-main{width:100%;min-width:0;margin:0}
+html.bp-workspace-child .content-area{max-width:none;margin:0;padding:14px 16px 26px}
+@media(max-width:767px){
+  .bp-workspace{padding:8px 8px 84px}
+  .bp-workspace-tabs{gap:5px}
+  .bp-workspace-home{padding:8px 10px}
+  .bp-workspace-tab{max-width:170px}
+  .bp-workspace-tab-title{max-width:120px;padding:8px 6px 8px 9px}
+  .bp-workspace-panels{height:calc(100vh - 226px);height:calc(100dvh - 226px);min-height:300px}
+  html.bp-workspace-child .content-area{padding:12px 9px 24px!important}
+}

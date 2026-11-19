@@ -527,7 +527,10 @@ def workspace(bar_id: int):
                 message = f"{order.reference} encaissée en espèces · {due:,.0f} {order.currency}."
                 refresh_url = url_for("cashier_workspace_web.workspace", bar_id=bar_id)
                 if async_web:
-                    return web_json_response(data={"refresh_url": refresh_url}, message=message)
+                    return web_json_response(
+                        data={"refresh_url": refresh_url, "payment_finalized": True},
+                        message=message,
+                    )
                 flash(message, "success")
                 return redirect(refresh_url)
 
@@ -553,7 +556,10 @@ def workspace(bar_id: int):
                 message = f"{order.reference} soldée à crédit."
                 refresh_url = url_for("cashier_workspace_web.workspace", bar_id=bar_id)
                 if async_web:
-                    return web_json_response(data={"refresh_url": refresh_url}, message=message)
+                    return web_json_response(
+                        data={"refresh_url": refresh_url, "payment_finalized": True},
+                        message=message,
+                    )
                 flash(message, "success")
                 return redirect(refresh_url)
 
@@ -656,7 +662,13 @@ def workspace(bar_id: int):
                     )
                     refresh_url = url_for("cashier_workspace_web.workspace", bar_id=bar_id)
                 if async_web:
-                    return web_json_response(data={"refresh_url": refresh_url}, message=message)
+                    return web_json_response(
+                        data={
+                            "refresh_url": refresh_url,
+                            "payment_finalized": mixed_voucher is None and remaining <= 0,
+                        },
+                        message=message,
+                    )
                 flash(message, "success")
                 return redirect(refresh_url)
 
@@ -754,7 +766,10 @@ def workspace(bar_id: int):
             message = f"{order.reference} payée. Commande suivante prête."
             refresh_url = url_for("cashier_workspace_web.workspace", bar_id=bar_id)
             if async_web:
-                return web_json_response(data={"refresh_url": refresh_url}, message=message)
+                return web_json_response(
+                    data={"refresh_url": refresh_url, "payment_finalized": True},
+                    message=message,
+                )
             flash(message, "success")
             return redirect(refresh_url)
 

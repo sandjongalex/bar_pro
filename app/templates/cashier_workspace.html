@@ -859,7 +859,16 @@
       renderCart();
     }
     if (data.close_sale_panel) closeSale();
-    void refreshWorkspaceFragments(data.refresh_url, {rotateSaleReference: !!data.reset_cart}).catch(() => {
+    const finalizedPayment = data.payment_finalized === true;
+    void refreshWorkspaceFragments(data.refresh_url, {rotateSaleReference: !!data.reset_cart}).then(() => {
+      // Close only the completed payment task. Partial payments and advances
+      // keep their selection; printing remains available from the caisse.
+      if (finalizedPayment) {
+        document.dispatchEvent(new CustomEvent('barpro:workspace-task-complete', {
+          detail: { task: 'payment', voucherRequired: false }
+        }));
+      }
+    }).catch(() => {
       window.BarProAsync?.notify?.(
         'Opération enregistrée, mais la mise à jour de l’écran a échoué. Vérifiez l’état avant toute nouvelle tentative.',
         'error'
