@@ -41,7 +41,14 @@ def _web_destination(user, employee_context=None):
     if context.role == "CASHIER":
         if not get_active_shift_for_assignment(context.bar_id, context.assignment.id):
             return url_for("web.dashboard")
-        return url_for("checkout_web.checkout", bar_id=context.bar_id)
+        from app.models import CashSession
+        # Keep the historical session-opening landing until a drawer is open.
+        opened = db.session.scalar(select(CashSession.id).where(
+            CashSession.bar_id == context.bar_id, CashSession.status == "OPEN",
+        ))
+        if opened is None:
+            return url_for("checkout_web.checkout", bar_id=context.bar_id)
+        return url_for("cashier_cockpit.cockpit", bar_id=context.bar_id)
     if context.role == "SERVER":
         if not get_active_shift_for_assignment(context.bar_id, context.assignment.id):
             return url_for("web.dashboard")

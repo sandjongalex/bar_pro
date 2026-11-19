@@ -13,8 +13,11 @@
       <a class="nav-link {% if endpoint == 'web.dashboard' %}active{% endif %}" href="{{ url_for('web.dashboard', bar_id=nav_bar_id) }}">
         <span class="nav-icon">⌂</span><span class="nav-link-text">Accueil</span>
       </a>
+      <a class="nav-link {% if endpoint.startswith('cashier_cockpit.') %}active{% endif %}" href="{{ url_for('cashier_cockpit.cockpit', bar_id=nav_bar_id) }}">
+        <span class="nav-icon">₣</span><span class="nav-link-text">Cockpit caissière</span>
+      </a>
       <a class="nav-link {% if endpoint.startswith('checkout_web.') or endpoint.startswith('cashier_workspace_web.') %}active{% endif %}" href="{{ url_for('checkout_web.checkout', bar_id=nav_bar_id) }}">
-        <span class="nav-icon">₣</span><span class="nav-link-text">Caisse</span>
+        <span class="nav-icon">▤</span><span class="nav-link-text">Caisse classique</span>
       </a>
       <a class="nav-link {% if endpoint.startswith('unpaid_orders_web.') %}active{% endif %}" href="{{ url_for('unpaid_orders_web.monitor', bar_id=nav_bar_id) }}">
         <span class="nav-icon">!</span><span class="nav-link-text">Commandes impayées</span>

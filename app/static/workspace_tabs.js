@@ -101,7 +101,8 @@
     }
     if (role === 'CASHIER') {
       return url.pathname === barPrefix + '/checkout' ||
-        url.pathname === barPrefix + '/cashier/workspace';
+        url.pathname === barPrefix + '/cashier/workspace' ||
+        url.pathname === barPrefix + '/cashier/cockpit';
     }
     return role === 'SERVER' && (
       url.pathname === barPrefix + '/orders/new' ||

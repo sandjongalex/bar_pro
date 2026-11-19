@@ -1,0 +1,195 @@
+{#
+  BAR_PRO · Cockpit caissière
+  À rendre depuis une route Flask authentifiée, avec bar, session_info,
+  cockpit_api, cockpit_stats et stock_items (voir INTEGRATION.md).
+  Toutes les opérations financières restent contrôlées par le serveur.
+#}
+{% extends 'layout.html' %}
+{% block title %}Cockpit caissière · {{ bar.name }}{% endblock %}
+{% block header %}Cockpit caissière · {{ bar.name }}{% endblock %}
+{% block content %}
+<link href="{{ url_for('static', filename='css/caissiere.css', v='20261119-cockpit-v1') }}" rel="stylesheet">
+{% set session = session_info %}
+<div id="cashierCockpit" class="caissiere-cockpit"
+     data-bar-id="{{ bar.id }}"
+     data-currency="{{ bar.currency or 'XAF' }}"
+     data-orders-url="{{ cockpit_api.orders }}"
+     data-stock-url="{{ cockpit_api.stock }}"
+     data-pay-url="{{ cockpit_api.pay }}"
+     data-request-url="{{ cockpit_api.request }}"
+     data-receipts-url="{{ cockpit_api.transfers }}"
+     data-receive-url="{{ cockpit_api.receive }}"
+     data-inventory-url="{{ cockpit_api.inventories }}"
+     data-balance-url="{{ cockpit_api.finances }}"
+     data-legacy-checkout="{{ url_for('checkout_web.checkout', bar_id=bar.id) }}"
+     data-inventory-fallback="{{ url_for('inventories.listing', bar_id=bar.id) }}"
+     data-warehouse-fallback="{{ url_for('warehouse_web.overview', bar_id=bar.id) }}">
+  <input type="hidden" id="cockpitCsrf" value="{{ csrf_token() }}">
+
+  <section class="cc-session-banner bento" aria-label="Session de caisse en cours">
+    <div class="cc-session-identity">
+      <span class="cc-eyebrow">BAR_PRO · SERVICE EN COURS</span>
+      <div class="d-flex align-items-center flex-wrap gap-2">
+        <h1 class="cc-heading mb-0">{{ bar.name }}</h1>
+        <span class="cc-session-state"><span aria-hidden="true" class="cc-live-dot"></span>{{ 'Ouverte' if session else 'Aucune session ouverte' }}</span>
+      </div>
+      <div class="cc-meta">
+        <span><i class="bi bi-hash" aria-hidden="true"></i> Session <strong>{{ session.numero if session else '—' }}</strong></span>
+        <span>Ouverture <strong>{{ session.opened_local if session else '—' }}</strong></span>
+        <span class="cc-meta-hint">Le service se poursuit après minuit jusqu'à sa clôture réelle.</span>
+      </div>
+    </div>
+    <div class="cc-session-money">
+      <span class="cc-eyebrow">Fonds initial</span>
+      <strong class="cc-amount">{{ '{:,.0f}'.format(session.opening_amount|default(0)|float).replace(',', ' ') if session else '0' }} <small>FCFA</small></strong>
+    </div>
+    <button type="button" id="openInventory" class="btn cc-danger-action" data-bs-toggle="modal" data-bs-target="#inventoryModal" {% if not session %}disabled{% endif %}>
+      Clôturer la session &amp; Inventaire
+    </button>
+  </section>
+
+  <div class="cc-kpis row g-2 mt-1" aria-label="Synthèse financière du service">
+    <div class="col-6 col-xl-3"><div class="bento cc-kpi"><span>Ventes du service</span><strong data-kpi="sales">{{ '{:,.0f}'.format(cockpit_stats.sales|default(0)|float).replace(',', ' ') }} <small>FCFA</small></strong></div></div>
+    <div class="col-6 col-xl-3"><div class="bento cc-kpi"><span>Encaissements nets</span><strong data-kpi="collected">{{ '{:,.0f}'.format(cockpit_stats.collected|default(0)|float).replace(',', ' ') }} <small>FCFA</small></strong></div></div>
+    <div class="col-6 col-xl-3"><div class="bento cc-kpi"><span>Dépenses</span><strong data-kpi="expenses">{{ '{:,.0f}'.format(cockpit_stats.expenses|default(0)|float).replace(',', ' ') }} <small>FCFA</small></strong></div></div>
+    <div class="col-6 col-xl-3"><div class="bento cc-kpi"><span>Dettes en cours</span><strong data-kpi="debts">{{ '{:,.0f}'.format(cockpit_stats.debts|default(0)|float).replace(',', ' ') }} <small>FCFA</small></strong></div></div>
+  </div>
+
+  <div id="cockpitAlert" class="cc-notification" role="status" aria-live="polite" hidden></div>
+  <div class="row g-3 cc-columns mt-0">
+    <div class="col-12 col-xl-4">
+      <section class="bento cc-panel" aria-labelledby="queueTitle">
+        <div class="cc-panel-header">
+          <div><span class="cc-eyebrow">COLONNE 01</span><h2 id="queueTitle">File des commandes <span id="queueCount" class="cc-counter">0</span></h2></div>
+          <button class="btn cc-icon-button" type="button" id="refreshOrders" title="Actualiser les commandes" aria-label="Actualiser les commandes">↻</button>
+        </div>
+        <div class="cc-tabs" role="group" aria-label="Filtrer les commandes">
+          <button type="button" class="cc-tab is-active" data-queue-filter="all" aria-pressed="true">Toutes</button>
+          <button type="button" class="cc-tab" data-queue-filter="to_pay" aria-pressed="false">Livrées / impayées</button>
+          <button type="button" class="cc-tab" data-queue-filter="voucher" aria-pressed="false">Bons en cours</button>
+        </div>
+        <div class="cc-queue" id="ordersList" role="listbox" aria-label="Commandes disponibles" aria-busy="false">
+          <p class="cc-empty" id="ordersEmpty">Chargement de la file…</p>
+        </div>
+        <div class="cc-panel-footer d-flex gap-2 flex-wrap">
+          <a class="btn btn-primary flex-grow-1" href="{{ url_for('cashier_workspace_web.workspace', bar_id=bar.id, sale=1) }}">＋ Facture comptoir</a>
+          <a class="btn btn-outline-light flex-grow-1" id="addSuborder" href="{{ url_for('cashier_workspace_web.workspace', bar_id=bar.id) }}" aria-disabled="true">＋ Sous-commande</a>
+        </div>
+      </section>
+    </div>
+
+    <div class="col-12 col-xl-4">
+      <section class="bento cc-panel cc-terminal" aria-labelledby="paymentTitle">
+        <div class="cc-panel-header">
+          <div><span class="cc-eyebrow">COLONNE 02</span><h2 id="paymentTitle">Terminal d'encaissement</h2></div>
+          <span class="cc-icon">₣</span>
+        </div>
+        <div class="cc-invoice" aria-live="polite">
+          <span class="cc-eyebrow">Facture sélectionnée</span>
+          <h3 id="invoiceName">Sélectionnez une commande</h3>
+          <p id="invoiceRef">—</p>
+          <ul id="invoiceLines" class="cc-lines" aria-label="Détail de la facture"></ul>
+          <div class="cc-total-label">Montant total restant dû</div>
+          <div class="cc-due" id="amountDue">0 <span>FCFA</span></div>
+          <div id="orderNotice" class="cc-inline-note">Les factures non livrées ne peuvent pas être encaissées.</div>
+        </div>
+        <form id="paymentForm" autocomplete="off" novalidate>
+          <fieldset id="paymentFields" disabled>
+            <legend class="cc-eyebrow mb-2">MONTANTS EFFECTIVEMENT REÇUS</legend>
+            <div class="cc-form-row"><label for="cashAmount">Espèces reçues</label><div class="input-group"><input id="cashAmount" name="especes" type="number" min="0" step="1" inputmode="numeric" class="form-control cc-money-input" value="0"><span class="input-group-text">FCFA</span></div></div>
+            <div class="cc-form-row"><label for="mtnAmount">MTN Mobile Money</label><div class="input-group"><input id="mtnAmount" name="mtn" type="number" min="0" step="1" inputmode="numeric" class="form-control cc-money-input" value="0"><span class="input-group-text">FCFA</span></div></div>
+            <div class="cc-form-row"><label for="orangeAmount">Orange Money</label><div class="input-group"><input id="orangeAmount" name="orange" type="number" min="0" step="1" inputmode="numeric" class="form-control cc-money-input" value="0"><span class="input-group-text">FCFA</span></div></div>
+            <div class="cc-switch-box">
+              <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" role="switch" id="issueVoucher">
+                <label class="form-check-label" for="issueVoucher">Émettre un bon de monnaie</label>
+              </div>
+              <small>Activable uniquement si le client a remis plus d'espèces que le montant restant à régler. Le reliquat devient une dette envers le client.</small>
+              <div class="form-check form-switch mt-3" id="advanceSwitchRow" hidden>
+                <input class="form-check-input" type="checkbox" role="switch" id="retainAdvance">
+                <label class="form-check-label" for="retainAdvance">Conserver le surplus en avance pour d'autres boissons</label>
+                <small>Une facture comptoir reste ouverte jusqu'à sa clôture explicite. Aucune monnaie n'est rendue tant que l'avance est conservée.</small>
+              </div>
+              <small class="mt-2 d-block">Les espèces saisies ici sont remises directement à la caisse par le client. Pour une remise effectuée par une serveuse, utilisez le module « Remises ».</small>
+            </div>
+            <dl class="cc-payment-summary">
+              <div><dt>Total remis</dt><dd id="totalGiven">0 FCFA</dd></div>
+              <div><dt id="differenceTitle">Reste à régler</dt><dd id="changeAmount" class="is-negative">0 FCFA</dd></div>
+              <div id="voucherRow" hidden><dt>Bon à remettre</dt><dd id="voucherAmount">0 FCFA</dd></div>
+            </dl>
+            <p class="cc-help" id="paymentHint" aria-live="polite">Sélectionnez une commande livrée.</p>
+            <button type="submit" id="confirmPayment" class="btn btn-success btn-lg w-100 cc-confirm" disabled>Confirmer l'encaissement</button>
+          </fieldset>
+        </form>
+        <div class="cc-panel-footer cc-receipt-actions">
+          <a id="receiptLink" href="#" target="_blank" rel="noopener" class="btn btn-outline-light" hidden>Imprimer le reçu</a>
+          <a id="voucherLink" href="#" target="_blank" rel="noopener" class="btn btn-outline-warning" hidden>Imprimer le bon de monnaie</a>
+          <a class="btn btn-outline-light" href="{{ url_for('checkout_web.checkout', bar_id=bar.id) }}">Caisse classique</a>
+        </div>
+      </section>
+    </div>
+
+    <div class="col-12 col-xl-4">
+      <section class="bento cc-panel" aria-labelledby="stockTitle">
+        <div class="cc-panel-header">
+          <div><span class="cc-eyebrow">COLONNE 03</span><h2 id="stockTitle">Stock caisse</h2></div>
+          <button class="btn cc-icon-button" type="button" id="refreshStock" title="Actualiser le stock" aria-label="Actualiser le stock">↻</button>
+        </div>
+        <div id="stockList" class="cc-stock-list" aria-live="polite">
+          <p class="cc-empty">Chargement du stock…</p>
+        </div>
+        <p id="stockSource" class="cc-help m-0">Quantités du comptoir en bouteilles.</p>
+        <div class="cc-panel-footer d-grid gap-2">
+          <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#restockModal" id="openRestock">Demander un réapprovisionnement</button>
+          <button type="button" class="btn btn-outline-light" data-bs-toggle="modal" data-bs-target="#receiveModal" id="openReceive">Confirmer une réception</button>
+          <a href="{{ url_for('warehouse_web.overview', bar_id=bar.id) }}" class="cc-secondary-link">Consulter les mouvements de stock</a>
+        </div>
+      </section>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade cc-modal" id="restockModal" tabindex="-1" aria-labelledby="restockTitle" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg"><div class="modal-content">
+    <form id="restockForm"><div class="modal-header"><h2 class="modal-title h5" id="restockTitle">Demander un réapprovisionnement</h2><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Fermer"></button></div>
+      <div class="modal-body"><p class="cc-help">La demande part au magasin principal. Aucun stock n'est ajouté avant expédition puis réception.</p>
+        <label class="form-label" for="restockProduct">Produit</label><select id="restockProduct" class="form-select" required></select>
+        <label class="form-label mt-3" for="restockQty">Quantité demandée en bouteilles</label><input id="restockQty" class="form-control" type="number" min="1" step="1" inputmode="numeric" required>
+        <label class="form-label mt-3" for="restockNote">Observation (facultatif)</label><textarea id="restockNote" maxlength="250" rows="2" class="form-control"></textarea>
+      </div><div class="modal-footer"><button type="button" class="btn btn-outline-light" data-bs-dismiss="modal">Annuler</button><button id="submitRestock" class="btn btn-primary" type="submit">Envoyer la demande</button></div></form>
+  </div></div>
+</div>
+
+<div class="modal fade cc-modal" id="receiveModal" tabindex="-1" aria-labelledby="receiveTitle" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg"><div class="modal-content">
+    <form id="receiveForm"><div class="modal-header"><h2 class="modal-title h5" id="receiveTitle">Réception MAIN → TRANSIT → CAISSE</h2><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Fermer"></button></div>
+      <div class="modal-body"><p class="cc-help">Vérifiez physiquement chaque ligne. Seules les quantités reçues sont créditées au comptoir.</p>
+        <label class="form-label" for="transferSelect">Bon d'approvisionnement expédié</label><select id="transferSelect" class="form-select" required></select>
+        <div id="receiptLines" class="cc-modal-table mt-3" aria-live="polite"></div>
+        <p class="cc-help mt-3">Aucun retour vers le magasin principal n'est autorisé.</p>
+      </div><div class="modal-footer"><button type="button" class="btn btn-outline-light" data-bs-dismiss="modal">Annuler</button><button id="submitReceive" type="submit" class="btn btn-success">Valider la réception physique</button></div></form>
+  </div></div>
+</div>
+
+<div class="modal fade cc-modal" id="inventoryModal" tabindex="-1" aria-labelledby="inventoryTitle" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-xl"><div class="modal-content">
+    <div class="modal-header"><div><span class="cc-eyebrow">PASSATION DE CAISSE</span><h2 class="modal-title h5" id="inventoryTitle">Inventaire de clôture</h2></div><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Fermer"></button></div>
+    <div class="modal-body"><p class="cc-help">Compte physique en bouteilles. La saisie affiche les écarts sans modifier le stock réel. La clôture définitive suit la procédure d'inventaire validée par BAR_PRO.</p>
+      <div class="table-responsive"><table class="table cc-inventory-table align-middle"><thead><tr><th scope="col">Produit</th><th scope="col" class="text-end">Théorique</th><th scope="col">Physique (bouteilles)</th><th scope="col" class="text-end">Écart</th></tr></thead><tbody id="inventoryRows"></tbody></table></div>
+      <div class="cc-financial-summary row g-2 mt-3">
+        <div class="col-6 col-lg-3"><div class="cc-financial-tile"><span>Recettes encaissées</span><strong id="closingRevenue">—</strong></div></div>
+        <div class="col-6 col-lg-3"><div class="cc-financial-tile"><span>Dépenses</span><strong id="closingExpenses">—</strong></div></div>
+        <div class="col-6 col-lg-3"><div class="cc-financial-tile"><span>Dettes accordées</span><strong id="closingDebts">—</strong></div></div>
+        <div class="col-6 col-lg-3"><div class="cc-financial-tile"><span>Écart de caisse</span><strong id="closingDifference">—</strong></div></div>
+      </div>
+      <div class="mt-3"><label for="countedCash" class="form-label">Espèces physiquement présentes en caisse (FCFA)</label><input id="countedCash" type="number" class="form-control" min="0" step="1" inputmode="numeric" placeholder="Montant réellement compté"></div>
+      <p id="inventoryStatus" class="cc-help mt-3" role="status" aria-live="polite"></p>
+    </div>
+    <div class="modal-footer"><button type="button" class="btn btn-outline-light" data-bs-dismiss="modal">Revenir à la caisse</button><a id="completeInventory" class="btn btn-danger" href="{{ url_for('inventories.listing', bar_id=bar.id) }}">Poursuivre l'inventaire et la clôture sécurisée</a></div>
+  </div></div>
+</div>
+{% endblock %}
+{% block scripts %}
+  {{ super() }}
+  <script src="{{ url_for('static', filename='js/caissiere.js', v='20261119-cockpit-v1') }}" defer></script>
+{% endblock %}

@@ -157,7 +157,7 @@
 
     {# The persistent primary screen is role-specific. Never create a nested workspace. #}
     {% set bp_employee_workspace_root = current_user.category == 'EMPLOYEE' and nav_bar_id and (
-      (nav_effective_role == 'CASHIER' and endpoint == 'cashier_workspace_web.workspace') or
+      (nav_effective_role == 'CASHIER' and endpoint in ('cashier_workspace_web.workspace', 'cashier_cockpit.cockpit')) or
       (nav_effective_role == 'SERVER' and endpoint == 'orders_web.quick')
     ) %}
     {% if (current_user.category == 'OWNER' and active_bar is defined and active_bar and endpoint == 'web.dashboard') or bp_employee_workspace_root %}
@@ -194,7 +194,7 @@
         {% if endpoint == 'cashier_workspace_web.workspace' %}
         <button type="button" id="mobileQuickSale" aria-label="Créer une vente comptoir"><span>＋</span><strong>Vente</strong></button>
         {% else %}
-        <a class="{% if endpoint.startswith('checkout_web.') or endpoint.startswith('cashier_workspace_web.') %}active{% endif %}" href="{{ url_for('checkout_web.checkout', bar_id=nav_bar_id) }}"><span>₣</span><strong>Caisse</strong></a>
+        <a class="{% if endpoint.startswith('checkout_web.') or endpoint.startswith('cashier_workspace_web.') or endpoint.startswith('cashier_cockpit.') %}active{% endif %}" href="{{ url_for('cashier_cockpit.cockpit', bar_id=nav_bar_id) }}"><span>₣</span><strong>Caisse</strong></a>
         {% endif %}
         <a class="{% if endpoint.startswith('unpaid_orders_web.') %}active{% endif %}" href="{{ url_for('unpaid_orders_web.monitor', bar_id=nav_bar_id) }}"><span>!</span><strong>Impayées</strong></a>
         {% if nav_can('expenses.record', nav_bar_id) %}

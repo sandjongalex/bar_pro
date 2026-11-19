@@ -163,9 +163,12 @@ def _register_blueprints(app: Flask) -> None:
     from app.subscriptions import bp as subscriptions_bp
     from app.finance_web import bp as finance_web_bp
     from app.cashier_web import bp as cashier_web_bp
+    from app.cashier_cockpit import bp as cashier_cockpit_bp, api_bp as cashier_cockpit_api_bp
 
     app.register_blueprint(finance_web_bp)
     app.register_blueprint(cashier_web_bp)
+    app.register_blueprint(cashier_cockpit_bp)
+    app.register_blueprint(cashier_cockpit_api_bp)
     app.register_blueprint(cashier_workspace_web_bp)
     app.register_blueprint(cashier_invoices_web_bp)
     app.register_blueprint(change_vouchers_web_bp)
