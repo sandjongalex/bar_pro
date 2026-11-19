@@ -166,6 +166,9 @@ def test_employee_workspace_avoids_hidden_tab_polling_and_losing_main_cart():
     assert "window.BarProWorkspaceInactive = !!tab" in scripts
     assert "panels.hidden = !tab" in scripts
     assert "home.hidden = !!tab" in scripts
+    assert "dismissDrawer();" in scripts
+    assert "window.addEventListener('beforeunload'" in scripts
+    assert ".sidebar .brand-block" in scripts
     assert "url.pathname.indexOf('/bars/' + barId + '/')" in scripts
     assert "data-workspace-role" in layout
     assert "cashier_workspace_web.workspace" in layout

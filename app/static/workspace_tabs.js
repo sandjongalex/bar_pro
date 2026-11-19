@@ -87,7 +87,18 @@
       return url.pathname === barPrefix + '/checkout' ||
         url.pathname === barPrefix + '/cashier/workspace';
     }
-    return role === 'SERVER' && url.pathname === barPrefix + '/orders/new';
+    return role === 'SERVER' && (
+      url.pathname === barPrefix + '/orders/new' ||
+      (url.pathname === '/dashboard' && url.searchParams.get('bar_id') === barId)
+    );
+  }
+
+  function dismissDrawer() {
+    var drawer = document.getElementById('appNavDrawer');
+    if (drawer && window.bootstrap && window.bootstrap.Offcanvas) {
+      var instance = window.bootstrap.Offcanvas.getInstance(drawer);
+      if (instance) instance.hide();
+    }
   }
 
   function activateHomeUrl(url) {
@@ -227,7 +238,7 @@
     if (event.defaultPrevented || event.button !== 0 ||
         event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
     var anchor = event.target.closest && event.target.closest(
-      '.sidebar .app-nav a, .app-nav-drawer .app-nav a, .global-mobile-bottom a, .context-nav a, a[data-bp-workspace-open]'
+      '.sidebar .app-nav a, .sidebar .brand-block, .app-nav-drawer .app-nav a, .global-mobile-bottom a, .context-nav a, a[data-bp-workspace-open]'
     );
     if (!anchor) return;
     var url = resolveLink(anchor);
@@ -235,6 +246,7 @@
     if (isHomeUrl(url)) {
       event.preventDefault();
       activateHomeUrl(url);
+      dismissDrawer();
       return;
     }
     // Owner's global overview changes context; never embed it in a bar tab.
@@ -248,11 +260,15 @@
     event.preventDefault();
     var text = anchor.querySelector('.nav-link-text');
     addTab(url, (text ? text.textContent : anchor.textContent).trim());
-    var drawer = document.getElementById('appNavDrawer');
-    if (drawer && window.bootstrap && window.bootstrap.Offcanvas) {
-      var instance = window.bootstrap.Offcanvas.getInstance(drawer);
-      if (instance) instance.hide();
-    }
+    dismissDrawer();
+  });
+
+  window.addEventListener('beforeunload', function (event) {
+    // Switching tabs never navigates. Only warn if actually leaving the app
+    // with unsaved work inside a secondary window.
+    if (!opened.some(function (tab) { return tab.dirtyForms.size > 0; })) return;
+    event.preventDefault();
+    event.returnValue = '';
   });
 
   activate(null);
