@@ -100,9 +100,13 @@
       return url.pathname === '/dashboard' && url.searchParams.get('bar_id') === barId;
     }
     if (role === 'CASHIER') {
+      // On the new cockpit, the classic checkout must remain a real fallback.
+      // On the old workspace, keep its familiar caisse home behavior.
+      if (window.location.pathname === barPrefix + '/cashier/cockpit') {
+        return url.pathname === barPrefix + '/cashier/cockpit';
+      }
       return url.pathname === barPrefix + '/checkout' ||
-        url.pathname === barPrefix + '/cashier/workspace' ||
-        url.pathname === barPrefix + '/cashier/cockpit';
+        url.pathname === barPrefix + '/cashier/workspace';
     }
     return role === 'SERVER' && (
       url.pathname === barPrefix + '/orders/new' ||
