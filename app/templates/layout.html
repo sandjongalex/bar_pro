@@ -15,6 +15,8 @@
           window.frameElement &&
           window.frameElement.classList.contains('bp-workspace-frame')) {
         document.documentElement.classList.add('bp-workspace-child');
+        // Inactive iframe modules must not poll while hidden behind another tab.
+        window.BarProWorkspaceInactive = true;
       }
     } catch (error) {}
   </script>
@@ -27,7 +29,7 @@
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="{{ url_for('static', filename='app.css') }}" rel="stylesheet">
   <link href="{{ url_for('static', filename='navigation.css') }}" rel="stylesheet">
-  <link href="{{ url_for('static', filename='workspace_tabs.css', v='20261119-v1') }}" rel="stylesheet">
+  <link href="{{ url_for('static', filename='workspace_tabs.css', v='20261119-v2') }}" rel="stylesheet">
   <link href="{{ url_for('static', filename='dashboard.css') }}" rel="stylesheet">
   <link href="{{ url_for('static', filename='dashboard_charts.css') }}" rel="stylesheet">
   <link href="{{ url_for('static', filename='dashboard_inventory.css') }}" rel="stylesheet">
@@ -153,10 +155,17 @@
       </div>
     </header>
 
-    {% if current_user.category == 'OWNER' and active_bar is defined and active_bar %}
-    <section id="bpWorkspace" class="bp-workspace" data-bar-id="{{ active_bar.id }}" aria-label="Espace de travail à onglets" hidden>
+    {# The persistent primary screen is role-specific. Never create a nested workspace. #}
+    {% set bp_employee_workspace_root = current_user.category == 'EMPLOYEE' and nav_bar_id and (
+      (nav_effective_role == 'CASHIER' and endpoint == 'cashier_workspace_web.workspace') or
+      (nav_effective_role == 'SERVER' and endpoint == 'orders_web.quick')
+    ) %}
+    {% if (current_user.category == 'OWNER' and active_bar is defined and active_bar and endpoint == 'web.dashboard') or bp_employee_workspace_root %}
+    <section id="bpWorkspace" class="bp-workspace" data-bar-id="{{ nav_bar_id }}"
+      data-workspace-role="{{ 'OWNER' if current_user.category == 'OWNER' else nav_effective_role }}"
+      aria-label="Espace de travail à onglets" hidden>
       <nav id="bpWorkspaceTabs" class="bp-workspace-tabs" role="tablist" aria-label="Onglets ouverts"></nav>
-      <div id="bpWorkspacePanels" class="bp-workspace-panels"></div>
+      <div id="bpWorkspacePanels" class="bp-workspace-panels" hidden></div>
     </section>
     {% endif %}
 
@@ -251,7 +260,7 @@
 <script src="{{ url_for('static', filename='cashier_financial_ui.js') }}" defer></script>
 <script src="{{ url_for('static', filename='cashier_secondary_ui.js') }}" defer></script>
 <script src="{{ url_for('static', filename='employee_mobile_nav.js') }}" defer></script>
-<script src="{{ url_for('static', filename='workspace_tabs.js', v='20261119-v1') }}" defer></script>
+<script src="{{ url_for('static', filename='workspace_tabs.js', v='20261119-v2') }}" defer></script>
 <script src="{{ url_for('static', filename='inventory_finance_async.js', v='20261105-finance-ajax-v1') }}" defer></script>
 {% block scripts %}{% endblock %}
 <script>

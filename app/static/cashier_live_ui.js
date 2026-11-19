@@ -259,7 +259,7 @@
 
   async function poll() {
     if (inFlight) { refreshAgain = true; return; }
-    if (document.hidden || window.navigator.onLine === false) return;
+    if (document.hidden || window.BarProWorkspaceInactive || window.navigator.onLine === false) return;
     inFlight = true;
     const sections = [payableSection, waitingSection].filter(Boolean);
     const showSkeleton = !initialLoadAttempted && !queue.querySelector('.cashier-order-link') && !!window.BarProSkeleton;
@@ -302,7 +302,10 @@
     void poll();
   });
   document.addEventListener('cashier:refresh', () => void poll());
-  document.addEventListener('visibilitychange', () => { if (!document.hidden) void poll(); });
+  document.addEventListener('visibilitychange', () => { if (!document.hidden && !window.BarProWorkspaceInactive) void poll(); });
+  window.addEventListener('barpro:workspace-visibility', event => {
+    if (event.detail?.visible) void poll();
+  });
   window.addEventListener('online', () => void poll());
   window.CashierLive = Object.freeze({ refresh: poll });
   void poll();

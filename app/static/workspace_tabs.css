@@ -1,5 +1,5 @@
-/* Owner module windows are isolated so existing forms and JavaScript remain intact. */
-.bp-workspace[hidden],.bp-workspace-frame[hidden],#main[hidden]{display:none!important}
+/* Role-specific module windows are isolated, preserving cashier/server POS state. */
+.bp-workspace[hidden],.bp-workspace-panels[hidden],.bp-workspace-frame[hidden],#main[hidden]{display:none!important}
 .bp-workspace{min-width:0;padding:14px 20px 18px}
 .bp-workspace-tabs{display:flex;align-items:stretch;gap:6px;max-width:100%;overflow-x:auto;padding:4px 0 12px;-webkit-overflow-scrolling:touch}
 .bp-workspace-home,.bp-workspace-tab{flex:0 0 auto;min-height:42px;border:1px solid var(--line);border-radius:12px;background:var(--surface,#fff)}
@@ -29,3 +29,8 @@ html.bp-workspace-child .content-area{max-width:none;margin:0;padding:14px 16px 
   .bp-workspace-panels{height:calc(100vh - 226px);height:calc(100dvh - 226px);min-height:300px}
   html.bp-workspace-child .content-area{padding:12px 9px 24px!important}
 }
+
+/* Keep the primary view and all open tabs reachable at the same time. */
+.bp-workspace-tabs{scrollbar-width:thin}
+.bp-workspace-home:focus-visible,.bp-workspace-tab-title:focus-visible,.bp-workspace-tab-close:focus-visible{outline:2px solid var(--brand);outline-offset:-2px}
+html.bp-workspace-child .context-nav{margin-top:0}

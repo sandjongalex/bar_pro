@@ -123,3 +123,58 @@ def test_pwa_printing_and_financial_guardrails_are_preserved():
     assert "cashier_payment_idempotency" in read("app/cashier_invoices_web.py")
     assert 'financial_claim' in read("app/cashier_financial_intents.py")
     assert "WTF_CSRF_ENABLED" in read("tests/test_workflows.py")
+
+
+def test_cashier_and_server_primary_pages_keep_role_specific_workspaces(env):
+    """The live POS stays primary; history, expenses and orders open as tabs."""
+    from legacy_shift import activate_employee
+    app, _, bar, _, _, server, *_ = env
+    cashier = _cashier(bar)
+    cash_service.open(cashier, bar.id, "EMPLOYEE-WORKSPACE-TABS", 0)
+    db.session.commit()
+
+    cashier_client = app.test_client()
+    assert _login(cashier_client, cashier.email).status_code == 302
+    cashier_root = cashier_client.get(f"/bars/{bar.id}/cashier/workspace")
+    assert cashier_root.status_code == 200
+    assert 'id="bpWorkspace"' in cashier_root.text
+    assert 'data-workspace-role="CASHIER"' in cashier_root.text
+    assert 'id="quickSaleForm"' in cashier_root.text
+    assert 'id="bpWorkspacePanels"' in cashier_root.text
+    # Secondary modules must not spawn nested workspaces.
+    assert 'id="bpWorkspace"' not in cashier_client.get(f"/bars/{bar.id}/cashier-session").text
+    cashier_dashboard = cashier_client.get(f"/dashboard?bar_id={bar.id}")
+    assert cashier_dashboard.status_code == 200
+    assert 'id="bpWorkspace"' not in cashier_dashboard.text
+
+    activate_employee(bar, server)
+    server_client = app.test_client()
+    assert _login(server_client, server.email).status_code == 302
+    server_root = server_client.get(f"/bars/{bar.id}/orders/new")
+    assert server_root.status_code == 200
+    assert 'id="bpWorkspace"' in server_root.text
+    assert 'data-workspace-role="SERVER"' in server_root.text
+    assert 'id="posForm"' in server_root.text
+    server_history = server_client.get(f"/bars/{bar.id}/orders/mine")
+    assert server_history.status_code == 200
+    assert 'id="bpWorkspace"' not in server_history.text
+
+
+def test_employee_workspace_avoids_hidden_tab_polling_and_losing_main_cart():
+    scripts = read("app/static/workspace_tabs.js")
+    layout = read("app/templates/layout.html")
+    assert "window.BarProWorkspaceInactive = !!tab" in scripts
+    assert "panels.hidden = !tab" in scripts
+    assert "home.hidden = !!tab" in scripts
+    assert "url.pathname.indexOf('/bars/' + barId + '/')" in scripts
+    assert "data-workspace-role" in layout
+    assert "cashier_workspace_web.workspace" in layout
+    assert "orders_web.quick" in layout
+    for path in (
+        "app/static/cashier_live_ui.js",
+        "app/static/server_pos_ui.js",
+        "app/static/server_orders_page.js",
+        "app/static/barpro_async.js",
+        "app/static/suborders_live.js",
+    ):
+        assert "BarProWorkspaceInactive" in read(path)

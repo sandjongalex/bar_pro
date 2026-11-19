@@ -1,4 +1,4 @@
-/* BAR_PRO: same-origin owner workspace, with closable in-page module tabs. */
+/* BAR_PRO: role-specific same-origin workspace with persistent POS and closable modules. */
 (function () {
   'use strict';
 
@@ -16,6 +16,7 @@
   if (!workspace || !home) return;
 
   var barId = workspace.getAttribute('data-bar-id');
+  var role = workspace.getAttribute('data-workspace-role') || 'OWNER';
   var tabBar = document.getElementById('bpWorkspaceTabs');
   var panels = document.getElementById('bpWorkspacePanels');
   if (!barId || !tabBar || !panels) return;
@@ -24,10 +25,13 @@
   var active = null;
   var nextId = 0;
   var maxTabs = 5;
+  var barPrefix = '/bars/' + barId;
+  var homeLabel = role === 'CASHIER' ? '₣ Poste de caisse' :
+    role === 'SERVER' ? '＋ Nouvelle commande' : '⌂ Tableau de bord';
   var homeTab = document.createElement('button');
   homeTab.type = 'button';
   homeTab.className = 'bp-workspace-home';
-  homeTab.textContent = '⌂ Tableau de bord';
+  homeTab.textContent = homeLabel;
   homeTab.setAttribute('role', 'tab');
   homeTab.setAttribute('aria-selected', 'true');
   homeTab.addEventListener('click', function () { activate(null); });
@@ -45,7 +49,13 @@
   function activate(tab) {
     active = tab;
     home.hidden = !!tab;
-    workspace.hidden = !tab;
+    // Keep the tab strip accessible even when returning to the main screen.
+    workspace.hidden = false;
+    panels.hidden = !tab;
+    window.BarProWorkspaceInactive = !!tab;
+    window.dispatchEvent(new CustomEvent('barpro:workspace-visibility', {
+      detail: { visible: !tab }
+    }));
     homeTab.setAttribute('aria-selected', tab ? 'false' : 'true');
     homeTab.classList.toggle('is-active', !tab);
     opened.forEach(function (item) {
@@ -67,6 +77,35 @@
     tab.iframe.src = 'about:blank';
     tab.iframe.remove();
     if (active === tab) activate(opened[index - 1] || opened[index] || null);
+  }
+
+  function isHomeUrl(url) {
+    if (role === 'OWNER') {
+      return url.pathname === '/dashboard' && url.searchParams.get('bar_id') === barId;
+    }
+    if (role === 'CASHIER') {
+      return url.pathname === barPrefix + '/checkout' ||
+        url.pathname === barPrefix + '/cashier/workspace';
+    }
+    return role === 'SERVER' && url.pathname === barPrefix + '/orders/new';
+  }
+
+  function activateHomeUrl(url) {
+    activate(null);
+    if (role === 'CASHIER') {
+      var orderId = url.searchParams.get('order_id');
+      if (orderId && /^\d+$/.test(orderId) && window.CashierWorkspace &&
+          typeof window.CashierWorkspace.selectOrder === 'function') {
+        void window.CashierWorkspace.selectOrder(url.href);
+      } else if (url.searchParams.get('sale') === '1') {
+        var sale = document.getElementById('openQuickSale');
+        if (sale) sale.click();
+      }
+    }
+    if (role === 'SERVER' && url.hash === '#posForm') {
+      var orderForm = document.getElementById('posForm');
+      if (orderForm) orderForm.scrollIntoView({ block: 'start' });
+    }
   }
 
   function addTab(url, label) {
@@ -123,6 +162,21 @@
           window.location.assign(child.location.href);
           return;
         }
+        childDocument.addEventListener('click', function (event) {
+          if (event.defaultPrevented || event.button !== 0 || event.ctrlKey ||
+              event.shiftKey || event.altKey || event.metaKey) return;
+          var anchor = event.target.closest && event.target.closest('a[href]');
+          var url = resolveLink(anchor);
+          if (!url) return;
+          if (isHomeUrl(url)) {
+            event.preventDefault();
+            activateHomeUrl(url);
+          } else if (role === 'OWNER' && url.pathname === '/dashboard' &&
+                     !url.searchParams.get('bar_id')) {
+            event.preventDefault();
+            window.location.assign(url.href);
+          }
+        }, true);
         childDocument.addEventListener('input', function (event) {
           var form = event.target.closest && event.target.closest('form');
           if (form) tab.dirtyForms.add(form);
@@ -173,19 +227,24 @@
     if (event.defaultPrevented || event.button !== 0 ||
         event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
     var anchor = event.target.closest && event.target.closest(
-      '.sidebar .app-nav a, .app-nav-drawer .app-nav a, .global-mobile-bottom a'
+      '.sidebar .app-nav a, .app-nav-drawer .app-nav a, .global-mobile-bottom a, .context-nav a, a[data-bp-workspace-open]'
     );
     if (!anchor) return;
     var url = resolveLink(anchor);
     if (!url) return;
-    if (url.pathname === '/dashboard' &&
-        url.searchParams.get('bar_id') === barId) {
+    if (isHomeUrl(url)) {
       event.preventDefault();
-      activate(null);
+      activateHomeUrl(url);
       return;
     }
-    if (url.pathname !== '/bars/' + barId &&
-        url.pathname.indexOf('/bars/' + barId + '/') !== 0) return;
+    // Owner's global overview changes context; never embed it in a bar tab.
+    if (role === 'OWNER' && url.pathname === '/dashboard' &&
+        !url.searchParams.get('bar_id')) return;
+    var sameBarPath = url.pathname === '/bars/' + barId ||
+      url.pathname.indexOf('/bars/' + barId + '/') === 0;
+    var cashierOverview = role === 'CASHIER' && url.pathname === '/dashboard' &&
+      url.searchParams.get('bar_id') === barId;
+    if (!sameBarPath && !cashierOverview) return;
     event.preventDefault();
     var text = anchor.querySelector('.nav-link-text');
     addTab(url, (text ? text.textContent : anchor.textContent).trim());

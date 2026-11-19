@@ -525,7 +525,7 @@
   }
 
   async function pollLiveState() {
-    if (!liveEndpoint || document.hidden || navigator.onLine === false) return;
+    if (!liveEndpoint || document.hidden || window.BarProWorkspaceInactive || navigator.onLine === false) return;
     if (liveInFlight) { liveRefreshQueued = true; return; }
     liveInFlight = true;
     try {
@@ -554,8 +554,11 @@
     window.clearInterval(liveTimer);
     liveTimer = window.setInterval(pollLiveState, 4000);
     window.addEventListener('online', pollLiveState);
+    window.addEventListener('barpro:workspace-visibility', event => {
+      if (event.detail?.visible) pollLiveState();
+    });
     document.addEventListener('visibilitychange', () => {
-      if (!document.hidden) pollLiveState();
+      if (!document.hidden && !window.BarProWorkspaceInactive) pollLiveState();
     });
     pollLiveState();
   }

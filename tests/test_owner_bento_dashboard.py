@@ -128,6 +128,8 @@ def test_owner_workspace_tab_assets_are_scoped_to_selected_bar():
     assert 'id="bpWorkspacePanels"' in layout
     assert "workspace_tabs.js" in layout and "workspace_tabs.css" in layout
     assert "window.parent !== window" in js
+    assert "panels.hidden = !tab" in js
+    assert "workspace.hidden = false" in js
     assert "url.pathname.indexOf('/bars/' + barId + '/')" in js
     assert "tab.dirtyForms.size" in js
     assert "detail.task === 'payment'" in js

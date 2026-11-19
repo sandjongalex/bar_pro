@@ -105,7 +105,7 @@
   }
 
   async function refresh(force = false) {
-    if (mutationInProgress || document.hidden || navigator.onLine === false) return;
+    if (mutationInProgress || document.hidden || window.BarProWorkspaceInactive || navigator.onLine === false) return;
     if (controller) {
       if (!force) return;
       controller.abort();
@@ -167,7 +167,11 @@
   refreshButton?.addEventListener('click', () => { void refresh(true); });
   window.addEventListener('popstate', () => { void refresh(true); });
   document.addEventListener('visibilitychange', () => {
-    if (document.hidden) controller?.abort();
+    if (document.hidden || window.BarProWorkspaceInactive) controller?.abort();
+    else void refresh(true);
+  });
+  window.addEventListener('barpro:workspace-visibility', event => {
+    if (event.detail?.visible === false) controller?.abort();
     else void refresh(true);
   });
   window.addEventListener('online', () => { void refresh(true); });
