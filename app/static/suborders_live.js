@@ -59,7 +59,7 @@
     if (!url) return { refresh: async () => {} };
     let etag = '', controller = null, generation = 0;
     async function refresh(force = false) {
-      if (document.hidden || navigator.onLine === false) return;
+      if (document.hidden || window.BarProWorkspaceInactive || navigator.onLine === false) return;
       if (controller) {
         if (!force) return;
         controller.abort();
@@ -96,7 +96,11 @@
       }
     }
     document.addEventListener('visibilitychange', () => {
-      if (document.hidden) controller?.abort();
+      if (document.hidden || window.BarProWorkspaceInactive) controller?.abort();
+      else void refresh(true);
+    });
+    window.addEventListener('barpro:workspace-visibility', (event) => {
+      if (event.detail?.visible === false) controller?.abort();
       else void refresh(true);
     });
     window.addEventListener('online', () => void refresh(true));

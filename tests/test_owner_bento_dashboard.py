@@ -82,6 +82,7 @@ def test_owner_bento_is_isolated_and_uses_actual_paid_sales(env):
     assert "Indicateurs clés" not in response.text
     assert "Réinitialiser le bar" not in response.text
     assert "Tous mes établissements" in response.text
+    assert 'id="bpWorkspace"' not in response.text
 
     # Selecting an establishment opens its own dashboard instead of keeping
     # the consolidated overview mixed into the same page.
@@ -89,6 +90,8 @@ def test_owner_bento_is_isolated_and_uses_actual_paid_sales(env):
     assert detail.status_code == 200
     assert "Indicateurs clés" in detail.text
     assert "Vue globale" in detail.text
+    assert 'id="bpWorkspace"' in detail.text
+    assert 'data-bar-id="' + str(bar.id) + '"' in detail.text
     assert "Chiffre d'affaires global" not in detail.text
     assert "Réinitialiser le bar" in detail.text
 

@@ -136,12 +136,13 @@
         });
         childDocument.addEventListener('barpro:async-success', function (event) {
           tab.dirtyForms.delete(event.target);
-          var payload = event.detail && event.detail.payload;
-          var data = payload && payload.data;
-          // Close only dedicated task tabs, not the persistent cashier screen.
-          if (payload && payload.success === true &&
-              data && data.payment_finalized === true &&
-              data.voucher_url == null &&
+        });
+        childDocument.addEventListener('barpro:workspace-task-complete', function (event) {
+          var detail = event.detail || {};
+          // A dedicated payment tab may close after the server has committed.
+          // The permanent Caisse tab and any voucher-to-print remain open.
+          if (detail.task === 'payment' &&
+              detail.voucherRequired === false &&
               /^Paiement\b/i.test(button.textContent)) {
             removeTab(tab, true);
           }
@@ -183,7 +184,8 @@
       activate(null);
       return;
     }
-    if (url.pathname.indexOf('/bars/' + barId + '/') !== 0) return;
+    if (url.pathname !== '/bars/' + barId &&
+        url.pathname.indexOf('/bars/' + barId + '/') !== 0) return;
     event.preventDefault();
     var text = anchor.querySelector('.nav-link-text');
     addTab(url, (text ? text.textContent : anchor.textContent).trim());

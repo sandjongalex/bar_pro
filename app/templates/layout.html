@@ -8,7 +8,16 @@
   <meta name="theme-color" content="#f5f7f6">
   <script src="{{ url_for('static', filename='browser_compat.js', v='1') }}"></script>
   <script src="{{ url_for('static', filename='theme.js') }}"></script>
-  <script>if (window.parent !== window) document.documentElement.classList.add('bp-workspace-child');</script>
+  <script>
+    try {
+      if (window.parent !== window &&
+          window.parent.location.origin === window.location.origin &&
+          window.frameElement &&
+          window.frameElement.classList.contains('bp-workspace-frame')) {
+        document.documentElement.classList.add('bp-workspace-child');
+      }
+    } catch (error) {}
+  </script>
   <style>[data-pwa-install][hidden] { display: none !important; }</style>
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">

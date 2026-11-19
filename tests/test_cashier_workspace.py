@@ -265,3 +265,58 @@ def test_cashier_live_feed_and_workspace_are_isolated_by_assignment(env):
     ids_b = {item["id"] for item in live_b.get_json()["orders"]}
     assert order_b.id in ids_b
     assert order_a.id not in ids_b
+
+
+def test_cashier_ajax_payment_completion_signal_only_for_settled_orders(env):
+    """Only a committed, fully settled payment may complete a UI task."""
+    app, _, bar, _, product, _, _, _ = env
+    cashier = _cashier(bar)
+    cash_service.open(cashier, bar.id, "WORKSPACE-TABS-SIGNAL", 0)
+    db.session.commit()
+
+    client = app.test_client()
+    assert _login(client, cashier.email).status_code == 302
+    route = f"/bars/{bar.id}/cashier/workspace"
+    headers = {
+        "X-BarPro-Async": "1",
+        "X-Requested-With": "XMLHttpRequest",
+        "Accept": "application/json",
+    }
+
+    def create_invoice(label):
+        page = client.get(route + "?sale=1")
+        result = client.post(route, data={
+            "csrf_token": _csrf(page), "action": "create_sale",
+            "product_id": str(product.id), "quantity": "1",
+            "invoice_name": label,
+        }, follow_redirects=False)
+        assert result.status_code == 302
+        invoice = db.session.scalar(
+            select(Order).where(Order.bar_id == bar.id, Order.created_by_id == cashier.id)
+            .order_by(Order.id.desc())
+        )
+        return invoice, client.get(result.headers["Location"])
+
+    partial_order, partial_page = create_invoice("Partiel")
+    partial = client.post(route, headers=headers, data={
+        "csrf_token": _csrf(partial_page), "action": "payment",
+        "order_id": str(partial_order.id), "idempotency_key": "PARTIAL-UI-TEST",
+        "method": "CASH", "amount_applied": "50", "amount_presented": "50",
+        "cash_receipt_source": "CLIENT",
+    })
+    assert partial.status_code == 200, partial.text
+    assert partial.get_json()["success"] is True
+    assert partial.get_json()["data"].get("payment_finalized") is not True
+    db.session.refresh(partial_order)
+    assert partial_order.payment_status == "PARTIAL"
+
+    final_order, final_page = create_invoice("Integral")
+    final = client.post(route, headers=headers, data={
+        "csrf_token": _csrf(final_page), "action": "cash_exact",
+        "order_id": str(final_order.id), "idempotency_key": "FULL-UI-TEST",
+    })
+    assert final.status_code == 200, final.text
+    assert final.get_json()["success"] is True
+    assert final.get_json()["data"]["payment_finalized"] is True
+    db.session.refresh(final_order)
+    assert final_order.payment_status == "PAID"

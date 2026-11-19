@@ -336,22 +336,24 @@
     const interval = Math.max(1000, Number(options.interval) || 5000);
     let disposed = false, pending = false, timer = null;
     async function tick() {
-      if (disposed || pending || doc.visibilityState === 'hidden' || root.navigator?.onLine === false) return;
+      if (disposed || pending || root.BarProWorkspaceInactive || doc.visibilityState === 'hidden' || root.navigator?.onLine === false) return;
       pending = true;
       try { await refresh(container, url, options); }
       catch (error) { if (!['ABORT', 'STALE'].includes(error.code)) notify(error.message, 'error'); }
       finally { pending = false; }
     }
-    function resume() { if (doc.visibilityState !== 'hidden' && root.navigator?.onLine !== false) void tick(); }
+    function resume() { if (!root.BarProWorkspaceInactive && doc.visibilityState !== 'hidden' && root.navigator?.onLine !== false) void tick(); }
     timer = root.setInterval(tick, interval);
     doc.addEventListener('visibilitychange', resume);
     root.addEventListener('online', resume);
+    root.addEventListener('barpro:workspace-visibility', resume);
     if (options.immediate === true) void tick();
     return function stop() {
       disposed = true;
       root.clearInterval(timer);
       doc.removeEventListener('visibilitychange', resume);
       root.removeEventListener('online', resume);
+      root.removeEventListener('barpro:workspace-visibility', resume);
     };
   }
 
