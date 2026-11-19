@@ -8,12 +8,12 @@
 
 <section class="pos-hero {% if is_server %}server-pos-hero{% endif %}">
   <div>
-    <a class="bar-back" href="{{ url_for('bars.web_detail', bar_id=bar.id) }}">← Retour à {{ bar.name }}</a>
+    {% if is_server %}<a class="bar-back" href="{{ url_for('orders_web.mine', bar_id=bar.id) }}">← Mes commandes</a>{% else %}<a class="bar-back" href="{{ url_for('bars.web_detail', bar_id=bar.id) }}">← Retour à {{ bar.name }}</a>{% endif %}
     <p class="eyebrow mt-3 mb-2">{% if is_server %}Espace serveuse{% else %}Commandes{% endif %}</p>
     <h1>{% if is_server %}Prendre une commande{% else %}Point de vente{% endif %}</h1>
     {% if not is_server %}<p>Sélectionnez les produits, vérifiez le panier et envoyez la commande.</p>{% endif %}
   </div>
-  {% if is_server %}<a class="btn btn-outline-primary" href="{{ url_for('orders_web.mine', bar_id=bar.id) }}">▤ Mes commandes →</a>{% elif can_pay %}<a class="btn btn-outline-primary" href="{{ url_for('checkout_web.checkout', bar_id=bar.id) }}">Caisse commandes →</a>{% endif %}
+  {% if is_server %}<a class="btn btn-outline-primary" href="{{ url_for('orders_web.mine', bar_id=bar.id) }}">Voir mes commandes →</a>{% elif can_pay %}<a class="btn btn-outline-primary" href="{{ url_for('checkout_web.checkout', bar_id=bar.id) }}">Caisse commandes →</a>{% endif %}
 </section>
 
 {% with messages = get_flashed_messages(with_categories=true) %}
@@ -129,16 +129,7 @@
   </aside>
 </form>
 
-{% if is_server %}
-<section class="panel-card mt-4 server-orders-panel" id="mes-commandes">
-  <div class="panel-header">
-    <div><p class="eyebrow mb-1">Suivi personnel</p><h2>Mes commandes</h2>
-
-    </div>
-    <a class="btn btn-outline-primary" href="{{ url_for('orders_web.mine', bar_id=bar.id) }}">Ouvrir</a>
-  </div>
-</section>
-{% else %}
+{% if not is_server %}
 <section class="panel-card mt-4" id="mes-commandes">
   <div class="panel-header pos-recent-head server-orders-head">
     <div>

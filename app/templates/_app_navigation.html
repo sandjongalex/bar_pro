@@ -10,49 +10,54 @@
   {% if role == 'CASHIER' %}
     <div class="nav-role-label">Poste caissière</div>
     <div class="nav-direct">
+      <a class="nav-link {% if endpoint == 'web.dashboard' %}active{% endif %}" href="{{ url_for('web.dashboard', bar_id=nav_bar_id) }}">
+        <span class="nav-icon">⌂</span><span class="nav-link-text">Accueil</span>
+      </a>
       <a class="nav-link {% if endpoint.startswith('checkout_web.') or endpoint.startswith('cashier_workspace_web.') %}active{% endif %}" href="{{ url_for('checkout_web.checkout', bar_id=nav_bar_id) }}">
         <span class="nav-icon">₣</span><span class="nav-link-text">Caisse</span>
       </a>
       <a class="nav-link {% if endpoint.startswith('unpaid_orders_web.') %}active{% endif %}" href="{{ url_for('unpaid_orders_web.monitor', bar_id=nav_bar_id) }}">
         <span class="nav-icon">!</span><span class="nav-link-text">Commandes impayées</span>
       </a>
-      <a class="nav-link {% if endpoint.startswith('cashier_handovers_web.') %}active{% endif %}" href="{{ url_for('cashier_handovers_web.manage', bar_id=nav_bar_id) }}">
-        <span class="nav-icon">⇄</span><span class="nav-link-text">Remises</span>
-      </a>
-      <a class="nav-link {% if endpoint.startswith('cashier_returns_web.') %}active{% endif %}" href="{{ url_for('cashier_returns_web.manage', bar_id=nav_bar_id) }}">
-        <span class="nav-icon">↩</span><span class="nav-link-text">Retours</span>
-      </a>
-      {% if nav_can('payments.record', nav_bar_id) %}
-      <a class="nav-link {% if endpoint.startswith('cashier_exchanges_web.') %}active{% endif %}" href="{{ url_for('cashier_exchanges_web.manage', bar_id=nav_bar_id) }}">
-        <span class="nav-icon">⇆</span><span class="nav-link-text">Échange bière</span>
-      </a>
-      {% endif %}
       {% if nav_can('expenses.record', nav_bar_id) %}
       <a class="nav-link {% if endpoint.startswith('expenses_web.') %}active{% endif %}" href="{{ url_for('expenses_web.manage', bar_id=nav_bar_id) }}">
         <span class="nav-icon">−₣</span><span class="nav-link-text">Dépenses</span>
       </a>
       {% endif %}
-      {% if nav_can('customers.read', nav_bar_id) %}
-      <a class="nav-link {% if endpoint.startswith('customers_web.') %}active{% endif %}" href="{{ url_for('customers_web.manage', bar_id=nav_bar_id) }}">
-        <span class="nav-icon">CL</span><span class="nav-link-text">Clients & crédits</span>
-      </a>
-      {% endif %}
-      <a class="nav-link {% if endpoint.startswith('cashier_history_web.') %}active{% endif %}" href="{{ url_for('cashier_history_web.history', bar_id=nav_bar_id) }}">
-        <span class="nav-icon">H</span><span class="nav-link-text">Historique</span>
-      </a>
-      {% if nav_can('inventory.read', nav_bar_id) %}
-      <a class="nav-link {% if endpoint.startswith('inventories.') or endpoint.startswith('inventories_finance.') %}active{% endif %}" href="{{ url_for('inventories.listing', bar_id=nav_bar_id) }}">
-        <span class="nav-icon">▦</span><span class="nav-link-text">Mes inventaires</span>
-      </a>
-      {% endif %}
+    </div>
+    <details class="nav-group" {% if endpoint.startswith('cashier_handovers_web.') or endpoint.startswith('cashier_returns_web.') or endpoint.startswith('cashier_exchanges_web.') %}open{% endif %}>
+      <summary class="nav-group-summary">
+        <span class="nav-icon">⇄</span><span class="nav-link-text">Opérations de caisse</span><span class="nav-chevron">⌄</span>
+      </summary>
+      <div class="nav-group-links">
+        <a class="nav-sublink {% if endpoint.startswith('cashier_handovers_web.') %}active{% endif %}" href="{{ url_for('cashier_handovers_web.manage', bar_id=nav_bar_id) }}">Remises</a>
+        <a class="nav-sublink {% if endpoint.startswith('cashier_returns_web.') %}active{% endif %}" href="{{ url_for('cashier_returns_web.manage', bar_id=nav_bar_id) }}">Retours</a>
+        {% if nav_can('payments.record', nav_bar_id) %}
+        <a class="nav-sublink {% if endpoint.startswith('cashier_exchanges_web.') %}active{% endif %}" href="{{ url_for('cashier_exchanges_web.manage', bar_id=nav_bar_id) }}">Échange bière</a>
+        {% endif %}
+      </div>
+    </details>
+    <details class="nav-group" {% if endpoint.startswith('customers_web.') or endpoint.startswith('cashier_history_web.') or endpoint.startswith('inventories.') or endpoint.startswith('inventories_finance.') or endpoint.startswith('shifts_web.') %}open{% endif %}>
+      <summary class="nav-group-summary">
+        <span class="nav-icon">▤</span><span class="nav-link-text">Suivi et contrôle</span><span class="nav-chevron">⌄</span>
+      </summary>
+      <div class="nav-group-links">
+        {% if nav_can('customers.read', nav_bar_id) %}
+        <a class="nav-sublink {% if endpoint.startswith('customers_web.') %}active{% endif %}" href="{{ url_for('customers_web.manage', bar_id=nav_bar_id) }}">Clients & crédits</a>
+        {% endif %}
+        <a class="nav-sublink {% if endpoint.startswith('cashier_history_web.') %}active{% endif %}" href="{{ url_for('cashier_history_web.history', bar_id=nav_bar_id) }}">Historique</a>
+        {% if nav_can('inventory.read', nav_bar_id) %}
+        <a class="nav-sublink {% if endpoint.startswith('inventories.') or endpoint.startswith('inventories_finance.') %}active{% endif %}" href="{{ url_for('inventories.listing', bar_id=nav_bar_id) }}">Mes inventaires</a>
+        {% endif %}
+        {% if nav_can('shifts.read', nav_bar_id) %}
+        <a class="nav-sublink {% if endpoint.startswith('shifts_web.') %}active{% endif %}" href="{{ url_for('shifts_web.manage', bar_id=nav_bar_id) }}">Personnel en service</a>
+        {% endif %}
+      </div>
+    </details>
+    <div class="nav-direct">
       <a class="nav-link {% if endpoint.startswith('cashier_web.') %}active{% endif %}" href="{{ url_for('cashier_web.session', bar_id=nav_bar_id) }}">
         <span class="nav-icon">■</span><span class="nav-link-text">Session / clôture</span>
       </a>
-      {% if nav_can('shifts.read', nav_bar_id) %}
-      <a class="nav-link {% if endpoint.startswith('shifts_web.') %}active{% endif %}" href="{{ url_for('shifts_web.manage', bar_id=nav_bar_id) }}">
-        <span class="nav-icon">⏱</span><span class="nav-link-text">Personnel en service</span>
-      </a>
-      {% endif %}
     </div>
 
   {% elif role == 'SERVER' %}

@@ -55,6 +55,11 @@ def test_cashier_navigation_only_surfaces_operational_destinations(env):
     assert page.status_code == 200
     assert 'class="nav-role-label">Poste caissière' in page.text
     assert "Commandes impayées" in page.text
+    assert '<span class="nav-link-text">Accueil</span>' in page.text
+    assert "Opérations de caisse" in page.text
+    assert "Suivi et contrôle" in page.text
+    assert 'data-employee-primary-nav' in page.text
+    assert '<strong>Dépenses</strong>' in page.text
     assert f'/bars/{bar.id}/unpaid-orders' in page.text
     assert "Remises" in page.text
     assert "Retours" in page.text
@@ -130,6 +135,8 @@ def test_server_navigation_is_focused_on_orders_and_unpaid(env):
     # Mes commandes is a dedicated page, separate from the order-entry POS.
     assert 'Voir mes commandes →' in page.text
     assert 'data-server-mine' not in page.text
+    assert 'server-orders-panel" id="mes-commandes"' not in page.text
+    assert "← Mes commandes" in page.text
     assert f'/bars/{bar.id}/orders/mine' in page.text
     mine = client.get(f"/bars/{bar.id}/orders/mine")
     assert mine.status_code == 200
