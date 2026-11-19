@@ -23,6 +23,7 @@
 
   var opened = [];
   var active = null;
+  var homeScrollY = 0;
   var nextId = 0;
   var maxTabs = 5;
   var barPrefix = '/bars/' + barId;
@@ -47,6 +48,8 @@
   }
 
   function activate(tab) {
+    var restoreHomeScroll = active !== null && tab === null;
+    if (active === null && tab !== null) homeScrollY = window.scrollY;
     active = tab;
     home.hidden = !!tab;
     // Keep the tab strip accessible even when returning to the main screen.
@@ -65,9 +68,22 @@
       item.wrapper.classList.toggle('is-active', visible);
       setFrameActivity(item, visible);
     });
+    if (restoreHomeScroll) {
+      window.requestAnimationFrame(function () { window.scrollTo(0, homeScrollY); });
+    }
+  }
+
+  function tabHasPendingMutation(tab) {
+    try {
+      return !!tab.iframe.contentDocument.querySelector('form[aria-busy="true"]');
+    } catch (error) { return false; }
   }
 
   function removeTab(tab, force) {
+    if (!force && tabHasPendingMutation(tab)) {
+      window.alert('Cette fenêtre enregistre une opération. Vérifiez son résultat avant de la fermer.');
+      return;
+    }
     if (!force && tab.dirtyForms.size &&
         !window.confirm('Ce module contient des informations non enregistrées. Fermer quand même ?')) return;
     var index = opened.indexOf(tab);
@@ -115,7 +131,9 @@
     }
     if (role === 'SERVER' && url.hash === '#posForm') {
       var orderForm = document.getElementById('posForm');
-      if (orderForm) orderForm.scrollIntoView({ block: 'start' });
+      if (orderForm) window.requestAnimationFrame(function () {
+        orderForm.scrollIntoView({ block: 'start' });
+      });
     }
   }
 
@@ -233,6 +251,13 @@
       return url;
     } catch (error) { return null; }
   }
+
+  // The cashier mobile quick-sale button is outside the hidden main element.
+  // Activate the persistent caisse before its existing sale handler runs.
+  document.addEventListener('click', function (event) {
+    if (role === 'CASHIER' && active !== null &&
+        event.target.closest && event.target.closest('#mobileQuickSale')) activate(null);
+  }, true);
 
   document.addEventListener('click', function (event) {
     if (event.defaultPrevented || event.button !== 0 ||

@@ -167,6 +167,10 @@ def test_employee_workspace_avoids_hidden_tab_polling_and_losing_main_cart():
     assert "panels.hidden = !tab" in scripts
     assert "home.hidden = !!tab" in scripts
     assert "dismissDrawer();" in scripts
+    assert "tabHasPendingMutation(tab)" in scripts
+    assert "homeScrollY = window.scrollY" in scripts
+    assert "mobileQuickSale" in scripts
+    assert "dock.style.display = visible ? '' : 'none'" in read("app/static/server_pos_ui.js")
     assert "window.addEventListener('beforeunload'" in scripts
     assert ".sidebar .brand-block" in scripts
     assert "url.pathname.indexOf('/bars/' + barId + '/')" in scripts

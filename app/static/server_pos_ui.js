@@ -114,7 +114,7 @@
     dockTotal.textContent = totalNode.textContent || '0';
     const itemCount = Number((countNode.textContent || '0').replace(/\s/g, '').replace(',', '.'));
     dockButton?.setAttribute('aria-label', `Voir le panier, ${Number.isFinite(itemCount) ? itemCount : 0} article${itemCount > 1 ? 's' : ''}`);
-    document.body.classList.toggle('server-cart-active', hasCart);
+    document.body.classList.toggle('server-cart-active', hasCart && !window.BarProWorkspaceInactive);
   }
 
   function setupOrderFilters(initialFilter) {
@@ -576,6 +576,11 @@
 
   dockButton?.addEventListener('click', () => {
     cartPanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+  window.addEventListener('barpro:workspace-visibility', event => {
+    const visible = event.detail?.visible !== false;
+    dock.style.display = visible ? '' : 'none';
+    document.body.classList.toggle('server-cart-active', visible && !dock.hidden);
   });
 
   document.querySelectorAll('.server-table-chip').forEach((button) => {
