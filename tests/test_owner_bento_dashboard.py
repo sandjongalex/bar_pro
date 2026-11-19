@@ -130,5 +130,5 @@ def test_owner_workspace_tab_assets_are_scoped_to_selected_bar():
     assert "window.parent !== window" in js
     assert "url.pathname.indexOf('/bars/' + barId + '/')" in js
     assert "tab.dirtyForms.size" in js
-    assert "data.payment_finalized === true" in js
+    assert "detail.task === 'payment'" in js
     assert "bp-workspace-child" in css
